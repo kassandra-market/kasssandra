@@ -124,6 +124,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     );
     assert_key(proposer_ai, &expected_proposer)?;
     // An already-funded PDA means this authority already registered.
+    //
+    // KNOWN LIMITATION (deferred, same mechanism as submit_fact's duplicate
+    // check): an attacker can grief by pre-funding this predicted PDA with 1
+    // lamport, tripping this check before the real registration. It is NARROWER
+    // here — the PDA is keyed by `authority`, so it can only block one specific,
+    // known authority (not an arbitrary content_hash). The future fix is to
+    // allocate via system Allocate + Assign (which tolerates a pre-funded
+    // account) instead of CreateAccount; not worth it now.
     if proposer_ai.lamports() != 0 || !proposer_ai.data_is_empty() {
         return Err(KassandraError::DuplicateProposer.into());
     }
@@ -142,6 +150,9 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     }
 
     // --- escrow the bond into the vault (authority signs as authority) ------
+    // NOTE: this does Transfer-then-create_pda, the reverse of submit_fact's
+    // create_pda-then-Transfer. The divergence is insignificant — both run in
+    // one atomic instruction, so either order fully reverts on any failure.
     Transfer {
         from: authority_kass_ai,
         to: vault_ai,

@@ -16,7 +16,7 @@ pub const PROPOSAL_WINDOW: i64 = 3600;
 /// Upper bound on an oracle's proposer set, set to a realistic single-transaction
 /// account-lock budget (Solana caps a tx at 64 account locks; `finalize_oracle`
 /// also locks the oracle + program + fee payer, leaving ~60 read-only proposer
-/// slots).
+/// slots — fee payer + oracle + 60 proposers + program ≈ 63).
 ///
 /// CONTRACT: this is the DEFENSIVE backstop that keeps `finalize_oracle`'s fixed
 /// `votes` buffer from overflowing — AND the liveness guarantee enforced at
@@ -24,6 +24,17 @@ pub const PROPOSAL_WINDOW: i64 = 3600;
 /// so the one-shot `finalize_oracle` always fits one transaction; otherwise an
 /// oversized set would brick the oracle in [`Phase::Challenge`]. Shared by
 /// `propose` and `finalize_oracle` so both reason about one constant.
+///
+/// CALLER OBLIGATION (off-chain, NOT enforced on-chain): the 64-account-lock
+/// budget is necessary but NOT sufficient to finalize a near-cap set in one
+/// transaction. A LEGACY transaction's 1232-byte packet cannot hold ~63 inline
+/// 32-byte account keys (~2016 bytes), so one-shot `finalize_oracle` /
+/// `finalize_proposals` over a full 60-proposer set REQUIRES a **versioned (v0)
+/// transaction + an Address Lookup Table** (the ALT carries the proposer keys
+/// out-of-band, off the packet). A caller restricted to legacy transactions must
+/// keep its proposer set well below ~30 to fit the packet. The on-chain program
+/// enforces only the 60-cap; assembling a transaction that can actually carry
+/// the resulting account set is the caller's responsibility.
 pub const MAX_PROPOSERS: u16 = 60;
 
 /// Protocol-global supermajority threshold (numerator) for fact approval.

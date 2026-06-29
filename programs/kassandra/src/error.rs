@@ -69,8 +69,10 @@ pub enum KassandraError {
     /// `create_oracle` was called with a `deadline` in the past (`deadline <
     /// now`): proposals open at the deadline, so it must be in the future.
     InvalidDeadline = 18,
-    /// `create_oracle` was called with `options_count < 2`: a categorical oracle
-    /// needs at least two options to be meaningful.
+    /// An options-count / option-index range violation. Two reuse sites:
+    /// `create_oracle` with `options_count < 2` (a categorical oracle needs at
+    /// least two options to be meaningful), and `propose` with an out-of-range
+    /// proposed `option` index (`option >= oracle.options_count`).
     InvalidOptionsCount = 19,
     /// `propose` was called before the oracle's `deadline` (`now < deadline`):
     /// the proposal window opens only at the creation-time deadline.
