@@ -132,6 +132,18 @@ fn finalize_no_facts(
         if proposer.is_slashed() {
             return Err(KassandraError::AlreadySettled.into());
         }
+        // Defensive (unreachable in the real flow, where `disqualified` is always
+        // set together with `slashed`): a proposer already disqualified on some
+        // other path is already excluded from `surviving_count`. Mark it slashed
+        // for idempotency but do NOT re-account into `bond_pool` or re-decrement
+        // `surviving_count` — symmetric with `finalize_ai_claims`'s
+        // already-disqualified branch.
+        if proposer.is_disqualified() {
+            proposer.slashed = 1;
+            let mut data = p_ai.try_borrow_mut_data()?;
+            data[..Proposer::LEN].copy_from_slice(bytemuck::bytes_of(&proposer));
+            continue;
+        }
 
         proposer.disqualified = 1;
         proposer.slashed = 1;

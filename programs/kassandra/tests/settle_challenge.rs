@@ -504,6 +504,23 @@ fn question_resolution(ctx: &TestCtx, question: Pubkey) -> (u32, u32, u32) {
     )
 }
 
+/// Physical KASS-conservation invariant (design §9 #3) for the split path:
+/// the bond that left `stake_vault` is exactly what is now escrowed in the
+/// MetaDAO KASS conditional vault's underlying token account, and
+/// `total_oracle_stake` stays the conserved accumulator (it is intentionally NOT
+/// decremented by the split — the KASS is still in-system, just escrowed). The
+/// challenge split is the ONLY path where KASS physically leaves `stake_vault`,
+/// so this asserts nothing was created or destroyed there.
+fn assert_kass_conserved(ctx: &TestCtx, oracle: Pubkey, kass_vault_underlying: Pubkey) {
+    let stake_vault = ctx.seeded(oracle).stake_vault;
+    let total = ctx.oracle(oracle).total_oracle_stake;
+    assert_eq!(
+        ctx.token_balance(stake_vault) + ctx.token_balance(kass_vault_underlying),
+        total,
+        "physical KASS conservation: stake_vault + conditional-vault underlying == total_oracle_stake",
+    );
+}
+
 const BOND: u64 = 1_000_000_000;
 /// Base reserve common to all pools: 100 KASS (9 dp).
 const BASE_RESERVE: u64 = 100_000_000_000;
@@ -653,6 +670,8 @@ fn settle_fraud_disqualifies_and_resolves_fail_side() {
     let surviving_before = ctx.oracle(f.oracle).surviving_count;
     // open_challenge bumped the open-market counter 0 → 1.
     assert_eq!(ctx.oracle(f.oracle).open_challenge_count, 1);
+    // Physical KASS conservation across the split path holds right after open.
+    assert_kass_conserved(&ctx, f.oracle, f.m.kass_vault_underlying);
 
     ctx.warp(TWAP_WINDOW + 1); // cross market.twap_end
 
@@ -693,6 +712,10 @@ fn settle_fraud_disqualifies_and_resolves_fail_side() {
 
     // The other proposer is untouched.
     assert_eq!(ctx.proposer(f.proposer_other).disqualified, 0);
+
+    // Conservation still holds after settle: the resolution + accounting move no
+    // KASS, so stake_vault + conditional-vault underlying == total_oracle_stake.
+    assert_kass_conserved(&ctx, f.oracle, f.m.kass_vault_underlying);
 }
 
 #[test]
@@ -701,6 +724,8 @@ fn settle_honest_survives_and_resolves_pass_side() {
     let (mut ctx, f) = fixture(QUOTE_LOW, QUOTE_LOW);
     let bond_pool_before = ctx.oracle(f.oracle).bond_pool;
     let surviving_before = ctx.oracle(f.oracle).surviving_count;
+    // Physical KASS conservation across the split path holds right after open.
+    assert_kass_conserved(&ctx, f.oracle, f.m.kass_vault_underlying);
 
     ctx.warp(TWAP_WINDOW + 1);
 
@@ -731,6 +756,9 @@ fn settle_honest_survives_and_resolves_pass_side() {
     // Question resolved PASS-side [1,0].
     let (n0, n1, denom) = question_resolution(&ctx, f.m.question);
     assert_eq!((n0, n1, denom), (1, 0, 1), "pass-side resolution");
+
+    // Conservation still holds after a survive-side settle (no KASS moved).
+    assert_kass_conserved(&ctx, f.oracle, f.m.kass_vault_underlying);
 }
 
 #[test]
