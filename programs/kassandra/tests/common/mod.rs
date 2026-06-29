@@ -441,6 +441,23 @@ impl TestCtx {
         self.svm.set_sysvar(&clock);
     }
 
+    /// Advance the `Clock` by `seconds` of unix time AND `slots` of slot height.
+    /// The TWAP tasks (11-12) reason about *slots* (the MetaDAO AMM records an
+    /// observation only once per `ONE_MINUTE_IN_SLOTS == 150` slots and weights
+    /// the aggregator by elapsed slots), so they need to move the slot height
+    /// independently of wall-clock seconds.
+    pub fn warp_slots(&mut self, seconds: i64, slots: u64) {
+        let mut clock = self.svm.get_sysvar::<Clock>();
+        clock.unix_timestamp += seconds;
+        clock.slot += slots;
+        self.svm.set_sysvar(&clock);
+    }
+
+    /// Read the current `Clock` slot height.
+    pub fn slot(&self) -> u64 {
+        self.svm.get_sysvar::<Clock>().slot
+    }
+
     // ----- low-level fabrication ---------------------------------------------
 
     /// Write a program-owned account with rent-exempt lamports for `data.len()`.

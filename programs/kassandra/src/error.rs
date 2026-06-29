@@ -54,6 +54,9 @@ pub enum KassandraError {
     /// `open_challenge` was called against an `AiClaim` that already has an open
     /// challenge market (`ai_claim.challenged == 1`): one market per claim.
     AlreadyChallenged = 14,
+    /// `settle_challenge` was called before the market's TWAP window elapsed
+    /// (`now < market.twap_end`): the decision market is still trading.
+    TwapWindowOpen = 15,
 }
 
 impl From<KassandraError> for ProgramError {

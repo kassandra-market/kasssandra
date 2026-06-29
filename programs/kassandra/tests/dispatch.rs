@@ -49,9 +49,9 @@ fn known_discriminant_returns_not_implemented() {
     let mut ctx = TestCtx::new();
     // A known-but-unimplemented discriminant with an arbitrary trailing byte.
     // (SubmitFact/VoteFact/FinalizeFacts/AdvancePhase/SubmitAiClaim/
-    // FinalizeAiClaims/OpenChallenge are implemented; use a still-stubbed
-    // instruction here.)
-    let ix = ix_with_data(&ctx, vec![Ix::SettleChallenge as u8, 0xAB]);
+    // FinalizeAiClaims/OpenChallenge/SettleChallenge are implemented; use the
+    // still-stubbed FinalizeOracle here.)
+    let ix = ix_with_data(&ctx, vec![Ix::FinalizeOracle as u8, 0xAB]);
     let err = ctx.send(ix, &[]).unwrap_err().err;
     assert_eq!(
         err,

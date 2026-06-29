@@ -68,15 +68,22 @@ pub const MERGE_TOKENS: [u8; 8] = [0xe2, 0x59, 0xfb, 0x79, 0xe1, 0x82, 0xb4, 0x0
 /// `conditional_vault::redeem_tokens`
 pub const REDEEM_TOKENS: [u8; 8] = [0xf6, 0x62, 0x86, 0x29, 0x98, 0x21, 0x78, 0x45];
 
-/// `amm::create_amm` — STUB (Task 10): args = `CreateAmmArgs { twap_initial_observation: u128, twap_max_observation_change_per_update: u128 }`.
+/// `amm::create_amm` — args (delayed-twap v0.4.1+) = `CreateAmmArgs {
+/// twap_initial_observation: u128, twap_max_observation_change_per_update: u128,
+/// twap_start_delay_slots: u64 }` (Borsh, 40 bytes). The base v0.4 build had only
+/// the two u128s; the DEPLOYED mainnet binary requires the trailing u64.
 pub const CREATE_AMM: [u8; 8] = [0xf2, 0x5b, 0x15, 0xaa, 0x05, 0x44, 0x7d, 0x40];
-/// `amm::add_liquidity` — STUB (Task 10).
+/// `amm::add_liquidity` — args = `AddLiquidityArgs { quote_amount: u64,
+/// max_base_amount: u64, min_lp_tokens: u64 }`.
 pub const ADD_LIQUIDITY: [u8; 8] = [0xb5, 0x9d, 0x59, 0x43, 0x8f, 0xb6, 0x34, 0x48];
-/// `amm::remove_liquidity` — STUB (Task 10).
+/// `amm::remove_liquidity`.
 pub const REMOVE_LIQUIDITY: [u8; 8] = [0x50, 0x55, 0xd1, 0x48, 0x18, 0xce, 0xb1, 0x6c];
-/// `amm::swap` — STUB (Task 10): args = `SwapArgs { swap_type, input_amount: u64, output_amount_min: u64 }`.
+/// `amm::swap` — args = `SwapArgs { swap_type: u8 (0=Buy,1=Sell), input_amount:
+/// u64, output_amount_min: u64 }`.
 pub const SWAP: [u8; 8] = [0xf8, 0xc6, 0x9e, 0x91, 0xe1, 0x75, 0x87, 0xc8];
-/// `amm::crank_that_twap` — STUB (Task 11): refresh the TWAP observation before reading it.
+/// `amm::crank_that_twap` — folds the current price into the TWAP observation
+/// (only once per `ONE_MINUTE_IN_SLOTS == 150` slots). No args; accounts =
+/// `[amm(w), event_authority, amm_program]`.
 pub const CRANK_THAT_TWAP: [u8; 8] = [0xdc, 0x64, 0x19, 0xf9, 0x00, 0x5c, 0xc3, 0xc1];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +120,50 @@ pub const VAULT_QUESTION_OFFSET: usize = 8;
 pub const VAULT_UNDERLYING_MINT_OFFSET: usize = 40;
 /// `ConditionalVault.underlying_token_account: Pubkey` — byte offset.
 pub const VAULT_UNDERLYING_ACCOUNT_OFFSET: usize = 72;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// `amm` v0.4.x `Amm` account layout (verified against the source
+// `metaDAOproject/programs`, `programs/amm/src/state/amm.rs`, `declare_id! ==
+// AMMyu…`). The DEPLOYED mainnet binary is the "delayed-twap" v0.4.1/v0.4.2
+// build (tags `delayed-twap-v0.4.1` / `proposal-duration-v0.4.2`), which added a
+// `TwapOracle.start_delay_slots: u64` field AFTER `initial_observation` (and a
+// `CreateAmmArgs.twap_start_delay_slots`). That new field sits *after* every
+// field settle_challenge reads, so the offsets below are identical to the base
+// v0.4 layout; only `seq_num` shifted (227 → unread).
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// The `Amm` account is an Anchor `#[account]` (8-byte disc first) Borsh-encoded
+// (sequential, little-endian, NO alignment padding). Field order:
+//
+//   disc[8] | bump:u8 @8 | created_at_slot:u64 @9 | lp_mint:Pubkey @17
+//   | base_mint:Pubkey @49 | quote_mint:Pubkey @81 | base_mint_decimals:u8 @113
+//   | quote_mint_decimals:u8 @114 | base_amount:u64 @115 | quote_amount:u64 @123
+//   | oracle: TwapOracle @131 { last_updated_slot:u64 @131, last_price:u128 @139,
+//       last_observation:u128 @155, aggregator:u128 @171,
+//       max_observation_change_per_update:u128 @187, initial_observation:u128 @203,
+//       start_delay_slots:u64 @219 }   | seq_num:u64 @227
+//
+// `get_twap()` in the v0.4.2 source computes
+//   `aggregator / (last_updated_slot - (created_at_slot + start_delay_slots))`
+// — a slot-weighted average of the quote/base price (scaled by PRICE_SCALE =
+// 1e12). settle_challenge reads exactly those four fields and mirrors that math.
+
+/// `Amm.created_at_slot: u64` — byte offset.
+pub const AMM_CREATED_AT_SLOT_OFFSET: usize = 9;
+/// `Amm.base_mint: Pubkey` — byte offset.
+pub const AMM_BASE_MINT_OFFSET: usize = 49;
+/// `Amm.quote_mint: Pubkey` — byte offset.
+pub const AMM_QUOTE_MINT_OFFSET: usize = 81;
+/// `Amm.oracle.last_updated_slot: u64` — byte offset.
+pub const AMM_LAST_UPDATED_SLOT_OFFSET: usize = 131;
+/// `Amm.oracle.aggregator: u128` — byte offset.
+pub const AMM_AGGREGATOR_OFFSET: usize = 171;
+/// `Amm.oracle.start_delay_slots: u64` — byte offset (v0.4.1+ delayed-twap).
+pub const AMM_START_DELAY_SLOTS_OFFSET: usize = 219;
+/// Smallest `Amm` account data length that covers every field settle reads
+/// (`start_delay_slots` end). The real account is larger (`8 +
+/// size_of::<Amm>()`).
+pub const AMM_MIN_LEN: usize = AMM_START_DELAY_SLOTS_OFFSET + 8;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Seed-slice assembly (host-runnable)
@@ -229,6 +280,27 @@ fn interact_data(disc: &[u8; 8], amount: u64) -> [u8; 16] {
     let mut out = [0u8; 16];
     out[0..8].copy_from_slice(disc);
     out[8..16].copy_from_slice(&amount.to_le_bytes());
+    out
+}
+
+/// `resolve_question` instruction data for a BINARY (2-outcome) question.
+///
+/// Layout: `disc[8] ++ len:u32 LE (== 2) ++ payout_numerators[0]:u32 LE ++
+/// payout_numerators[1]:u32 LE`. The arg is Anchor `ResolveQuestionArgs {
+/// payout_numerators: Vec<u32> }`, and a Borsh `Vec<u32>` is a **4-byte LE
+/// length prefix THEN the u32 elements** — NOT a flat concatenation. No-alloc:
+/// the whole thing is a fixed 20-byte buffer.
+///
+/// `[1, 0]` resolves PASS-side (outcome 0 pays); `[0, 1]` resolves FAIL-side
+/// (outcome 1 pays). The conditional_vault requires `len == num_outcomes` and a
+/// non-zero payout denominator (sum of numerators), so exactly one of the two
+/// must be `1`.
+pub fn resolve_question_data_binary(numerators: [u32; 2]) -> [u8; 20] {
+    let mut out = [0u8; 20];
+    out[0..8].copy_from_slice(&RESOLVE_QUESTION);
+    out[8..12].copy_from_slice(&2u32.to_le_bytes());
+    out[12..16].copy_from_slice(&numerators[0].to_le_bytes());
+    out[16..20].copy_from_slice(&numerators[1].to_le_bytes());
     out
 }
 

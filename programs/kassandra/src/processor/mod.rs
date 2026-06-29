@@ -17,6 +17,7 @@ pub mod finalize_ai_claims;
 pub mod finalize_facts;
 pub mod guards;
 pub mod open_challenge;
+pub mod settle_challenge;
 pub mod submit_ai_claim;
 pub mod submit_fact;
 pub mod vote_fact;
@@ -36,6 +37,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         Ix::SubmitAiClaim => submit_ai_claim::process(program_id, accounts, payload),
         Ix::FinalizeAiClaims => finalize_ai_claims::process(program_id, accounts, payload),
         Ix::OpenChallenge => open_challenge::process(program_id, accounts, payload),
-        Ix::SettleChallenge | Ix::FinalizeOracle => Err(KassandraError::NotImplemented.into()),
+        Ix::SettleChallenge => settle_challenge::process(program_id, accounts, payload),
+        Ix::FinalizeOracle => Err(KassandraError::NotImplemented.into()),
     }
 }
