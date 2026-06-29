@@ -161,6 +161,14 @@ impl TestCtx {
         )
     }
 
+    /// Derive the Fact PDA: seeds `[b"fact", oracle, content_hash]`.
+    pub fn fact_pda(program_id: &Pubkey, oracle: &Pubkey, content_hash: &[u8; 32]) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[b"fact", oracle.as_ref(), content_hash.as_ref()],
+            program_id,
+        )
+    }
+
     // ----- seeding -----------------------------------------------------------
 
     /// Fabricate an oracle already in [`Phase::FactProposal`] with one proposer
@@ -247,6 +255,22 @@ impl TestCtx {
         oracle_pda
     }
 
+    /// Overwrite the phase byte of an already-seeded oracle. Lets tests stand
+    /// up an oracle in a non-`FactProposal` phase (e.g. `FactVoting`) to drive
+    /// wrong-phase paths, without a real phase-advance instruction.
+    pub fn set_phase(&mut self, oracle: Pubkey, phase: Phase) {
+        let mut o = self.oracle(oracle);
+        o.set_phase(phase);
+        self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
+    }
+
+    /// Create an SPL token account on the KASS mint owned by `owner` and fund
+    /// it with `amount` base units of KASS. Returns the token account address.
+    /// Used to bankroll a fact submitter.
+    pub fn fund_kass(&mut self, owner: &Keypair, amount: u64) -> Pubkey {
+        self.create_token_account(self.kass_mint, owner.pubkey(), amount)
+    }
+
     /// Retrieve the bookkeeping for a previously seeded oracle.
     pub fn seeded(&self, oracle: Pubkey) -> &SeededOracle {
         self.oracles.get(&oracle).expect("oracle not seeded")
@@ -284,6 +308,17 @@ impl TestCtx {
         self.read_pod(key)
     }
 
+    /// Read the token balance (base units) of an SPL token account.
+    pub fn token_balance(&self, key: Pubkey) -> u64 {
+        let acc = self
+            .svm
+            .get_account(&key)
+            .unwrap_or_else(|| panic!("token account {key} not found"));
+        TokenAccount::unpack(&acc.data)
+            .expect("not a token account")
+            .amount
+    }
+
     /// Read a program account and reinterpret its data as a `Pod` struct `T`.
     ///
     /// Uses [`bytemuck::pod_read_unaligned`] so correctness does not depend on
@@ -303,8 +338,13 @@ impl TestCtx {
     /// [`TransactionError`](solana_sdk::transaction::TransactionError).
     ///
     /// The transaction is signed by the payer (fee payer) plus every keypair in
-    /// `signers`; a fresh blockhash is fetched on each call.
+    /// `signers`. The blockhash is expired and re-fetched on each call so that
+    /// two otherwise-identical transactions (same instruction + signers) get
+    /// distinct signatures and never collide as duplicates.
+    #[allow(clippy::result_large_err)]
     pub fn send(&mut self, ix: Instruction, signers: &[&Keypair]) -> TransactionResult {
+        // Rotate the blockhash to guarantee signature uniqueness across calls.
+        self.svm.expire_blockhash();
         let blockhash = self.svm.latest_blockhash();
         let mut all_signers: Vec<&Keypair> = Vec::with_capacity(signers.len() + 1);
         all_signers.push(&self.payer);
@@ -400,7 +440,9 @@ impl TestCtx {
         };
         let mut data = vec![0u8; TokenAccount::LEN];
         state.pack_into_slice(&mut data);
-        let lamports = self.svm.minimum_balance_for_rent_exemption(TokenAccount::LEN);
+        let lamports = self
+            .svm
+            .minimum_balance_for_rent_exemption(TokenAccount::LEN);
         self.svm
             .set_account(
                 addr,
