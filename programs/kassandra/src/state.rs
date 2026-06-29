@@ -10,6 +10,13 @@ use bytemuck::{Pod, Zeroable};
 /// 32-byte Solana public key, kept as a plain byte array so it is `Pod`.
 pub type Pubkey = [u8; 32];
 
+/// `Proposer.claim_option` sentinel: no AI claim submitted yet.
+pub const CLAIM_OPTION_NONE: u8 = 0xFF;
+/// `FactVote.kind`: approve vote.
+pub const VOTE_APPROVE: u8 = 0;
+/// `FactVote.kind`: duplicate vote.
+pub const VOTE_DUPLICATE: u8 = 1;
+
 /// Lifecycle phase of an oracle dispute. Stored on-chain as a `u8`
 /// discriminant (see [`Oracle::phase`]) to keep account structs `Pod`.
 #[repr(u8)]
@@ -42,6 +49,11 @@ impl Phase {
             _ => None,
         }
     }
+
+    /// Encode this phase as its stored `u8` discriminant.
+    pub fn as_u8(self) -> u8 {
+        self as u8
+    }
 }
 
 /// Top-level dispute account. `size_of == 216`.
@@ -55,12 +67,11 @@ pub struct Oracle {
     pub deadline: i64,       // unix; proposals rejected before this
     pub phase_ends_at: i64,  // end of the current window
     pub twap_window: i64,    // per-oracle, seconds
-    pub options_count: u8,   // number of categorical options
-    pub phase: u8,           // Phase as u8
-    pub proposer_count: u8,
-    pub surviving_count: u8, // proposers not disqualified
+    pub options_count: u8,    // number of categorical options
+    pub phase: u8,            // Phase as u8
+    pub proposer_count: u16,
+    pub surviving_count: u16, // proposers not disqualified
     pub fact_count: u16,
-    pub _pad0: [u8; 2],
     pub total_oracle_stake: u64, // quorum denominator
     pub bond_pool: u64,          // accumulated slashed KASS (base units)
     pub bump: u8,
@@ -75,6 +86,11 @@ impl Oracle {
     pub fn phase(&self) -> Option<Phase> {
         Phase::from_u8(self.phase)
     }
+
+    /// Write the phase discriminant.
+    pub fn set_phase(&mut self, p: Phase) {
+        self.phase = p as u8;
+    }
 }
 
 /// A proposer's commitment within an oracle. `size_of == 80`.
@@ -85,7 +101,7 @@ pub struct Proposer {
     pub authority: Pubkey,
     pub bond: u64,            // locked KASS
     pub original_option: u8,  // value at proposal time (no proofs)
-    pub claim_option: u8,     // value after AI claim; 0xFF = not yet submitted
+    pub claim_option: u8,     // value after AI claim; CLAIM_OPTION_NONE = not yet submitted
     pub disqualified: u8,     // bool
     pub slashed: u8,          // bool
     pub flipped: u8,          // bool: claim_option != original_option
@@ -95,6 +111,16 @@ pub struct Proposer {
 
 impl Proposer {
     pub const LEN: usize = core::mem::size_of::<Proposer>();
+
+    pub fn is_disqualified(&self) -> bool {
+        self.disqualified != 0
+    }
+    pub fn is_slashed(&self) -> bool {
+        self.slashed != 0
+    }
+    pub fn is_flipped(&self) -> bool {
+        self.flipped != 0
+    }
 }
 
 /// A fact submitted in support of an option. `size_of == 328`.
@@ -118,6 +144,16 @@ pub struct Fact {
 
 impl Fact {
     pub const LEN: usize = core::mem::size_of::<Fact>();
+
+    pub fn is_agreed(&self) -> bool {
+        self.agreed != 0
+    }
+    pub fn is_duplicate(&self) -> bool {
+        self.duplicate != 0
+    }
+    pub fn is_settled(&self) -> bool {
+        self.settled != 0
+    }
 }
 
 /// A stake-weighted vote on a fact. `size_of == 80`.
@@ -153,4 +189,8 @@ pub struct AiClaim {
 
 impl AiClaim {
     pub const LEN: usize = core::mem::size_of::<AiClaim>();
+
+    pub fn is_challenged(&self) -> bool {
+        self.challenged != 0
+    }
 }
