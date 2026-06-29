@@ -217,6 +217,8 @@ impl TestCtx {
         oracle.fact_count = 0;
         oracle.total_oracle_stake = total_stake;
         oracle.bond_pool = 0;
+        // Fixed fact-quorum denominator: Σ proposer bonds at dispute start.
+        oracle.dispute_bond_total = total_stake;
         oracle.bump = bump;
         oracle.prompt_hash = [0x11; 32];
         self.set_program_account(oracle_pda, bytemuck::bytes_of(&oracle).to_vec());

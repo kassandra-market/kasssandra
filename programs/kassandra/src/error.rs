@@ -34,6 +34,14 @@ pub enum KassandraError {
     /// This voter has already voted on this fact (the FactVote PDA is already
     /// initialized): one vote per voter per fact.
     DuplicateVote = 8,
+    /// `finalize_facts` was passed a tail whose length does not match the full
+    /// set it must process (`fact_count` facts, or `proposer_count` proposers
+    /// in the no-facts dead-end). Partial finalization is rejected so the set
+    /// cannot be split to mislead the settlement.
+    IncompleteFactSet = 9,
+    /// A fact passed to `finalize_facts` is already `settled` (idempotency
+    /// guard): finalize must run exactly once over each fact.
+    AlreadySettled = 10,
 }
 
 impl From<KassandraError> for ProgramError {

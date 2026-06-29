@@ -79,7 +79,7 @@ impl Phase {
     }
 }
 
-/// Top-level dispute account. `size_of == 224`.
+/// Top-level dispute account. `size_of == 232`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Oracle {
@@ -97,8 +97,9 @@ pub struct Oracle {
     pub proposer_count: u16,
     pub surviving_count: u16, // proposers not disqualified
     pub fact_count: u16,
-    pub total_oracle_stake: u64, // quorum denominator
+    pub total_oracle_stake: u64, // conservation accumulator (== vault balance)
     pub bond_pool: u64,          // accumulated slashed KASS (base units)
+    pub dispute_bond_total: u64, // Σ proposer bonds, fixed at dispute start; fact-quorum denominator
     pub bump: u8,
     pub _pad1: [u8; 7],
     pub prompt_hash: [u8; 32], // hash of fixed prompt + interpretation

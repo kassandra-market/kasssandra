@@ -13,6 +13,7 @@ use pinocchio::{
 use crate::{error::KassandraError, instruction::Ix};
 
 pub mod advance_phase;
+pub mod finalize_facts;
 pub mod guards;
 pub mod submit_fact;
 pub mod vote_fact;
@@ -28,8 +29,8 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         Ix::SubmitFact => submit_fact::process(program_id, accounts, payload),
         Ix::VoteFact => vote_fact::process(program_id, accounts, payload),
         Ix::AdvancePhase => advance_phase::process(program_id, accounts, payload),
-        Ix::FinalizeFacts
-        | Ix::SubmitAiClaim
+        Ix::FinalizeFacts => finalize_facts::process(program_id, accounts, payload),
+        Ix::SubmitAiClaim
         | Ix::OpenChallenge
         | Ix::SettleChallenge
         | Ix::FinalizeOracle => Err(KassandraError::NotImplemented.into()),
