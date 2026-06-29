@@ -537,6 +537,11 @@ sending a valid-but-unimplemented one returns a specific custom error (e.g. `Not
 - `fetch-metadao.sh`: use `solana program dump <PROGRAM_ID> tests/fixtures/conditional_vault.so`
   against mainnet for MetaDAO's conditional-vault and amm program IDs (document IDs in the
   script header). Committed binaries make tests hermetic.
+  - **REQUIREMENT: use the latest released/deployed version of MetaDAO's programs.**
+    Determine the current mainnet program IDs at execution time from MetaDAO's official
+    source (their docs/GitHub `futarchy` repo or deployed program registry) — do NOT
+    hardcode a stale ID from memory. Record the resolved program IDs, version/commit, and
+    dump slot in the script header so the fixtures are reproducible.
 - `cpi/metadao.rs`: define the exact instructions we need (`initialize_question`,
   `initialize_conditional_vault`, `split_tokens`, `merge_tokens`, `redeem_tokens`, and the
   AMM `create_amm`/`swap`/TWAP read). For each: the 8-byte Anchor sighash
