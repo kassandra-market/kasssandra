@@ -91,6 +91,14 @@ pub const FEE_EMA_INCREMENT: u64 = FEE_EMA_SCALE as u64;
 /// Governance-tunable.
 pub const FEE_PER_EMA_UNIT: u64 = 1_000_000_000;
 
+// Compile-time guards: every fee const used as a divisor on the `create_oracle`
+// path MUST be positive, so a future governance retune can never introduce a
+// divide-by-zero runtime panic. `decay_fee_ema` divides by
+// `FEE_EMA_HALFLIFE_SECS` and `2 * FEE_EMA_HALFLIFE_SECS`; `fee_for_ema` divides
+// by `FEE_EMA_SCALE`. A bad value here is a build failure, not a deploy landmine.
+const _: () = assert!(FEE_EMA_HALFLIFE_SECS > 0);
+const _: () = assert!(FEE_EMA_SCALE > 0);
+
 /// Fraction (numerator) of a proposer's bond slashed when they FLIP their value
 /// at AI-claim time (submitted a `claim_option != original_option`). A flip is
 /// penalized but not fatal: the proposer keeps a valid (flipped) claim that
