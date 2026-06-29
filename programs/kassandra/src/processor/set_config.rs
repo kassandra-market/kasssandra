@@ -47,6 +47,10 @@
 //! * At least one reward weight (`reward_proposer_weight` /
 //!   `reward_fact_weight`) MUST be `> 0`, so the settlement-era reward split
 //!   denominator (`pw + fw`) is never zero.
+//! * JOINT bound `flip_slash_frac + challenge_success_kass_fee_frac <= 1` (a
+//!   disqualified proposer's prior flip-slash plus the success KASS fee cannot
+//!   exceed the bond) — else `settle_challenge`'s carve-out underflows and bricks
+//!   the market. Checked cross-multiplied in u128.
 //!
 //! No bound on `total_supply_cap`, `fee_per_ema_unit`, `fee_ema_increment`
 //! (any value, incl. 0, is meaningful: 0 cap / 0 fee / 0 bump).
@@ -162,6 +166,24 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     // At least one reward weight must be positive (the settlement split
     // denominator `pw + fw` must never be zero).
     if reward_proposer_weight == 0 && reward_fact_weight == 0 {
+        return Err(KassandraError::InvalidConfig.into());
+    }
+    // JOINT GOVERNANCE INVARIANT (settle_challenge liveness): a proposer that was
+    // flip-slashed in finalize_ai_claims (`slashed_amount = bond × flip_slash`,
+    // still surviving) and then challenged + disqualified has its bond carved into
+    // `bond − success_kass_fee`. If `flip_slash_frac + success_kass_fee_frac > 1`,
+    // that net slash would be LESS than the prior flip-slash and settle's
+    // `net_slash − already_slashed` would underflow → the market becomes
+    // permanently unsettleable. The two fractions are bounded independently above
+    // (each ≤ 1), so add the JOINT bound: their sum must be ≤ 1. Cross-multiplied
+    // in u128 (no overflow): `flip_num·fee_den + fee_num·flip_den ≤ flip_den·fee_den`.
+    // (Defaults 1/2 + 1/100 = 51/100 ≤ 1 satisfy it; settle also caps the fee
+    // defensively, but this rejects the bad config at the source.)
+    let flip_num = flip_slash_num as u128;
+    let flip_den = flip_slash_den as u128;
+    let fee_num = challenge_success_kass_fee_num as u128;
+    let fee_den = challenge_success_kass_fee_den as u128;
+    if flip_num * fee_den + fee_num * flip_den > flip_den * fee_den {
         return Err(KassandraError::InvalidConfig.into());
     }
 

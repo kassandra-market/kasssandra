@@ -1007,6 +1007,23 @@ impl TestCtx {
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
     }
 
+    /// Stamp a prior (flip) slash on a seeded proposer: `slashed_amount = amount`,
+    /// `slashed = flipped = 1`, still surviving + NOT disqualified, and add
+    /// `amount` to the oracle's `bond_pool` (keeping the per-proposer identity
+    /// `slashed_amount == bond_pool contribution`). Lets `settle_challenge` tests
+    /// stand up the finalize_ai_claims flip-slash → challenged → disqualified
+    /// cross-path without driving that earlier phase.
+    pub fn set_proposer_prior_slash(&mut self, oracle: Pubkey, proposer: Pubkey, amount: u64) {
+        let mut p = self.proposer(proposer);
+        p.slashed = 1;
+        p.flipped = 1;
+        p.slashed_amount = amount;
+        self.set_program_account(proposer, bytemuck::bytes_of(&p).to_vec());
+        let mut o = self.oracle(oracle);
+        o.bond_pool += amount;
+        self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
+    }
+
     /// Overwrite a seeded oracle's directional challenge-fee snapshot (the same
     /// fields `create_oracle` snapshots from `Protocol` and `set_config` retunes).
     /// Lets `settle_challenge` tests prove the fee is read from the per-oracle

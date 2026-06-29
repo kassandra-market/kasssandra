@@ -170,6 +170,39 @@ fn challenge_fee_over_one_rejected() {
 }
 
 #[test]
+fn flip_slash_plus_success_fee_over_one_rejected() {
+    // JOINT bound (settle_challenge liveness): flip_slash_frac +
+    // success_kass_fee_frac must be ≤ 1, else a flip-slashed-then-disqualified
+    // proposer underflows settle's carve-out. Each fraction alone is valid here
+    // (60% and 50%, both ≤ 1), but their sum (110%) must be rejected.
+    let (mut ctx, _protocol_pda, dao) = governed_ctx();
+
+    let mut params = ConfigParams::defaults();
+    params.flip_slash_num = 6;
+    params.flip_slash_den = 10; // 60%
+    params.challenge_success_kass_fee_num = 50;
+    params.challenge_success_kass_fee_den = 100; // 50% — sum 110% > 1
+    let (_pda, res) = ctx.set_config(&dao, params);
+    assert_eq!(
+        custom_code(&res),
+        Some(KassandraError::InvalidConfig as u32),
+        "flip_slash + success_kass_fee summing to >1 must be rejected: {res:?}"
+    );
+
+    // The boundary sum == 1 (exactly) is ACCEPTED (no underflow possible).
+    let mut params = ConfigParams::defaults();
+    params.flip_slash_num = 1;
+    params.flip_slash_den = 2; // 50%
+    params.challenge_success_kass_fee_num = 1;
+    params.challenge_success_kass_fee_den = 2; // 50% — sum exactly 1
+    let (_pda, res) = ctx.set_config(&dao, params);
+    assert!(
+        res.is_ok(),
+        "flip_slash + success_kass_fee == 1 must be accepted: {res:?}"
+    );
+}
+
+#[test]
 fn non_dao_authority_rejected() {
     let (mut ctx, _protocol_pda, _dao) = governed_ctx();
 

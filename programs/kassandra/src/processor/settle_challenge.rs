@@ -364,24 +364,34 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     // the bond to the challenger. The proposer's `bond_pool` contribution becomes
     // `bond − kass_fee` (NOT the full bond), keeping the per-proposer identity
     // `slashed_amount == bond_pool contribution`.
+    //
+    // DEFENSIVE CAP (belt-and-suspenders): cap the fee to the proposer's REMAINING
+    // un-slashed bond (`bond − slashed_amount`). A proposer flip-slashed earlier in
+    // finalize_ai_claims already contributed `slashed_amount` to bond_pool; the
+    // carve-out tops that up to `bond − kass_fee`, which must stay ≥ the prior
+    // slash. The `set_config` joint bound (`flip_slash_frac + success_kass_fee_frac
+    // ≤ 1`) guarantees that for valid configs (cap is then a no-op), but capping
+    // here means even a hypothetically-bad config can never underflow the carve-out
+    // / brick settlement, nor transfer more KASS than is left in stake_vault. The
+    // capped value drives BOTH the accounting and the KASS transfer below.
+    let remaining_bond = proposer.bond.saturating_sub(proposer.slashed_amount);
     let kass_fee = fee_amount(
         proposer.bond,
         oracle.challenge_success_kass_fee_num,
         oracle.challenge_success_kass_fee_den,
-    )?;
+    )?
+    .min(remaining_bond);
 
     if disqualify && !proposer.is_disqualified() {
-        // Net slash = bond − kass_fee. Top up any prior (flip) slash to exactly
-        // that net (never double-counting, never exceeding the escrowed bond):
-        // the kass_fee leaves to the challenger below, the rest is the bond_pool
-        // contribution.
+        // Net slash = bond − kass_fee (≥ slashed_amount by the cap). Top up any
+        // prior (flip) slash to exactly that net (never double-counting, never
+        // exceeding the escrowed bond): the kass_fee leaves to the challenger
+        // below, the rest is the bond_pool contribution.
         let net_slash = proposer
             .bond
             .checked_sub(kass_fee)
             .ok_or(ProgramError::ArithmeticOverflow)?;
-        let delta = net_slash
-            .checked_sub(proposer.slashed_amount)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
+        let delta = net_slash.saturating_sub(proposer.slashed_amount);
         proposer.disqualified = 1;
         proposer.slashed = 1;
         proposer.slashed_amount = net_slash;
