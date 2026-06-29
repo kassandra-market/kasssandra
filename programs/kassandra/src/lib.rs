@@ -17,6 +17,7 @@ pub mod error;
 pub mod fee;
 pub mod instruction;
 pub mod plurality;
+pub mod price;
 pub mod processor;
 pub mod state;
 

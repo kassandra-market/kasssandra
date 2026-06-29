@@ -247,3 +247,23 @@ No layout change (Protocol/Oracle untouched; `state_layout.rs` unchanged).
 **Tests (`tests/resolve_deadend.rs`, 6, all green):** (1) dao resolves a dead-end → `phase==Resolved`, `resolved_option==option`; (2) non-dao signer → `Unauthorized`; (3) oracle in `Resolved` (non-`InvalidDeadend`) → `WrongPhase`; (4) `option >= options_count` → `InvalidOptionsCount`; (5) idempotency: second resolve → `WrongPhase`, first outcome stands; (6) substituted (non-canonical) protocol account → `InvalidAccount`.
 
 Build: `just build` (SBF) clean. Tests: `cargo test -p kassandra-program` all pass. `cargo clippy --all-targets` clean; `cargo fmt` applied.
+
+### F5 — `kass_price` (governance-anchored futarchy spot TWAP read) (DONE 2026-06-29)
+
+No layout change (Protocol/Oracle untouched; `state_layout.rs` unchanged).
+
+**Read source CONFIRMED.** F0 validated `futarchy_spot_twap` against a hand-built **`Dao`-account** blob (`PoolState::Spot` tag@8, embedded spot `Pool`/`TwapOracle` at fixed offsets aggregator@9 / last_updated@25 / created_at@33 / start_delay@105) — NOT a standalone pool. So the price is read **directly from the `Protocol.kass_dao` account's own bytes**: `kass_dao` IS the futarchy `Dao`, and its embedded spot oracle sits at the fixed, `PoolState`-variant-independent offsets (the spot `Pool` is the first payload element of both variants). There is **no separate pool account and no binding gap** — the "kass_dao → spot-oracle account" binding is the identity. `kass_price` REUSES `metadao_v06::futarchy_spot_twap` (math not reinvented).
+
+**Form: pure helper + thin Ix wrapper.**
+- **Helper (core deliverable)** `price::kass_price(protocol: &Protocol, kass_dao_ai: &AccountInfo) -> Result<u128, ProgramError>` in new `src/price.rs` (added `pub mod price;` to `lib.rs`). Steps: (1) `assert_key(kass_dao_ai, &protocol.kass_dao)` — governance anchor, rejects an attacker-substituted account; (2) `assert_owned_by_program(kass_dao_ai, &metadao_v06::FUTARCHY_ID)` — owner anchor (defense-in-depth); (3) `metadao_v06::futarchy_spot_twap(&kass_dao_ai.try_borrow_data()?)`. Returns the `u128` TWAP (quote units per base × `1e12`). Before `set_governance`, `kass_dao` is the zero pubkey and no real account matches, so the read denies — no separate "unset" branch.
+- **No-observation handling:** propagates F0's contract unchanged — zero `aggregator`, non-positive elapsed window, or too-short buffer all return `KassandraError::InvalidAccount`.
+
+**`Ix::KassPrice = 16`** (appended; `from_u8` arm added; dispatched in `processor/mod.rs`). New processor `processor/kass_price.rs`. Accounts: `[0] protocol(ro)`, `[1] kass_dao(ro)`. No payload. `load_protocol` pins the `[b"protocol"]` PDA (a substituted protocol carrying a wrong `kass_dao` is rejected), then `kass_price`, then returns the 16-byte LE `u128` via `pinocchio::program::set_return_data`. Read-only; no state change, no token movement. **No new error** (reuses `InvalidAccount=5`).
+
+**No on-chain consumer yet** — ships as a validated primitive; the challenge-market rework (next milestone) is its first consumer. The Ix wrapper is the seam + an off-chain query path (simulate → read return data).
+
+**Harness (`tests/common/mod.rs`):** `kass_price_ix(protocol, kass_dao)` builder + `fabricate_owned_account(key, owner, data)` (an account at `key` owned by an arbitrary `owner`, for the futarchy-owned `Dao` blob + the wrong-owner case).
+
+**Tests (`tests/kass_price.rs`, 5, all green):** mirror F0's hand-built `Dao`/spot-oracle blob (owned by `FUTARCHY_ID`, key recorded as `Protocol.kass_dao` via `set_governance`). (1) correct `kass_dao` with a valid spot oracle → returns the TWAP, asserted equal to an INDEPENDENT `get_twap` computation read out of the tx return data; (2) wrong account (key != `Protocol.kass_dao`, also futarchy-owned + valid) → `InvalidAccount`; (3) `kass_dao` owned by a non-futarchy program → `InvalidAccount`; (4) zero-aggregator / no-observation → `InvalidAccount` (per F0 contract); (5) substituted (non-canonical) protocol account → `InvalidAccount`.
+
+Build: `just build` (SBF) clean. Tests: `cargo test -p kassandra-program` all pass (incl. the 5 new). `cargo clippy --all-targets` clean; `cargo fmt` applied.

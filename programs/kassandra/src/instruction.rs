@@ -62,6 +62,13 @@ pub enum Ix {
     /// (signer). Economic settlement of the dead-end is DEFERRED to the
     /// settlement milestone; this only stamps the terminal outcome.
     ResolveDeadend = 15,
+    /// Governance-anchored KASS/USDC spot TWAP read (Task F5): reads the futarchy
+    /// `Dao` account's embedded spot `TwapOracle` (asserting the account ==
+    /// `Protocol.kass_dao` + owned by the futarchy program) and returns the
+    /// `u128` TWAP (LE) via `set_return_data`. Read-only; no state change. Thin
+    /// wrapper over [`crate::price::kass_price`]; no on-chain consumer yet (the
+    /// challenge-market rework consumes it next milestone).
+    KassPrice = 16,
     // Future variants are APPENDED here with the next discriminant; add a
     // matching arm to `from_u8` below.
 }
@@ -87,6 +94,7 @@ impl Ix {
             13 => Some(Ix::SetGovernance),
             14 => Some(Ix::SetConfig),
             15 => Some(Ix::ResolveDeadend),
+            16 => Some(Ix::KassPrice),
             _ => None,
         }
     }

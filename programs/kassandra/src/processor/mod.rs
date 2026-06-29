@@ -20,6 +20,7 @@ pub mod finalize_oracle;
 pub mod finalize_proposals;
 pub mod guards;
 pub mod init_protocol;
+pub mod kass_price;
 pub mod open_challenge;
 pub mod propose;
 pub mod resolve_deadend;
@@ -54,5 +55,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         Ix::SetGovernance => set_governance::process(program_id, accounts, payload),
         Ix::SetConfig => set_config::process(program_id, accounts, payload),
         Ix::ResolveDeadend => resolve_deadend::process(program_id, accounts, payload),
+        Ix::KassPrice => kass_price::process(program_id, accounts, payload),
     }
 }

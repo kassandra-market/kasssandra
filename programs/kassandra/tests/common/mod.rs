@@ -468,6 +468,40 @@ impl TestCtx {
         }
     }
 
+    /// Build a `KassPrice` instruction (Task F5): reads the futarchy `Dao`
+    /// account's spot TWAP. Account order: `[0] protocol(ro)`, `[1] kass_dao(ro)`.
+    /// Exposes both accounts so tests can pass a substituted protocol or a
+    /// wrong/foreign-owned `kass_dao`. No payload.
+    pub fn kass_price_ix(&self, protocol: Pubkey, kass_dao: Pubkey) -> Instruction {
+        Instruction {
+            program_id: self.program_id,
+            accounts: vec![
+                AccountMeta::new_readonly(protocol, false),
+                AccountMeta::new_readonly(kass_dao, false),
+            ],
+            data: vec![kassandra_program::instruction::Ix::KassPrice as u8],
+        }
+    }
+
+    /// Fabricate an account at `key` owned by `owner` holding `data`. Used by F5
+    /// to stand up a futarchy-owned `Dao` account carrying a hand-built spot
+    /// `TwapOracle` (and the wrong-owner negative case).
+    pub fn fabricate_owned_account(&mut self, key: Pubkey, owner: Pubkey, data: Vec<u8>) {
+        let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
+        self.svm
+            .set_account(
+                key,
+                Account {
+                    lamports,
+                    data,
+                    owner,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
+    }
+
     /// Send a real `CreateOracle` instruction with `creator == payer`, using the
     /// harness KASS/USDC mints and the protocol singleton. Returns the Oracle PDA
     /// derived from `nonce`. `init_protocol` must have been called first. The
