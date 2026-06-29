@@ -34,7 +34,7 @@
 use std::collections::HashMap;
 
 use bytemuck::Zeroable;
-use kassandra_program::state::{Oracle, Phase, Proposer, CLAIM_OPTION_NONE};
+use kassandra_program::state::{AccountType, Oracle, Phase, Proposer, CLAIM_OPTION_NONE};
 use litesvm::{types::TransactionResult, LiteSVM};
 use solana_sdk::{
     account::Account,
@@ -197,6 +197,7 @@ impl TestCtx {
         // Build and write the Oracle account.
         let now = self.now();
         let mut oracle = Oracle::zeroed();
+        oracle.account_type = AccountType::Oracle.as_u8();
         oracle.creator = self.payer.pubkey().to_bytes();
         oracle.kass_mint = self.kass_mint.to_bytes();
         oracle.usdc_mint = self.usdc_mint.to_bytes();
@@ -223,6 +224,7 @@ impl TestCtx {
                 Self::proposer_pda(&self.program_id, &oracle_pda, &authority.pubkey());
 
             let mut proposer = Proposer::zeroed();
+            proposer.account_type = AccountType::Proposer.as_u8();
             proposer.oracle = oracle_pda.to_bytes();
             proposer.authority = authority.pubkey().to_bytes();
             proposer.bond = spec.bond;
@@ -262,6 +264,15 @@ impl TestCtx {
         let mut o = self.oracle(oracle);
         o.set_phase(phase);
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
+    }
+
+    /// Fabricate a program-owned account at a fresh address holding `data`.
+    /// Used by type-confusion tests to stand up an account with a wrong (or
+    /// missing) `account_type` tag.
+    pub fn seed_program_account(&mut self, data: Vec<u8>) -> Pubkey {
+        let key = Pubkey::new_unique();
+        self.set_program_account(key, data);
+        key
     }
 
     /// Create an SPL token account on the KASS mint owned by `owner` and fund

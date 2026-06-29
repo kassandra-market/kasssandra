@@ -11,29 +11,38 @@ fn account_sizes_are_stable() {
     assert_eq!(size_of::<AiClaim>(), AiClaim::LEN);
 
     // Absolute pinned on-chain ABI sizes. Changing a struct's layout must
-    // be a deliberate, visible break of these constants.
-    assert_eq!(Oracle::LEN, 216);
-    assert_eq!(Proposer::LEN, 80);
-    assert_eq!(Fact::LEN, 328);
-    assert_eq!(FactVote::LEN, 80);
-    assert_eq!(AiClaim::LEN, 168);
+    // be a deliberate, visible break of these constants. Each carries an
+    // 8-byte header (account_type: u8 + _pad_hdr: [u8;7]) at offset 0.
+    assert_eq!(Oracle::LEN, 224);
+    assert_eq!(Proposer::LEN, 88);
+    assert_eq!(Fact::LEN, 336);
+    assert_eq!(FactVote::LEN, 88);
+    assert_eq!(AiClaim::LEN, 176);
 }
 
 #[test]
 fn field_offsets_are_pinned() {
+    // The account_type discriminator is the very first byte of every struct.
+    assert_eq!(offset_of!(Oracle, account_type), 0);
+    assert_eq!(offset_of!(Proposer, account_type), 0);
+    assert_eq!(offset_of!(Fact, account_type), 0);
+    assert_eq!(offset_of!(FactVote, account_type), 0);
+    assert_eq!(offset_of!(AiClaim, account_type), 0);
+
     // Lock a few key field offsets per struct so reordering/resizing breaks.
-    assert_eq!(offset_of!(Oracle, proposer_count), 154);
-    assert_eq!(offset_of!(Oracle, surviving_count), 156);
-    assert_eq!(offset_of!(Oracle, total_oracle_stake), 160);
-    assert_eq!(offset_of!(Oracle, prompt_hash), 184);
+    // (All shifted +8 by the header relative to the pre-tag layout.)
+    assert_eq!(offset_of!(Oracle, proposer_count), 162);
+    assert_eq!(offset_of!(Oracle, surviving_count), 164);
+    assert_eq!(offset_of!(Oracle, total_oracle_stake), 168);
+    assert_eq!(offset_of!(Oracle, prompt_hash), 192);
 
-    assert_eq!(offset_of!(Proposer, bond), 64);
+    assert_eq!(offset_of!(Proposer, bond), 72);
 
-    assert_eq!(offset_of!(Fact, uri), 128);
+    assert_eq!(offset_of!(Fact, uri), 136);
 
-    assert_eq!(offset_of!(FactVote, stake), 64);
+    assert_eq!(offset_of!(FactVote, stake), 72);
 
-    assert_eq!(offset_of!(AiClaim, io_hash), 128);
+    assert_eq!(offset_of!(AiClaim, io_hash), 136);
 }
 
 #[test]

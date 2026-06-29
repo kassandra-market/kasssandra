@@ -17,6 +17,29 @@ pub const VOTE_APPROVE: u8 = 0;
 /// `FactVote.kind`: duplicate vote.
 pub const VOTE_DUPLICATE: u8 = 1;
 
+/// On-chain account-type discriminator. Stored as the FIRST byte of every Pod
+/// account (each struct's `account_type` field) so processors can reject
+/// type-confusion: an attacker cannot pass a `Fact` where an `Oracle` is
+/// expected because the tag won't match. `Uninitialized` (0) is what a freshly
+/// `CreateAccount`'d, zeroed account carries before it is stamped.
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum AccountType {
+    Uninitialized = 0,
+    Oracle = 1,
+    Proposer = 2,
+    Fact = 3,
+    FactVote = 4,
+    AiClaim = 5,
+}
+
+impl AccountType {
+    /// Encode this tag as its stored `u8` discriminant.
+    pub fn as_u8(self) -> u8 {
+        self as u8
+    }
+}
+
 /// Lifecycle phase of an oracle dispute. Stored on-chain as a `u8`
 /// discriminant (see [`Oracle::phase`]) to keep account structs `Pod`.
 #[repr(u8)]
@@ -56,10 +79,12 @@ impl Phase {
     }
 }
 
-/// Top-level dispute account. `size_of == 216`.
+/// Top-level dispute account. `size_of == 224`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Oracle {
+    pub account_type: u8, // AccountType::Oracle
+    pub _pad_hdr: [u8; 7],
     pub creator: Pubkey,
     pub kass_mint: Pubkey,
     pub usdc_mint: Pubkey,
@@ -93,10 +118,12 @@ impl Oracle {
     }
 }
 
-/// A proposer's commitment within an oracle. `size_of == 80`.
+/// A proposer's commitment within an oracle. `size_of == 88`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Proposer {
+    pub account_type: u8, // AccountType::Proposer
+    pub _pad_hdr: [u8; 7],
     pub oracle: Pubkey,
     pub authority: Pubkey,
     pub bond: u64,           // locked KASS
@@ -123,10 +150,12 @@ impl Proposer {
     }
 }
 
-/// A fact submitted in support of an option. `size_of == 328`.
+/// A fact submitted in support of an option. `size_of == 336`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Fact {
+    pub account_type: u8, // AccountType::Fact
+    pub _pad_hdr: [u8; 7],
     pub oracle: Pubkey,
     pub proposer: Pubkey, // who submitted the fact
     pub content_hash: [u8; 32],
@@ -156,10 +185,12 @@ impl Fact {
     }
 }
 
-/// A stake-weighted vote on a fact. `size_of == 80`.
+/// A stake-weighted vote on a fact. `size_of == 88`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct FactVote {
+    pub account_type: u8, // AccountType::FactVote
+    pub _pad_hdr: [u8; 7],
     pub fact: Pubkey,
     pub voter: Pubkey,
     pub stake: u64,
@@ -172,10 +203,12 @@ impl FactVote {
     pub const LEN: usize = core::mem::size_of::<FactVote>();
 }
 
-/// A pinned-model AI claim for a proposer's option. `size_of == 168`.
+/// A pinned-model AI claim for a proposer's option. `size_of == 176`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct AiClaim {
+    pub account_type: u8, // AccountType::AiClaim
+    pub _pad_hdr: [u8; 7],
     pub oracle: Pubkey,
     pub proposer: Pubkey,
     pub model_id: [u8; 32],    // hash/ident of pinned model

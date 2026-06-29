@@ -28,6 +28,9 @@ pub enum KassandraError {
     /// A fact with this `content_hash` already exists for this oracle (the
     /// Fact PDA is already initialized).
     DuplicateFact = 6,
+    /// A stake amount of zero was supplied where a positive stake is required
+    /// (a zero-stake fact would pollute quorum for free).
+    ZeroStake = 7,
 }
 
 impl From<KassandraError> for ProgramError {

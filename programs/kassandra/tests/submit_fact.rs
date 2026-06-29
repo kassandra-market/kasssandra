@@ -264,3 +264,80 @@ fn submit_fact_after_window_fails() {
         ),
     );
 }
+
+#[test]
+fn submit_fact_zero_stake_fails() {
+    let stake = 500u64;
+    let Fixture {
+        mut ctx,
+        oracle,
+        vault,
+        submitter,
+        submitter_kass,
+        fact,
+        content_hash,
+    } = fixture(stake);
+
+    // Stake of zero must be rejected before anything else happens.
+    let ix = submit_fact_ix(
+        &ctx,
+        oracle,
+        fact,
+        submitter.pubkey(),
+        submitter_kass,
+        vault,
+        payload(&content_hash, 0, b"x"),
+    );
+    let err = ctx.send(ix, &[&submitter]).unwrap_err().err;
+    assert_eq!(
+        err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(KassandraError::ZeroStake as u32),
+        ),
+    );
+}
+
+#[test]
+fn submit_fact_oracle_type_confusion_fails() {
+    use bytemuck::Zeroable;
+    use kassandra_program::state::{AccountType, Oracle};
+
+    let stake = 500u64;
+    let Fixture {
+        mut ctx,
+        oracle,
+        vault,
+        submitter,
+        submitter_kass,
+        fact,
+        content_hash,
+    } = fixture(stake);
+
+    // Fabricate a program-owned, Oracle-sized account whose tag is NOT Oracle
+    // (here: Fact) and feed it into the oracle slot. The load_oracle guard must
+    // reject it on the account_type check.
+    let mut fake = Oracle::zeroed();
+    fake.account_type = AccountType::Fact.as_u8();
+    let not_an_oracle = ctx.seed_program_account(bytemuck::bytes_of(&fake).to_vec());
+    // Keep using the real oracle's vault so the failure is unambiguously the tag.
+    let _ = oracle;
+
+    let ix = submit_fact_ix(
+        &ctx,
+        not_an_oracle,
+        fact,
+        submitter.pubkey(),
+        submitter_kass,
+        vault,
+        payload(&content_hash, stake, b"x"),
+    );
+    let err = ctx.send(ix, &[&submitter]).unwrap_err().err;
+    assert_eq!(
+        err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(KassandraError::InvalidAccount as u32),
+        ),
+    );
+}

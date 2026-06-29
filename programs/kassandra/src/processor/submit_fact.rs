@@ -23,20 +23,19 @@
 use bytemuck::Zeroable;
 use pinocchio::{
     account_info::AccountInfo,
-    instruction::{Seed, Signer},
+    instruction::Seed,
     program_error::ProgramError,
     pubkey::{find_program_address, Pubkey},
     sysvars::{rent::Rent, Sysvar},
     ProgramResult,
 };
-use pinocchio_system::instructions::CreateAccount;
 use pinocchio_token::instructions::Transfer;
 
 use crate::{
     clock::{now, require_before_end, require_phase},
     error::KassandraError,
-    processor::guards::{assert_owned_by_program, assert_signer},
-    state::{Fact, Oracle, Phase},
+    processor::guards::{assert_key, assert_signer, create_pda, load_oracle},
+    state::{AccountType, Fact, Oracle, Phase},
 };
 
 /// Max length of a fact `uri`, matching the on-chain [`Fact::uri`] buffer.
@@ -82,6 +81,11 @@ impl<'a> Args<'a> {
 pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> ProgramResult {
     let args = Args::parse(payload)?;
 
+    // A zero-stake fact would pollute quorum for free; require a positive bond.
+    if args.stake == 0 {
+        return Err(KassandraError::ZeroStake.into());
+    }
+
     let [oracle_ai, fact_ai, submitter_ai, submitter_kass_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
@@ -89,28 +93,15 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     };
 
     // --- account validation -------------------------------------------------
-    assert_owned_by_program(oracle_ai, program_id)?;
     assert_signer(submitter_ai)?;
-    if token_prog_ai.key() != &pinocchio_token::ID {
-        return Err(KassandraError::InvalidAccount.into());
-    }
-    if system_prog_ai.key() != &pinocchio_system::ID {
-        return Err(KassandraError::InvalidAccount.into());
-    }
-    if oracle_ai.data_len() < Oracle::LEN {
-        return Err(KassandraError::InvalidAccount.into());
-    }
+    assert_key(token_prog_ai, &pinocchio_token::ID)?;
+    assert_key(system_prog_ai, &pinocchio_system::ID)?;
 
-    // Read an owned copy of the oracle for guards + later mutation.
-    let mut oracle: Oracle = {
-        let data = oracle_ai.try_borrow_data()?;
-        bytemuck::pod_read_unaligned::<Oracle>(&data[..Oracle::LEN])
-    };
+    // Owner + size + account_type check, then an owned copy for later mutation.
+    let mut oracle: Oracle = load_oracle(oracle_ai, program_id)?;
 
     // Vault must be exactly the one this oracle escrows into.
-    if vault_ai.key() != &oracle.stake_vault {
-        return Err(KassandraError::InvalidAccount.into());
-    }
+    assert_key(vault_ai, &oracle.stake_vault)?;
 
     // --- phase / window gates -----------------------------------------------
     require_phase(&oracle, Phase::FactProposal)?;
@@ -125,10 +116,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
         ],
         program_id,
     );
-    if fact_ai.key() != &expected_fact {
-        return Err(KassandraError::InvalidAccount.into());
-    }
+    assert_key(fact_ai, &expected_fact)?;
     // An already-funded PDA means this content_hash was submitted before.
+    //
+    // KNOWN LIMITATION (deferred): an attacker can grief a specific
+    // content_hash by pre-funding its predicted PDA with 1 lamport, which
+    // trips this check before the real submitter creates it. The future fix is
+    // to allocate via system Allocate + Assign (which tolerates a pre-funded
+    // account) instead of CreateAccount; not worth it now.
     if fact_ai.lamports() != 0 || !fact_ai.data_is_empty() {
         return Err(KassandraError::DuplicateFact.into());
     }
@@ -142,15 +137,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
         Seed::from(args.content_hash.as_ref()),
         Seed::from(&bump_seed),
     ];
-    let signer = Signer::from(&signer_seeds[..]);
-    CreateAccount {
-        from: submitter_ai,
-        to: fact_ai,
-        lamports: rent,
-        space: Fact::LEN as u64,
-        owner: program_id,
-    }
-    .invoke_signed(&[signer])?;
+    create_pda(
+        submitter_ai,
+        fact_ai,
+        &signer_seeds,
+        rent,
+        Fact::LEN,
+        program_id,
+    )?;
 
     // --- escrow the stake into the vault (submitter signs as authority) -----
     Transfer {
@@ -163,6 +157,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
 
     // --- initialize the Fact ------------------------------------------------
     let mut fact = Fact::zeroed();
+    fact.account_type = AccountType::Fact.as_u8();
     fact.oracle = *oracle_ai.key();
     fact.proposer = *submitter_ai.key();
     fact.content_hash = *args.content_hash;

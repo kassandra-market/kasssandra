@@ -2,9 +2,19 @@
 //!
 //! Kept deliberately minimal — only the checks the current processors need.
 
-use pinocchio::{account_info::AccountInfo, pubkey::Pubkey, ProgramResult};
+use pinocchio::{
+    account_info::AccountInfo,
+    instruction::{Seed, Signer},
+    program_error::ProgramError,
+    pubkey::Pubkey,
+    ProgramResult,
+};
+use pinocchio_system::instructions::CreateAccount;
 
-use crate::error::KassandraError;
+use crate::{
+    error::KassandraError,
+    state::{AccountType, Oracle},
+};
 
 /// Require that `account` is owned by `program_id`, else
 /// [`KassandraError::InvalidAccount`].
@@ -22,4 +32,55 @@ pub fn assert_signer(account: &AccountInfo) -> ProgramResult {
         return Err(KassandraError::Unauthorized.into());
     }
     Ok(())
+}
+
+/// Require that `account`'s key equals `expected`, else
+/// [`KassandraError::InvalidAccount`]. Used to pin sysvar/program ids and
+/// stored references (e.g. `oracle.stake_vault`).
+pub fn assert_key(account: &AccountInfo, expected: &Pubkey) -> ProgramResult {
+    if account.key() != expected {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    Ok(())
+}
+
+/// Load and validate an [`Oracle`] account: it must be owned by `program_id`,
+/// large enough, and carry the [`AccountType::Oracle`] tag. Rejecting on the
+/// tag is the type-confusion fix — a `Fact`/`Proposer`/etc. fed into the oracle
+/// slot fails here. Returns an owned, alignment-safe copy.
+pub fn load_oracle(account: &AccountInfo, program_id: &Pubkey) -> Result<Oracle, ProgramError> {
+    assert_owned_by_program(account, program_id)?;
+    if account.data_len() < Oracle::LEN {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    let oracle: Oracle = {
+        let data = account.try_borrow_data()?;
+        bytemuck::pod_read_unaligned::<Oracle>(&data[..Oracle::LEN])
+    };
+    if oracle.account_type != AccountType::Oracle.as_u8() {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    Ok(oracle)
+}
+
+/// Create a fresh, rent-exempt, program-owned PDA account, signing with the
+/// PDA's `seeds` + `bump`. `payer` funds the rent. De-dups the `CreateAccount`
+/// CPI boilerplate shared by every account-creating processor.
+pub fn create_pda(
+    payer: &AccountInfo,
+    pda: &AccountInfo,
+    seeds: &[Seed],
+    lamports: u64,
+    space: usize,
+    owner: &Pubkey,
+) -> ProgramResult {
+    let signer = Signer::from(seeds);
+    CreateAccount {
+        from: payer,
+        to: pda,
+        lamports,
+        space: space as u64,
+        owner,
+    }
+    .invoke_signed(&[signer])
 }
