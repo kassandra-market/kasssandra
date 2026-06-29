@@ -21,7 +21,9 @@
 //! * **Stake vault** — an SPL token account on the KASS mint whose **owner
 //!   (token authority) is the Oracle PDA**, so the program can sign transfers
 //!   out of it later via the oracle PDA seeds. The vault's address is an
-//!   arbitrary fresh pubkey; it is stored in `Oracle.stake_vault`.
+//!   arbitrary fresh pubkey; it is stored in `Oracle.stake_vault`. Because it
+//!   is *not* a PDA, downstream program code must **READ `oracle.stake_vault`**
+//!   to learn the vault address — it must never re-derive it.
 //!
 //! The seeded vault's token balance always equals `Oracle.total_oracle_stake`
 //! (the sum of all proposer bonds), so downstream payout/slash logic sees a
@@ -33,12 +35,14 @@ use std::collections::HashMap;
 
 use bytemuck::Zeroable;
 use kassandra_program::state::{Oracle, Phase, Proposer, CLAIM_OPTION_NONE};
-use litesvm::LiteSVM;
+use litesvm::{types::TransactionResult, LiteSVM};
 use solana_sdk::{
     account::Account,
     clock::Clock,
+    instruction::Instruction,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
+    transaction::Transaction,
 };
 use spl_token::{
     solana_program::{program_option::COption, program_pack::Pack},
@@ -109,16 +113,22 @@ pub struct TestCtx {
 
 impl TestCtx {
     /// Build a fresh context: a funded payer plus KASS (9 dp) and USDC (6 dp)
-    /// mints, both with the payer as mint authority.
+    /// mints, both with the payer as mint authority, and the compiled
+    /// `kassandra_program` deployed so tests can submit real transactions via
+    /// [`TestCtx::send`].
     ///
-    /// The program itself is *not* deployed — this harness only writes and
-    /// reads accounts, so loading the `.so` would be dead weight here.
+    /// The `.so` is `include_bytes!`'d at compile time, so `just build`
+    /// (`cargo build-sbf`) must run **before** `cargo test`.
     pub fn new() -> Self {
         let mut svm = LiteSVM::new();
         let payer = Keypair::new();
         svm.airdrop(&payer.pubkey(), 1_000_000_000_000).unwrap();
 
         let program_id = Pubkey::new_from_array(kassandra_program::ID);
+        svm.add_program(
+            program_id,
+            include_bytes!("../../../../target/deploy/kassandra_program.so"),
+        );
 
         let mut ctx = Self {
             svm,
@@ -275,12 +285,37 @@ impl TestCtx {
     }
 
     /// Read a program account and reinterpret its data as a `Pod` struct `T`.
+    ///
+    /// Uses [`bytemuck::pod_read_unaligned`] so correctness does not depend on
+    /// the alignment of the allocator-provided account-data buffer.
     pub fn read_pod<T: bytemuck::Pod>(&self, key: Pubkey) -> T {
         let acc = self
             .svm
             .get_account(&key)
             .unwrap_or_else(|| panic!("account {key} not found"));
-        *bytemuck::from_bytes::<T>(&acc.data)
+        bytemuck::pod_read_unaligned::<T>(&acc.data)
+    }
+
+    // ----- transaction submission --------------------------------------------
+
+    /// Sign and submit a single-instruction transaction, returning the LiteSVM
+    /// result so tests can assert `Ok`/`Err` and introspect the
+    /// [`TransactionError`](solana_sdk::transaction::TransactionError).
+    ///
+    /// The transaction is signed by the payer (fee payer) plus every keypair in
+    /// `signers`; a fresh blockhash is fetched on each call.
+    pub fn send(&mut self, ix: Instruction, signers: &[&Keypair]) -> TransactionResult {
+        let blockhash = self.svm.latest_blockhash();
+        let mut all_signers: Vec<&Keypair> = Vec::with_capacity(signers.len() + 1);
+        all_signers.push(&self.payer);
+        all_signers.extend_from_slice(signers);
+        let tx = Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&self.payer.pubkey()),
+            &all_signers,
+            blockhash,
+        );
+        self.svm.send_transaction(tx)
     }
 
     /// Current on-chain unix timestamp from the `Clock` sysvar.
@@ -288,8 +323,13 @@ impl TestCtx {
         self.svm.get_sysvar::<Clock>().unix_timestamp
     }
 
-    /// Advance the `Clock`: add `seconds` to `unix_timestamp` and bump the
-    /// slot. Lets tests cross `phase_ends_at`.
+    /// Advance the `Clock`: add `seconds` to `unix_timestamp` and bump `slot`
+    /// by exactly **1** (not proportional to `seconds`). This is enough to
+    /// cross `phase_ends_at`, which is keyed off `unix_timestamp`.
+    ///
+    /// NOTE: the later TWAP tasks (11-12) reason about *slots*, so they will
+    /// likely need a `warp_slots` variant that advances the slot proportionally.
+    /// Not built yet (YAGNI).
     pub fn warp(&mut self, seconds: i64) {
         let mut clock = self.svm.get_sysvar::<Clock>();
         clock.unix_timestamp += seconds;
