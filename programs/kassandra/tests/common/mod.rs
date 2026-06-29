@@ -1,0 +1,384 @@
+//! Shared test harness for the Kassandra dispute-core program.
+//!
+//! Dispute-core instructions (create / propose / advance-phase / ...) do not
+//! exist yet. To exercise the instructions that *will* exist, every test needs
+//! an oracle that is already sitting in a disputed state with conflicting
+//! proposers. This harness fabricates that state directly: it writes
+//! program-owned account data into LiteSVM with [`LiteSVM::set_account`],
+//! bypassing the (not-yet-built) create/propose flow.
+//!
+//! # PDA seed conventions (CONTRACT)
+//!
+//! These seeds are part of the program's public contract. Later instruction
+//! tasks MUST derive their PDAs with exactly these seeds (see
+//! [`TestCtx::oracle_pda`] / [`TestCtx::proposer_pda`]):
+//!
+//! * **Oracle PDA** — seeds `[b"oracle", &nonce.to_le_bytes()]`, where
+//!   `nonce: u64`; program = [`kassandra_program::ID`].
+//! * **Proposer PDA** — seeds
+//!   `[b"proposer", oracle_pubkey.as_ref(), authority_pubkey.as_ref()]`;
+//!   program = [`kassandra_program::ID`].
+//! * **Stake vault** — an SPL token account on the KASS mint whose **owner
+//!   (token authority) is the Oracle PDA**, so the program can sign transfers
+//!   out of it later via the oracle PDA seeds. The vault's address is an
+//!   arbitrary fresh pubkey; it is stored in `Oracle.stake_vault`.
+//!
+//! The seeded vault's token balance always equals `Oracle.total_oracle_stake`
+//! (the sum of all proposer bonds), so downstream payout/slash logic sees a
+//! self-consistent fixture.
+
+#![allow(dead_code)]
+
+use std::collections::HashMap;
+
+use bytemuck::Zeroable;
+use kassandra_program::state::{Oracle, Phase, Proposer, CLAIM_OPTION_NONE};
+use litesvm::LiteSVM;
+use solana_sdk::{
+    account::Account,
+    clock::Clock,
+    pubkey::Pubkey,
+    signature::{Keypair, Signer},
+};
+use spl_token::{
+    solana_program::{program_option::COption, program_pack::Pack},
+    state::{Account as TokenAccount, AccountState, Mint},
+    ID as TOKEN_PROGRAM_ID,
+};
+
+/// Duration (seconds) added to the current clock to compute `phase_ends_at`
+/// for a freshly seeded oracle. Tests can cross it with [`TestCtx::warp`].
+pub const WINDOW: i64 = 3600;
+/// Default TWAP window (seconds) written into seeded oracles.
+pub const TWAP_WINDOW: i64 = 600;
+
+/// KASS mint decimals.
+pub const KASS_DECIMALS: u8 = 9;
+/// USDC mint decimals.
+pub const USDC_DECIMALS: u8 = 6;
+
+/// Specification for one proposer to seed into a disputed oracle.
+#[derive(Clone, Copy, Debug)]
+pub struct ProposerSpec {
+    /// The categorical option this proposer originally proposed.
+    pub option: u8,
+    /// KASS bond (base units) this proposer has locked.
+    pub bond: u64,
+}
+
+/// A proposer that was seeded into an oracle, with everything later tests need
+/// to act as that proposer (sign instructions, re-derive its PDA, read state).
+pub struct SeededProposer {
+    /// Signing authority for this proposer.
+    pub authority: Keypair,
+    /// The Proposer PDA holding this proposer's on-chain account.
+    pub pda: Pubkey,
+    /// Original proposed option.
+    pub option: u8,
+    /// Locked KASS bond (base units).
+    pub bond: u64,
+}
+
+/// One seeded oracle and the bookkeeping needed to interact with it later.
+pub struct SeededOracle {
+    /// Oracle PDA.
+    pub pda: Pubkey,
+    /// Bump for the Oracle PDA.
+    pub bump: u8,
+    /// `nonce` used to derive the Oracle PDA.
+    pub nonce: u64,
+    /// Token account holding all KASS bonds; owner == [`SeededOracle::pda`].
+    pub stake_vault: Pubkey,
+    /// Proposers seeded into this oracle, in spec order.
+    pub proposers: Vec<SeededProposer>,
+}
+
+/// LiteSVM-backed test context with KASS/USDC mints and helpers for seeding
+/// disputed oracles directly into account storage.
+pub struct TestCtx {
+    pub svm: LiteSVM,
+    pub payer: Keypair,
+    pub kass_mint: Pubkey,
+    pub usdc_mint: Pubkey,
+    pub program_id: Pubkey,
+    /// Monotonic counter for fresh oracle nonces.
+    next_nonce: u64,
+    /// Seeded oracles keyed by their Oracle PDA, for later retrieval.
+    oracles: HashMap<Pubkey, SeededOracle>,
+}
+
+impl TestCtx {
+    /// Build a fresh context: a funded payer plus KASS (9 dp) and USDC (6 dp)
+    /// mints, both with the payer as mint authority.
+    ///
+    /// The program itself is *not* deployed — this harness only writes and
+    /// reads accounts, so loading the `.so` would be dead weight here.
+    pub fn new() -> Self {
+        let mut svm = LiteSVM::new();
+        let payer = Keypair::new();
+        svm.airdrop(&payer.pubkey(), 1_000_000_000_000).unwrap();
+
+        let program_id = Pubkey::new_from_array(kassandra_program::ID);
+
+        let mut ctx = Self {
+            svm,
+            payer,
+            kass_mint: Pubkey::default(),
+            usdc_mint: Pubkey::default(),
+            program_id,
+            next_nonce: 0,
+            oracles: HashMap::new(),
+        };
+
+        let authority = ctx.payer.pubkey();
+        ctx.kass_mint = ctx.create_mint(KASS_DECIMALS, authority);
+        ctx.usdc_mint = ctx.create_mint(USDC_DECIMALS, authority);
+        ctx
+    }
+
+    // ----- seed-derivation helpers (part of the program contract) -----------
+
+    /// Derive the Oracle PDA from a `nonce`: seeds `[b"oracle", nonce_le]`.
+    pub fn oracle_pda(program_id: &Pubkey, nonce: u64) -> (Pubkey, u8) {
+        Pubkey::find_program_address(&[b"oracle", &nonce.to_le_bytes()], program_id)
+    }
+
+    /// Derive the Proposer PDA: seeds `[b"proposer", oracle, authority]`.
+    pub fn proposer_pda(program_id: &Pubkey, oracle: &Pubkey, authority: &Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[b"proposer", oracle.as_ref(), authority.as_ref()],
+            program_id,
+        )
+    }
+
+    // ----- seeding -----------------------------------------------------------
+
+    /// Fabricate an oracle already in [`Phase::FactProposal`] with one proposer
+    /// per spec, plus a funded stake vault. Returns the Oracle PDA.
+    ///
+    /// All counts and balances are kept internally consistent:
+    /// `proposer_count == surviving_count == specs.len()`,
+    /// `total_oracle_stake == Σ bond == vault token balance`.
+    pub fn seed_disputed_oracle(&mut self, specs: &[ProposerSpec]) -> Pubkey {
+        assert!(!specs.is_empty(), "need at least one proposer to dispute");
+
+        let nonce = self.next_nonce;
+        self.next_nonce += 1;
+        let (oracle_pda, bump) = Self::oracle_pda(&self.program_id, nonce);
+
+        let total_stake: u64 = specs.iter().map(|s| s.bond).sum();
+        let max_option = specs.iter().map(|s| s.option).max().unwrap();
+        // At least 2 options (a dispute needs ≥2), and enough to index every
+        // proposed option.
+        let options_count = (max_option as u16 + 1).max(2) as u8;
+
+        // Stake vault: SPL token account on KASS, owner == oracle PDA, holding
+        // exactly the summed bonds.
+        let stake_vault = self.create_token_account(self.kass_mint, oracle_pda, total_stake);
+
+        // Build and write the Oracle account.
+        let now = self.now();
+        let mut oracle = Oracle::zeroed();
+        oracle.creator = self.payer.pubkey().to_bytes();
+        oracle.kass_mint = self.kass_mint.to_bytes();
+        oracle.usdc_mint = self.usdc_mint.to_bytes();
+        oracle.stake_vault = stake_vault.to_bytes();
+        oracle.deadline = now;
+        oracle.phase_ends_at = now + WINDOW;
+        oracle.twap_window = TWAP_WINDOW;
+        oracle.options_count = options_count;
+        oracle.set_phase(Phase::FactProposal);
+        oracle.proposer_count = specs.len() as u16;
+        oracle.surviving_count = specs.len() as u16;
+        oracle.fact_count = 0;
+        oracle.total_oracle_stake = total_stake;
+        oracle.bond_pool = 0;
+        oracle.bump = bump;
+        oracle.prompt_hash = [0x11; 32];
+        self.set_program_account(oracle_pda, bytemuck::bytes_of(&oracle).to_vec());
+
+        // Build and write each Proposer account.
+        let mut proposers = Vec::with_capacity(specs.len());
+        for spec in specs {
+            let authority = Keypair::new();
+            let (pda, p_bump) =
+                Self::proposer_pda(&self.program_id, &oracle_pda, &authority.pubkey());
+
+            let mut proposer = Proposer::zeroed();
+            proposer.oracle = oracle_pda.to_bytes();
+            proposer.authority = authority.pubkey().to_bytes();
+            proposer.bond = spec.bond;
+            proposer.original_option = spec.option;
+            proposer.claim_option = CLAIM_OPTION_NONE;
+            proposer.disqualified = 0;
+            proposer.slashed = 0;
+            proposer.flipped = 0;
+            proposer.bump = p_bump;
+            self.set_program_account(pda, bytemuck::bytes_of(&proposer).to_vec());
+
+            proposers.push(SeededProposer {
+                authority,
+                pda,
+                option: spec.option,
+                bond: spec.bond,
+            });
+        }
+
+        self.oracles.insert(
+            oracle_pda,
+            SeededOracle {
+                pda: oracle_pda,
+                bump,
+                nonce,
+                stake_vault,
+                proposers,
+            },
+        );
+        oracle_pda
+    }
+
+    /// Retrieve the bookkeeping for a previously seeded oracle.
+    pub fn seeded(&self, oracle: Pubkey) -> &SeededOracle {
+        self.oracles.get(&oracle).expect("oracle not seeded")
+    }
+
+    /// Convenience: the seeded proposers for an oracle (spec order).
+    pub fn proposers(&self, oracle: Pubkey) -> &[SeededProposer] {
+        &self.seeded(oracle).proposers
+    }
+
+    // ----- accessors ---------------------------------------------------------
+
+    /// Read and decode an `Oracle` account.
+    pub fn oracle(&self, key: Pubkey) -> Oracle {
+        self.read_pod(key)
+    }
+
+    /// Read and decode a `Proposer` account.
+    pub fn proposer(&self, key: Pubkey) -> Proposer {
+        self.read_pod(key)
+    }
+
+    /// Read and decode a `Fact` account.
+    pub fn fact(&self, key: Pubkey) -> kassandra_program::state::Fact {
+        self.read_pod(key)
+    }
+
+    /// Read and decode a `FactVote` account.
+    pub fn fact_vote(&self, key: Pubkey) -> kassandra_program::state::FactVote {
+        self.read_pod(key)
+    }
+
+    /// Read and decode an `AiClaim` account.
+    pub fn ai_claim(&self, key: Pubkey) -> kassandra_program::state::AiClaim {
+        self.read_pod(key)
+    }
+
+    /// Read a program account and reinterpret its data as a `Pod` struct `T`.
+    pub fn read_pod<T: bytemuck::Pod>(&self, key: Pubkey) -> T {
+        let acc = self
+            .svm
+            .get_account(&key)
+            .unwrap_or_else(|| panic!("account {key} not found"));
+        *bytemuck::from_bytes::<T>(&acc.data)
+    }
+
+    /// Current on-chain unix timestamp from the `Clock` sysvar.
+    pub fn now(&self) -> i64 {
+        self.svm.get_sysvar::<Clock>().unix_timestamp
+    }
+
+    /// Advance the `Clock`: add `seconds` to `unix_timestamp` and bump the
+    /// slot. Lets tests cross `phase_ends_at`.
+    pub fn warp(&mut self, seconds: i64) {
+        let mut clock = self.svm.get_sysvar::<Clock>();
+        clock.unix_timestamp += seconds;
+        clock.slot += 1;
+        self.svm.set_sysvar(&clock);
+    }
+
+    // ----- low-level fabrication ---------------------------------------------
+
+    /// Write a program-owned account with rent-exempt lamports for `data.len()`.
+    fn set_program_account(&mut self, key: Pubkey, data: Vec<u8>) {
+        let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
+        self.svm
+            .set_account(
+                key,
+                Account {
+                    lamports,
+                    data,
+                    owner: self.program_id,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
+    }
+
+    /// Fabricate an initialized SPL mint with the given decimals and authority.
+    fn create_mint(&mut self, decimals: u8, authority: Pubkey) -> Pubkey {
+        let mint = Pubkey::new_unique();
+        let state = Mint {
+            mint_authority: COption::Some(authority),
+            supply: 0,
+            decimals,
+            is_initialized: true,
+            freeze_authority: COption::None,
+        };
+        let mut data = vec![0u8; Mint::LEN];
+        state.pack_into_slice(&mut data);
+        let lamports = self.svm.minimum_balance_for_rent_exemption(Mint::LEN);
+        self.svm
+            .set_account(
+                mint,
+                Account {
+                    lamports,
+                    data,
+                    owner: TOKEN_PROGRAM_ID,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
+        mint
+    }
+
+    /// Fabricate an initialized SPL token account holding `amount` of `mint`,
+    /// owned (token authority) by `owner`. Returns its address.
+    fn create_token_account(&mut self, mint: Pubkey, owner: Pubkey, amount: u64) -> Pubkey {
+        let addr = Pubkey::new_unique();
+        let state = TokenAccount {
+            mint,
+            owner,
+            amount,
+            delegate: COption::None,
+            state: AccountState::Initialized,
+            is_native: COption::None,
+            delegated_amount: 0,
+            close_authority: COption::None,
+        };
+        let mut data = vec![0u8; TokenAccount::LEN];
+        state.pack_into_slice(&mut data);
+        let lamports = self.svm.minimum_balance_for_rent_exemption(TokenAccount::LEN);
+        self.svm
+            .set_account(
+                addr,
+                Account {
+                    lamports,
+                    data,
+                    owner: TOKEN_PROGRAM_ID,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .unwrap();
+        addr
+    }
+}
+
+impl Default for TestCtx {
+    fn default() -> Self {
+        Self::new()
+    }
+}
