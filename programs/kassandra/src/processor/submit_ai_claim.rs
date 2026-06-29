@@ -19,7 +19,6 @@
 //! 2. ai_claim PDA     — writable, uninitialized (created here)
 //! 3. authority        — signer, writable; must equal `proposer.authority` and
 //!    funds the AiClaim rent
-
 //! 4. system program
 
 use bytemuck::Zeroable;
@@ -84,6 +83,12 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     let oracle: Oracle = load_oracle(oracle_ai, program_id)?;
     let mut proposer = load_proposer(proposer_ai, program_id)?;
 
+    // --- phase / window gates (phase-first convention) ----------------------
+    // A wrong-phase / closed-window tx must surface WrongPhase / WindowClosed,
+    // not a semantic error, so these come before the binding checks below.
+    require_phase(&oracle, Phase::AiClaim)?;
+    require_before_end(&oracle, now()?)?;
+
     // The proposer must belong to this oracle and be controlled by the signer.
     if proposer.oracle != *oracle_ai.key() {
         return Err(KassandraError::InvalidAccount.into());
@@ -100,10 +105,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     if args.option >= oracle.options_count {
         return Err(KassandraError::InvalidOption.into());
     }
-
-    // --- phase / window gates -----------------------------------------------
-    require_phase(&oracle, Phase::AiClaim)?;
-    require_before_end(&oracle, now()?)?;
 
     // --- ai_claim PDA derivation + duplicate rejection ----------------------
     let (expected_claim, bump) = find_program_address(

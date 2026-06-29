@@ -283,16 +283,22 @@ fn finalize_no_show_full_slash() {
     assert_eq!(np1.slashed, 1);
     assert_eq!(np1.disqualified, 1);
     assert_eq!(np1.ai_finalized, 1);
+    // slashed_amount == full bond, and equals this proposer's whole bond_pool
+    // contribution (the honest submitter contributes 0).
+    assert_eq!(np1.slashed_amount, bond1);
 
-    // Honest submitter survives untouched.
+    // Honest submitter survives untouched (and contributes nothing).
     let np0 = ctx.proposer(p0);
     assert_eq!(np0.slashed, 0);
     assert_eq!(np0.disqualified, 0);
     assert_eq!(np0.ai_finalized, 1);
+    assert_eq!(np0.slashed_amount, 0);
 
     let o = ctx.oracle(oracle);
     assert_eq!(o.surviving_count, surviving_before - 1);
     assert_eq!(o.bond_pool, bond1);
+    // bond_pool delta == Σ slashed_amount.
+    assert_eq!(o.bond_pool, np0.slashed_amount + np1.slashed_amount);
     // Whole set finalized -> Challenge.
     assert_eq!(o.phase, Phase::Challenge as u8);
 }
@@ -323,8 +329,14 @@ fn finalize_flipped_partial_slash_remains_surviving() {
     assert_eq!(np0.ai_finalized, 1);
 
     let expected_slash = bond0 * FLIP_SLASH_NUM / FLIP_SLASH_DEN;
+    // slashed_amount on the flipper equals bond/2 == the bond_pool delta.
+    assert_eq!(np0.slashed_amount, expected_slash);
+    let np1 = ctx.proposer(p1);
+    assert_eq!(np1.slashed_amount, 0);
     let o = ctx.oracle(oracle);
     assert_eq!(o.bond_pool, expected_slash);
+    // bond_pool delta == Σ slashed_amount.
+    assert_eq!(o.bond_pool, np0.slashed_amount + np1.slashed_amount);
     // Flipper remains surviving; honest submitter too -> no decrement.
     assert_eq!(o.surviving_count, surviving_before);
     assert_eq!(o.phase, Phase::Challenge as u8);
@@ -425,4 +437,95 @@ fn seeded_proposer_is_no_show_by_default() {
     ]);
     let p0 = ctx.proposers(oracle)[0].pda;
     assert_eq!(ctx.proposer(p0).claim_option, CLAIM_OPTION_NONE);
+}
+
+#[test]
+fn submit_by_disqualified_proposer_fails() {
+    let (mut ctx, oracle) = seed_ai(&[
+        ProposerSpec { option: 0, bond: 1_000 },
+        ProposerSpec { option: 1, bond: 1_000 },
+    ]);
+    let p0 = ctx.proposers(oracle)[0].pda;
+    ctx.set_proposer_disqualified(p0);
+
+    let err = submit_for(&mut ctx, oracle, 0, 0).unwrap_err().err;
+    assert_eq!(
+        err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(KassandraError::Unauthorized as u32),
+        ),
+    );
+}
+
+#[test]
+fn finalize_proposer_from_other_oracle_fails() {
+    // Two independent oracles; pass oracle A but a proposer from oracle B.
+    let mut ctx = TestCtx::new();
+    let oracle_a = ctx.seed_disputed_oracle(&[
+        ProposerSpec { option: 0, bond: 1_000 },
+        ProposerSpec { option: 1, bond: 1_000 },
+    ]);
+    let oracle_b = ctx.seed_disputed_oracle(&[
+        ProposerSpec { option: 0, bond: 1_000 },
+        ProposerSpec { option: 1, bond: 1_000 },
+    ]);
+    ctx.set_phase(oracle_a, Phase::AiClaim);
+    let foreign = ctx.proposers(oracle_b)[0].pda;
+    ctx.warp(WINDOW + 1);
+
+    let err = ctx
+        .send(finalize_ai_claims_ix(&ctx, oracle_a, &[foreign]), &[])
+        .unwrap_err()
+        .err;
+    assert_eq!(
+        err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(KassandraError::InvalidAccount as u32),
+        ),
+    );
+}
+
+#[test]
+fn finalize_same_proposer_twice_in_one_call_fails() {
+    let (mut ctx, oracle) = seed_ai(&[
+        ProposerSpec { option: 0, bond: 1_000 },
+        ProposerSpec { option: 1, bond: 1_000 },
+    ]);
+    let p0 = ctx.proposers(oracle)[0].pda;
+    ctx.warp(WINDOW + 1);
+
+    let err = ctx
+        .send(finalize_ai_claims_ix(&ctx, oracle, &[p0, p0]), &[])
+        .unwrap_err()
+        .err;
+    assert_eq!(
+        err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(KassandraError::InvalidAccount as u32),
+        ),
+    );
+}
+
+#[test]
+fn finalize_empty_tail_fails() {
+    let (mut ctx, oracle) = seed_ai(&[
+        ProposerSpec { option: 0, bond: 1_000 },
+        ProposerSpec { option: 1, bond: 1_000 },
+    ]);
+    ctx.warp(WINDOW + 1);
+
+    let err = ctx
+        .send(finalize_ai_claims_ix(&ctx, oracle, &[]), &[])
+        .unwrap_err()
+        .err;
+    assert_eq!(
+        err,
+        TransactionError::InstructionError(
+            0,
+            InstructionError::Custom(KassandraError::IncompleteFactSet as u32),
+        ),
+    );
 }

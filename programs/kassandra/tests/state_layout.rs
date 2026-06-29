@@ -14,7 +14,7 @@ fn account_sizes_are_stable() {
     // be a deliberate, visible break of these constants. Each carries an
     // 8-byte header (account_type: u8 + _pad_hdr: [u8;7]) at offset 0.
     assert_eq!(Oracle::LEN, 232);
-    assert_eq!(Proposer::LEN, 88);
+    assert_eq!(Proposer::LEN, 96);
     assert_eq!(Fact::LEN, 336);
     assert_eq!(FactVote::LEN, 88);
     assert_eq!(AiClaim::LEN, 176);
@@ -42,6 +42,7 @@ fn field_offsets_are_pinned() {
 
     assert_eq!(offset_of!(Proposer, bond), 72);
     assert_eq!(offset_of!(Proposer, ai_finalized), 86);
+    assert_eq!(offset_of!(Proposer, slashed_amount), 88);
 
     assert_eq!(offset_of!(Fact, uri), 136);
 

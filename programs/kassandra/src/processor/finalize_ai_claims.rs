@@ -91,9 +91,10 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
             // Already out (e.g. slashed in a prior phase). Don't slash again;
             // just mark + count so the set can complete. Not surviving.
         } else if proposer.claim_option == CLAIM_OPTION_NONE {
-            // No-show: full slash.
+            // No-show: full slash. `slashed_amount` == the bond_pool delta.
             proposer.slashed = 1;
             proposer.disqualified = 1;
+            proposer.slashed_amount = proposer.bond;
             oracle.bond_pool = oracle
                 .bond_pool
                 .checked_add(proposer.bond)
@@ -104,10 +105,12 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
                 .ok_or(ProgramError::ArithmeticOverflow)?;
         } else if proposer.is_flipped() {
             // Flip: partial slash, but the (flipped) claim still counts —
-            // proposer remains surviving and is NOT disqualified.
+            // proposer remains surviving and is NOT disqualified. The SAME
+            // value is recorded on the proposer and added to bond_pool.
             let slash = ((proposer.bond as u128) * (FLIP_SLASH_NUM as u128)
                 / (FLIP_SLASH_DEN as u128)) as u64;
             proposer.slashed = 1;
+            proposer.slashed_amount = slash;
             oracle.bond_pool = oracle
                 .bond_pool
                 .checked_add(slash)

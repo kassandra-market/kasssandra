@@ -282,6 +282,16 @@ impl TestCtx {
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
     }
 
+    /// Mark a seeded Proposer account as disqualified. Lets tests drive the
+    /// disqualified-submitter rejection in `submit_ai_claim` and the defensive
+    /// already-disqualified branch in `finalize_ai_claims` without a real slash
+    /// instruction from an earlier phase.
+    pub fn set_proposer_disqualified(&mut self, proposer: Pubkey) {
+        let mut p = self.proposer(proposer);
+        p.disqualified = 1;
+        self.set_program_account(proposer, bytemuck::bytes_of(&p).to_vec());
+    }
+
     /// Fabricate a program-owned account at a fresh address holding `data`.
     /// Used by type-confusion tests to stand up an account with a wrong (or
     /// missing) `account_type` tag.

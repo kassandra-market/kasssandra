@@ -121,7 +121,7 @@ impl Oracle {
     }
 }
 
-/// A proposer's commitment within an oracle. `size_of == 88`.
+/// A proposer's commitment within an oracle. `size_of == 96`.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Proposer {
@@ -131,13 +131,25 @@ pub struct Proposer {
     pub authority: Pubkey,
     pub bond: u64,           // locked KASS
     pub original_option: u8, // value at proposal time (no proofs)
-    pub claim_option: u8,    // value after AI claim; CLAIM_OPTION_NONE = not yet submitted
-    pub disqualified: u8,    // bool
-    pub slashed: u8,         // bool
-    pub flipped: u8,         // bool: claim_option != original_option
+    // CONTRACT: `claim_option` MUST be initialized to `CLAIM_OPTION_NONE`
+    // (0xFF) when a Proposer account is created — NOT left zeroed. A zeroed
+    // value (0) would be misread as a valid claim for option 0, escaping the
+    // no-show full-slash in `finalize_ai_claims` and counting as a real vote in
+    // the Task 8 plurality. The proposer-registration / propose processor (not
+    // yet built) must set it; the test harness already does.
+    pub claim_option: u8, // value after AI claim; CLAIM_OPTION_NONE = not yet submitted
+    pub disqualified: u8, // bool
+    pub slashed: u8,      // bool
+    pub flipped: u8,      // bool: claim_option != original_option
     pub bump: u8,
     pub ai_finalized: u8, // bool: settled by finalize_ai_claims (idempotency marker)
     pub _pad: [u8; 1],
+    // KASS slashed from this proposer into the oracle's `bond_pool`. Set
+    // authoritatively by `finalize_ai_claims` (no-show => bond; flip =>
+    // bond*FLIP_SLASH_NUM/FLIP_SLASH_DEN). Invariant: a proposer's contribution
+    // to `bond_pool` always equals its `slashed_amount`, so Task 13
+    // conservation reconciles without recomputing a fragile formula.
+    pub slashed_amount: u64,
 }
 
 impl Proposer {
