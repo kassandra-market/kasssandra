@@ -12,6 +12,7 @@ entrypoint!(process_instruction);
 
 pub mod clock;
 pub mod config;
+pub mod cpi;
 pub mod error;
 pub mod instruction;
 pub mod plurality;
