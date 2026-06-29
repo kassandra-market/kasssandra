@@ -1,0 +1,22 @@
+[package]
+name = "kassandra-program"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+pinocchio = { workspace = true }
+pinocchio-pubkey = { workspace = true }
+pinocchio-system = { workspace = true }
+pinocchio-token = { workspace = true }
+bytemuck = { workspace = true }
+
+[dev-dependencies]
+litesvm = "0.6"
+solana-sdk = "2"
+spl-token = { version = "6", features = ["no-entrypoint"] }
+
+[features]
+no-entrypoint = []
