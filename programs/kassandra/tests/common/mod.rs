@@ -292,6 +292,33 @@ impl TestCtx {
         self.set_program_account(proposer, bytemuck::bytes_of(&p).to_vec());
     }
 
+    /// Overwrite a seeded Proposer's `claim_option`. Lets `finalize_oracle`
+    /// tests stand up surviving proposers with chosen post-AI-claim votes
+    /// without driving the full submit/finalize-AI-claim flow.
+    pub fn set_proposer_claim_option(&mut self, proposer: Pubkey, option: u8) {
+        let mut p = self.proposer(proposer);
+        p.claim_option = option;
+        self.set_program_account(proposer, bytemuck::bytes_of(&p).to_vec());
+    }
+
+    /// Overwrite an oracle's `surviving_count`. Lets `finalize_oracle` tests
+    /// keep the count consistent with a hand-disqualified proposer set (e.g.
+    /// the all-disqualified dead-end) without a real slash instruction.
+    pub fn set_surviving_count(&mut self, oracle: Pubkey, count: u16) {
+        let mut o = self.oracle(oracle);
+        o.surviving_count = count;
+        self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
+    }
+
+    /// Overwrite an oracle's `open_challenge_count`. Lets `finalize_oracle`
+    /// tests drive the `ChallengesOutstanding` gate (an unsettled challenge
+    /// market) without standing up a real MetaDAO challenge.
+    pub fn set_open_challenge_count(&mut self, oracle: Pubkey, count: u16) {
+        let mut o = self.oracle(oracle);
+        o.open_challenge_count = count;
+        self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
+    }
+
     /// Fabricate a program-owned account at a fresh address holding `data`.
     /// Used by type-confusion tests to stand up an account with a wrong (or
     /// missing) `account_type` tag.

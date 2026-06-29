@@ -57,6 +57,11 @@ pub enum KassandraError {
     /// `settle_challenge` was called before the market's TWAP window elapsed
     /// (`now < market.twap_end`): the decision market is still trading.
     TwapWindowOpen = 15,
+    /// `finalize_oracle` was called while one or more challenge decision markets
+    /// are still open (`oracle.open_challenge_count != 0`). The final plurality
+    /// recompute must not run until every challenged claim has been settled, or a
+    /// not-yet-disqualified challenged proposer would be miscounted as surviving.
+    ChallengesOutstanding = 16,
 }
 
 impl From<KassandraError> for ProgramError {

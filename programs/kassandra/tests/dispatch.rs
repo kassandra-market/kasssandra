@@ -45,19 +45,21 @@ fn unknown_discriminant_is_invalid() {
 }
 
 #[test]
-fn known_discriminant_returns_not_implemented() {
+fn known_discriminant_is_routed_to_processor() {
+    // Every `Ix` variant is now implemented (no `NotImplemented` arm remains),
+    // so a known discriminant is ROUTED to its processor rather than stubbed.
+    // FinalizeOracle (the last one wired up) with a single non-program-owned
+    // account reaches `load_oracle`, which rejects the bad owner with
+    // `InvalidAccount` — proving dispatch routed it instead of returning
+    // `NotImplemented`.
     let mut ctx = TestCtx::new();
-    // A known-but-unimplemented discriminant with an arbitrary trailing byte.
-    // (SubmitFact/VoteFact/FinalizeFacts/AdvancePhase/SubmitAiClaim/
-    // FinalizeAiClaims/OpenChallenge/SettleChallenge are implemented; use the
-    // still-stubbed FinalizeOracle here.)
-    let ix = ix_with_data(&ctx, vec![Ix::FinalizeOracle as u8, 0xAB]);
+    let ix = ix_with_data(&ctx, vec![Ix::FinalizeOracle as u8]);
     let err = ctx.send(ix, &[]).unwrap_err().err;
     assert_eq!(
         err,
         TransactionError::InstructionError(
             0,
-            InstructionError::Custom(KassandraError::NotImplemented as u32),
+            InstructionError::Custom(KassandraError::InvalidAccount as u32),
         ),
     );
 }

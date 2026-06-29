@@ -10,11 +10,12 @@ use pinocchio::{
     account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, ProgramResult,
 };
 
-use crate::{error::KassandraError, instruction::Ix};
+use crate::instruction::Ix;
 
 pub mod advance_phase;
 pub mod finalize_ai_claims;
 pub mod finalize_facts;
+pub mod finalize_oracle;
 pub mod guards;
 pub mod open_challenge;
 pub mod settle_challenge;
@@ -38,6 +39,6 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         Ix::FinalizeAiClaims => finalize_ai_claims::process(program_id, accounts, payload),
         Ix::OpenChallenge => open_challenge::process(program_id, accounts, payload),
         Ix::SettleChallenge => settle_challenge::process(program_id, accounts, payload),
-        Ix::FinalizeOracle => Err(KassandraError::NotImplemented.into()),
+        Ix::FinalizeOracle => finalize_oracle::process(program_id, accounts, payload),
     }
 }
