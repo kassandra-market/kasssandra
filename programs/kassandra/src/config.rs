@@ -117,3 +117,13 @@ const _: () = assert!(FEE_EMA_SCALE > 0);
 pub const FLIP_SLASH_NUM: u64 = 1;
 /// Fraction (denominator) of the flip slash. See [`FLIP_SLASH_NUM`].
 pub const FLIP_SLASH_DEN: u64 = 2;
+
+/// Seed of the program-controlled **KASS mint-authority PDA**:
+/// `[b"mint_authority"]`, program = [`crate::ID`]. Emission mints KASS signed by
+/// this PDA (the DAO governs the emission *rate*, not direct minting — design
+/// "Bootstrapping"). F1 only DEFINES the seed + records the DAO linkage; the
+/// binding `kass_mint.mint_authority == mint_authority_pda` is asserted at first
+/// emission (settlement milestone), since verifying it requires threading the
+/// mint account (and the test-harness KASS mint authority is the payer, not the
+/// PDA).
+pub const MINT_AUTHORITY_SEED: &[u8] = b"mint_authority";

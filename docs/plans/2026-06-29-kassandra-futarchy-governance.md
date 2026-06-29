@@ -120,3 +120,34 @@ After each task: `just build` → `cargo test -p kassandra-program` → clippy/f
 - DEFERRED to F5/F6: a full `initialize_dao` success (needs Squads v4 program + mints loaded), driving a proposal to pass/execute, and reading a live Meteora cp-amm `sqrt_price` (cp-amm has no TWAP — see finding #2).
 
 Build: `just build` (SBF) clean. Tests: `cargo test -p kassandra-program` all pass (incl. the 5 new). `cargo clippy --all-targets` clean; `cargo fmt` applied.
+
+### F1 — Protocol governance state + DAO linkage (DONE 2026-06-29)
+
+**`Protocol` re-pinned — LEN 128 → 240** (`state.rs`, re-pinned in `tests/state_layout.rs`). Existing offsets unchanged; the old `bump@120 + _pad[7]` tail became `bump@120`, the new fields, and the governable-param block. Pod-valid (align 8, no implicit padding). Offsets:
+
+| field | off | field | off |
+|---|---|---|---|
+| account_type | 0 | dao_authority (Pubkey) | 128 |
+| admin | 8 | kass_dao (Pubkey) | 160 |
+| kass_mint | 40 | emission_num (u64) | 192 |
+| usdc_mint | 72 | emission_den (u64) | 200 |
+| fee_ema (u64) | 104 | total_supply_cap (u64) | 208 |
+| last_creation_unix (i64) | 112 | fee_ema_halflife (i64) | 216 |
+| bump (u8) | 120 | fee_per_ema_unit (u64) | 224 |
+| governance_set (u8) | 121 | fee_ema_increment (u64) | 232 |
+| _pad[6] | 122 | | |
+
+**Monetary param defaults (no behavior change).** `init_protocol` sets `emission_num=0`, `emission_den=1` (denominator never zero), `total_supply_cap=0` (all settlement-era, reserved), and the fee-EMA mirror to the current `config.rs` consts: `fee_ema_halflife = FEE_EMA_HALFLIFE_SECS (86400)`, `fee_per_ema_unit = FEE_PER_EMA_UNIT (1e9)`, `fee_ema_increment = FEE_EMA_INCREMENT (1e9)`. `create_oracle` STILL reads the consts (config-as-state wiring is F2); F1 only adds + defaults the fields. `dao_authority`/`kass_dao` zeroed, `governance_set=0`.
+
+**`Ix::SetGovernance = 13`** (appended; `from_u8` arm added; dispatched in `processor/mod.rs`). New processor `processor/set_governance.rs`.
+- Accounts: `[0] protocol(w)`, `[1] authority(signer)`. Payload: `dao_authority:[u8;32] ++ kass_dao:[u8;32]` (64 bytes), both validated non-zero (else `InvalidAccount`).
+- **Trust model (implemented + tested): admin-sets-once → DAO rotates.** While `governance_set==0`, only `Protocol.admin` may call it (else `Unauthorized`) — the one-time bootstrap handoff. Once `governance_set==1`, only the current `Protocol.dao_authority` may rotate it (else new `KassandraError::GovernanceAlreadySet = 25`); the old admin is rejected. The DAO can rotate its own linkage but control never returns to the admin.
+- Stores the passed pubkeys verbatim (F0 finding #1: `dao_authority` = Squads v4 vault PDA, `kass_dao` = futarchy `Dao`; real setup is F6).
+
+**Mint-authority PDA seed** defined as `config::MINT_AUTHORITY_SEED = b"mint_authority"` (PDA `[b"mint_authority"]`, program = `crate::ID`). F1 only DEFINES it; the binding `kass_mint.mint_authority == mint_authority_pda` is asserted at first emission (settlement), since verifying it requires threading the mint account (and the test-harness KASS mint authority is the payer, not the PDA).
+
+**Error appended:** `KassandraError::GovernanceAlreadySet = 25`.
+
+**Tests** (`tests/governance_setup.rs`, 4, all green): admin handoff records linkage + monetary defaults; non-admin → `Unauthorized`; one-shot (post-handoff admin → `GovernanceAlreadySet`, dao_authority rotates OK); zero dao_authority/kass_dao → `InvalidAccount`. Harness (`tests/common/mod.rs`): `stand_in_governance(tag)`, `set_governance`/`set_governance_ix` helpers; the existing `protocol` accessor exposes the new fields. All prior tests (incl. 4 init_protocol, layout pin) still pass.
+
+Build: `just build` (SBF) clean. Tests: `cargo test -p kassandra-program` all pass. `cargo clippy --all-targets` clean; `cargo fmt` applied.

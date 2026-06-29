@@ -43,6 +43,12 @@ pub enum Ix {
     /// open the dispute by setting `dispute_bond_total = total_oracle_stake` and
     /// advancing to [`crate::state::Phase::FactProposal`] (the dispute-core seam).
     FinalizeProposals = 12,
+    /// One-time DAO-linkage handoff (Task F1): records `dao_authority` (the
+    /// Squads v4 multisig vault PDA) + `kass_dao` (the futarchy `Dao` account)
+    /// into the `Protocol`. Gated to `Protocol.admin` while `governance_set ==
+    /// 0`; once set, only the current `dao_authority` may rotate it (so
+    /// governance can rotate itself after handoff).
+    SetGovernance = 13,
     // Future variants are APPENDED here with the next discriminant; add a
     // matching arm to `from_u8` below.
 }
@@ -65,6 +71,7 @@ impl Ix {
             10 => Some(Ix::CreateOracle),
             11 => Some(Ix::Propose),
             12 => Some(Ix::FinalizeProposals),
+            13 => Some(Ix::SetGovernance),
             _ => None,
         }
     }

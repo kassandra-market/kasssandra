@@ -94,6 +94,11 @@ pub enum KassandraError {
     /// there is nothing to finalize, and an empty oracle stays open waiting for
     /// its first proposal (the empty-window seeding handled by `propose`).
     NoProposals = 24,
+    /// `set_governance` was called after the DAO linkage was already recorded
+    /// (`governance_set == 1`) by a signer that is not the current
+    /// `dao_authority`: the admin→DAO handoff is one-shot, and only the DAO may
+    /// rotate the linkage thereafter.
+    GovernanceAlreadySet = 25,
 }
 
 impl From<KassandraError> for ProgramError {

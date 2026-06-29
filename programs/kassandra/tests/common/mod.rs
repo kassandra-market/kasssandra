@@ -237,6 +237,62 @@ impl TestCtx {
         }
     }
 
+    /// Stand-in governance keys for F1 tests: an arbitrary "Squads vault" PDA
+    /// and an arbitrary "futarchy Dao" pubkey. F1's `set_governance` stores
+    /// whatever is passed (the real Squads/futarchy setup is F6), so any
+    /// distinct non-zero pubkeys suffice. Deterministic per call site via the
+    /// supplied `tag`.
+    pub fn stand_in_governance(tag: u8) -> (Pubkey, Pubkey) {
+        let dao_authority = Pubkey::new_from_array([tag; 32]);
+        let kass_dao = Pubkey::new_from_array([tag.wrapping_add(1).max(1); 32]);
+        (dao_authority, kass_dao)
+    }
+
+    /// Send a real `SetGovernance` instruction signed by `authority`, recording
+    /// `dao_authority` (Squads vault) + `kass_dao` (futarchy Dao) in the
+    /// Protocol. Returns the Protocol PDA + result so tests can assert success
+    /// or the authorization/one-shot rejection paths.
+    #[allow(clippy::result_large_err)]
+    pub fn set_governance(
+        &mut self,
+        authority: &Keypair,
+        dao_authority: Pubkey,
+        kass_dao: Pubkey,
+    ) -> (Pubkey, TransactionResult) {
+        let (protocol_pda, _) = Self::protocol_pda(&self.program_id);
+        let ix = self.set_governance_ix(protocol_pda, authority.pubkey(), dao_authority, kass_dao);
+        // The payer is always a signer; only co-sign `authority` when it differs.
+        let res = if authority.pubkey() == self.payer.pubkey() {
+            self.send(ix, &[])
+        } else {
+            self.send(ix, &[authority])
+        };
+        (protocol_pda, res)
+    }
+
+    /// Build a `SetGovernance` instruction. Exposes `protocol`/`authority` so
+    /// tests can pass a wrong signer. Payload = `dao_authority ++ kass_dao`.
+    pub fn set_governance_ix(
+        &self,
+        protocol: Pubkey,
+        authority: Pubkey,
+        dao_authority: Pubkey,
+        kass_dao: Pubkey,
+    ) -> Instruction {
+        let mut data = Vec::with_capacity(1 + 64);
+        data.push(kassandra_program::instruction::Ix::SetGovernance as u8);
+        data.extend_from_slice(&dao_authority.to_bytes());
+        data.extend_from_slice(&kass_dao.to_bytes());
+        Instruction {
+            program_id: self.program_id,
+            accounts: vec![
+                AccountMeta::new(protocol, false),
+                AccountMeta::new_readonly(authority, true),
+            ],
+            data,
+        }
+    }
+
     /// Send a real `CreateOracle` instruction with `creator == payer`, using the
     /// harness KASS/USDC mints and the protocol singleton. Returns the Oracle PDA
     /// derived from `nonce`. `init_protocol` must have been called first. The

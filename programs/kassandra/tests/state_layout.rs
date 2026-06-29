@@ -21,7 +21,7 @@ fn account_sizes_are_stable() {
     assert_eq!(FactVote::LEN, 88);
     assert_eq!(AiClaim::LEN, 176);
     assert_eq!(Market::LEN, 384);
-    assert_eq!(Protocol::LEN, 128);
+    assert_eq!(Protocol::LEN, 240);
 }
 
 #[test]
@@ -72,7 +72,8 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Market, challenger_usdc), 368);
     assert_eq!(offset_of!(Market, settled), 376);
 
-    // Protocol: 3 pubkeys packed after the 8-byte header, then the fee-EMA tail.
+    // Protocol: 3 pubkeys packed after the 8-byte header, then the fee-EMA tail,
+    // then (F1) the governance flag + DAO linkage + governable monetary params.
     assert_eq!(offset_of!(Protocol, account_type), 0);
     assert_eq!(offset_of!(Protocol, admin), 8);
     assert_eq!(offset_of!(Protocol, kass_mint), 40);
@@ -80,6 +81,16 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Protocol, fee_ema), 104);
     assert_eq!(offset_of!(Protocol, last_creation_unix), 112);
     assert_eq!(offset_of!(Protocol, bump), 120);
+    assert_eq!(offset_of!(Protocol, governance_set), 121);
+    // _pad[6] @122 fills to the 8-byte boundary before the Pubkey pair.
+    assert_eq!(offset_of!(Protocol, dao_authority), 128);
+    assert_eq!(offset_of!(Protocol, kass_dao), 160);
+    assert_eq!(offset_of!(Protocol, emission_num), 192);
+    assert_eq!(offset_of!(Protocol, emission_den), 200);
+    assert_eq!(offset_of!(Protocol, total_supply_cap), 208);
+    assert_eq!(offset_of!(Protocol, fee_ema_halflife), 216);
+    assert_eq!(offset_of!(Protocol, fee_per_ema_unit), 224);
+    assert_eq!(offset_of!(Protocol, fee_ema_increment), 232);
 }
 
 #[test]

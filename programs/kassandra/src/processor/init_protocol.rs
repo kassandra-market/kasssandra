@@ -120,6 +120,21 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
     protocol.fee_ema = 0;
     protocol.last_creation_unix = 0;
     protocol.bump = bump;
+    // Governance linkage unset until the one-time `set_governance` handoff.
+    protocol.governance_set = 0;
+    // dao_authority / kass_dao stay zeroed (set by `set_governance`).
+    //
+    // Governable monetary params: default to the current `config.rs` consts so
+    // behavior is UNCHANGED (F1 only adds the fields; F2 wires create_oracle to
+    // read them). `emission_*` / `total_supply_cap` are settlement-era and have
+    // no const yet — reserved as 0 (with `emission_den = 1` so a future divisor
+    // is never zero).
+    protocol.emission_num = 0;
+    protocol.emission_den = 1;
+    protocol.total_supply_cap = 0;
+    protocol.fee_ema_halflife = crate::config::FEE_EMA_HALFLIFE_SECS;
+    protocol.fee_per_ema_unit = crate::config::FEE_PER_EMA_UNIT;
+    protocol.fee_ema_increment = crate::config::FEE_EMA_INCREMENT;
     {
         let mut data = protocol_ai.try_borrow_mut_data()?;
         data.copy_from_slice(bytemuck::bytes_of(&protocol));
