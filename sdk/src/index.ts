@@ -39,3 +39,6 @@ export * from "./litesvm-interop.js";
 
 // Runner → SDK bridge: submitAiClaimFromRunner + the runner-payload parity guard.
 export * from "./runner-bridge.js";
+
+// Futarchy v0.6 + Squads v4 builders + governance bootstrap (under `futarchy.*`).
+export * as futarchy from "./futarchy/index.js";

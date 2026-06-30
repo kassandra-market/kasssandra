@@ -83,5 +83,46 @@
   resolve_deadend, kass_price); `cargo clippy` + `cargo fmt` clean; `cd sdk &&
   pnpm typecheck && pnpm test` → 72 offline tests green.
 
+### G2 — SDK futarchy/Squads builders + governance bootstrap (DONE)
+- **CRITICAL `create_key == Dao` gate — CONFIRMED (authoritative source).** Fetched
+  `metaDAOproject/futarchy@v0.6.0 programs/futarchy/src/instructions/initialize_dao.rs`
+  (via `gh api`, cross-checked against the dumped `metadao_futarchy_v06.so`
+  account-name strings). `initialize_dao` ITSELF creates the Squads multisig via
+  CPI `multisig_create_v2` with `create_key: dao.to_account_info()` (the Dao PDA),
+  `config_authority = dao`, `threshold = 1`, members `[dao(Vote|Execute),
+  permissionless EP3SoC2…(Initiate|Execute)]`; multisig seeds `[b"multisig",
+  b"multisig", dao]`, vault index 0. **⇒ G1's hardened check is CORRECT** (no
+  revision needed). Deviation handled: the multisig is NOT created as a separate
+  bootstrap step (the plan's literal wording); `initialize_dao` creates it
+  atomically, so the bootstrap = `initialize_dao` → derive multisig/vault →
+  `set_governance`. (A standalone `multisigCreateV2` disc is still exported but
+  unused.)
+- **RECON → `sdk/src/futarchy/NOTES.md`:** authoritative layout map. conditional_vault
+  (init_question/init_vault/split/merge/redeem/resolve_question) = FULLY validated
+  against the real binaries (existing Rust + T4 tests). futarchy
+  (initialize_dao/initialize_proposal/launch_proposal/finalize_proposal/
+  conditional_swap/spot_swap) account orders + args lifted from the v0.6.0 source.
+  Squads (vault_transaction_create/execute, proposal_create) from
+  `Squads-Protocol/v4@6d5235da`. **STOP-REPORTED:** Meteora DAMM v2 pool/
+  add-liquidity/swap builders NOT built — the v0.6 conditional VERDICT markets are
+  the futarchy program's EMBEDDED AMM (`Dao.amm`, driven by launch/conditional_swap/
+  finalize), NOT Meteora; Meteora is only spot-liquidity/fee-collection and its
+  zero-copy `Pool` offsets (`sqrt_price`) are the flagged deferred unknown (pin at
+  G3 if exercised).
+- **Builders** under `sdk/src/futarchy/` (exported as `futarchy.*`):
+  `constants.ts` (discriminators/seeds/`Market`/`SwapType`), `pda.ts` (Dao,
+  Proposal, Squads multisig/vault/program_config/spending_limit/transaction/
+  proposal, conditional vault/question/cond-token mint, both event authorities),
+  `instructions.ts` (the futarchy + conditional_vault + Squads builders, web3.js v3
+  `TransactionInstruction`s, event_cpi tail appended), `bootstrap.ts`
+  (`bootstrapGovernance` → `{dao, multisig, vault, programConfig, spendingLimit,
+  instructions:[initialize_dao, set_governance]}`).
+- **Tests:** `sdk/test/futarchy.test.ts` (16 tests) pins each builder's
+  `data == [disc, ...borsh_args]` + the account-meta order/roles (independently
+  re-derived PDAs), the Market/SwapType tags, and the bootstrap sequence
+  (`vault == dao_authority`, `kass_dao == dao`).
+- **Verification:** `cd sdk && pnpm typecheck` clean, `pnpm build` clean,
+  `pnpm test` → 88 offline (72 prior + 16 new) green. Program + runner untouched.
+
 ## Execution note
 After each task: build/test green; the default `pnpm test` stays 72 offline; `cargo test -p kassandra-program` green. G1 is a focused, reviewed PROGRAM change (the only program edit). G2 is the make-or-break SDK builder work (stop-and-report if a MetaDAO wire format can't be authoritatively determined). G3 is the fully-real headline (genuine attempt; stop-and-report a real blocker rather than fake). Append a G1–G4 delta log here.

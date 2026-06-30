@@ -1,0 +1,248 @@
+# Futarchy v0.6 + Squads v4 + conditional_vault — SDK wire-format recon (Task G2)
+
+This is the authoritative layout map the `sdk/src/futarchy/*` builders are derived
+from. Every discriminator mirrors the binary-validated Rust CPI modules
+(`programs/kassandra/src/cpi/metadao_v06.rs` for futarchy/Squads, `…/metadao.rs`
+for the conditional_vault); every account ordering + arg layout is sourced as
+noted per instruction. Where a wire format is NOT authoritatively determinable it
+is marked **DEFERRED / STOP-REPORTED** rather than guessed.
+
+Program IDs (`EXTERNAL_PROGRAM_IDS`, `metadao_v06.rs`):
+- futarchy v0.6 `FUTARELBfJfQ8RDGhg1wdhddq1odMAJUePHFuBYfUxKq`
+- conditional_vault `VLTX1ishMBbcX3rdBWGssxawAo1Q2X2qxYFYqiGodVg` (v0.4==v0.6)
+- Meteora DAMM v2 (cp-amm) `cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG`
+- Squads v4 `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf`
+
+All futarchy instructions are `#[event_cpi]` → two TRAILING accounts appended
+after the declared list: `event_authority` (`[b"__event_authority"]` under the
+futarchy program) then the futarchy program id. The conditional_vault is likewise
+`#[event_cpi]`.
+
+---
+
+## CRITICAL RECON GATE — `create_key == Dao PDA` — **CONFIRMED**
+
+Source: `metaDAOproject/futarchy@v0.6.0`
+`programs/futarchy/src/instructions/initialize_dao.rs` (fetched via
+`gh api ... contents` — authoritative source, cross-checked against the dumped
+`metadao_futarchy_v06.so` account-name strings).
+
+`initialize_dao` ITSELF creates the Squads multisig via CPI
+`squads_multisig_program::cpi::multisig_create_v2(...)` with:
+
+```rust
+create_key: dao.to_account_info(),   // <-- the Dao PDA IS the create_key
+config_authority: Some(dao.key()),
+threshold: 1,
+members: [ { key: dao.key(), Vote|Execute },
+           { key: permissionless_account (EP3SoC2SvR3d4c2eXVBvhEMWSr2j3YtoCY3UMiQV7BPD), Initiate|Execute } ],
+```
+
+The multisig PDA is constrained in the same instruction as
+`[SEED_PREFIX, SEED_MULTISIG, dao.key()]` = `[b"multisig", b"multisig", Dao]`
+under the Squads program, and the vault as
+`[b"multisig", multisig, b"vault", 0u8]` (vault index 0). The `Dao` account then
+stores `squads_multisig` and `squads_multisig_vault`.
+
+**⇒ G1's hardened `set_governance` check is CORRECT.** It derives
+`vault = squads_vault(squads_multisig(create_key == kass_dao), 0)` and requires
+`dao_authority == vault`. Reality matches the assumption exactly.
+
+**Deviation from the plan's literal wording (handled, not a blocker):** plan
+Decision 1 / G2(c) describe the bootstrap as creating the multisig as a SEPARATE
+step after `initialize_dao`. In reality `initialize_dao` creates the multisig +
+vault atomically (the CPI above), so the bootstrap does NOT emit a standalone
+`multisig_create_v2`; it calls `initialize_dao`, then DERIVES multisig/vault from
+the Dao PDA, then calls `setGovernance`. A standalone `multisigCreateV2` builder
+is still provided (args/accounts are determinable from the CPI site) but is unused
+by the bootstrap.
+
+---
+
+## conditional_vault (FULLY VALIDATED against the real binary)
+
+Validated by real-binary CPI in `tests/metadao_v06_cpi.rs::v06_conditional_vault_split`,
+`tests/challenge_e2e.rs`, and `sdk/test/surfpool/challenge-market-e2e.test.ts`.
+Discriminators + account orders from `cpi/metadao.rs` (binary-validated).
+
+Discriminators (`sha256("global:<name>")[..8]`):
+- initialize_question `f5 97 6a bc 58 2c 41 d4`
+- initialize_conditional_vault `25 58 fa d4 36 da e3 af`
+- split_tokens `4f c3 74 00 8c b0 49 b3`
+- merge_tokens `e2 59 fb 79 e1 82 b4 0e`
+- redeem_tokens `f6 62 86 29 98 21 78 45`
+- resolve_question `34 20 e0 b3 b4 08 00 f6`
+
+PDA seeds (under conditional_vault):
+- question `[b"question", question_id[32], oracle[32], [num_outcomes]]`
+- vault `[b"conditional_vault", question, underlying_mint]`
+- conditional_token_mint `[b"conditional_token", vault, [index]]`
+- event_authority `[b"__event_authority"]`
+
+Args:
+- initialize_question: `disc ++ question_id[32] ++ oracle[32] ++ num_outcomes:u8` (73 bytes)
+- initialize_conditional_vault: `disc` only (8)
+- split_tokens / merge_tokens: `disc ++ amount:u64` (16)
+- redeem_tokens: `disc` only (8)
+- resolve_question (binary): `disc ++ Vec<u32> { len:u32==2, n0:u32, n1:u32 }` (20)
+
+Account orders (incl. the two trailing event_cpi accounts):
+- `initialize_question`: `[question(w,init), payer(w,signer), system_program, event_authority, program]`
+- `initialize_conditional_vault`: `[vault(w,init), question, underlying_mint, vault_underlying_ata(w), payer(w,signer), token_program, ata_program, system_program, event_authority, program, +cond_mint[0..n](w)]`
+- `split/merge/redeem` (shared `InteractWithVault`): `[question, vault(w), vault_underlying_ata(w), authority(signer), user_underlying_ata(w), token_program, event_authority, program, +cond_mint[0..n](w), +user_cond_token[0..n](w)]`
+- `resolve_question`: `[question(w), oracle(signer), event_authority, program]`
+
+---
+
+## futarchy v0.6 (account orders + args from `metaDAOproject/futarchy@v0.6.0` source)
+
+Discriminators (`metadao_v06.rs`, dispatch-probe-validated against the real
+`metadao_futarchy_v06.so`):
+- initialize_dao `80 e2 60 5a 27 38 18 c4`
+- initialize_proposal `32 49 9c 62 81 95 15 9e`
+- launch_proposal `10 d3 bd 77 f5 48 00 e5`
+- finalize_proposal `17 44 33 a7 6d ad bb a4`
+- update_dao `83 48 4b 19 70 d2 6d 02`
+- spot_swap `a7 61 0c e7 ed 4e a6 fb`
+- conditional_swap `c2 88 dc 59 f2 a9 82 9d`
+
+Account discriminators: `Dao` `a3 09 2f 1f 34 55 c5 31`, `Proposal` `1a 5e bd bb 74 88 35 21`.
+
+PDA seeds (under futarchy): dao `[b"dao", dao_creator, nonce:u64le]`;
+proposal `[b"proposal", squads_proposal]`; event_authority `[b"__event_authority"]`.
+
+### initialize_dao  (src: initialize_dao.rs)
+`InitializeDaoParams` Borsh (matches `metadao_v06.rs::initialize_dao_data_no_limit`):
+`twap_initial_observation:u128, twap_max_observation_change_per_update:u128,
+twap_start_delay_seconds:u32, min_quote_futarchic_liquidity:u64,
+min_base_futarchic_liquidity:u64, base_to_stake:u64, pass_threshold_bps:u16,
+seconds_per_proposal:u32, nonce:u64, initial_spending_limit:Option<InitialSpendingLimit>`
+(the bootstrap uses `None` → trailing `0x00`; total 83 bytes).
+NOTE: the struct field order (= Borsh order) is min_quote BEFORE min_base; the
+handler destructures min_base first but that does NOT affect the wire layout.
+
+Accounts (then event_authority, program):
+`[dao(w,init), dao_creator(signer), payer(w,signer), system_program, base_mint,
+quote_mint, squads_multisig(w), squads_multisig_vault, squads_program,
+squads_program_config, squads_program_config_treasury(w), spending_limit(w),
+futarchy_amm_base_vault(w), futarchy_amm_quote_vault(w), token_program,
+associated_token_program]`.
+- squads_multisig PDA `[b"multisig", b"multisig", dao]` @ squads
+- squads_multisig_vault PDA `[b"multisig", multisig, b"vault", 0u8]` @ squads
+- squads_program_config PDA `[b"multisig", b"program_config"]` @ squads
+- squads_program_config_treasury: NOT a PDA — read from `ProgramConfig.treasury`
+  (the bootstrap takes it as a param / fetches it live in G3)
+- spending_limit PDA `[b"multisig", multisig, b"spending_limit", dao]` @ squads
+- futarchy_amm_{base,quote}_vault: ATA(mint={base,quote}, authority=dao)
+
+### initialize_proposal  (src: initialize_proposal.rs) — NO args
+Accounts (then event_authority, program):
+`[proposal(w,init), squads_proposal, dao(w), question, quote_vault, base_vault,
+proposer(signer), payer(w,signer), system_program]`.
+- proposal PDA `[b"proposal", squads_proposal]`; the conditional `question.oracle`
+  must equal the proposal PDA. quote_vault.underlying == dao.quote_mint,
+  base_vault.underlying == dao.base_mint, both `has_one = question`.
+
+### launch_proposal  (src: launch_proposal.rs) — NO args
+Accounts (then event_authority, program):
+`[proposal(w), base_vault, quote_vault, pass_base_mint, pass_quote_mint,
+fail_base_mint, fail_quote_mint, dao(w), payer(w,signer),
+amm_pass_base_vault(w,initIfNeeded), amm_pass_quote_vault(w), amm_fail_base_vault(w),
+amm_fail_quote_vault(w), system_program, token_program, associated_token_program]`.
+- pass_*_mint = conditional_token_mints[1], fail_*_mint = conditional_token_mints[0]
+- amm_*_vault = ATA(mint=that cond mint, authority=dao)
+- splits the embedded spot Pool reserves into pass/fail Pools (PoolState::Futarchy).
+
+### finalize_proposal  (src: finalize_proposal.rs) — NO args
+Accounts (then event_authority, program):
+`[proposal(w), dao(w), question(w), squads_proposal(w), squads_multisig,
+squads_multisig_program, amm_pass_base_vault(w), amm_pass_quote_vault(w),
+amm_fail_base_vault(w), amm_fail_quote_vault(w), amm_base_vault(w), amm_quote_vault(w),
+vault_program(=conditional_vault), vault_event_authority, token_program,
+quote_vault(w), quote_vault_underlying_token_account(w), pass_quote_mint(w),
+fail_quote_mint(w), pass_base_mint(w), fail_base_mint(w), base_vault(w),
+base_vault_underlying_token_account(w)]`.
+- Computes pass/fail TWAP from the embedded `Pool.oracle.get_twap()`, sets
+  Proposal::{Passed,Failed}, CPIs `resolve_question` (signed by the proposal PDA),
+  and on Passed CPIs Squads `proposal_approve` (signed by the Dao PDA) — this is
+  what lets the staged `VaultTransaction` later execute.
+
+### conditional_swap  (src: conditional_swap.rs)
+`ConditionalSwapParams` Borsh: `market:Market(u8), swap_type:SwapType(u8),
+input_amount:u64, min_output_amount:u64` (18 + 8 disc). `Market{Spot=0,Pass=1,Fail=2}`
+(`require_neq!(market, Spot)`); `SwapType{Buy=0,Sell=1}`.
+Accounts (then event_authority, program):
+`[dao(w), amm_base_vault(w), amm_quote_vault(w), proposal, amm_pass_base_vault(w),
+amm_pass_quote_vault(w), amm_fail_base_vault(w), amm_fail_quote_vault(w),
+trader(signer), user_input_account(w), user_output_account(w), base_vault(w),
+base_vault_underlying_token_account(w), quote_vault(w),
+quote_vault_underlying_token_account(w), pass_base_mint(w), fail_base_mint(w),
+pass_quote_mint(w), fail_quote_mint(w), conditional_vault_program,
+vault_event_authority, question, token_program]`.
+
+### spot_swap  (src: spot_swap.rs) — cranks the spot TWAP (the `kass_price` source)
+`SpotSwapParams` Borsh: `input_amount:u64, swap_type:SwapType(u8), min_output_amount:u64`
+(17 + 8 disc). Accounts (then event_authority, program):
+`[dao(w), user_base_account(w), user_quote_account(w), amm_base_vault(w),
+amm_quote_vault(w), user(signer), token_program]`.
+
+---
+
+## Squads v4 (`Squads-Protocol/v4@6d5235da`)
+
+Seeds (state/seeds.rs): SEED_PREFIX=`b"multisig"`, SEED_MULTISIG=`b"multisig"`,
+SEED_VAULT=`b"vault"`, SEED_TRANSACTION=`b"transaction"`, SEED_PROPOSAL=`b"proposal"`,
+SEED_PROGRAM_CONFIG=`b"program_config"`, SEED_SPENDING_LIMIT=`b"spending_limit"`.
+- multisig `[b"multisig", b"multisig", create_key]`
+- vault `[b"multisig", multisig, b"vault", vault_index:u8le]`
+- transaction `[b"multisig", multisig, b"transaction", index:u64le]`
+- proposal `[b"multisig", multisig, b"transaction", index:u64le, b"proposal"]`
+- program_config `[b"multisig", b"program_config"]`
+- spending_limit `[b"multisig", multisig, b"spending_limit", create_key]`
+
+Discriminators (`metadao_v06.rs`; `vault_transaction_execute` dispatch-probe-validated
+against the real `squads_v4.so` in `tests/metadao_v06_cpi.rs`):
+- multisig_create_v2 `32 dd c7 5d 28 f5 8b e9`
+- vault_transaction_create `30 fa 4e a8 d0 e2 da d3`
+- vault_transaction_execute `c2 08 a1 57 99 a4 19 ab`
+- proposal_create `dc 3c 49 e0 1e 6c 4f 9f`
+
+### vault_transaction_create  (src: vault_transaction_create.rs)
+`VaultTransactionCreateArgs` Borsh: `vault_index:u8, ephemeral_signers:u8,
+transaction_message:Vec<u8>(u32 len + bytes), memo:Option<String>`.
+Accounts: `[multisig(w), transaction(w,init), creator(signer), rent_payer(w,signer),
+system_program]`. transaction PDA uses index = multisig.transaction_index + 1.
+The `transaction_message` is Squads' compact `TransactionMessage` encoding of the
+inner instruction(s) — composing it (the staged `set_config` CPI) is a G3 concern.
+
+### proposal_create  (src: proposal_create.rs)
+`ProposalCreateArgs` Borsh: `transaction_index:u64, draft:bool`.
+Accounts: `[multisig, proposal(w,init), creator(signer), rent_payer(w,signer),
+system_program]`.
+
+### vault_transaction_execute  (src: vault_transaction_execute.rs) — NO args
+Accounts (FIXED): `[multisig, proposal(w), transaction, member(signer)]` then the
+inner transaction's `remaining_accounts` (ALT accounts + the message account_keys,
+in message order). The `member` is the Dao PDA (a Vote|Execute member). For a
+passed proposal this `invoke_signed`s the inner `set_config`/`resolve_deadend`
+into Kassandra signed by the Squads vault PDA == `Protocol.dao_authority`.
+
+---
+
+## Meteora DAMM v2 — **DEFERRED / STOP-REPORTED (not built)**
+
+The v0.6 conditional pass/fail VERDICT markets are the futarchy program's OWN
+EMBEDDED AMM (`Dao.amm` `PoolState::Futarchy{pass,fail,spot}`), driven by
+`launch_proposal` + `conditional_swap` + `finalize_proposal` (above) — NOT Meteora.
+The TWAP verdict comes from the embedded `Pool.oracle.get_twap()`. Meteora cp-amm
+is only used for the DAO's SPOT liquidity / fee collection (`collect_meteora_damm_fees`,
+`provide_liquidity`), which the proposal→TWAP→Squads→set_config loop does NOT need.
+
+Meteora cp-amm pool-init / add-liquidity / swap builders are therefore NOT built:
+their account lists are position-NFT-heavy and their `Pool` is a zero-copy
+`#[repr(C)]` struct whose field offsets (e.g. `sqrt_price`) require the nested
+`PoolFeesStruct` C-padding, which `metadao_v06.rs` already flags as the deferred
+unknown ("MUST pin against a LIVE pool dump and/or the published cp-amm IDL").
+Only the discriminators (`initialize_pool`, `swap`, `add_liquidity`) are pinned;
+the arg/account wire formats are NOT authoritatively determinable offline →
+**STOP-REPORTED**, to be pinned at G3 if the spot-liquidity path is exercised.
