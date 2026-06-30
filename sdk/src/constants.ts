@@ -16,6 +16,12 @@ import { Address } from "@solana/web3.js";
 /** Kassandra dispute-core program ID (`programs/kassandra/src/lib.rs`). */
 export const KASSANDRA_PROGRAM_ID = new Address("KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY");
 
+/** The Solana System program (`pinocchio_system::ID`), referenced by account-creating instructions. */
+export const SYSTEM_PROGRAM_ID = new Address("11111111111111111111111111111111");
+
+/** The SPL Token program (`pinocchio_token::ID`), referenced by stake/bond token CPIs. */
+export const TOKEN_PROGRAM_ID = new Address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+
 /**
  * Instruction discriminants — the leading byte of `instruction_data`.
  * Mirror of `Ix` in `instruction.rs`. STABLE PUBLIC CONTRACT: never renumbered;
