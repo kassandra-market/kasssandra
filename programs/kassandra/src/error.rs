@@ -133,6 +133,19 @@ pub enum KassandraError {
     /// donation arrived); the SPL `CloseAccount` would reject it anyway, but we
     /// fail loudly here first.
     EscrowNotEmpty = 30,
+    /// `set_governance` (Task G1) was given a `kass_dao` account that is not a
+    /// real futarchy `Dao`: it is not owned by the futarchy program
+    /// (`metadao_v06::FUTARCHY_ID`) or its first 8 bytes are not the `Dao` Anchor
+    /// account discriminator. The hardened handoff validates the linkage against
+    /// the real on-chain account instead of trusting the caller's payload.
+    InvalidFutarchyDao = 31,
+    /// `set_governance` (Task G1) was given a `dao_authority` payload that does
+    /// NOT equal the Squads v4 multisig **vault** PDA derived for the passed
+    /// `kass_dao` (the multisig `create_key == kass_dao` → multisig → vault, vault
+    /// index 0). The recorded `dao_authority` must be exactly that derived vault,
+    /// so the gate on `set_config`/`resolve_deadend` can only be satisfied by the
+    /// DAO's real Squads execution authority.
+    DaoAuthorityMismatch = 32,
 }
 
 impl From<KassandraError> for ProgramError {

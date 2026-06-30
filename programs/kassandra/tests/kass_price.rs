@@ -79,11 +79,11 @@ fn return_u128(res: &litesvm::types::TransactionResult) -> u128 {
 /// `kass_dao` as the given DAO account key. Returns the Protocol PDA.
 fn governed_ctx(ctx: &mut TestCtx, kass_dao: Pubkey) -> Pubkey {
     ctx.ensure_protocol();
+    // The kass_price read only consults `kass_dao`; record the linkage directly
+    // (force_governance) rather than via the Task G1-hardened handoff, which
+    // would require a matching derived Squads vault for `dao_authority`.
     let (dao_authority, _) = TestCtx::stand_in_governance(0x55);
-    let payer = ctx.payer.insecure_clone();
-    let (protocol, res) = ctx.set_governance(&payer, dao_authority, kass_dao);
-    assert!(res.is_ok(), "governance handoff should succeed: {res:?}");
-    protocol
+    ctx.force_governance(dao_authority, kass_dao)
 }
 
 #[test]

@@ -115,7 +115,7 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
   });
 });
 
-describe("parity guard: KassandraError (error.rs 0..=30)", () => {
+describe("parity guard: KassandraError (error.rs 0..=32)", () => {
   // Pinned from programs/kassandra/src/error.rs.
   const PINNED: Record<string, number> = {
     NotImplemented: 0,
@@ -149,6 +149,8 @@ describe("parity guard: KassandraError (error.rs 0..=30)", () => {
     BadMintAuthority: 28,
     MarketNotSettled: 29,
     EscrowNotEmpty: 30,
+    InvalidFutarchyDao: 31,
+    DaoAuthorityMismatch: 32,
   };
 
   it("matches every KassandraError by name and value", () => {
@@ -157,9 +159,9 @@ describe("parity guard: KassandraError (error.rs 0..=30)", () => {
     }
   });
 
-  it("has exactly 31 errors (0..=30)", () => {
+  it("has exactly 33 errors (0..=32)", () => {
     const numericValues = Object.values(KassandraError).filter((v) => typeof v === "number");
-    expect(numericValues.length).toBe(31);
+    expect(numericValues.length).toBe(33);
   });
 
   it("decodeError maps a custom code to its name + a non-empty message", () => {

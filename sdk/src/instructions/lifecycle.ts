@@ -236,15 +236,24 @@ export async function advancePhase(args: AdvancePhaseArgs): Promise<TransactionI
 
 // ---------------------------------------------------------------------------
 // SetGovernance (Ix=13) — processor/set_governance.rs
-// Accounts: 0 protocol(w) 1 authority(ro,signer).
+// Accounts: 0 protocol(w) 1 authority(ro,signer) 2 kass_dao(ro).
 // Payload (64): dao_authority[32] ++ kass_dao[32].
+//
+// Task G1: the handoff VALIDATES the linkage against the threaded `kass_dao`
+// account — it must equal the payload `kass_dao`, be owned by the futarchy
+// program, and carry the `Dao` Anchor discriminator; and the payload
+// `dao_authority` must be the Squads v4 vault PDA derived for that DAO.
 // ---------------------------------------------------------------------------
 export interface SetGovernanceArgs {
   /** Authority (signer): admin pre-handoff, dao_authority post-handoff. */
   authority: AddressInput;
   /** The Squads v4 multisig vault PDA recorded as `dao_authority` (non-zero). */
   daoAuthority: AddressInput;
-  /** The futarchy `Dao` account recorded as `kass_dao` (non-zero). */
+  /**
+   * The futarchy `Dao` account recorded as `kass_dao` (non-zero). Used BOTH as
+   * the payload pubkey and the read-only account the processor validates
+   * (owner == futarchy program + `Dao` discriminator).
+   */
   kassDao: AddressInput;
   programId?: Address;
 }
@@ -261,7 +270,11 @@ export async function setGovernance(args: SetGovernanceArgs): Promise<Transactio
 
   return new TransactionInstruction({
     programId,
-    keys: [w(protocol.address), ro(addr(args.authority), true)],
+    keys: [
+      w(protocol.address),
+      ro(addr(args.authority), true),
+      ro(addr(args.kassDao)),
+    ],
     data,
   });
 }

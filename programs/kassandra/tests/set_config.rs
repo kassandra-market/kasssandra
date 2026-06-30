@@ -35,9 +35,10 @@ fn governed_ctx() -> (TestCtx, solana_sdk::pubkey::Pubkey, Keypair) {
     let dao = Keypair::new();
     ctx.svm.airdrop(&dao.pubkey(), 1_000_000_000).unwrap();
     let (_da, kass_dao) = TestCtx::stand_in_governance(0x33);
-    let payer = ctx.payer.insecure_clone();
-    let (_pda, res) = ctx.set_governance(&payer, dao.pubkey(), kass_dao);
-    assert!(res.is_ok(), "handoff should succeed: {res:?}");
+    // Record a SIGNABLE keypair as `dao_authority` directly: the Task G1-hardened
+    // `set_governance` only accepts the derived (unsignable) Squads vault PDA, so
+    // the accept path is driven via the direct-write harness helper.
+    ctx.force_governance(dao.pubkey(), kass_dao);
     (ctx, protocol_pda, dao)
 }
 

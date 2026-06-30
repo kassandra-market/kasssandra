@@ -417,7 +417,10 @@ impl TestCtx {
     }
 
     /// Build a `SetGovernance` instruction. Exposes `protocol`/`authority` so
-    /// tests can pass a wrong signer. Payload = `dao_authority ++ kass_dao`.
+    /// tests can pass a wrong signer. Account order (Task G1):
+    /// `[0] protocol(w) [1] authority(signer) [2] kass_dao(ro)`. Payload =
+    /// `dao_authority ++ kass_dao`. The `kass_dao` ACCOUNT is the same pubkey as
+    /// the payload `kass_dao` (the hardened processor asserts they match).
     pub fn set_governance_ix(
         &self,
         protocol: Pubkey,
@@ -434,9 +437,62 @@ impl TestCtx {
             accounts: vec![
                 AccountMeta::new(protocol, false),
                 AccountMeta::new_readonly(authority, true),
+                AccountMeta::new_readonly(kass_dao, false),
             ],
             data,
         }
+    }
+
+    /// Derive the Squads v4 multisig **vault** PDA (the DAO execution authority)
+    /// for a futarchy `Dao` pubkey, via the documented seed builders in
+    /// [`md6`] and the real Squads v4 program id: the multisig's `create_key`
+    /// IS the `Dao` (`[b"multisig", b"multisig", dao]`), then the vault at index
+    /// 0 (`[b"multisig", multisig, b"vault", [0]]`). This is the value the
+    /// hardened `set_governance` (Task G1) requires as `dao_authority`.
+    pub fn squads_vault_for_dao(dao: &Pubkey) -> Pubkey {
+        let squads_id = Pubkey::new_from_array(md6::SQUADS_V4_ID);
+        let dao_arr = dao.to_bytes();
+        let (multisig, _) =
+            Pubkey::find_program_address(&md6::squads_multisig_seeds(&dao_arr), &squads_id);
+        let multisig_arr = multisig.to_bytes();
+        let (vault, _) = Pubkey::find_program_address(
+            &md6::squads_vault_seeds(&multisig_arr, &[0u8]),
+            &squads_id,
+        );
+        vault
+    }
+
+    /// Fabricate a real futarchy-owned `Dao` account (valid Anchor
+    /// discriminator) at a fresh key and return `(kass_dao, derived vault PDA)`.
+    /// The returned vault is exactly what the hardened `set_governance` requires
+    /// as `dao_authority`, so `ctx.set_governance(&admin, vault, kass_dao)`
+    /// records the REAL linkage and succeeds. The embedded TWAP fields are valid
+    /// but arbitrary (these accept-path tests don't read the price).
+    pub fn fabricate_dao_and_vault(&mut self) -> (Pubkey, Pubkey) {
+        let kass_dao = Pubkey::new_unique();
+        let owner = Pubkey::new_from_array(md6::FUTARCHY_ID);
+        self.fabricate_owned_account(kass_dao, owner, build_dao_blob(1, 1_000_000, 0, 0));
+        let vault = Self::squads_vault_for_dao(&kass_dao);
+        (kass_dao, vault)
+    }
+
+    /// Directly write the DAO linkage into the `Protocol` singleton, BYPASSING
+    /// the (Task G1-hardened) `set_governance` instruction. The gating tests for
+    /// `set_config`/`resolve_deadend`/emissions need an ARBITRARY, SIGNABLE
+    /// keypair recorded as `dao_authority` to exercise the accept path — which is
+    /// impossible through the real handoff, since that now requires
+    /// `dao_authority == squads_vault_for_dao(kass_dao)` (a PDA no keypair can
+    /// sign). This mirrors the harness's existing direct account-seeding
+    /// philosophy (see [`TestCtx::seed_disputed_oracle`]). Marks
+    /// `governance_set = 1`. Requires the protocol to already exist.
+    pub fn force_governance(&mut self, dao_authority: Pubkey, kass_dao: Pubkey) -> Pubkey {
+        let (protocol_pda, _) = Self::protocol_pda(&self.program_id);
+        let mut p = self.protocol(protocol_pda);
+        p.dao_authority = dao_authority.to_bytes();
+        p.kass_dao = kass_dao.to_bytes();
+        p.governance_set = 1;
+        self.set_program_account(protocol_pda, bytemuck::bytes_of(&p).to_vec());
+        protocol_pda
     }
 
     /// Send a real `SetConfig` instruction signed by `authority`, overwriting
@@ -584,10 +640,12 @@ impl TestCtx {
             owner,
             build_dao_blob(aggregator, last_updated, created_at, start_delay),
         );
+        // The kass_price tests only read `kass_dao`; the recorded `dao_authority`
+        // is irrelevant to them. Record the linkage DIRECTLY (force_governance)
+        // rather than through the Task G1-hardened handoff, which would require a
+        // matching derived Squads vault here for no test benefit.
         let (dao_authority, _) = Self::stand_in_governance(0x77);
-        let payer = self.payer.insecure_clone();
-        let (_p, res) = self.set_governance(&payer, dao_authority, kass_dao);
-        assert!(res.is_ok(), "bless_kass_price governance handoff: {res:?}");
+        self.force_governance(dao_authority, kass_dao);
         kass_dao
     }
 

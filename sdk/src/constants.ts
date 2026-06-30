@@ -6,7 +6,7 @@
  *
  *   - `programs/kassandra/src/instruction.rs` — {@link Ix} discriminants (0..=21)
  *   - `programs/kassandra/src/state.rs`       — {@link AccountType} (0..=7)
- *   - `programs/kassandra/src/error.rs`       — {@link KassandraError} (0..=30)
+ *   - `programs/kassandra/src/error.rs`       — {@link KassandraError} (0..=32)
  *   - `programs/kassandra/tests/state_layout.rs` — {@link ACCOUNT_SIZES}
  *   - `programs/kassandra/src/config.rs`      — protocol consts
  *   - `programs/kassandra/src/cpi/{metadao,metadao_v06}.rs` — external program IDs
@@ -137,6 +137,8 @@ export enum KassandraError {
   BadMintAuthority = 28,
   MarketNotSettled = 29,
   EscrowNotEmpty = 30,
+  InvalidFutarchyDao = 31,
+  DaoAuthorityMismatch = 32,
 }
 
 /** Human-readable message per {@link KassandraError} (condensed from error.rs docs). */
@@ -172,6 +174,8 @@ const ERROR_MESSAGES: Record<KassandraError, string> = {
   [KassandraError.BadMintAuthority]: "The KASS mint's authority is not the program's mint-authority PDA.",
   [KassandraError.MarketNotSettled]: "close_market was called on a Market that has not been settled yet.",
   [KassandraError.EscrowNotEmpty]: "close_market was called while the challenger_usdc_vault escrow still holds USDC.",
+  [KassandraError.InvalidFutarchyDao]: "set_governance was given a kass_dao that is not a real futarchy Dao (wrong owner or discriminator).",
+  [KassandraError.DaoAuthorityMismatch]: "set_governance dao_authority is not the Squads v4 vault PDA derived for the kass_dao.",
 };
 
 /**

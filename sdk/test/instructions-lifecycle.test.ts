@@ -187,7 +187,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
     expect(metaTriples(ix.keys)).toEqual([[ORACLE, false, true]]);
   });
 
-  it("setGovernance: dao_authority[32] ++ kass_dao[32] + protocol(w), authority(ro signer)", async () => {
+  it("setGovernance: dao_authority[32] ++ kass_dao[32] + protocol(w), authority(ro signer), kass_dao(ro)", async () => {
     const daoAuthority = AUTHORITY;
     const kassDao = KASS_DAO;
     const ix = await setGovernance({ authority: ADMIN, daoAuthority, kassDao });
@@ -201,6 +201,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
     expect(metaTriples(ix.keys)).toEqual([
       [protocol.address.toString(), false, true],
       [ADMIN, true, false],
+      [KASS_DAO, false, false],
     ]);
   });
 

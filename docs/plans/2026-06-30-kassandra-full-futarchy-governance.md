@@ -48,5 +48,40 @@
 - Dead-end economic settlement (token movement for a governance-resolved dead-end) — belongs to the settlement milestone; `resolve_deadend` only stamps the outcome.
 - Live-cluster/devnet governance with real funds; mainnet deployment of the real KASS DAO.
 
+## Delta log
+
+### G1 — `set_governance` validates the real Squads-vault / futarchy-DAO linkage (DONE)
+- **Program (`processor/set_governance.rs`):** added the `kass_dao` account as a
+  third, read-only account (`[protocol(w), authority(signer), kass_dao(ro)]`).
+  After the existing non-zero + one-shot/auth gates, the handoff now VALIDATES:
+  (a) `kass_dao_ai.key() == payload.kass_dao` (`assert_key` → `InvalidAccount`);
+  (b) `kass_dao_ai.is_owned_by(FUTARCHY_ID)` AND first 8 bytes ==
+  `DAO_ACCOUNT_DISCRIMINATOR` (→ `InvalidFutarchyDao`); (c) `payload.dao_authority
+  == squads_vault_pda(squads_multisig_pda(kass_dao), 0)` derived in-program via
+  the `cpi/metadao_v06.rs` Squads derivers (multisig `create_key == kass_dao` →
+  multisig → vault idx 0) (→ `DaoAuthorityMismatch`). One-shot / rotation / never-
+  back-to-admin semantics + the `governance_set=1` stamp PRESERVED; no `Protocol`
+  size/layout change. Derivation confirmed identical to the test harness's
+  recorded vault (the old `governance_seam::derive_squads_vault`, now
+  `TestCtx::squads_vault_for_dao`).
+- **Errors:** appended `InvalidFutarchyDao = 31`, `DaoAuthorityMismatch = 32`
+  (ABI-stable; existing 0..=30 unchanged). Mirrored in `sdk/src/constants.ts`
+  (enum + messages) + `sdk/test/parity.test.ts` (PINNED map + count 33).
+- **SDK (`instructions/lifecycle.ts`):** `setGovernance` now appends the
+  `kass_dao` read-only account after the authority; payload unchanged. Lifecycle
+  byte-parity test updated for the 3rd meta.
+- **Tests:** `governance_setup.rs` — accept-real (fabricated futarchy `Dao` +
+  derived vault), one-shot admin-rejected, + 3 reject arms (non-futarchy owner,
+  bad discriminator, wrong vault). `governance_seam.rs` gate tests rewired to the
+  real validated handoff (accept-real) + a direct-write path. New harness helpers
+  in `tests/common/mod.rs`: `squads_vault_for_dao`, `fabricate_dao_and_vault`,
+  and `force_governance` (direct Protocol write, used by `set_config` /
+  `resolve_deadend` / emissions / kass_price gate-setups + `bless_kass_price`,
+  which need a SIGNABLE `dao_authority` the hardened handoff can never produce).
+- **Verification:** `just build` ok; `cargo test -p kassandra-program` all green
+  (incl. state_layout, governance_setup, governance_seam, set_config,
+  resolve_deadend, kass_price); `cargo clippy` + `cargo fmt` clean; `cd sdk &&
+  pnpm typecheck && pnpm test` → 72 offline tests green.
+
 ## Execution note
 After each task: build/test green; the default `pnpm test` stays 72 offline; `cargo test -p kassandra-program` green. G1 is a focused, reviewed PROGRAM change (the only program edit). G2 is the make-or-break SDK builder work (stop-and-report if a MetaDAO wire format can't be authoritatively determined). G3 is the fully-real headline (genuine attempt; stop-and-report a real blocker rather than fake). Append a G1–G4 delta log here.

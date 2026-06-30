@@ -39,9 +39,11 @@ fn emission_for(supply: u64, cap: u64, num: u64, den: u64) -> u64 {
 fn enable_emission(ctx: &mut TestCtx, cap: u64, num: u64, den: u64) {
     let (_p, res) = ctx.init_protocol();
     assert!(res.is_ok(), "init_protocol: {res:?}");
+    // Record the payer (a SIGNABLE key) as `dao_authority` directly so it can
+    // sign the set_config below; the Task G1-hardened handoff only accepts the
+    // derived (unsignable) Squads vault PDA.
     let payer = ctx.payer.insecure_clone();
-    let (_p, res) = ctx.set_governance(&payer, payer.pubkey(), Pubkey::new_unique());
-    assert!(res.is_ok(), "set_governance: {res:?}");
+    ctx.force_governance(payer.pubkey(), Pubkey::new_unique());
     let mut params = ConfigParams::defaults();
     params.total_supply_cap = cap;
     params.emission_num = num;

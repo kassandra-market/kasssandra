@@ -36,7 +36,6 @@
 mod common;
 use common::*;
 
-use kassandra_program::cpi::metadao_v06 as md6;
 use kassandra_program::error::KassandraError;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::{Keypair, Signer};
@@ -54,28 +53,13 @@ fn custom_code(res: &litesvm::types::TransactionResult) -> Option<u32> {
     }
 }
 
-/// Derive the Squads v4 multisig **vault** PDA (the DAO execution authority) for
-/// a given DAO pubkey, using the documented seed builders in
-/// [`kassandra_program::cpi::metadao_v06`] and the real Squads v4 program id.
-/// `dao` is the futarchy `Dao` PDA (the multisig's `create_key`); the futarchy
-/// DAO uses vault index 0.
-fn derive_squads_vault(dao: &Pubkey) -> Pubkey {
-    let squads_id = Pubkey::new_from_array(md6::SQUADS_V4_ID);
-    let dao_arr = dao.to_bytes();
-    let (multisig, _) =
-        Pubkey::find_program_address(&md6::squads_multisig_seeds(&dao_arr), &squads_id);
-    let multisig_arr = multisig.to_bytes();
-    let (vault, _) =
-        Pubkey::find_program_address(&md6::squads_vault_seeds(&multisig_arr, &[0u8]), &squads_id);
-    vault
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. The realistic authority: a DERIVED Squads v4 vault PDA recorded as
-//    `dao_authority`. `set_config` then rejects EVERY signer a test can produce
-//    (the admin/payer and an unrelated keypair), with `Unauthorized` — proving
-//    the gate accepts ONLY the recorded vault PDA, which in production only
-//    Squads' vault_transaction_execute can sign for.
+// 1. The realistic authority: the DERIVED Squads v4 vault PDA recorded as
+//    `dao_authority` through the Task G1-hardened handoff (a REAL futarchy `Dao`
+//    + its derived vault — the accept-real path). `set_config` then rejects
+//    EVERY signer a test can produce (the admin/payer and an unrelated keypair),
+//    with `Unauthorized` — proving the gate accepts ONLY the recorded vault PDA,
+//    which in production only Squads' vault_transaction_execute can sign for.
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -83,15 +67,12 @@ fn set_config_gate_accepts_only_recorded_squads_vault_pda() {
     let mut ctx = TestCtx::new();
     ctx.ensure_protocol();
 
-    // The futarchy Dao PDA stands in as the multisig's create_key; for the seam
-    // any distinct pubkey works (the derivation, not the Dao's identity, is what
-    // we exercise). Derive the real Squads vault PDA from the documented seeds.
-    let dao = Pubkey::new_unique();
-    let vault_pda = derive_squads_vault(&dao);
-    let kass_dao = Pubkey::new_unique();
+    // Stand up a REAL futarchy `Dao` (valid owner + discriminator) and its
+    // derived Squads vault — the exact linkage the hardened handoff requires.
+    let (kass_dao, vault_pda) = ctx.fabricate_dao_and_vault();
 
-    // Admin (payer) hands governance off, recording the vault PDA as the DAO
-    // execution authority.
+    // Admin (payer) hands governance off through the real (validated) handoff,
+    // recording the vault PDA as the DAO execution authority.
     let payer = ctx.payer.insecure_clone();
     let (protocol_pda, res) = ctx.set_governance(&payer, vault_pda, kass_dao);
     assert!(res.is_ok(), "handoff should succeed: {res:?}");
@@ -136,9 +117,7 @@ fn resolve_deadend_gate_rejects_non_vault_signer() {
     let mut ctx = TestCtx::new();
     ctx.ensure_protocol();
 
-    let dao = Pubkey::new_unique();
-    let vault_pda = derive_squads_vault(&dao);
-    let kass_dao = Pubkey::new_unique();
+    let (kass_dao, vault_pda) = ctx.fabricate_dao_and_vault();
 
     let payer = ctx.payer.insecure_clone();
     let (_p, res) = ctx.set_governance(&payer, vault_pda, kass_dao);
@@ -197,9 +176,10 @@ fn gate_accepts_recorded_authority_when_signable() {
     ctx.svm.airdrop(&dao_kp.pubkey(), 1_000_000_000).unwrap();
     let kass_dao = Pubkey::new_unique();
 
-    let payer = ctx.payer.insecure_clone();
-    let (protocol_pda, res) = ctx.set_governance(&payer, dao_kp.pubkey(), kass_dao);
-    assert!(res.is_ok(), "handoff should succeed: {res:?}");
+    // A SIGNABLE keypair as `dao_authority` is recorded directly: the Task
+    // G1-hardened handoff only accepts the derived (unsignable) Squads vault PDA,
+    // so the accept path uses the direct-write harness helper.
+    let protocol_pda = ctx.force_governance(dao_kp.pubkey(), kass_dao);
 
     // The recorded authority signs → accepted.
     let mut params = ConfigParams::defaults();
