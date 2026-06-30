@@ -160,6 +160,34 @@ pub const FLIP_SLASH_NUM: u64 = 1;
 /// Fraction (denominator) of the flip slash. See [`FLIP_SLASH_NUM`].
 pub const FLIP_SLASH_DEN: u64 = 2;
 
+// ---------------------------------------------------------------------------
+// Staker-settlement reward economics (Task S1).
+// ---------------------------------------------------------------------------
+
+/// Cohort reward-split weight of the PROPOSER cohort. The resolution reward
+/// pool is split `proposer_bucket = pool·PW/(PW+FW)`, `fact_bucket =
+/// pool·FW/(PW+FW)`. Default `2`, with `REWARD_FACT_WEIGHT = 1`, so proposers
+/// (who bond capital and carry the resolution) earn twice the fact cohort's
+/// share (`PW > FW`, design "Reward pool"). Snapshotted onto each `Oracle` at
+/// `create_oracle`; governable via `set_config` (bound: at least one of the two
+/// weights `> 0`, so the split denominator `PW+FW` is never zero).
+pub const REWARD_PROPOSER_WEIGHT: u64 = 2;
+/// Cohort reward-split weight of the FACT cohort (approved-fact submitters +
+/// approve-voters). Default `1` (< [`REWARD_PROPOSER_WEIGHT`]). See that const.
+pub const REWARD_FACT_WEIGHT: u64 = 1;
+
+/// Fraction (numerator) of an approve-voter's stake SLASHED into `bond_pool`
+/// when the fact they approved is REJECTED at `finalize_facts`. The voter later
+/// reclaims `stake·(1 − FACT_VOTE_SLASH_NUM/FACT_VOTE_SLASH_DEN)`; the slashed
+/// fraction is added (in aggregate, from the rejected fact's `approve_stake`) to
+/// `bond_pool` at finalize time — no per-vote iteration. Default 1/2 (50%):
+/// approving a fact the quorum rejects costs half the voter's stake, a
+/// meaningful penalty without total wipe-out. Snapshotted onto each `Oracle` at
+/// `create_oracle`; governable via `set_config` (bound: `den > 0`, `num ≤ den`).
+pub const FACT_VOTE_SLASH_NUM: u64 = 1;
+/// Denominator of [`FACT_VOTE_SLASH_NUM`].
+pub const FACT_VOTE_SLASH_DEN: u64 = 2;
+
 /// Seed of the program-controlled **KASS mint-authority PDA**:
 /// `[b"mint_authority"]`, program = [`crate::ID`]. Emission mints KASS signed by
 /// this PDA (the DAO governs the emission *rate*, not direct minting — design

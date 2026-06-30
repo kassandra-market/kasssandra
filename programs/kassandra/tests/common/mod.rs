@@ -896,10 +896,18 @@ impl TestCtx {
         oracle.flip_slash_den = FLIP_SLASH_DEN;
         oracle.phase_window = PHASE_WINDOW;
         oracle.proposal_window = PROPOSAL_WINDOW;
-        // Reserved (settlement-era) snapshot fields, defaulted exactly as
-        // `init_protocol`/`create_oracle` do (denominator never zero), so a
-        // fabricated oracle doesn't carry `fact_vote_slash_den == 0` that a
-        // future settlement-era reader would divide by.
+        // Settlement-era (S1) snapshot fields. NOTE: deliberately kept at the
+        // conservative pre-S1 defaults (no approve-voter slash, zero reward
+        // weights) rather than the now-real `init_protocol`/`create_oracle`
+        // defaults (1/2 slash, 2/1 weights). This keeps fabricated-oracle
+        // `finalize_facts` behavior a pure counter (rejected facts add only the
+        // submitter stake to `bond_pool`), so the existing `finalize_facts` /
+        // conservation (`invariants.rs`) fixtures stay self-consistent. Tests
+        // that exercise the approve-voter slash opt in via
+        // [`TestCtx::set_fact_vote_slash`]. `fact_vote_slash_den` stays positive
+        // so a settlement-era reader never divides by zero. The 3 S1 resolution
+        // totals (`total_correct_proposer_stake` / `total_approved_fact_stake` /
+        // `reward_pool`) stay 0 (their `zeroed()` default), correct pre-resolution.
         oracle.fact_vote_slash_num = 0;
         oracle.fact_vote_slash_den = 1;
         oracle.reward_proposer_weight = 0;
@@ -1021,6 +1029,17 @@ impl TestCtx {
         self.set_program_account(proposer, bytemuck::bytes_of(&p).to_vec());
         let mut o = self.oracle(oracle);
         o.bond_pool += amount;
+        self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
+    }
+
+    /// Overwrite a seeded oracle's `fact_vote_slash` snapshot (the rejected-fact
+    /// approve-voter slash fraction `num/den`, the same field `create_oracle`
+    /// snapshots from `Protocol` and `set_config` retunes). Lets `finalize_facts`
+    /// tests drive the approve-voter aggregate slash without the full real flow.
+    pub fn set_fact_vote_slash(&mut self, oracle: Pubkey, num: u64, den: u64) {
+        let mut o = self.oracle(oracle);
+        o.fact_vote_slash_num = num;
+        o.fact_vote_slash_den = den;
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
     }
 

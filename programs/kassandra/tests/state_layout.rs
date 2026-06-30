@@ -15,7 +15,7 @@ fn account_sizes_are_stable() {
     // Absolute pinned on-chain ABI sizes. Changing a struct's layout must
     // be a deliberate, visible break of these constants. Each carries an
     // 8-byte header (account_type: u8 + _pad_hdr: [u8;7]) at offset 0.
-    assert_eq!(Oracle::LEN, 360);
+    assert_eq!(Oracle::LEN, 384);
     assert_eq!(Proposer::LEN, 96);
     assert_eq!(Fact::LEN, 336);
     assert_eq!(FactVote::LEN, 88);
@@ -65,6 +65,10 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Oracle, challenge_fail_usdc_fee_den), 336);
     assert_eq!(offset_of!(Oracle, challenge_success_kass_fee_num), 344);
     assert_eq!(offset_of!(Oracle, challenge_success_kass_fee_den), 352);
+    // S1 settlement resolution totals, packed after the C1 challenge-fee block.
+    assert_eq!(offset_of!(Oracle, total_correct_proposer_stake), 360);
+    assert_eq!(offset_of!(Oracle, total_approved_fact_stake), 368);
+    assert_eq!(offset_of!(Oracle, reward_pool), 376);
 
     assert_eq!(offset_of!(Proposer, bond), 72);
     assert_eq!(offset_of!(Proposer, ai_finalized), 86);

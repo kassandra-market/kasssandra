@@ -63,7 +63,11 @@
 //!
 //! # No token CPI / deferred settlement (design §7)
 //! Like every instruction in this milestone, finalize_oracle performs NO token
-//! CPI: it records the terminal phase + result only. Physical settlement —
+//! CPI: it records the terminal phase + result only. On the Resolved branch it
+//! ALSO stamps the resolution totals the S2 pull-claims read —
+//! `total_correct_proposer_stake` (Σ surviving-correct bonds) and `reward_pool`
+//! (= `bond_pool` for now; S3 folds emission in) — but these are pure
+//! stamps/counters, still NO token movement. Physical settlement —
 //! returning surviving bonds, returning all bonds/stakes on InvalidDeadend,
 //! reward distribution from `bond_pool`, and AiClaim-account rent reclamation
 //! (the design's "close AiClaim accounts on resolution") — is a DEFERRED later
@@ -142,8 +146,11 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
         return Err(KassandraError::InvalidAccount.into());
     }
 
-    // Gather the surviving proposers' claim_options (one proposer = one vote).
+    // Gather the surviving proposers' claim_options (one proposer = one vote)
+    // and their bonds in parallel (the bond is the pro-rata weight used to stamp
+    // `total_correct_proposer_stake` once the winning option is known).
     let mut votes = [0u8; MAX_PROPOSERS];
+    let mut bonds = [0u64; MAX_PROPOSERS];
     let mut n = 0usize;
     for (i, p_ai) in tail.iter().enumerate() {
         require_distinct(&tail[..i], p_ai.key())?;
@@ -162,6 +169,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
             return Err(KassandraError::InvalidAccount.into());
         }
         votes[n] = proposer.claim_option;
+        bonds[n] = proposer.bond;
         n += 1;
     }
 
@@ -173,13 +181,34 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
 
     match plurality(&votes[..n]) {
         Plurality::Winner(opt) => {
+            // Stamp the resolution totals for the S2 pull-claims (Task S1; NO
+            // token movement). `total_correct_proposer_stake` = Σ bond over the
+            // SURVIVORS whose vote is the winning option (the pro-rata
+            // denominator for the proposer reward bucket).
+            let mut total_correct: u64 = 0;
+            for i in 0..n {
+                if votes[i] == opt {
+                    total_correct = total_correct
+                        .checked_add(bonds[i])
+                        .ok_or(ProgramError::ArithmeticOverflow)?;
+                }
+            }
+            oracle.total_correct_proposer_stake = total_correct;
+            // Finalize the distributable reward pool. For now `reward_pool ==
+            // bond_pool`; S3 folds emission in here (`reward_pool = bond_pool +
+            // reward_emission`). `total_approved_fact_stake` was already
+            // accumulated incrementally by finalize_facts.
+            oracle.reward_pool = oracle.bond_pool;
             oracle.resolved_option = opt;
             oracle.set_phase(Phase::Resolved);
         }
         // A tie has no plurality winner, and zero survivors means every proposer
         // was disqualified: both are terminal dead-ends (design §7). Stamp the
         // loud sentinel so a consumer that skips the phase gate never misreads
-        // the dead-end as "option 0 won."
+        // the dead-end as "option 0 won." On a dead-end there is no reward
+        // distribution: `reward_pool` / `total_correct_proposer_stake` stay 0
+        // (their zeroed default; finalize_oracle runs once). S3 burns the
+        // reward_emission back to the reservoir on this branch.
         Plurality::Tie | Plurality::NoSurvivors => {
             oracle.resolved_option = CLAIM_OPTION_NONE;
             oracle.set_phase(Phase::InvalidDeadend);

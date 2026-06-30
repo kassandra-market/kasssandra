@@ -217,6 +217,13 @@ fn finalize_agreed_fact() {
     let o = ctx.oracle(oracle);
     assert_eq!(o.phase, Phase::AiClaim as u8);
     assert_eq!(o.bond_pool, bond_pool_before, "agreed fact must not slash");
+    // S1: an agreed fact accumulates submitter stake + approve-voter stake into
+    // the approved-fact reward cohort total.
+    assert_eq!(
+        o.total_approved_fact_stake,
+        f.stake + f.approve_stake,
+        "agreed fact accumulates stake + approve_stake"
+    );
 }
 
 #[test]
@@ -274,6 +281,51 @@ fn finalize_duplicate_dominant_fact_not_slashed() {
         o.bond_pool, bond_pool_before,
         "duplicate-dominant fact must not slash"
     );
+    // S1: a duplicate-dominant fact is NOT counted into the approved-fact total.
+    assert_eq!(
+        o.total_approved_fact_stake, 0,
+        "duplicate-dominant fact not counted into approved totals"
+    );
+}
+
+#[test]
+fn finalize_rejected_fact_slashes_approve_voters() {
+    // S1: on a REJECTED fact, bond_pool gains the submitter's full stake AND the
+    // approve-voters' aggregate slash (`approve_stake · fact_vote_slash_frac`).
+    let (mut ctx, oracle, vault) = seed();
+    // Opt into a non-zero approve-voter slash fraction (1/2). The harness seeds
+    // 0/1 by default (pure counter); this drives the real S1 slash path.
+    ctx.set_fact_vote_slash(oracle, 1, 2);
+
+    let fact = submit_one(&mut ctx, oracle, vault, 1);
+    advance_to_voting(&mut ctx, oracle);
+
+    // 500 < 2_000 threshold and not duplicate-dominant -> rejected. approve 500.
+    cast_vote(&mut ctx, oracle, vault, fact, VOTE_APPROVE, 500);
+
+    let stake = ctx.fact(fact).stake;
+    let approve_stake = ctx.fact(fact).approve_stake;
+    let bond_pool_before = ctx.oracle(oracle).bond_pool;
+    let vault_before = ctx.token_balance(vault);
+
+    ctx.warp(WINDOW + 1);
+    ctx.send(finalize_facts_ix(&ctx, oracle, &[fact]), &[])
+        .expect("finalize_facts should succeed");
+
+    let f = ctx.fact(fact);
+    assert_eq!(f.agreed, 0);
+    assert_eq!(f.duplicate, 0);
+    assert_eq!(f.settled, 1);
+
+    // bond_pool delta == submitter full slash + approve-voter slash (500·1/2=250).
+    let voter_slash = approve_stake / 2;
+    let o = ctx.oracle(oracle);
+    assert_eq!(o.bond_pool, bond_pool_before + stake + voter_slash);
+    assert_eq!(voter_slash, 250);
+    // Rejected fact contributes nothing to the approved-fact reward cohort.
+    assert_eq!(o.total_approved_fact_stake, 0);
+    // No token CPI: the vault is untouched (bond_pool is a counter only).
+    assert_eq!(ctx.token_balance(vault), vault_before);
 }
 
 #[test]

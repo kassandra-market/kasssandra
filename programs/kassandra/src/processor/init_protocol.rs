@@ -147,12 +147,15 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
     protocol.flip_slash_den = crate::config::FLIP_SLASH_DEN;
     protocol.phase_window = crate::config::PHASE_WINDOW;
     protocol.proposal_window = crate::config::PROPOSAL_WINDOW;
-    // Reserved (settlement-era; no const yet): denominators default to 1 so a
-    // future divisor is never zero, numerators/weights to 0.
-    protocol.fact_vote_slash_num = 0;
-    protocol.fact_vote_slash_den = 1;
-    protocol.reward_proposer_weight = 0;
-    protocol.reward_fact_weight = 0;
+    // Staker-settlement reward economics (S1): default to the config consts.
+    // Reward weights PW/FW = 2/1 (PW > FW); approve-voter rejected-fact slash
+    // 1/2. These satisfy the `set_config` bounds (at least one reward weight > 0;
+    // fact_vote_slash den > 0 and num <= den) and are snapshotted onto each
+    // Oracle at create_oracle.
+    protocol.fact_vote_slash_num = crate::config::FACT_VOTE_SLASH_NUM;
+    protocol.fact_vote_slash_den = crate::config::FACT_VOTE_SLASH_DEN;
+    protocol.reward_proposer_weight = crate::config::REWARD_PROPOSER_WEIGHT;
+    protocol.reward_fact_weight = crate::config::REWARD_FACT_WEIGHT;
     // Challenge-fee config (C1): default to the config consts (1/100 each).
     protocol.challenge_fail_usdc_fee_num = crate::config::CHALLENGE_FAIL_USDC_FEE_NUM;
     protocol.challenge_fail_usdc_fee_den = crate::config::CHALLENGE_FAIL_USDC_FEE_DEN;

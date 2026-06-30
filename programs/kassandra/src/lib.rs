@@ -19,6 +19,7 @@ pub mod instruction;
 pub mod plurality;
 pub mod price;
 pub mod processor;
+pub mod reward;
 pub mod state;
 
 pub const ID: Pubkey = pinocchio_pubkey::pubkey!("KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY");

@@ -96,3 +96,63 @@ Three permissionless claim instructions (anyone can crank a claim for an account
 
 ## Execution note
 After each task: `just build` → `cargo test` → clippy/fmt, green, commit. Re-pin layouts. The riskiest spots: the mint-authority bootstrap + mint-at-creation (S3, real KASS supply change — validate the harness mint-authority setup), and the conservation math across the whole settlement (S5). Source payouts from stake_vault/bond_pool, NEVER total_oracle_stake. Append an S1–S5 delta log here.
+
+---
+
+## Delta log
+
+### S1 — Resolution totals + reward-pool math (DONE; no token movement)
+
+**Real config defaults** (`src/config.rs`): `REWARD_PROPOSER_WEIGHT = 2`,
+`REWARD_FACT_WEIGHT = 1` (PW>FW), `FACT_VOTE_SLASH_NUM/DEN = 1/2`. `init_protocol`
+now defaults the Protocol copies to these consts (was 0/0 weights, 0/1 slash);
+`create_oracle` snapshots them onto each Oracle as before. All `set_config`
+bounds hold (at least one reward weight > 0; fact_vote_slash den > 0, num ≤ den;
+the joint flip+success-fee ≤ 1 is unaffected) — every existing set_config bound
+test stays green.
+
+**Oracle layout re-pinned** — `Oracle::LEN 360 → 384`. Three new `u64` fields
+appended after the C1 challenge-fee block (all 0 at create / pre-resolution):
+`total_correct_proposer_stake @360`, `total_approved_fact_stake @368`,
+`reward_pool @376`. `tests/state_layout.rs` updated (LEN 384 + the 3 offsets).
+Other struct LENs unchanged.
+
+**`finalize_facts` accumulation** (still NO token CPI; `bond_pool` a counter):
+- AGREED fact → `total_approved_fact_stake += fact.stake + fact.approve_stake`
+  (checked adds): submitter + approve-voter stake that earns the fact rate.
+- REJECTED (non-duplicate) fact → `bond_pool += fact.stake` (submitter full, as
+  before) **AND** `bond_pool += fact.approve_stake · fact_vote_slash_num /
+  fact_vote_slash_den` (u128 floor) — the aggregate approve-voter slash, no
+  per-vote iteration. Approve-voters later (S2) reclaim `stake·(1 − slash_frac)`.
+- DUPLICATE-dominant → unchanged (no slash, not counted into approved totals).
+
+**`finalize_oracle` (Resolved branch)**: stamps `total_correct_proposer_stake =
+Σ proposer.bond over survivors with claim_option == resolved_option` (gathered
+alongside the existing vote scan) and finalizes `reward_pool = bond_pool` (clear
+comment: S3 folds `reward_emission` in here). InvalidDeadend leaves both 0.
+
+**`src/reward.rs`** (new `pub mod reward;`, pure/allocation-free, mirrors
+`plurality.rs`):
+- `reward_buckets(reward_pool, pw, fw, total_correct, total_approved) ->
+  (proposer_bucket, fact_bucket)` — split by PW/(PW+FW), FW/(PW+FW); empty-cohort
+  roll-in (approved==0 → all to proposer; correct==0 → all to fact; both-empty &
+  pw+fw==0 → proposer fallback, no divide-by-zero). u128, floor.
+- `proposer_reward(bond, bucket, total)` / `fact_reward(stake, bucket, total)` —
+  pro-rata, u128 floor, 0 when total==0.
+- Rounding/dust: floor everywhere → `Σ rewards ≤ reward_pool`; the remainder
+  stays in `stake_vault`, un-claimable this milestone (future sweep — see Out of
+  scope). 13 unit tests (split, dust, empty-cohort roll-in, pro-rata, zero/denom
+  guards, overflow).
+
+**Tests**: reward.rs unit tests; `finalize_facts.rs` — agreed accumulates
+`stake+approve_stake`, rejected adds `stake + approve·slash_frac` (via new
+`set_fact_vote_slash` harness setter; default seed stays 0/1 so existing
+fixtures + `invariants.rs` Arm A remain pure counters), duplicate doesn't;
+`finalize_oracle.rs` — Resolved stamps the correct-proposer total + `reward_pool
+== bond_pool` (incl. a wrong-but-survived exclusion + non-zero bond_pool case),
+InvalidDeadend leaves 0/0. Full suite: 199 passed / 0 failed; clippy + fmt clean.
+
+> NOTE for S5: the harness `seed_disputed_oracle` keeps `fact_vote_slash = 0/1`
+> (pure-counter) deliberately, so `invariants.rs` Arm A was NOT touched. When S5
+> makes settlement physical, fold the approve-voter slash into that reference
+> model (and consider flipping the harness default to the real 1/2).

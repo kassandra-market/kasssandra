@@ -84,7 +84,7 @@ impl Phase {
     }
 }
 
-/// Top-level dispute account. `size_of == 360`.
+/// Top-level dispute account. `size_of == 384`.
 ///
 /// # Governable params snapshot (Task F2)
 /// The behavioral governable params (`threshold_*`, `market_threshold_*`,
@@ -165,6 +165,23 @@ pub struct Oracle {
     pub challenge_fail_usdc_fee_den: u64,
     pub challenge_success_kass_fee_num: u64,
     pub challenge_success_kass_fee_den: u64,
+    // ---- Settlement resolution totals (Task S1) ------------------------------
+    // Stamped at resolution for the per-staker S2 pull-claims to read; all 0
+    // until then (and 0 at create). NO token movement is done in S1 — these are
+    // pure accumulators/stamps the later claim instructions consume.
+    //
+    // `total_correct_proposer_stake`: Σ `bond` over SURVIVING proposers whose
+    //   `claim_option == resolved_option`. Stamped by `finalize_oracle` on the
+    //   Resolved branch (the pro-rata denominator for the proposer reward bucket).
+    // `total_approved_fact_stake`: Σ (`fact.stake` + `fact.approve_stake`) over
+    //   AGREED facts (submitter stake + approve-voter stake that earns the
+    //   fact_rate). Accumulated incrementally by `finalize_facts` as facts settle.
+    // `reward_pool`: the distributable reward pool finalized at resolution. On
+    //   Resolved it is set to `bond_pool` (S3 will fold `reward_emission` in here:
+    //   `reward_pool = bond_pool + reward_emission`). Left 0 on InvalidDeadend.
+    pub total_correct_proposer_stake: u64,
+    pub total_approved_fact_stake: u64,
+    pub reward_pool: u64,
 }
 
 impl Oracle {

@@ -28,12 +28,17 @@
 //!     not slashed (its stake is returned later).
 //!   - agreed (`approve_stake > duplicate_stake` AND
 //!     `approve_stake * THRESHOLD_DEN >= dispute_bond_total * THRESHOLD_NUM`)
-//!     → `agreed=1`, no bond_pool change (reward is a later claim).
-//!   - rejected (neither of the above) → `settled` only, and the FULL
-//!     `fact.stake` is added to `bond_pool`. The rejected-fact submitter
-//!     forfeits 100% of their fact-submission stake to the pool — this is the
-//!     intended penalty. Approve-voter stake settlement on rejected facts is a
-//!     separate DEFERRED task.
+//!     → `agreed=1`, no bond_pool change (reward is a later claim). Accumulates
+//!     `oracle.total_approved_fact_stake += fact.stake + fact.approve_stake`
+//!     (Task S1): the submitter + approve-voter stake that earns the fact reward
+//!     rate at claim time. Stamp only — NO token movement.
+//!   - rejected (neither of the above) → `settled` only, and `bond_pool` gains
+//!     BOTH the submitter's full slash (`fact.stake`, 100% forfeit) AND the
+//!     approve-voters' aggregate slash on this fact
+//!     (`fact.approve_stake · fact_vote_slash_num / fact_vote_slash_den`,
+//!     u128 floor — Task S1). The approve-voters later reclaim only
+//!     `stake·(1 − fact_vote_slash_frac)`; the slashed fraction is added here in
+//!     aggregate from the fact's `approve_stake` total (no per-vote iteration).
 //!
 //! Once `settled_count == fact_count` the oracle advances to
 //! [`Phase::AiClaim`] with a fresh window.
@@ -201,7 +206,8 @@ fn finalize_with_facts(
         }
 
         if fact.duplicate_stake > fact.approve_stake {
-            // Duplicate-dominant: ignored, stake returned later, NOT slashed.
+            // Duplicate-dominant: ignored, stake returned later, NOT slashed and
+            // NOT counted into the approved-fact reward cohort.
             fact.duplicate = 1;
         } else if is_agreed(
             fact.approve_stake,
@@ -210,14 +216,38 @@ fn finalize_with_facts(
             oracle.threshold_num,
             oracle.threshold_den,
         ) {
-            // Agreed: reward is a later claim, no bond_pool change here.
+            // Agreed: reward is a later (S2) claim, no bond_pool change here.
+            // Accumulate the approved-fact reward cohort's total stake — the
+            // submitter stake PLUS the aggregate approve-voter stake on this fact,
+            // both of which earn the fact_rate at claim time. Stamped on the
+            // oracle (S1 totals) for the pull-claims; NO token movement.
             fact.agreed = 1;
+            oracle.total_approved_fact_stake = oracle
+                .total_approved_fact_stake
+                .checked_add(fact.stake)
+                .ok_or(ProgramError::ArithmeticOverflow)?
+                .checked_add(fact.approve_stake)
+                .ok_or(ProgramError::ArithmeticOverflow)?;
         } else {
             // Rejected: the submitter forfeits 100% of their fact-submission
-            // stake to the pool counter.
+            // stake to the pool counter...
             oracle.bond_pool = oracle
                 .bond_pool
                 .checked_add(fact.stake)
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            // ...AND the approve-voters on this rejected fact forfeit the slash
+            // fraction of their stake to the pool. We add the AGGREGATE slash in
+            // one shot from the fact's running `approve_stake` total — no per-vote
+            // iteration. Each approve-voter later (S2) reclaims only
+            // `stake·(1 − fact_vote_slash_frac)`; the slashed fraction is already
+            // in `bond_pool` here. u128 floor; the `fact_vote_slash_den > 0`
+            // bound is enforced by set_config (and the per-oracle snapshot
+            // defaults to a positive denominator), so this never divides by zero.
+            let voter_slash = ((fact.approve_stake as u128) * (oracle.fact_vote_slash_num as u128)
+                / (oracle.fact_vote_slash_den as u128)) as u64;
+            oracle.bond_pool = oracle
+                .bond_pool
+                .checked_add(voter_slash)
                 .ok_or(ProgramError::ArithmeticOverflow)?;
         }
         fact.settled = 1;
