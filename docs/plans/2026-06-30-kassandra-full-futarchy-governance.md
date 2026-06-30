@@ -171,5 +171,38 @@
   (surfpool suite excluded by `vitest.config.ts`); `cd sdk && pnpm typecheck`
   clean; `just build` green; program/runner read-only.
 
+### G4 — docs + covered-vs-deferred (DONE)
+- **Extended `sdk/test/surfpool/README.md`:** new "Full futarchy governance (G3)"
+  section documenting what the loop proves (real proposal → swap-driven TWAP
+  verdict → Squads `vault_transaction_execute` → Kassandra `set_config` +
+  `resolve_deadend` on-chain, end to end on forked mainnet, futarchy v0.6.1), how
+  to run it (`KASSANDRA_E2E=1 pnpm exec vitest run …futarchy-governance-e2e…`;
+  needs network for the fork), plus the Files-table row, prereqs, port (8921), and
+  refreshed test counts (88 offline / 98 gated). Covered-vs-deferred updated: the
+  full futarchy governance loop + live `kass_price` (real Dao) + the G1-hardened
+  `set_governance` handoff moved to COVERED; the previously-deferred "full
+  futarchy-governance E2E" line retired.
+- **Three honesty caveats documented precisely** (so the assertion isn't
+  over-read): (1) **thin pass margin** — `passThresholdBps=0` + ~1.0 starting TWAP
+  on both legs; the verdict is genuinely swap-driven (a falsification run removing
+  `vault_transaction_execute` makes the headline assertion FAIL), but the test
+  optimizes determinism over economic width; it proves the MECHANISM, not economic
+  robustness. (2) **inputs fabricated, outcomes real** — the dead-end oracle +
+  token/LP balances are `surfnet_setAccount` fabrications (T4 owner/size/type-tag
+  pattern), but the GOVERNED OUTCOMES (config change, oracle resolution, the TWAP
+  verdict) all flow through the REAL programs; input-fabrication is not a faked
+  result. (3) **`kass_price` via `simulateTransaction`** — a read-only price query
+  (return data), NOT part of the verdict/execution path.
+- **DEFERRED (honest), recorded in the README:** Meteora DAMM v2 spot-path
+  builders (only spot liquidity/fees, not the verdict — the verdict is the
+  futarchy embedded AMM; cp-amm zero-copy offsets undeterminable offline); the
+  dead-end ECONOMIC settlement (token movement for a governance-resolved dead-end
+  — settlement milestone; `resolve_deadend` only stamps); program-driven DAO
+  creation (bootstrap is off-chain by decision); live-cluster/mainnet deployment
+  of the real KASS DAO with real funds; `settle_challenge` on the fork (T4, still
+  LiteSVM-only); keeping the gated suite out of the default `pnpm test`.
+- **No functional change** (docs only). `cd sdk && pnpm typecheck` clean,
+  `pnpm test` → 88 offline green. No Rust touched.
+
 ## Execution note
 After each task: build/test green; the default `pnpm test` stays 72 offline; `cargo test -p kassandra-program` green. G1 is a focused, reviewed PROGRAM change (the only program edit). G2 is the make-or-break SDK builder work (stop-and-report if a MetaDAO wire format can't be authoritatively determined). G3 is the fully-real headline (genuine attempt; stop-and-report a real blocker rather than fake). Append a G1–G4 delta log here.
