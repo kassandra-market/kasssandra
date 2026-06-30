@@ -1687,8 +1687,7 @@ impl TestCtx {
                     // Approve-voter on a rejected fact is slashed CEIL(stake·num/den)
                     // (mirrors on-chain: ceil keeps the vault from running short
                     // against the floor-aggregate bond_pool credit).
-                    let ceil = ((v.stake as u128) * (slash_num as u128) + (slash_den as u128 - 1))
-                        / (slash_den as u128);
+                    let ceil = ((v.stake as u128) * (slash_num as u128)).div_ceil(slash_den as u128);
                     v.stake - ceil as u64
                 } else {
                     // InvalidDeadend, duplicate-voter, or approve-on-duplicate: full stake.
