@@ -73,3 +73,21 @@ A litesvm test that builds instructions VIA THE SDK and drives a meaningful real
 
 ## Execution note
 After each task: `pnpm test` + typecheck green, commit. D0 is the riskiest (verify web3.js v3 + litesvm APIs + interop — STOP if a dep is unusable). The parity guard (D1) + decoding a real account (D2) + the litesvm E2E (D4) are what prove the hand-written SDK actually matches the program. The program is read-only truth. Append a D0–D5 delta log here.
+
+---
+
+## Delta log
+
+### D0 — scaffolding + API recon + smoke test (DONE 2026-06-30)
+
+**Resolved deps (pinned/installed):** `@solana/web3.js@3.0.0-rc.2`, `@solana/kit@6.10.0` (added — interop bridge), `litesvm@1.2.0` (latest), `vitest@2.1.9`, `typescript@5.9.3`, `@types/node@22.20.0`. pnpm. `tsconfig`: strict, ESM, `moduleResolution: Bundler`.
+
+**Big finding — web3.js v3 is the CLASSIC API, not kit-style.** `@solana/web3.js@3.0.0-rc.2` is the v1-style API (`PublicKey`, `Keypair`, `Transaction`, `TransactionInstruction`, `AccountMeta{isSigner,isWritable}`, `findProgramAddress`) reimplemented on top of `@solana/kit`. It does NOT expose `createTransactionMessage` / `AccountRole` / `address()` / `getProgramDerivedAddress`. The plan's kit-style terminology (`programAddress`, `AccountRole`, `getProgramDerivedAddress`, branded `Address` strings) actually maps to **`@solana/kit`**, which both web3.js v3 and litesvm depend on (single hoisted `6.10.0` instance → nominal type identity). Full recon in `sdk/NOTES-api.md`.
+
+**litesvm@1.2.0 API (kit-typed):** `new LiteSVM()`; `addProgramFromFile(programId: kit Address, path)` (also `addProgram(id, bytes)`); `airdrop(addr, lamports)` / `setAccount(EncodedAccount)`; `sendTransaction(tx)` where `tx` is the **kit `Transaction` `{messageBytes, signatures}`**, NOT the legacy `Transaction` class; `getAccount(addr): MaybeEncodedAccount` (`.data: Uint8Array` = raw bytes, for D2 decoders); results are `TransactionMetadata` / `FailedTransactionMetadata` (`.err()`, `.logs()`, `.toString()`).
+
+**Interop (verified, no blocker):** litesvm does not take the legacy `Transaction` object. Bridge = build+sign with web3.js v3, `await tx.serialize()` → wire bytes, `getTransactionDecoder().decode(bytes)` → kit `Transaction` → `svm.sendTransaction`. Implemented in `sdk/src/litesvm-interop.ts` (`toLiteSvmTransaction`). For litesvm-facing args use kit helpers: `address("...")`, `lamports(n)`, `svm.latestBlockhash()` (a kit `Blockhash`, accepted directly by legacy `tx.recentBlockhash`). `Keypair.generate()`/`sign()`/`serialize()` are ASYNC (WebCrypto).
+
+**Smoke test (`sdk/test/smoke.test.ts`):** loads the real `target/deploy/kassandra_program.so` at the program ID, builds a web3.js-v3 tx with a single instruction carrying bogus disc `0xFE` + a dummy account, signs, bridges to litesvm, submits. Asserts `FailedTransactionMetadata` with `InvalidInstructionData`. Verified the real program emits `InstructionError(0, InvalidInstructionData)` + log `"invalid instruction data"` (not a false negative). `pnpm test` (2 passed) + `pnpm typecheck` green. Run `just build` (repo root) first to produce the `.so`.
+
+**For D1+:** choose one tx-building style consistently — kit-native (`@solana/kit`: `AccountRole`, `getProgramDerivedAddress`, `compileTransaction`; zero bridge) OR classic web3.js v3 + the `toLiteSvmTransaction` bridge. Both work against the installed deps.
