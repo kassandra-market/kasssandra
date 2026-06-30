@@ -1,11 +1,23 @@
 //! `finalize_facts`: settle the fact-voting round once its window has elapsed.
 //!
-//! This instruction performs NO token CPI. It only mutates account data and
-//! advances a running `Oracle.bond_pool` counter of slashed KASS owed to the
-//! pool. The actual KASS stays escrowed in the stake vault; per-staker
-//! reward / return / withdrawal (paying out approved-fact stakers, returning
-//! duplicate/voter stakes, draining the bond pool) is a DEFERRED later task.
-//! `bond_pool` here is purely an accounting counter.
+//! On the fact-settling path this instruction performs NO token CPI: it only
+//! mutates account data and advances a running `Oracle.bond_pool` counter of
+//! slashed KASS owed to the pool. Per-staker reward / return / withdrawal of the
+//! escrowed KASS is the DEFERRED S2 pull-claim layer; `bond_pool` here is an
+//! accounting counter.
+//!
+//! The ONE exception is the **no-facts dead-end** (`fact_count == 0`): when the
+//! last proposer is slashed and the oracle terminates in [`Phase::InvalidDeadend`],
+//! it BURNS the accumulated `bond_pool` (= Σ proposer bonds) AND the
+//! `reward_emission` back from `stake_vault` to the supply reservoir — symmetric
+//! with `finalize_oracle`'s InvalidDeadend burn. A dead-end is a non-outcome: the
+//! slashed bonds have no recipient (no winner) and the emission funds no reward,
+//! so both are burned (the user-decided deterrent against propose-conflict-then-
+//! abandon), leaving the vault drained to dust. Because the burn is signed by the
+//! oracle PDA seeds and targets the canonical mint/vault, the instruction takes
+//! the same fixed `kass_mint`/`stake_vault`/token-program accounts + `oracle_nonce`
+//! payload as `finalize_oracle` (required on BOTH paths; only the no-facts
+//! terminal one actually burns).
 //!
 //! # Incremental finalization
 //! A dispute may have an unbounded number of facts / proposers, but a single
@@ -47,24 +59,42 @@
 //! already-slashed proposer) aborts with [`KassandraError::AlreadySettled`].
 //!
 //! # Accounts
-//! 0. oracle — writable, owned by this program
-//! 1. onward — the tail: a non-empty subset of the oracle's proposers
+//! 0. oracle        — writable, owned by this program (mutated; signs the burn).
+//! 1. kass_mint     — writable; `== oracle.kass_mint` (the no-facts dead-end burn target).
+//! 2. stake_vault   — writable; `== oracle.stake_vault` (bonds/emission burned from here).
+//! 3. token program — `pinocchio_token::ID`.
+//! 4. onward        — the tail: a non-empty subset of the oracle's proposers
 //!    (no-facts case) or facts. Each writable, owned by this program,
 //!    belonging to this oracle, distinct within the call.
 //!
-//! # Instruction payload
-//! Empty (after the 1-byte discriminant).
+//! The fixed burn accounts (1-3) are required on BOTH paths (no-facts dead-end
+//! and the fact-settling path), like `finalize_oracle`; only the no-facts
+//! terminal transition actually burns. Validating the canonical mint/vault is
+//! cheap.
+//!
+//! # Instruction payload (after the 1-byte discriminant), exactly 8 bytes
+//! `oracle_nonce: u64 LE` — re-derives + verifies the oracle PDA, whose seeds
+//! `[b"oracle", nonce_le, bump]` program-sign the no-facts dead-end burn.
 
 use pinocchio::{
-    account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey, ProgramResult,
+    account_info::AccountInfo,
+    instruction::{Seed, Signer},
+    program_error::ProgramError,
+    pubkey::{find_program_address, Pubkey},
+    ProgramResult,
 };
+use pinocchio_token::instructions::Burn;
 
 use crate::{
     clock::{now, require_after_end, require_phase},
     error::KassandraError,
-    processor::guards::{load_fact, load_oracle, load_proposer},
+    processor::guards::{assert_key, load_fact, load_oracle, load_proposer},
     state::{Fact, Oracle, Phase, Proposer},
 };
+
+/// Exact payload length: `oracle_nonce[8]` (re-derives the oracle PDA signer for
+/// the no-facts dead-end burn).
+const PAYLOAD_LEN: usize = 8;
 
 /// A fact is agreed iff approve strictly beats duplicate AND clears the
 /// supermajority threshold (snapshotted on the oracle at create_oracle) of the
@@ -92,12 +122,14 @@ fn require_distinct(prior: &[AccountInfo], key: &Pubkey) -> ProgramResult {
     Ok(())
 }
 
-pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -> ProgramResult {
-    let [oracle_ai, tail @ ..] = accounts else {
+pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) -> ProgramResult {
+    let [oracle_ai, kass_mint_ai, stake_vault_ai, token_prog_ai, tail @ ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
-    // Owner + size + account_type check, then an owned copy for mutation.
+    // Owner + size + account_type check, then an owned copy for mutation. Done
+    // BEFORE the payload/fixed-account parse so a bad-owner oracle still fails
+    // with `InvalidAccount` (dispatch-routing contract).
     let mut oracle: Oracle = load_oracle(oracle_ai, program_id)?;
 
     require_phase(&oracle, Phase::FactVoting)?;
@@ -109,13 +141,38 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
         return Err(KassandraError::NoDisputeBond.into());
     }
 
+    // Payload nonce → re-derive + verify the oracle PDA (its seeds sign the
+    // no-facts dead-end burn), exactly like finalize_oracle / the S2 claims.
+    if payload.len() != PAYLOAD_LEN {
+        return Err(ProgramError::InvalidInstructionData);
+    }
+    let nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
+    let (derived, bump) = find_program_address(&[b"oracle", &nonce.to_le_bytes()], program_id);
+    if &derived != oracle_ai.key() || bump != oracle.bump {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+
+    // Fixed burn accounts (canonical mint + vault + token program). Required on
+    // both paths; only the no-facts terminal transition actually burns.
+    assert_key(token_prog_ai, &pinocchio_token::ID)?;
+    assert_key(kass_mint_ai, &oracle.kass_mint)?;
+    assert_key(stake_vault_ai, &oracle.stake_vault)?;
+
     // At least one account must be supplied to do any work.
     if tail.is_empty() {
         return Err(KassandraError::IncompleteFactSet.into());
     }
 
     if oracle.fact_count == 0 {
-        finalize_no_facts(program_id, oracle_ai, &mut oracle, tail)?;
+        finalize_no_facts(
+            program_id,
+            oracle_ai,
+            kass_mint_ai,
+            stake_vault_ai,
+            &mut oracle,
+            tail,
+            nonce,
+        )?;
     } else {
         finalize_with_facts(program_id, oracle_ai, &mut oracle, tail, now)?;
     }
@@ -126,11 +183,15 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], _payload: &[u8]) -
 /// No facts ever cleared: slash a subset of proposers into the pool. Once every
 /// proposer is slashed (`surviving_count == 0`), terminate in
 /// [`Phase::InvalidDeadend`].
+#[allow(clippy::too_many_arguments)]
 fn finalize_no_facts(
     program_id: &Pubkey,
     oracle_ai: &AccountInfo,
+    kass_mint_ai: &AccountInfo,
+    stake_vault_ai: &AccountInfo,
     oracle: &mut Oracle,
     proposers: &[AccountInfo],
+    nonce: u64,
 ) -> ProgramResult {
     for (i, p_ai) in proposers.iter().enumerate() {
         require_distinct(&proposers[..i], p_ai.key())?;
@@ -177,9 +238,37 @@ fn finalize_no_facts(
         data[..Proposer::LEN].copy_from_slice(bytemuck::bytes_of(&proposer));
     }
 
-    // Terminal only once the whole proposer set has been slashed.
+    // Terminal only once the whole proposer set has been slashed: burn the
+    // slashed `bond_pool` (= Σ proposer bonds) AND the `reward_emission` back to
+    // the reservoir so the dead-end strands nothing (a non-outcome distributes
+    // nothing; the slashed bonds have no recipient and the emission funds no
+    // reward — both burned, mirroring finalize_oracle). The vault is left empty
+    // (no fact stakes exist on this path), so it drains to dust. Both sit in
+    // `stake_vault` (token authority == the oracle PDA), so the burn is signed by
+    // the oracle seeds. `bond_pool`/`reward_emission` are left as the durable
+    // record of what was slashed/minted then burned.
     if oracle.surviving_count == 0 {
         oracle.set_phase(Phase::InvalidDeadend);
+        let burn_amount = oracle
+            .bond_pool
+            .checked_add(oracle.reward_emission)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        if burn_amount > 0 {
+            let nonce_le = nonce.to_le_bytes();
+            let bump_seed = [oracle.bump];
+            let seeds = [
+                Seed::from(b"oracle".as_ref()),
+                Seed::from(nonce_le.as_ref()),
+                Seed::from(&bump_seed),
+            ];
+            Burn {
+                account: stake_vault_ai,
+                mint: kass_mint_ai,
+                authority: oracle_ai,
+                amount: burn_amount,
+            }
+            .invoke_signed(&[Signer::from(&seeds)])?;
+        }
     }
     write_oracle(oracle_ai, oracle)
 }

@@ -244,7 +244,7 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     );
 
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeFacts({ oracle, tail: [fact] }));
+    await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
     expect(decodeOracle(await fetchAccount(f, oracle)).phase).toBe(Phase.AiClaim);
 
     // Both proposers claim option 0: proposer[0] (orig 0) does NOT flip → survives

@@ -224,7 +224,7 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
 
     // --- advance past voting window → finalize_facts([fact]) → AiClaim ---
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeFacts({ oracle, tail: [fact] }));
+    await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
     o = decodeOracle(await fetchAccount(f, oracle));
     expect(o.phase).toBe(Phase.AiClaim);
 

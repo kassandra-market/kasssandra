@@ -7,8 +7,10 @@
 //! account, and asserts: the exact KASS delta to the owner's account, the
 //! claimant account closed (rent reclaimed to its authority), and the stake
 //! vault decremented by exactly the entitlement. Conservation arms prove the
-//! whole sweep drains the vault to floor dust (Resolved) or returns every stake
-//! (InvalidDeadend), sourced ONLY from the stake vault.
+//! whole sweep drains the vault to floor dust (Resolved) or to the burned
+//! slashed pool (InvalidDeadend: the dead-end finalize burned the slashed
+//! `bond_pool`, so claims return only the non-slashed principal), sourced ONLY
+//! from the stake vault.
 
 mod common;
 use common::*;
@@ -303,10 +305,14 @@ fn resolved_conservation_sweep() {
 }
 
 #[test]
-fn invalid_deadend_full_returns() {
+fn invalid_deadend_returns_nonslashed_principal() {
     let mut ctx = TestCtx::new();
-    // Disposition flags are irrelevant on InvalidDeadend — everyone gets full
-    // stake back; reward_pool is 0.
+    // On InvalidDeadend the slashed pool (rejected submitter stake + approve-voter
+    // slash) was BURNED out of the vault at finalize, so claims pay only the
+    // NON-SLASHED principal: survivors get their bond, agreed/duplicate stakers
+    // get their stake, but the REJECTED submitter forfeits (0) and the rejected-
+    // fact approve-voter reclaims only `stake − slash`. reward_pool is 0 (no
+    // reward on either path). The post-burn vault drains to exactly 0.
     let proposers = vec![
         ClaimProposerSpec {
             bond: 1_000,
@@ -412,10 +418,11 @@ fn invalid_deadend_full_returns() {
             expected,
         );
     }
-    // On InvalidDeadend Σ == Σ stakes exactly (no rewards, no slash retained).
+    // On InvalidDeadend Σ payouts == the post-burn vault exactly: the non-slashed
+    // principal is returned and the burned slashed pool is gone (no stranding).
     assert_eq!(
         sum, seed.vault_initial,
-        "full returns drain the vault exactly"
+        "non-slashed principal drains the post-burn vault exactly"
     );
     assert_eq!(
         ctx.token_balance(seed.stake_vault),
@@ -706,10 +713,11 @@ fn ceil_voter_slash_no_shortfall() {
 }
 
 #[test]
-fn flipped_survivor_invalid_deadend_strands_to_dust() {
+fn flipped_survivor_invalid_deadend_drains() {
     // M2: a flip-slashed but SURVIVING proposer that ties into InvalidDeadend gets
-    // `bond − slashed_amount` (reward_pool == 0). Its flip-slash portion stays in
-    // the vault as conservation-safe dust — an UNDER-pay, never an over-pay.
+    // `bond − slashed_amount` (reward_pool == 0). Its flip-slash portion was
+    // BURNED out of the vault at finalize, so nothing is stranded — the vault
+    // drains to exactly 0 (no more dust).
     let mut ctx = TestCtx::new();
     let proposers = vec![ClaimProposerSpec {
         bond: 1_000,
@@ -744,8 +752,9 @@ fn flipped_survivor_invalid_deadend_strands_to_dust() {
         recip,
         expected,
     );
-    // The 400 flip-slash portion is stranded as dust (under-pay, not over-pay).
-    assert_eq!(ctx.token_balance(seed.stake_vault), 400);
+    // The 400 flip-slash portion was burned at finalize, so the vault drains to 0
+    // (no stranding — the dead-end-settlement fix).
+    assert_eq!(ctx.token_balance(seed.stake_vault), 0);
 }
 
 #[test]

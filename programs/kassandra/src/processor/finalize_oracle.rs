@@ -61,19 +61,23 @@
 //! a second call fails `require_phase(Challenge)` with
 //! [`KassandraError::WrongPhase`].
 //!
-//! # Token CPI (Task S3): InvalidDeadend emission burn-back only
+//! # Token CPI: InvalidDeadend burn-back (emission + slashed bond_pool)
 //! On the Resolved branch finalize_oracle stamps the resolution totals the S2
 //! pull-claims read — `total_correct_proposer_stake` (Σ surviving-correct bonds)
 //! and `reward_pool = bond_pool + reward_emission` (S3 folds the creation-time
 //! emission in) — with NO token movement. On the InvalidDeadend branch it BURNS
-//! `reward_emission` back from `stake_vault` (program-signed by the oracle PDA)
-//! to the supply reservoir, so a dead-end leaks no emission; the remaining
-//! `Σ stakes` is then reclaimable in full by the S2 claims. Physical settlement —
-//! returning surviving bonds, returning all bonds/stakes on InvalidDeadend,
-//! reward distribution from `bond_pool`, and AiClaim-account rent reclamation
-//! (the design's "close AiClaim accounts on resolution") — is a DEFERRED later
-//! task, consistent with `finalize_facts`/`finalize_ai_claims`/`settle_challenge`
-//! treating `bond_pool` as a counter. Account closure, when built, will be a
+//! BOTH the `reward_emission` AND the slashed `bond_pool` back from `stake_vault`
+//! (program-signed by the oracle PDA) to the supply reservoir: a dead-end is a
+//! non-outcome, so the emission funds no reward and the slashed amounts have no
+//! recipient (no winner) — both are burned, leaving the vault holding EXACTLY the
+//! returnable non-slashed principal (`Σ surviving bonds − flip slashes + agreed/
+//! duplicate fact stakes + un-slashed approve-voter stakes`), which the S2 claims
+//! drain to dust. Burning `bond_pool` is conservation-safe: it equals Σ
+//! `slashed_amount` over the slashed accounts, and any `kass_fee` already paid OUT
+//! to a challenger by `settle_challenge` was recorded as `bond − kass_fee` (so it
+//! is NOT in `bond_pool` and is not double-burned). AiClaim-account rent
+//! reclamation (the design's "close AiClaim accounts on resolution") — is a
+//! DEFERRED later task. Account closure, when built, will be a
 //! SEPARATE permissionless per-claim instruction (callable post-resolution): it
 //! has the same one-tx capacity concern as finalize, so it must not be crammed
 //! into this recompute, and finalize must not block on it.
@@ -90,8 +94,9 @@
 //!    per-tx account ceiling for the one-shot finalize.
 //!
 //! NOTE: the fixed burn accounts (1-3) are required on BOTH terminal branches
-//! even though only InvalidDeadend with `reward_emission > 0` actually burns —
-//! the account layout is fixed, and validating the canonical mint/vault is cheap.
+//! even though only InvalidDeadend with `reward_emission + bond_pool > 0`
+//! actually burns — the account layout is fixed, and validating the canonical
+//! mint/vault is cheap.
 //!
 //! # Instruction payload (after the 1-byte discriminant), exactly 8 bytes
 //! `oracle_nonce: u64 LE` — re-derives + verifies the oracle PDA, whose seeds
@@ -251,16 +256,25 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
         // loud sentinel so a consumer that skips the phase gate never misreads
         // the dead-end as "option 0 won." On a dead-end there is no reward
         // distribution: `reward_pool` / `total_correct_proposer_stake` stay 0
-        // (their zeroed default; finalize_oracle runs once). S3 burns the
-        // reward_emission back to the reservoir on this branch.
+        // (their zeroed default; finalize_oracle runs once).
         Plurality::Tie | Plurality::NoSurvivors => {
             oracle.resolved_option = CLAIM_OPTION_NONE;
             oracle.set_phase(Phase::InvalidDeadend);
-            // S3: burn the creation-time emission back to the reservoir so a
-            // dead-end leaks no KASS. The emission sits in `stake_vault` (token
-            // authority == the oracle PDA), so the burn is signed by the oracle
-            // seeds. Only when positive; reward_pool stays 0 (no distribution).
-            if oracle.reward_emission > 0 {
+            // Burn BOTH the creation-time emission AND the slashed `bond_pool`
+            // back to the reservoir so a dead-end strands nothing: a dead-end is
+            // a non-outcome with no recipient for slashed amounts (no winner), so
+            // they are burned like the creator fee, and the emission funds no
+            // reward. After the burn the vault holds EXACTLY the returnable
+            // non-slashed principal, which the S2 claims drain to dust. Both sit
+            // in `stake_vault` (token authority == the oracle PDA), so the burn
+            // is signed by the oracle seeds. `reward_pool` stays 0 (no
+            // distribution); `bond_pool`/`reward_emission` are left as the durable
+            // record of what was slashed/minted then burned.
+            let burn_amount = oracle
+                .reward_emission
+                .checked_add(oracle.bond_pool)
+                .ok_or(ProgramError::ArithmeticOverflow)?;
+            if burn_amount > 0 {
                 let nonce_le = nonce.to_le_bytes();
                 let bump_seed = [oracle.bump];
                 let seeds = [
@@ -272,7 +286,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
                     account: stake_vault_ai,
                     mint: kass_mint_ai,
                     authority: oracle_ai,
-                    amount: oracle.reward_emission,
+                    amount: burn_amount,
                 }
                 .invoke_signed(&[Signer::from(&seeds)])?;
             }

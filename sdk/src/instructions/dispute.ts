@@ -125,13 +125,17 @@ export async function voteFact(args: VoteFactArgs): Promise<TransactionInstructi
 
 // ---------------------------------------------------------------------------
 // FinalizeFacts (Ix=2) — processor/finalize_facts.rs
-// Accounts: 0 oracle(w), then a WRITABLE tail (a non-empty subset of the
-//           oracle's facts, or its proposers in the no-facts dead-end branch).
-// Payload: empty.
+// Accounts: 0 oracle(w) 1 kass_mint(w) 2 stake_vault(w,PDA) 3 token program(ro),
+//           then a WRITABLE tail (a non-empty subset of the oracle's facts, or
+//           its proposers in the no-facts dead-end branch).
+// Payload: oracle_nonce u64 (re-derives the oracle PDA signer for the no-facts
+//          dead-end `bond_pool` + emission burn-back).
 // ---------------------------------------------------------------------------
 export interface FinalizeFactsArgs {
-  /** The oracle to finalize (must be in `FactVoting`, window elapsed). */
-  oracle: AddressInput;
+  /** Oracle nonce — payload + derives the oracle/stake_vault PDAs. */
+  nonce: bigint | number;
+  /** Canonical KASS mint (`== oracle.kass_mint`); the no-facts dead-end burn target. */
+  kassMint: AddressInput;
   /**
    * The tail: a non-empty subset of the oracle's Fact PDAs, or (when the oracle
    * has no facts) a subset of its Proposer PDAs. Each is writable.
@@ -142,10 +146,19 @@ export interface FinalizeFactsArgs {
 
 export async function finalizeFacts(args: FinalizeFactsArgs): Promise<TransactionInstruction> {
   const programId = args.programId ?? KASSANDRA_PROGRAM_ID;
+  const oracle = await pda.oracle(BigInt(args.nonce), programId);
+  const stakeVault = await pda.stakeVault(oracle.address, programId);
+
   return new TransactionInstruction({
     programId,
-    keys: [w(addr(args.oracle)), ...args.tail.map((k) => w(addr(k)))],
-    data: withDisc(Ix.FinalizeFacts),
+    keys: [
+      w(oracle.address),
+      w(addr(args.kassMint)),
+      w(stakeVault.address),
+      ro(TOKEN_PROGRAM_ID),
+      ...args.tail.map((k) => w(addr(k))),
+    ],
+    data: withDisc(Ix.FinalizeFacts, u64LE(args.nonce)),
   });
 }
 

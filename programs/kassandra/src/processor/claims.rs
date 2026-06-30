@@ -37,24 +37,23 @@
 //!     proposer_reward(...)` (= `bond + reward` for an honest survivor;
 //!     `bond − flip_slash + reward` for a flip-slashed-but-correct survivor).
 //!   - `Resolved` + surviving + wrong → `bond − slashed_amount`, no reward.
-//! * **claim_fact** (submitter)
-//!   - `InvalidDeadend` → `stake`.
-//!   - `Resolved` + `is_agreed()` → `stake + fact_reward(stake, fact_bucket,
-//!     total_approved)`.
-//!   - `Resolved` + `is_duplicate()` → `stake`.
-//!   - `Resolved` + rejected → `0` (the stake funded `bond_pool`; still close +
-//!     reclaim rent to the submitter).
-//! * **claim_fact_vote** (the fact is loaded to read its disposition)
-//!   - `InvalidDeadend` → `stake`.
-//!   - `Resolved` + `kind == VOTE_DUPLICATE` (any fact) → `stake` (never
-//!     slashed/rewarded).
-//!   - `Resolved` + `kind == VOTE_APPROVE` + fact `is_agreed()` → `stake +
-//!     fact_reward(stake, fact_bucket, total_approved)`.
-//!   - `Resolved` + `kind == VOTE_APPROVE` + fact `is_duplicate()` → `stake`
-//!     (approve-voter on a duplicate-dominant fact: no reward, no slash).
-//!   - `Resolved` + `kind == VOTE_APPROVE` + fact rejected → `stake −
-//!     floor(stake · fact_vote_slash_num / fact_vote_slash_den)` (the slashed
-//!     fraction already funded `bond_pool`).
+//! * **claim_fact** (submitter) — disposition-based on BOTH terminal phases; the
+//!   reward applies ONLY on `Resolved`. On `InvalidDeadend` the slashed
+//!   `bond_pool` (incl. rejected-fact stakes) was BURNED out of `stake_vault` at
+//!   finalize, so a rejected submitter must forfeit (0) to stay solvent.
+//!   - `is_agreed()` → `stake + (resolved ? fact_reward(...) : 0)`.
+//!   - `is_duplicate()` → `stake` (either phase).
+//!   - rejected → `0` (either phase; the stake funded the now-burned `bond_pool`;
+//!     still close + reclaim rent to the submitter).
+//! * **claim_fact_vote** (the fact is loaded to read its disposition) —
+//!   disposition-based on BOTH terminal phases; reward ONLY on `Resolved`.
+//!   - `kind == VOTE_DUPLICATE` (any fact) → `stake` (never slashed/rewarded).
+//!   - `kind == VOTE_APPROVE` + fact `is_agreed()` → `stake + (resolved ?
+//!     fact_reward(...) : 0)`.
+//!   - `kind == VOTE_APPROVE` + fact `is_duplicate()` → `stake` (no reward/slash).
+//!   - `kind == VOTE_APPROVE` + fact rejected → `stake − floor(stake ·
+//!     fact_vote_slash_num / fact_vote_slash_den)` (either phase; the slashed
+//!     fraction funded the now-burned `bond_pool`).
 //!
 //! # Accounts (per claim)
 //! `claim_proposer` / `claim_fact`:
@@ -143,14 +142,20 @@ fn assert_token_account(
 /// [`KassandraError::WrongPhase`]. Returns `true` iff the oracle is
 /// [`Phase::Resolved`] (so the caller knows whether rewards apply).
 ///
-/// # M1 — `resolve_deadend` (F4) oracles
+/// # `resolve_deadend` (F4) oracles — no special-casing
 /// An oracle force-resolved from `InvalidDeadend` → `Resolved` by the DAO
 /// (`resolve_deadend`, F4) carries `reward_pool == 0` and zero cohort totals
 /// (`finalize_oracle` only stamps those on the organic Resolved branch; F4 just
 /// flips the phase + sets `resolved_option`). So `resolved == true` here but
-/// every reward term is 0 → claims pay stakes-back only, no rewards. That
-/// matches the deferred dead-end-settlement intent (no distribution out of a
-/// dead-end) — no special-casing needed.
+/// every reward term is 0 → claims pay **non-slashed principal only**, no
+/// rewards: IDENTICAL economics to the plain `InvalidDeadend` branch. This is
+/// exactly the dead-end settlement rule (a non-outcome distributes nothing): the
+/// slashed `bond_pool` + the `reward_emission` were already BURNED out of
+/// `stake_vault` at the InvalidDeadend finalize site (`finalize_oracle` /
+/// `finalize_no_facts`), so the vault holds only the returnable principal whether
+/// or not governance later flips the phase to `Resolved`. No marker / no
+/// claim-path branch on "resolved-from-dead-end" is needed — the `reward_pool ==
+/// 0` stamp already makes both terminal phases pay identically.
 fn require_terminal(oracle: &Oracle) -> Result<bool, ProgramError> {
     match oracle.phase().ok_or(KassandraError::InvalidAccount)? {
         Phase::Resolved => Ok(true),
@@ -396,34 +401,39 @@ pub fn claim_fact(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8])
     )
 }
 
-/// Entitlement for a fact SUBMITTER (see the module matrix).
+/// Entitlement for a fact SUBMITTER (see the module matrix). The fact's
+/// disposition (agreed / duplicate / rejected) is applied on BOTH terminal
+/// phases; only the reward (Resolved only) differs. On `InvalidDeadend` the
+/// reward is 0 (reward_pool == 0) AND, crucially, a REJECTED submitter forfeits
+/// (returns 0) — its stake funded `bond_pool`, which the InvalidDeadend finalize
+/// site BURNED out of the vault, so returning it would short the vault.
 fn fact_submitter_entitlement(
     oracle: &Oracle,
     fact: &Fact,
     resolved: bool,
 ) -> Result<u64, ProgramError> {
-    if !resolved {
-        return Ok(fact.stake); // InvalidDeadend: full stake.
-    }
     if fact.is_agreed() {
-        let (_, fact_bucket) = reward::reward_buckets(
-            oracle.reward_pool,
-            oracle.reward_proposer_weight,
-            oracle.reward_fact_weight,
-            oracle.total_correct_proposer_stake,
-            oracle.total_approved_fact_stake,
-        );
-        let r = reward::fact_reward(fact.stake, fact_bucket, oracle.total_approved_fact_stake);
-        let total = fact
+        let r = if resolved {
+            let (_, fact_bucket) = reward::reward_buckets(
+                oracle.reward_pool,
+                oracle.reward_proposer_weight,
+                oracle.reward_fact_weight,
+                oracle.total_correct_proposer_stake,
+                oracle.total_approved_fact_stake,
+            );
+            reward::fact_reward(fact.stake, fact_bucket, oracle.total_approved_fact_stake)
+        } else {
+            0 // InvalidDeadend: no reward distribution.
+        };
+        return fact
             .stake
             .checked_add(r)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        return Ok(total);
+            .ok_or(ProgramError::ArithmeticOverflow);
     }
     if fact.is_duplicate() {
-        return Ok(fact.stake); // Duplicate-dominant: stake returned, no reward.
+        return Ok(fact.stake); // Duplicate-dominant: stake returned, no reward/slash.
     }
-    Ok(0) // Rejected submitter: 100% forfeit (still close + reclaim rent).
+    Ok(0) // Rejected submitter: 100% forfeit on both phases (still close + reclaim rent).
 }
 
 // ---------------------------------------------------------------------------
@@ -462,22 +472,29 @@ pub fn claim_fact_vote(
     assert_token_account(dest_kass_ai, &oracle.kass_mint, &vote.voter)?;
     assert_key(rent_recipient_ai, &vote.voter)?;
 
-    let amount = if !resolved {
-        // InvalidDeadend: full stake.
-        vote.stake
-    } else if vote.kind == VOTE_DUPLICATE {
-        // Duplicate-voter: never slashed or rewarded, on any fact.
+    // Disposition-based on BOTH terminal phases; only the reward (Resolved only)
+    // differs. On InvalidDeadend reward_pool == 0 (reward 0) AND the rejected-fact
+    // approve-voter is STILL slashed: its slashed fraction funded `bond_pool`,
+    // which the InvalidDeadend finalize site BURNED out of the vault, so returning
+    // the full stake would short the vault.
+    let amount = if vote.kind == VOTE_DUPLICATE {
+        // Duplicate-voter: never slashed or rewarded, on any fact / either phase.
         vote.stake
     } else if fact.is_agreed() {
-        // Approve-voter on an agreed fact: stake + pro-rata fact reward.
-        let (_, fact_bucket) = reward::reward_buckets(
-            oracle.reward_pool,
-            oracle.reward_proposer_weight,
-            oracle.reward_fact_weight,
-            oracle.total_correct_proposer_stake,
-            oracle.total_approved_fact_stake,
-        );
-        let r = reward::fact_reward(vote.stake, fact_bucket, oracle.total_approved_fact_stake);
+        // Approve-voter on an agreed fact: stake + pro-rata fact reward (Resolved
+        // only; 0 on InvalidDeadend since reward_pool == 0).
+        let r = if resolved {
+            let (_, fact_bucket) = reward::reward_buckets(
+                oracle.reward_pool,
+                oracle.reward_proposer_weight,
+                oracle.reward_fact_weight,
+                oracle.total_correct_proposer_stake,
+                oracle.total_approved_fact_stake,
+            );
+            reward::fact_reward(vote.stake, fact_bucket, oracle.total_approved_fact_stake)
+        } else {
+            0
+        };
         vote.stake
             .checked_add(r)
             .ok_or(ProgramError::ArithmeticOverflow)?
@@ -486,7 +503,7 @@ pub fn claim_fact_vote(
         vote.stake
     } else {
         // Approve-voter on a rejected fact: the slashed fraction already funded
-        // bond_pool; reclaim only the remainder.
+        // bond_pool (burned on a dead-end); reclaim only the remainder.
         let slash = slash_amount(
             vote.stake,
             oracle.fact_vote_slash_num,

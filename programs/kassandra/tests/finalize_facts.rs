@@ -111,16 +111,7 @@ fn vote_fact_ix(
 /// Build a `finalize_facts` instruction: oracle (writable) + a tail of the
 /// given accounts (all writable). No signer is required.
 fn finalize_facts_ix(ctx: &TestCtx, oracle: Pubkey, tail: &[Pubkey]) -> Instruction {
-    let mut accounts = Vec::with_capacity(1 + tail.len());
-    accounts.push(AccountMeta::new(oracle, false));
-    for k in tail {
-        accounts.push(AccountMeta::new(*k, false));
-    }
-    Instruction {
-        program_id: ctx.program_id,
-        accounts,
-        data: vec![Ix::FinalizeFacts as u8],
-    }
+    ctx.finalize_facts_ix(oracle, tail)
 }
 
 // ----- fixture --------------------------------------------------------------

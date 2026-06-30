@@ -178,12 +178,19 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
     ]);
   });
 
-  it("finalizeFacts: empty payload, oracle(w) + writable tail", async () => {
+  it("finalizeFacts: nonce u64 payload, oracle/kass_mint/stake_vault/token + writable tail", async () => {
+    const nonce = 7n;
     const tail = [FACT, PROPOSER, AUTHORITY];
-    const ix = await finalizeFacts({ oracle: ORACLE, tail });
-    expect(ix.data).toEqual(bytesOf(Ix.FinalizeFacts));
+    const ix = await finalizeFacts({ nonce, kassMint: KASS_MINT, tail });
+    expect(ix.data).toEqual(bytesOf(Ix.FinalizeFacts, leU64(nonce)));
+
+    const oracle = await pda.oracle(nonce);
+    const stakeVault = await pda.stakeVault(oracle.address);
     expect(metaTriples(ix.keys)).toEqual([
-      [ORACLE, false, true],
+      [oracle.address.toString(), false, true],
+      [KASS_MINT, false, true],
+      [stakeVault.address.toString(), false, true],
+      [TOKEN_PROGRAM_ID.toString(), false, false],
       [FACT, false, true],
       [PROPOSER, false, true],
       [AUTHORITY, false, true],

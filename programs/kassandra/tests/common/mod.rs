@@ -944,8 +944,14 @@ impl TestCtx {
         let options_count = (max_option as u16 + 1).max(2) as u8;
 
         // Stake vault: SPL token account on KASS, owner == oracle PDA, holding
-        // exactly the summed bonds.
+        // exactly the summed bonds, BACKED by real mint supply. The backing is
+        // required so a terminal InvalidDeadend burn (finalize_oracle /
+        // finalize_no_facts burning the slashed `bond_pool` back to the reservoir)
+        // has real supply to check-subtract — a real `Burn` underflows otherwise.
+        // It mirrors reality (proposer bonds are circulating KASS) and is captured
+        // by every supply-DELTA assertion (tests snapshot supply AFTER seeding).
         let stake_vault = self.create_token_account(self.kass_mint, oracle_pda, total_stake);
+        self.add_mint_supply(self.kass_mint, total_stake);
 
         // Build and write the Oracle account.
         let now = self.now();
@@ -1270,6 +1276,32 @@ impl TestCtx {
         }
     }
 
+    /// Build a `FinalizeFacts` instruction (Ix 2). Account order (mirrors
+    /// `finalize_oracle`'s burn prefix): `[0] oracle(w) [1] kass_mint(w)
+    /// [2] stake_vault(w) [3] token program` followed by a WRITABLE tail (the
+    /// fact / proposer subset being settled). Payload = `oracle_nonce` LE (signs
+    /// the no-facts dead-end `bond_pool` + emission burn). The oracle must be in
+    /// the bookkeeping map (seeded or real-flow) so its nonce/vault are known.
+    pub fn finalize_facts_ix(&self, oracle: Pubkey, tail: &[Pubkey]) -> Instruction {
+        let seeded = self.seeded(oracle);
+        let mut data = Vec::with_capacity(1 + 8);
+        data.push(kassandra_program::instruction::Ix::FinalizeFacts as u8);
+        data.extend_from_slice(&seeded.nonce.to_le_bytes());
+        let mut accounts = Vec::with_capacity(4 + tail.len());
+        accounts.push(AccountMeta::new(oracle, false));
+        accounts.push(AccountMeta::new(self.kass_mint, false));
+        accounts.push(AccountMeta::new(seeded.stake_vault, false));
+        accounts.push(AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false));
+        for k in tail {
+            accounts.push(AccountMeta::new(*k, false));
+        }
+        Instruction {
+            program_id: self.program_id,
+            accounts,
+            data,
+        }
+    }
+
     /// Fabricate a program-owned account at a fresh address holding `data`.
     /// Used by type-confusion tests to stand up an account with a wrong (or
     /// missing) `account_type` tag.
@@ -1287,10 +1319,18 @@ impl TestCtx {
     }
 
     /// Create an SPL token account on the KASS mint owned by `owner` and fund
-    /// it with `amount` base units of KASS. Returns the token account address.
-    /// Used to bankroll a fact submitter.
+    /// it with `amount` base units of KASS, BACKED by real mint supply. Returns
+    /// the token account address. Used to bankroll a fact submitter / voter /
+    /// proposer bond source. The supply backing keeps the KASS that flows into a
+    /// stake vault physically real, so a terminal InvalidDeadend burn of the
+    /// slashed `bond_pool` (which may include rejected-fact stakes + approve-voter
+    /// slashes) does not underflow the mint supply. Every emission-calc test
+    /// snapshots supply right before its measured `create_oracle`, so this earlier
+    /// funding is captured consistently and never skews the emission.
     pub fn fund_kass(&mut self, owner: &Keypair, amount: u64) -> Pubkey {
-        self.create_token_account(self.kass_mint, owner.pubkey(), amount)
+        let acct = self.create_token_account(self.kass_mint, owner.pubkey(), amount);
+        self.add_mint_supply(self.kass_mint, amount);
+        acct
     }
 
     /// Create an SPL token account on the USDC mint owned by `owner` and fund it
@@ -1657,16 +1697,21 @@ const SEED_FW: u64 = kassandra_program::config::REWARD_FACT_WEIGHT;
 
 impl TestCtx {
     /// Fabricate an oracle in a TERMINAL phase (`Resolved` or `InvalidDeadend`)
-    /// with the given proposers/facts/votes, a stake vault funded with EXACTLY
-    /// the sum of all bonds + stakes, and self-consistent resolution stamps
+    /// with the given proposers/facts/votes, a stake vault funded to the
+    /// post-settlement balance, and self-consistent resolution stamps
     /// (`reward_pool`, `total_correct_proposer_stake`, `total_approved_fact_stake`).
     ///
-    /// `reward_pool` is computed as the physically-slashed KASS — Σ disqualified
-    /// `slashed_amount` + Σ rejected fact submitter stake + Σ rejected-fact
-    /// approve-voter slash (floor `num/den`) — so a complete sweep of every
-    /// claim drains the vault to floor-division dust (the conservation contract).
-    /// Each claimant's `expected` entitlement is precomputed via the program's
-    /// own [`reward`] helpers.
+    /// The "slashed pool" = Σ `slashed_amount` (disqualified OR flip-slashed) + Σ
+    /// rejected fact submitter stake + Σ rejected-fact approve-voter slash (floor
+    /// `num/den`). On **Resolved** it is the distributable `reward_pool` and the
+    /// vault holds the full `gross` (Σ bonds + stakes), so a complete claim sweep
+    /// drains it to floor-division dust. On **InvalidDeadend** it is instead the
+    /// amount the finalize site BURNED out of the vault (a dead-end distributes
+    /// nothing): the vault is funded with `gross − slashed_pool`, `reward_pool ==
+    /// 0`, the slashed pool is recorded on `bond_pool`, and the claims (rejected
+    /// submitters/voters forfeit, survivors get `bond − slashed_amount`) drain it
+    /// to dust. Each claimant's `expected` entitlement is precomputed via the
+    /// program's own [`reward`] helpers.
     ///
     /// `slash_num/slash_den` is the approve-voter slash fraction stamped on the
     /// oracle (`1/2` matches the real default). To keep the aggregate
@@ -1707,39 +1752,48 @@ impl TestCtx {
                 total_approved += f.stake + approve;
             }
         }
-        let mut reward_pool: u64 = 0;
-        if resolved {
-            // ANY slashed_amount (disqualified OR flip-slashed-but-surviving)
-            // already funded bond_pool, so it is all distributable reward.
-            for p in proposers {
-                reward_pool += p.slashed_amount;
-            }
-            for f in facts {
-                if !f.agreed && !f.duplicate {
-                    // Rejected: submitter full forfeit + approve-voter slash.
-                    let approve: u64 = f
-                        .votes
-                        .iter()
-                        .filter(|v| v.kind == VOTE_APPROVE)
-                        .map(|v| v.stake)
-                        .sum();
-                    reward_pool += f.stake;
-                    reward_pool +=
-                        ((approve as u128) * (slash_num as u128) / (slash_den as u128)) as u64;
-                }
+        // The slashed pool = Σ proposer slashes + Σ rejected-fact (submitter stake
+        // + floor approve-voter slash). On Resolved it is the distributable
+        // `reward_pool`; on InvalidDeadend it is the amount the finalize site
+        // BURNED back, so the vault is funded with `gross − slashed_pool` and the
+        // counter is stamped on `bond_pool` (mirroring the on-chain post-burn
+        // terminal state). This is the same formula on both phases.
+        let mut slashed_pool: u64 = 0;
+        for p in proposers {
+            // ANY slashed_amount (disqualified OR flip-slashed-but-surviving).
+            slashed_pool += p.slashed_amount;
+        }
+        for f in facts {
+            if !f.agreed && !f.duplicate {
+                // Rejected: submitter full forfeit + approve-voter floor slash.
+                let approve: u64 = f
+                    .votes
+                    .iter()
+                    .filter(|v| v.kind == VOTE_APPROVE)
+                    .map(|v| v.stake)
+                    .sum();
+                slashed_pool += f.stake;
+                slashed_pool +=
+                    ((approve as u128) * (slash_num as u128) / (slash_den as u128)) as u64;
             }
         }
+        let reward_pool: u64 = if resolved { slashed_pool } else { 0 };
+        // On a dead-end the slashed pool was burned out of the vault at finalize.
+        let burn_pool: u64 = if resolved { 0 } else { slashed_pool };
 
         let (proposer_bucket, fact_bucket) =
             reward::reward_buckets(reward_pool, SEED_PW, SEED_FW, total_correct, total_approved);
 
-        // ----- vault balance = Σ all bonds + stakes -------------------------
-        let mut vault_initial: u64 = proposers.iter().map(|p| p.bond).sum();
-        for f in facts {
-            vault_initial += f.stake;
-            vault_initial += f.votes.iter().map(|v| v.stake).sum::<u64>();
-        }
+        // ----- vault balance: Σ all bonds + stakes, MINUS the dead-end burn -----
+        let gross: u64 = proposers.iter().map(|p| p.bond).sum::<u64>()
+            + facts
+                .iter()
+                .map(|f| f.stake + f.votes.iter().map(|v| v.stake).sum::<u64>())
+                .sum::<u64>();
+        let vault_initial: u64 = gross - burn_pool;
         let stake_vault = self.create_token_account(self.kass_mint, oracle_pda, vault_initial);
+        // Back the vault KASS with real mint supply (a Burn elsewhere checks it).
+        self.add_mint_supply(self.kass_mint, vault_initial);
 
         // ----- the Oracle account -------------------------------------------
         let now = self.now();
@@ -1756,8 +1810,13 @@ impl TestCtx {
         oracle.set_phase(phase);
         oracle.proposer_count = proposers.len() as u16;
         oracle.surviving_count = proposers.iter().filter(|p| !p.disqualified).count() as u16;
-        oracle.total_oracle_stake = vault_initial;
+        // `total_oracle_stake` is the gross accumulator (never decremented by the
+        // burn); the vault physically holds `gross − burn_pool`.
+        oracle.total_oracle_stake = gross;
         oracle.dispute_bond_total = proposers.iter().map(|p| p.bond).sum();
+        // On a dead-end the burned slashed pool is recorded on `bond_pool` (the
+        // durable counter), matching the on-chain post-burn terminal state.
+        oracle.bond_pool = burn_pool;
         oracle.bump = bump;
         oracle.resolved_option = if resolved {
             resolved_option
@@ -1856,10 +1915,16 @@ impl TestCtx {
             fact.settled = 1;
             let fact_account = self.seed_program_account(bytemuck::bytes_of(&fact).to_vec());
 
-            let submitter_expected = if !resolved {
+            // Disposition-based on BOTH terminal phases; reward only on Resolved.
+            // A rejected submitter forfeits (0) on a dead-end too (its stake was
+            // burned out of the vault at finalize).
+            let submitter_expected = if f.agreed {
                 f.stake
-            } else if f.agreed {
-                f.stake + reward::fact_reward(f.stake, fact_bucket, total_approved)
+                    + if resolved {
+                        reward::fact_reward(f.stake, fact_bucket, total_approved)
+                    } else {
+                        0
+                    }
             } else if f.duplicate {
                 f.stake
             } else {
@@ -1881,10 +1946,19 @@ impl TestCtx {
                 vote.kind = v.kind;
                 let vote_account = self.seed_program_account(bytemuck::bytes_of(&vote).to_vec());
 
-                let approve = resolved && v.kind == VOTE_APPROVE;
+                // Disposition-based on BOTH terminal phases; reward only on
+                // Resolved. The rejected-fact approve-voter is slashed on a
+                // dead-end too (its slashed fraction was burned at finalize).
+                let approve = v.kind == VOTE_APPROVE;
                 let expected = if approve && f.agreed {
-                    // Approve-voter on an agreed fact earns the fact rate.
-                    v.stake + reward::fact_reward(v.stake, fact_bucket, total_approved)
+                    // Approve-voter on an agreed fact earns the fact rate (Resolved
+                    // only; 0 on InvalidDeadend since reward_pool == 0).
+                    v.stake
+                        + if resolved {
+                            reward::fact_reward(v.stake, fact_bucket, total_approved)
+                        } else {
+                            0
+                        }
                 } else if approve && !f.duplicate {
                     // Approve-voter on a rejected fact is slashed CEIL(stake·num/den)
                     // (mirrors on-chain: ceil keeps the vault from running short
@@ -1893,7 +1967,7 @@ impl TestCtx {
                         ((v.stake as u128) * (slash_num as u128)).div_ceil(slash_den as u128);
                     v.stake - ceil as u64
                 } else {
-                    // InvalidDeadend, duplicate-voter, or approve-on-duplicate: full stake.
+                    // Duplicate-voter, or approve-on-duplicate-dominant: full stake.
                     v.stake
                 };
 

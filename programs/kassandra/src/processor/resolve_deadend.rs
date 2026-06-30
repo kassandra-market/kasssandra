@@ -11,13 +11,22 @@
 //! `oracle.resolved_option` and advances the phase
 //! [`Phase::InvalidDeadend`] → [`Phase::Resolved`].
 //!
-//! # Deferred: economic settlement
-//! There is intentionally **NO token movement here.** The economic settlement of
-//! a governance-resolved dead-end (whose shape is: stakes likely returned, no
-//! rewards — the market/AI did NOT decide the outcome, so nobody earned a slash
-//! or a reward) is DEFERRED to the settlement milestone. This milestone only
-//! records the terminal outcome; the settlement processor will read
-//! `phase == Resolved` + `resolved_option` and move funds then.
+//! # NO token movement here — the dead-end was already settled at finalize
+//! There is intentionally **NO token movement here**, and crucially none is
+//! needed: a governance-resolved dead-end pays out IDENTICALLY to a plain
+//! `InvalidDeadend` — stakers reclaim their **non-slashed principal**, with NO
+//! reward (the market/AI did not decide the outcome, so nobody earned a slash or
+//! a reward). That holds because the dead-end's misrouted funds were ALREADY
+//! burned out of `stake_vault` at the InvalidDeadend finalize site (`finalize_
+//! oracle` / `finalize_no_facts` burn the slashed `bond_pool` + the
+//! `reward_emission`), leaving the vault holding exactly the returnable principal,
+//! and because `reward_pool == 0` on a dead-end makes every S2 reward term 0 on
+//! BOTH terminal phases. So this instruction only records the terminal outcome
+//! (`resolved_option`) for downstream consumers; the S2 pull-claims then drain the
+//! vault to dust regardless of whether the phase is `InvalidDeadend` or this
+//! governance-flipped `Resolved`. (Earlier revisions of this doc claimed F4
+//! settlement was "deferred / pays stakes-back only with no special-casing"; the
+//! burn now lives at finalize, so the claim path needs no F4 branch.)
 //!
 //! # Idempotency
 //! A second call fails [`require_phase(InvalidDeadend)`](require_phase): after the
