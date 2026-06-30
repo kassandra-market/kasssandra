@@ -161,8 +161,8 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
         return Err(ProgramError::InvalidInstructionData);
     }
     let nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
-    let (derived, _bump) = find_program_address(&[b"oracle", &nonce.to_le_bytes()], program_id);
-    if &derived != oracle_ai.key() || _bump != oracle.bump {
+    let (derived, bump) = find_program_address(&[b"oracle", &nonce.to_le_bytes()], program_id);
+    if &derived != oracle_ai.key() || bump != oracle.bump {
         return Err(KassandraError::InvalidAccount.into());
     }
 

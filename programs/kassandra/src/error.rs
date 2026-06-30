@@ -123,6 +123,16 @@ pub enum KassandraError {
     /// handed to the PDA (or is `None`) is rejected here rather than silently
     /// minting against an attacker-controlled authority.
     BadMintAuthority = 28,
+    /// `close_market` (Task S4) was called on a `Market` that has not been
+    /// settled yet (`market.settled == 0`). The escrow USDC is only drained by
+    /// `settle_challenge`, so the rent-reclaim close must run after settlement.
+    MarketNotSettled = 29,
+    /// `close_market` (Task S4) was called while the `challenger_usdc_vault`
+    /// escrow still holds USDC (`amount != 0`). `settle_challenge` drains it to
+    /// zero, so a non-empty escrow means settlement has not fully completed (or a
+    /// donation arrived); the SPL `CloseAccount` would reject it anyway, but we
+    /// fail loudly here first.
+    EscrowNotEmpty = 30,
 }
 
 impl From<KassandraError> for ProgramError {

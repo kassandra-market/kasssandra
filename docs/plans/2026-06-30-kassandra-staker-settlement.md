@@ -365,3 +365,73 @@ chained claim pays `bond + emission-funded reward`), `invalid_deadend_burns_emis
 (vault back to Σ stakes, supply −E, stamp retained), `mint_authority_mismatch_rejected`
 (`BadMintAuthority`), `cap_zero_emits_nothing` + `emission_num_zero_emits_nothing`
 (disabled is harmless). Full suite **218 passed / 0 failed**; clippy + fmt clean.
+
+### S4 — Account closure: close_ai_claim + close_market/escrow rent reclaim (DONE)
+
+**Ix discriminants appended** (`instruction.rs`, stable contract): `CloseAiClaim
+= 20`, `CloseMarket = 21` (+ `from_u8` arms). Dispatched in `processor/mod.rs` to
+`close_ai_claim::process` / `close_market::process`. NO layout change (no new
+account fields) — `state_layout.rs` untouched.
+
+**New errors** (`error.rs`, appended): `MarketNotSettled = 29` (close_market on an
+unsettled Market), `EscrowNotEmpty = 30` (close_market while the escrow USDC
+balance ≠ 0).
+
+**Part A — `close_ai_claim` (Ix 20)** `src/processor/close_ai_claim.rs`.
+Permissionless, post-resolution rent reclaim of one `AiClaim` (it holds NO tokens
+→ NO token movement, pure lamport drain + `close()`). Accounts: `[0] oracle(ro,
+terminal) [1] ai_claim(w, closed) [2] proposer(ro) [3] rent_recipient(w ==
+proposer.authority)`. EMPTY payload (no PDA signature needed). Gating: oracle
+TERMINAL (`Resolved`/`InvalidDeadend`, else `WrongPhase`); `ai_claim.oracle ==
+oracle`; the rent recipient is bound by reading the still-present `Proposer`:
+`ai_claim.proposer == proposer_ai.key()` AND `proposer.oracle == oracle`, then
+`rent_recipient == proposer.authority`. Idempotent by closure (2nd call → reaped →
+`InvalidAccount`).
+- **Rent-binding + ordering DECISION:** `AiClaim` stores `proposer` = the Proposer
+  PDA key, NOT the human authority. Rather than duplicate the authority onto the
+  `AiClaim` (a layout change), we read `proposer.authority` from the live Proposer.
+  CONSEQUENCE: `close_ai_claim` MUST run BEFORE `claim_proposer` closes that
+  Proposer (else `load_proposer` fails `InvalidAccount` and the caller just cranks
+  in order). This mirrors the S2 fact-close ordering (`claim_fact` runs last after
+  every `claim_fact_vote`): a cheap permissionless ordering constraint, no stranded
+  rent (the rent is the proposer's regardless of order).
+
+**Part B — `close_market` (Ix 21)** `src/processor/close_market.rs`. The
+challenge-milestone DEFERRAL ("Deferred rent reclamation"): `settle_challenge`
+sets `market.settled=1` + drains the escrow but never closes `Market` /
+`challenger_usdc_vault`. Accounts: `[0] oracle(ro, terminal; escrow's token
+authority) [1] market(w, closed) [2] challenger_usdc_vault(w, closed SPL acct)
+[3] rent_recipient(w == market.challenger) [4] token program`. Payload =
+`oracle_nonce: u64 LE` (re-derives the oracle PDA signer `[b"oracle", nonce_le,
+[bump]]`). Gating: oracle TERMINAL; `market.oracle == oracle`; `market.settled ==
+1` (else `MarketNotSettled`); `challenger_usdc_vault == market.challenger_usdc_vault`;
+`rent_recipient == market.challenger`; escrow SPL `amount == 0` read at offset 64
+(else `EscrowNotEmpty`).
+- **Escrow CloseAccount approach:** the escrow is a TOKEN-program-owned account, so
+  its rent is reclaimed via the SPL `CloseAccount` CPI (pinocchio-token 0.3
+  `CloseAccount{account, destination, authority}` → data `[9]`, accounts
+  `[escrow(w), rent_recipient(w), oracle(signer)]`), **program-signed by the oracle
+  PDA** (the escrow's token authority), sending the escrow's rent to the recipient.
+  SPL requires a 0 balance to close; we assert `amount == 0` first so the failure is
+  loud + local. CLOSE ORDER: escrow `CloseAccount` FIRST, THEN the `Market` PDA
+  (manual lamport drain + `close()`), both rents → challenger. No fund movement
+  beyond rent + the (already-zero) escrow close. Idempotent by closure.
+
+**Part C — S3-review polish (2 fixes):**
+1. `create_oracle.rs::compute_reward_emission` — the reservoir→u64 emission now
+   `.min(reservoir)` so the `as u64` cast is self-protecting: a future bad config
+   (`emission_num > emission_den`) can never mint MORE than the reservoir holds. No
+   behavior change for any valid config (`num ≤ den` already keeps `emission ≤
+   reservoir`).
+2. `finalize_oracle.rs` (~line 164) — the oracle-PDA nonce bump var was named
+   `_bump` but used (`_bump != oracle.bump`); renamed to `bump`. Cosmetic.
+
+**Tests** (`tests/closure.rs`, 9): close_ai_claim — `after_resolved_reclaims_rent`
+(closed + rent → proposer authority), `non_terminal_fails` (`WrongPhase`),
+`double_close_fails` (`InvalidAccount`), `other_oracle_fails` (`InvalidAccount`);
+close_market — `after_settle_reclaims_rent` (Market + escrow closed, both rents →
+challenger), `unsettled_fails` (`MarketNotSettled`), `nonempty_escrow_fails`
+(`EscrowNotEmpty`), `double_close_fails` (`InvalidAccount`), `non_terminal_fails`
+(`WrongPhase`). New harness helpers: `seed_ai_claim`, `seed_market`,
+`seed_usdc_escrow`, `close_ai_claim_ix`, `close_market_ix`, `airdrop`. Full suite
+**227 passed / 0 failed**; clippy `--all-targets` clean; fmt applied.

@@ -14,6 +14,8 @@ use crate::instruction::Ix;
 
 pub mod advance_phase;
 pub mod claims;
+pub mod close_ai_claim;
+pub mod close_market;
 pub mod create_oracle;
 pub mod finalize_ai_claims;
 pub mod finalize_facts;
@@ -60,5 +62,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], data: &[u8]) -> Pr
         Ix::ClaimProposer => claims::claim_proposer(program_id, accounts, payload),
         Ix::ClaimFact => claims::claim_fact(program_id, accounts, payload),
         Ix::ClaimFactVote => claims::claim_fact_vote(program_id, accounts, payload),
+        Ix::CloseAiClaim => close_ai_claim::process(program_id, accounts, payload),
+        Ix::CloseMarket => close_market::process(program_id, accounts, payload),
     }
 }

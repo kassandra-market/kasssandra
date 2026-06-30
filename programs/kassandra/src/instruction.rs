@@ -88,6 +88,19 @@ pub enum Ix {
     /// vault to the voter's KASS account, then CLOSES the `FactVote` account
     /// (rent → the voter). Idempotent by closure.
     ClaimFactVote = 19,
+    /// Permissionless rent-reclaim close for ONE `AiClaim` after the oracle is
+    /// terminal (Task S4): the `AiClaim` holds no tokens, so this only drains its
+    /// rent lamports to the proposer's authority (read from the still-present
+    /// `Proposer` account) and CLOSES it. Idempotent by closure. MUST run before
+    /// `claim_proposer` closes the `Proposer` it reads the authority from.
+    CloseAiClaim = 20,
+    /// Permissionless rent-reclaim close for ONE settled challenge `Market` +
+    /// its `challenger_usdc_vault` escrow (Task S4): once the oracle is terminal
+    /// AND `market.settled == 1` AND the escrow balance is 0 (settle_challenge
+    /// drained it), closes the escrow token account (SPL `CloseAccount`, oracle-PDA
+    /// signed) and the `Market` PDA, both reclaiming rent to `market.challenger`.
+    /// Idempotent by closure.
+    CloseMarket = 21,
     // Future variants are APPENDED here with the next discriminant; add a
     // matching arm to `from_u8` below.
 }
@@ -117,6 +130,8 @@ impl Ix {
             17 => Some(Ix::ClaimProposer),
             18 => Some(Ix::ClaimFact),
             19 => Some(Ix::ClaimFactVote),
+            20 => Some(Ix::CloseAiClaim),
+            21 => Some(Ix::CloseMarket),
             _ => None,
         }
     }

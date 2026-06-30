@@ -336,7 +336,12 @@ fn compute_reward_emission(
             .unwrap(),
     );
     let reservoir = (total_supply_cap as u128).saturating_sub(supply as u128);
-    let emission = reservoir * (emission_num as u128) / (emission_den as u128);
+    // Clamp to the reservoir so the `as u64` cast is self-protecting: for any
+    // valid config `num <= den` keeps `emission <= reservoir`, but a future bad
+    // config (`num > den`) could otherwise mint MORE than the reservoir holds.
+    // The `.min(reservoir)` makes the bound local rather than relying on the
+    // non-local set_config invariant; a no-op for every valid config.
+    let emission = (reservoir * (emission_num as u128) / (emission_den as u128)).min(reservoir);
     // `emission <= reservoir <= total_supply_cap <= u64::MAX`, so this fits u64.
     Ok(emission as u64)
 }

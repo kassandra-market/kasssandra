@@ -42,8 +42,8 @@ use kassandra_program::config::{
 use kassandra_program::cpi::metadao_v06 as md6;
 use kassandra_program::reward;
 use kassandra_program::state::{
-    AccountType, Fact, FactVote, Oracle, Phase, Proposer, CLAIM_OPTION_NONE, VOTE_APPROVE,
-    VOTE_DUPLICATE,
+    AccountType, AiClaim, Fact, FactVote, Market, Oracle, Phase, Proposer, CLAIM_OPTION_NONE,
+    VOTE_APPROVE, VOTE_DUPLICATE,
 };
 use litesvm::{types::TransactionResult, LiteSVM};
 use solana_sdk::{
@@ -997,6 +997,12 @@ impl TestCtx {
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
     }
 
+    /// Airdrop SOL lamports to `account` (so it exists as a funded system
+    /// account, e.g. a rent recipient).
+    pub fn airdrop(&mut self, account: &Keypair, lamports: u64) {
+        self.svm.airdrop(&account.pubkey(), lamports).unwrap();
+    }
+
     /// Overwrite the `dispute_bond_total` of a seeded oracle. Lets tests drive
     /// the defensive zero-denominator path in `finalize_facts`.
     pub fn set_dispute_bond_total(&mut self, oracle: Pubkey, value: u64) {
@@ -1943,6 +1949,91 @@ impl TestCtx {
         match self.svm.get_account(&key) {
             None => true,
             Some(a) => a.lamports == 0 || a.data.is_empty(),
+        }
+    }
+
+    // ----- S4: account-closure (close_ai_claim / close_market) helpers -------
+
+    /// Fabricate an [`AiClaim`] bound to `oracle` + `proposer`. Returns its
+    /// (random) address.
+    pub fn seed_ai_claim(&mut self, oracle: Pubkey, proposer: Pubkey) -> Pubkey {
+        let mut c = AiClaim::zeroed();
+        c.account_type = AccountType::AiClaim.as_u8();
+        c.oracle = oracle.to_bytes();
+        c.proposer = proposer.to_bytes();
+        self.seed_program_account(bytemuck::bytes_of(&c).to_vec())
+    }
+
+    /// Fabricate a [`Market`] bound to `oracle`, recording `challenger`,
+    /// `challenger_usdc_vault`, and `settled`. Returns its (random) address.
+    pub fn seed_market(
+        &mut self,
+        oracle: Pubkey,
+        challenger: Pubkey,
+        challenger_usdc_vault: Pubkey,
+        settled: bool,
+    ) -> Pubkey {
+        let mut m = Market::zeroed();
+        m.account_type = AccountType::Market.as_u8();
+        m.oracle = oracle.to_bytes();
+        m.challenger = challenger.to_bytes();
+        m.challenger_usdc_vault = challenger_usdc_vault.to_bytes();
+        m.settled = settled as u8;
+        self.seed_program_account(bytemuck::bytes_of(&m).to_vec())
+    }
+
+    /// Fabricate a USDC escrow token account holding `amount`, with its token
+    /// authority set to `owner` (the oracle PDA in the close_market tests).
+    pub fn seed_usdc_escrow(&mut self, owner: Pubkey, amount: u64) -> Pubkey {
+        self.create_token_account(self.usdc_mint, owner, amount)
+    }
+
+    /// Build a `CloseAiClaim` instruction (Ix 20). Account order:
+    /// `[0] oracle(ro) [1] ai_claim(w) [2] proposer(ro) [3] rent_recipient(w)`.
+    /// Empty payload.
+    pub fn close_ai_claim_ix(
+        &self,
+        oracle: Pubkey,
+        ai_claim: Pubkey,
+        proposer: Pubkey,
+        rent_recipient: Pubkey,
+    ) -> Instruction {
+        Instruction {
+            program_id: self.program_id,
+            accounts: vec![
+                AccountMeta::new_readonly(oracle, false),
+                AccountMeta::new(ai_claim, false),
+                AccountMeta::new_readonly(proposer, false),
+                AccountMeta::new(rent_recipient, false),
+            ],
+            data: vec![kassandra_program::instruction::Ix::CloseAiClaim as u8],
+        }
+    }
+
+    /// Build a `CloseMarket` instruction (Ix 21). Account order:
+    /// `[0] oracle(ro) [1] market(w) [2] challenger_usdc_vault(w)
+    /// [3] rent_recipient(w) [4] token program`. Payload = `oracle_nonce` LE.
+    pub fn close_market_ix(
+        &self,
+        oracle: Pubkey,
+        nonce: u64,
+        market: Pubkey,
+        challenger_usdc_vault: Pubkey,
+        rent_recipient: Pubkey,
+    ) -> Instruction {
+        let mut data = Vec::with_capacity(1 + 8);
+        data.push(kassandra_program::instruction::Ix::CloseMarket as u8);
+        data.extend_from_slice(&nonce.to_le_bytes());
+        Instruction {
+            program_id: self.program_id,
+            accounts: vec![
+                AccountMeta::new_readonly(oracle, false),
+                AccountMeta::new(market, false),
+                AccountMeta::new(challenger_usdc_vault, false),
+                AccountMeta::new(rent_recipient, false),
+                AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+            ],
+            data,
         }
     }
 }
