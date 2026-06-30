@@ -91,3 +91,21 @@ After each task: `pnpm test` + typecheck green, commit. D0 is the riskiest (veri
 **Smoke test (`sdk/test/smoke.test.ts`):** loads the real `target/deploy/kassandra_program.so` at the program ID, builds a web3.js-v3 tx with a single instruction carrying bogus disc `0xFE` + a dummy account, signs, bridges to litesvm, submits. Asserts `FailedTransactionMetadata` with `InvalidInstructionData`. Verified the real program emits `InstructionError(0, InvalidInstructionData)` + log `"invalid instruction data"` (not a false negative). `pnpm test` (2 passed) + `pnpm typecheck` green. Run `just build` (repo root) first to produce the `.so`.
 
 **For D1+:** choose one tx-building style consistently — kit-native (`@solana/kit`: `AccountRole`, `getProgramDerivedAddress`, `compileTransaction`; zero bridge) OR classic web3.js v3 + the `toLiteSvmTransaction` bridge. Both work against the installed deps.
+
+### D1 — constants + PDA derivation + parity guard (DONE 2026-06-30)
+
+**Files added:** `sdk/src/constants.ts`, `sdk/src/pda.ts`, `sdk/test/parity.test.ts`, `sdk/test/pda.test.ts`.
+
+**Verified against the Rust source (code wins; all matched the plan summary — NO discrepancies in the values):**
+- `Ix` 0..=21 — verbatim from `instruction.rs` (SubmitFact=0 … CloseMarket=21).
+- `AccountType` 0..=7 (Uninitialized=0 … Protocol=7) + `Phase` 0..=8 — from `state.rs`.
+- `KassandraError` 0..=30 (NotImplemented=0 … EscrowNotEmpty=30) — from `error.rs`; `decodeError(custom)` maps `Custom(u32)` → `{name,message}`, unknown → `{name:"Unknown"}`.
+- `ACCOUNT_SIZES` from `tests/state_layout.rs` `account_sizes_are_stable` (CURRENT, re-read, not stale): Protocol 368, Oracle 392, Proposer 96, Fact 336, FactVote 88, AiClaim 208, Market 416.
+- External program IDs (`EXTERNAL_PROGRAM_IDS`) from `cpi/{metadao,metadao_v06}.rs`: conditionalVault `VLTX1ish…` (shared v0.4/v0.6), ammV04 `AMMyu265…`, futarchyV06 `FUTARELBf…`, meteoraDammV2 `cpamdpZC…`, squadsV4 `SQDS4ep6…`.
+- Config consts (`CONFIG`): PHASE_WINDOW/PROPOSAL_WINDOW 3600, MAX_PROPOSERS 60, THRESHOLD 2/3, MARKET_THRESHOLD 1/10, FLIP_SLASH 1/2; plus `CLAIM_OPTION_NONE`/`VOTE_*` sentinels.
+
+**PDA API discrepancy vs the task brief:** the task said "`findProgramAddressSync` … (it returns [address, bump])". **web3.js@3.0.0-rc.2 has NO `findProgramAddressSync`** — `Address`/`PublicKey` expose only the ASYNC `static findProgramAddress(seeds, programId): Promise<[Address, number]>` (and async `createProgramAddress`). So every `pda.ts` fn is **async** and returns `Promise<{ address, bump }>`.
+
+**PDA seeds (verified against the processors + `tests/common/mod.rs` `*_pda` helpers):** protocol `[b"protocol"]`, mintAuthority `[b"mint_authority"]`, oracle `[b"oracle", nonce_u64_LE_8]`, stakeVault `[b"vault", oracle]`, proposer `[b"proposer", oracle, authority]`, fact `[b"fact", oracle, content_hash32]`, factVote `[b"vote", fact, voter]`, aiClaim `[b"claim", oracle, proposer]`, market `[b"market", ai_claim]`, challengeUsdcVault `[b"challenge_usdc", market]`. Literal seeds = ASCII bytes (`TextEncoder`), pubkey seeds = `Address.toBytes()` (32 raw), **nonce = `DataView.setBigUint64(…, true)` (LE)**.
+
+**Tests:** `parity.test.ts` (10 tests) hardcodes the program's pinned Ix/AccountType/Phase/error/size values and asserts the SDK constants equal them (drift guard); `pda.test.ts` (14 tests) pins regression base58 anchors (protocol `DUpkpX…`/255, mintAuthority `CyZkoq…`/255, oracle(1) `FZeeaL…`/254, oracle(256) `CQ54BV…`/253), proves nonce-LE (1≠256), determinism, seed order/identity, and the market→escrow chain. `pnpm typecheck` clean; `pnpm test` = 26 passed (parity 10, pda 14, smoke 2).
