@@ -87,6 +87,17 @@ export interface HarnessOptions {
    * local (T1-T3). Forking needs network reachable + is slower (RPC fetches).
    */
   fork?: "mainnet" | "devnet";
+  /**
+   * Block-production mode. Defaults to `"transaction"` (one block per tx, the
+   * deterministic mode T1-T3 use). `"clock"` produces blocks on a wall-clock
+   * timer so the on-chain **execution** slot (`Clock::get()?.slot`) advances over
+   * real time — needed for the v0.4 AMM's SLOT-based crank rate-limit
+   * (`surfnet_timeTravel` moves only `getSlot`/`unix_timestamp`, NOT the slot the
+   * program sees during execution). Pair with a small {@link slotTimeMs}.
+   */
+  blockProductionMode?: "transaction" | "clock";
+  /** Slot time in ms for `clock` mode (`--slot-time`); smaller ⇒ faster slots. */
+  slotTimeMs?: number;
 }
 
 export class SurfpoolHarness {
@@ -94,6 +105,9 @@ export class SurfpoolHarness {
     private readonly child: ChildProcess,
     readonly rpcUrl: string,
     readonly connection: Connection,
+    /** Effective slot time (s) — surfpool maps unix_timestamp ≈ slot × slotTime,
+     * so timeTravel jumps are sized from this. Default 0.4 (surfpool's default). */
+    private readonly slotTimeSec: number = 0.4,
   ) {}
 
   /** Spawn surfpool, wait for readiness, and deploy the program. */
@@ -107,13 +121,15 @@ export class SurfpoolHarness {
     const port = opts.port ?? 8899;
     const rpcUrl = `http://127.0.0.1:${port}`;
 
+    const mode = opts.blockProductionMode ?? "transaction";
     const child = spawn(
       bin,
       [
         "start",
         "--no-tui",
         "--block-production-mode",
-        "transaction",
+        mode,
+        ...(opts.slotTimeMs ? ["--slot-time", String(opts.slotTimeMs)] : []),
         "--no-deploy",
         ...(opts.fork ? ["--network", opts.fork] : []),
         "--port",
@@ -127,7 +143,12 @@ export class SurfpoolHarness {
     );
 
     const connection = new Connection(rpcUrl, "confirmed");
-    const harness = new SurfpoolHarness(child, rpcUrl, connection);
+    const harness = new SurfpoolHarness(
+      child,
+      rpcUrl,
+      connection,
+      opts.slotTimeMs ? opts.slotTimeMs / 1000 : 0.4,
+    );
 
     try {
       await harness.waitForHealth(opts.readyTimeoutMs ?? 30_000);
@@ -245,8 +266,9 @@ export class SurfpoolHarness {
       if (cur >= targetUnix) return;
       const slot = await this.currentSlot();
       const needSec = Number(targetUnix - cur);
-      // 0.4 s/slot; divide by a conservative 0.38 and add a buffer so we overshoot.
-      const slotJump = Math.ceil(needSec / 0.38) + 50;
+      // unix_timestamp ≈ slot × slotTime; divide by 0.95×slotTime + buffer so we
+      // overshoot (works for both the 0.4s default and a fast clock-mode slot-time).
+      const slotJump = Math.ceil(needSec / (this.slotTimeSec * 0.95)) + 50;
       await this.timeTravelToSlot(slot + slotJump);
       await new Promise((r) => setTimeout(r, 150));
     }

@@ -51,7 +51,13 @@ import {
 } from "@solana/web3.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { decodeAiClaim, decodeMarket, decodeOracle } from "../../src/accounts/index.js";
+import {
+  decodeAiClaim,
+  decodeMarket,
+  decodeOracle,
+  decodeProposer,
+} from "../../src/accounts/index.js";
+import { ammV04, futarchy } from "../../src/index.js";
 import { EXTERNAL_PROGRAM_IDS, Phase, TOKEN_PROGRAM_ID, VOTE_APPROVE } from "../../src/constants.js";
 import {
   advancePhase,
@@ -63,6 +69,7 @@ import {
   openChallenge,
   propose,
   setGovernance,
+  settleChallenge,
   submitAiClaim,
   submitFact,
   voteFact,
@@ -101,6 +108,16 @@ const enc = new TextEncoder();
 /** 1 KASS (9 dp) bond — large enough that required_usdc = bond×twap/scale > 0. */
 const BOND = 1_000_000_000n;
 
+// --- v0.4 AMM pool seeding (mirror challenge_e2e.rs build_pool) ---------------
+/** Largest per-update observation change — a single crank folds the current
+ * price straight into the TWAP (no clamp), so the cranked TWAP is deterministic.
+ * (== `u64::MAX × 1e12`, the same value the Rust e2e uses.) */
+const MAX_PRICE = ((1n << 64n) - 1n) * 1_000_000_000_000n;
+/** Base reserve: 100 conditional-KASS (9 dp). */
+const BASE_RESERVE = 100_000_000_000n;
+/** Quote reserve: 100 conditional-USDC (6 dp) → seeded price 1e9 (scaled). */
+const QUOTE_NEUTRAL = 100_000_000n;
+
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
@@ -115,7 +132,17 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
   beforeAll(async () => {
     // Fork mainnet so the deployed MetaDAO programs are fetchable. Dedicated
     // port (8920) so it never collides with the smoke (8899) / lifecycle (8901).
-    const harness = await SurfpoolHarness.start({ port: 8920, fork: "mainnet", readyTimeoutMs: 60_000 });
+    // `clock` block-production (fast slot-time) so the on-chain EXECUTION slot
+    // advances over wall-clock — the v0.4 AMM crank is SLOT-based and
+    // surfnet_timeTravel moves only getSlot/unix_timestamp, not the slot the
+    // program sees during execution. Dispute-core time gates still use timeTravel.
+    const harness = await SurfpoolHarness.start({
+      port: 8920,
+      fork: "mainnet",
+      blockProductionMode: "clock",
+      slotTimeMs: 10,
+      readyTimeoutMs: 60_000,
+    });
     const payer = await Keypair.generate();
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
@@ -154,8 +181,12 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
       kassMint: kassMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
-    // One-shot governance handoff: record the kass_dao + a stand-in dao_authority.
-    const daoAuthority = (await Keypair.generate()).publicKey;
+    // One-shot governance handoff. The G1-hardened set_governance requires
+    // dao_authority == the Squads v4 vault PDA derived for kass_dao
+    // (multisig create_key == kass_dao → multisig → vault idx 0), so derive it
+    // rather than passing a stand-in (else KassandraError::DaoAuthorityMismatch).
+    const multisig = (await futarchy.pda.squadsMultisig(kassDao)).address;
+    const daoAuthority = (await futarchy.pda.squadsVault(multisig, 0)).address;
     await sendIx(f, await setGovernance({
       authority: payer.publicKey,
       daoAuthority,
@@ -199,155 +230,160 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
 
   it("opens a challenge market against the FORKED MetaDAO (real split_tokens CPI)", async () => {
     const nonce = 100n;
-    const oracle = (await pda.oracle(nonce)).address;
-    const aiOption = 0;
+    const c = await frontDoorToChallenge(f, nonce);
+    expect(decodeOracle(await fetchAccount(f, c.oracle)).phase).toBe(Phase.Challenge);
+    expect(decodeAiClaim(await fetchAccount(f, c.aiClaim)).challenged).toBe(false);
 
-    // --- REAL dispute core → Challenge (clock advanced via surfnet_timeTravel) ---
-    await createOracleReal(f, nonce, 2);
-    await openProposals(f, oracle);
-
-    const authorities: Keypair[] = [];
-    const proposerPdas: Address[] = [];
-    for (const option of [0, 1]) {
-      const { authority, proposer } = await proposeRealWithAuthority(f, oracle, option, BOND);
-      authorities.push(authority);
-      proposerPdas.push(proposer);
-    }
-
-    await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeProposals({ oracle, proposers: proposerPdas }));
-    expect(decodeOracle(await fetchAccount(f, oracle)).phase).toBe(Phase.FactProposal);
-
-    // submit_fact → advance → advance_phase → vote → advance → finalize_facts → AiClaim
-    const contentHash = new Uint8Array(32).fill(0x07);
-    const submitter = await Keypair.generate();
-    await f.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000);
-    const submitterKass = await fundKass(f, submitter.publicKey, 1_000_000n);
-    await sendIx(
-      f,
-      await submitFact({ oracle, submitter: submitter.publicKey, submitterKass, contentHash, stake: 100n, uri: "ipfs://fact" }),
-      [submitter],
-    );
-    const fact = (await pda.fact(oracle, contentHash)).address;
-
-    await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await advancePhase({ oracle }));
-    expect(decodeOracle(await fetchAccount(f, oracle)).phase).toBe(Phase.FactVoting);
-
-    const voter = await Keypair.generate();
-    await f.harness.airdrop(voter.publicKey.toString(), 2_000_000_000);
-    const voterKass = await fundKass(f, voter.publicKey, 10n * BOND);
-    await sendIx(
-      f,
-      await voteFact({ oracle, fact, voter: voter.publicKey, voterKass, kind: VOTE_APPROVE, stake: 2n * BOND }),
-      [voter],
-    );
-
-    await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
-    expect(decodeOracle(await fetchAccount(f, oracle)).phase).toBe(Phase.AiClaim);
-
-    // Both proposers claim option 0: proposer[0] (orig 0) does NOT flip → survives
-    // un-slashed → the clean bond we challenge.
-    for (let i = 0; i < proposerPdas.length; i++) {
-      await sendIx(
-        f,
-        await submitAiClaim({
-          oracle,
-          proposer: proposerPdas[i],
-          authority: authorities[i].publicKey,
-          modelId: new Uint8Array(32).fill(0xa1),
-          paramsHash: new Uint8Array(32).fill(0xb2),
-          ioHash: new Uint8Array(32).fill(0xc3),
-          option: aiOption,
-        }),
-        [authorities[i]],
-      );
-    }
-
-    await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeAiClaims({ oracle, proposers: proposerPdas }));
-    expect(decodeOracle(await fetchAccount(f, oracle)).phase).toBe(Phase.Challenge);
-
-    const proposer = proposerPdas[0];
-    const aiClaim = (await pda.aiClaim(oracle, proposer)).address;
-    expect(decodeAiClaim(await fetchAccount(f, aiClaim)).challenged).toBe(false);
-
-    // --- COMPOSE the MetaDAO market (resolver == oracle PDA) on the fork ---
-    const questionId = new Uint8Array(32).fill(0x07);
-    const { question } = await composeQuestion(f, oracle, questionId, 2);
-    const kass = await composeVault(f, question, f.kassMint.publicKey);
-    const usdc = await composeVault(f, question, f.usdcMint.publicKey);
-
-    // Oracle-PDA-owned pass/fail conditional-KASS holders (fabricated empty;
-    // split_tokens mints into them). Mirrors the Rust harness fabricate_token_account.
-    const oraclePassKass = await fabricateTokenAccountMint(f, kass.passMint, oracle, 0n);
-    const oracleFailKass = await fabricateTokenAccountMint(f, kass.failMint, oracle, 0n);
+    const market = await composeMarket(f, c.oracle);
 
     // Pass/fail AMM placeholders: open_challenge only checks owner == AMM program.
+    // (The two settle arms below build REAL pools instead.)
     const passAmm = await fabricateAmmOwned(f);
     const failAmm = await fabricateAmmOwned(f);
 
-    // Challenger USDC source (escrow = BOND×twap/scale = 0.5 USDC; fund generously).
-    const challenger = await Keypair.generate();
-    await f.harness.airdrop(challenger.publicKey.toString(), 2_000_000_000);
-    const challengerUsdcSrc = await fabricateTokenAccountMint(
-      f,
-      f.usdcMint.publicKey,
-      challenger.publicKey,
-      5_000_000n,
-    );
-
-    const cvEventAuthority = (await Address.findProgramAddress([enc.encode("__event_authority")], VLTX))[0];
-
-    // --- OPEN THE CHALLENGE: program-signed split_tokens CPI → forked vault ---
-    const ix = await openChallenge({
-      nonce,
-      proposer,
-      challenger: challenger.publicKey,
-      question,
-      kassVault: kass.vault,
-      usdcVault: usdc.vault,
-      passAmm,
-      failAmm,
-      kassVaultUnderlying: kass.underlying,
-      passKassMint: kass.passMint,
-      failKassMint: kass.failMint,
-      oraclePassKass,
-      oracleFailKass,
-      cvEventAuthority,
-      kassDao: f.kassDao,
-      usdcMint: f.usdcMint.publicKey,
-      challengerUsdcSrc,
-    });
-    await sendIx(f, ix, [challenger], 1_400_000);
+    const { challenger } = await openChallengeReal(f, nonce, c, market, passAmm, failAmm);
 
     // --- ASSERT the challenge market opened ---
-    const market = (await pda.market(aiClaim)).address;
-    const m = decodeMarket(await fetchAccount(f, market));
-    expect(m.oracle.toString()).toBe(oracle.toString());
-    expect(m.proposer.toString()).toBe(proposer.toString());
+    const marketPda = (await pda.market(c.aiClaim)).address;
+    const m = decodeMarket(await fetchAccount(f, marketPda));
+    expect(m.oracle.toString()).toBe(c.oracle.toString());
+    expect(m.proposer.toString()).toBe(c.proposer.toString());
     expect(m.challenger.toString()).toBe(challenger.publicKey.toString());
-    expect(m.question.toString()).toBe(question.toString());
-    expect(m.kassVault.toString()).toBe(kass.vault.toString());
+    expect(m.question.toString()).toBe(market.question.toString());
+    expect(m.kassVault.toString()).toBe(market.kass.vault.toString());
 
     // ai_claim flipped to challenged.
-    expect(decodeAiClaim(await fetchAccount(f, aiClaim)).challenged).toBe(true);
+    expect(decodeAiClaim(await fetchAccount(f, c.aiClaim)).challenged).toBe(true);
     // open_challenge_count incremented.
-    expect(decodeOracle(await fetchAccount(f, oracle)).openChallengeCount).toBe(1);
+    expect(decodeOracle(await fetchAccount(f, c.oracle)).openChallengeCount).toBe(1);
 
     // USDC escrow funded with the on-chain-computed required amount (BOND/2000).
-    const escrow = (await pda.challengeUsdcVault(market)).address;
+    const escrow = (await pda.challengeUsdcVault(marketPda)).address;
     const requiredUsdc = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE;
     expect(await tokenBalance(f, escrow)).toBe(requiredUsdc);
     expect(m.challengerUsdc).toBe(requiredUsdc);
 
     // The bond was physically SPLIT into conditional KASS via the forked vault:
     // pass-KASS + fail-KASS each == BOND, and the underlying landed in the vault.
-    expect(await tokenBalance(f, oraclePassKass)).toBe(BOND);
-    expect(await tokenBalance(f, oracleFailKass)).toBe(BOND);
-    expect(await tokenBalance(f, kass.underlying)).toBe(BOND);
+    expect(await tokenBalance(f, market.oraclePassKass)).toBe(BOND);
+    expect(await tokenBalance(f, market.oracleFailKass)).toBe(BOND);
+    expect(await tokenBalance(f, market.kass.underlying)).toBe(BOND);
   }, 240_000);
+
+  it("DISQUALIFY: real swap-driven FAIL-pool TWAP clears the 10% margin → settle slashes", async () => {
+    const nonce = 200n;
+    const c = await frontDoorToChallenge(f, nonce);
+    const market = await composeMarket(f, c.oracle);
+
+    // --- REAL pass/fail v0.4 AMM pools (port build_pool) ---
+    // PASS pool stays neutral; FAIL pool gets a genuine BUY swap that pushes its
+    // price up, then TWO cranks ≥150 slots apart accumulate the post-swap price
+    // into the slot-weighted TWAP — so the disqualify decision is driven by REAL
+    // trading moving the TWAP past `pass + 10% threshold`, not a seeded price.
+    const passAmm = await buildPool(f, market.kass.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const failAmm = await buildPool(f, market.kass.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    await crankPool(f, passAmm);
+    // 90 USDC BUY drains the fail pool's base hard → instantaneous price ≈ 3.5e9.
+    await swapBuy(f, market.kass.failMint, market.usdc.failMint, 90_000_000n);
+    await crankPool(f, failAmm); // records the post-swap price
+    await crankPool(f, failAmm); // accumulates it: TWAP ≈ (1e9 + 3.5e9)/2 ≫ 1.1e9
+
+    // --- The REAL crank actually moved the FAIL TWAP past the margin (decode
+    // the live Amm accounts over RPC; this is the swap-driven verdict, not a stub).
+    const passTwap = decodeAmmTwap(await fetchAccount(f, passAmm)).twap;
+    const failTwap = decodeAmmTwap(await fetchAccount(f, failAmm)).twap;
+    expect(passTwap, "pass TWAP must be a real non-zero observation").toBeGreaterThan(0n);
+    expect(failTwap * 10n, "fail*DEN must clear pass*(DEN+NUM) — the 10% margin").toBeGreaterThan(
+      passTwap * 11n,
+    );
+
+    const { challenger } = await openChallengeReal(f, nonce, c, market, passAmm, failAmm);
+    const marketPda = (await pda.market(c.aiClaim)).address;
+
+    const oBefore = decodeOracle(await fetchAccount(f, c.oracle));
+    const stakeVault = (await pda.stakeVault(c.oracle)).address;
+    const stakeBefore = await tokenBalance(f, stakeVault);
+
+    const payouts = await settleChallengeReal(f, nonce, c, market, marketPda, challenger, passAmm, failAmm);
+
+    // --- ASSERT the disqualify economics over RPC ---
+    const escrow = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE; // 500_000
+    const kassFee = BOND / 100n; // CHALLENGE_SUCCESS_KASS_FEE = 1/100
+    // Question resolved FAIL-side [0,1].
+    expect(questionResolution(await fetchAccount(f, market.question))).toEqual([0, 1]);
+    // Market settled + counter back to 0.
+    expect(decodeMarket(await fetchAccount(f, marketPda)).settled).toBe(true);
+    expect(decodeOracle(await fetchAccount(f, c.oracle)).openChallengeCount).toBe(0);
+    // Proposer disqualified + slashed `bond − kass_fee` into bond_pool.
+    const p = decodeProposer(await fetchAccount(f, c.proposer));
+    expect(p.disqualified).toBe(true);
+    expect(p.slashed).toBe(true);
+    expect(p.slashedAmount).toBe(BOND - kassFee);
+    const oAfter = decodeOracle(await fetchAccount(f, c.oracle));
+    expect(oAfter.survivingCount).toBe(oBefore.survivingCount - 1);
+    expect(oAfter.bondPool).toBe(oBefore.bondPool + (BOND - kassFee));
+    // KASS: kass_fee → challenger; bond − kass_fee redeemed into stake_vault.
+    expect(await tokenBalance(f, payouts.challengerKass)).toBe(kassFee);
+    expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + (BOND - kassFee));
+    // The bond's conditional KASS was redeemed (holders burned, underlying drained).
+    expect(await tokenBalance(f, market.oraclePassKass)).toBe(0n);
+    expect(await tokenBalance(f, market.oracleFailKass)).toBe(0n);
+    expect(await tokenBalance(f, market.kass.underlying)).toBe(0n);
+    // USDC: full escrow → challenger; no proposer fee.
+    expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrow);
+    expect(await tokenBalance(f, payouts.proposerUsdc)).toBe(0n);
+    expect(await tokenBalance(f, payouts.escrowVault)).toBe(0n);
+  }, 300_000);
+
+  it("SURVIVE: both pools neutral (pass==fail) → settle returns escrow, bond unslashed", async () => {
+    const nonce = 300n;
+    const c = await frontDoorToChallenge(f, nonce);
+    const market = await composeMarket(f, c.oracle);
+
+    // Both pools at the neutral seeded price (1e9) → pass == fail → survives.
+    const passAmm = await buildPool(f, market.kass.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const failAmm = await buildPool(f, market.kass.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    await crankPool(f, passAmm);
+    await crankPool(f, failAmm);
+
+    // Neutral: BOTH pools carry a REAL non-zero observation (not a trivial
+    // pass==0 survive), and fail does NOT clear pass*(DEN+NUM) → the margin
+    // holds → survive.
+    const passTwap = decodeAmmTwap(await fetchAccount(f, passAmm)).twap;
+    const failTwap = decodeAmmTwap(await fetchAccount(f, failAmm)).twap;
+    expect(passTwap, "pass TWAP must be a real non-zero observation").toBeGreaterThan(0n);
+    expect(failTwap, "fail TWAP must be a real non-zero observation").toBeGreaterThan(0n);
+    expect(failTwap * 10n).toBeLessThanOrEqual(passTwap * 11n);
+
+    const { challenger } = await openChallengeReal(f, nonce, c, market, passAmm, failAmm);
+    const marketPda = (await pda.market(c.aiClaim)).address;
+
+    const oBefore = decodeOracle(await fetchAccount(f, c.oracle));
+    const stakeVault = (await pda.stakeVault(c.oracle)).address;
+    const stakeBefore = await tokenBalance(f, stakeVault);
+
+    const payouts = await settleChallengeReal(f, nonce, c, market, marketPda, challenger, passAmm, failAmm);
+
+    // --- ASSERT the survive economics over RPC ---
+    const escrow = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE; // 500_000
+    const usdcFee = escrow / 100n; // CHALLENGE_FAIL_USDC_FEE = 1/100
+    // Question resolved PASS-side [1,0].
+    expect(questionResolution(await fetchAccount(f, market.question))).toEqual([1, 0]);
+    expect(decodeMarket(await fetchAccount(f, marketPda)).settled).toBe(true);
+    // Proposer survives un-slashed; bond stays theirs (redeemed into stake_vault).
+    const p = decodeProposer(await fetchAccount(f, c.proposer));
+    expect(p.disqualified).toBe(false);
+    expect(p.slashedAmount).toBe(0n);
+    const oAfter = decodeOracle(await fetchAccount(f, c.oracle));
+    expect(oAfter.bondPool).toBe(oBefore.bondPool); // no slash
+    expect(oAfter.survivingCount).toBe(oBefore.survivingCount);
+    expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + BOND);
+    expect(await tokenBalance(f, payouts.challengerKass)).toBe(0n);
+    // USDC: fee → proposer, remainder → challenger (escrow fully accounted).
+    expect(await tokenBalance(f, payouts.proposerUsdc)).toBe(usdcFee);
+    expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrow - usdcFee);
+    expect(await tokenBalance(f, payouts.escrowVault)).toBe(0n);
+  }, 300_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -494,6 +530,359 @@ async function fabricateAmmOwned(f: Fixture): Promise<Address> {
     data: toHex(new Uint8Array(8)),
   });
   return acct.publicKey;
+}
+
+// ---------------------------------------------------------------------------
+// Front door → Challenge + market composition + open/settle (shared by arms)
+// ---------------------------------------------------------------------------
+
+interface Challenged {
+  oracle: Address;
+  proposer: Address;
+  proposerAuthority: Address;
+  aiClaim: Address;
+  proposerPdas: Address[];
+  authorities: Keypair[];
+}
+
+/**
+ * Drive the REAL dispute core (clock advanced via `surfnet_timeTravel`) to
+ * `Phase::Challenge`. The returned proposer is the option-0 proposer who claims
+ * option 0 (no flip) → surviving, `slashed_amount == 0`: a clean bond to
+ * challenge. Mirrors `challenge_e2e.rs::front_door_to_challenge`.
+ */
+async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<Challenged> {
+  const oracle = (await pda.oracle(nonce)).address;
+  const aiOption = 0;
+
+  await createOracleReal(f, nonce, 2);
+  await openProposals(f, oracle);
+
+  const authorities: Keypair[] = [];
+  const proposerPdas: Address[] = [];
+  for (const option of [0, 1]) {
+    const { authority, proposer } = await proposeRealWithAuthority(f, oracle, option, BOND);
+    authorities.push(authority);
+    proposerPdas.push(proposer);
+  }
+
+  await advancePastPhaseEnd(f, oracle);
+  await sendIx(f, await finalizeProposals({ oracle, proposers: proposerPdas }));
+
+  const contentHash = new Uint8Array(32).fill(0x07);
+  const submitter = await Keypair.generate();
+  await f.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000);
+  const submitterKass = await fundKass(f, submitter.publicKey, 1_000_000n);
+  await sendIx(
+    f,
+    await submitFact({ oracle, submitter: submitter.publicKey, submitterKass, contentHash, stake: 100n, uri: "ipfs://fact" }),
+    [submitter],
+  );
+  const fact = (await pda.fact(oracle, contentHash)).address;
+
+  await advancePastPhaseEnd(f, oracle);
+  await sendIx(f, await advancePhase({ oracle }));
+
+  const voter = await Keypair.generate();
+  await f.harness.airdrop(voter.publicKey.toString(), 2_000_000_000);
+  const voterKass = await fundKass(f, voter.publicKey, 10n * BOND);
+  await sendIx(
+    f,
+    await voteFact({ oracle, fact, voter: voter.publicKey, voterKass, kind: VOTE_APPROVE, stake: 2n * BOND }),
+    [voter],
+  );
+
+  await advancePastPhaseEnd(f, oracle);
+  await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
+
+  for (let i = 0; i < proposerPdas.length; i++) {
+    await sendIx(
+      f,
+      await submitAiClaim({
+        oracle,
+        proposer: proposerPdas[i],
+        authority: authorities[i].publicKey,
+        modelId: new Uint8Array(32).fill(0xa1),
+        paramsHash: new Uint8Array(32).fill(0xb2),
+        ioHash: new Uint8Array(32).fill(0xc3),
+        option: aiOption,
+      }),
+      [authorities[i]],
+    );
+  }
+
+  await advancePastPhaseEnd(f, oracle);
+  await sendIx(f, await finalizeAiClaims({ oracle, proposers: proposerPdas }));
+
+  const proposer = proposerPdas[0];
+  const aiClaim = (await pda.aiClaim(oracle, proposer)).address;
+  return {
+    oracle,
+    proposer,
+    proposerAuthority: authorities[0].publicKey,
+    aiClaim,
+    proposerPdas,
+    authorities,
+  };
+}
+
+interface MarketComposition {
+  question: Address;
+  kass: VaultAccounts;
+  usdc: VaultAccounts;
+  oraclePassKass: Address;
+  oracleFailKass: Address;
+}
+
+/** Compose the binary question + KASS/USDC conditional vaults (resolver == oracle)
+ * + the oracle-PDA-owned pass/fail conditional-KASS holders. */
+async function composeMarket(f: Fixture, oracle: Address): Promise<MarketComposition> {
+  const questionId = new Uint8Array(32).fill(0x07);
+  const { question } = await composeQuestion(f, oracle, questionId, 2);
+  const kass = await composeVault(f, question, f.kassMint.publicKey);
+  const usdc = await composeVault(f, question, f.usdcMint.publicKey);
+  const oraclePassKass = await fabricateTokenAccountMint(f, kass.passMint, oracle, 0n);
+  const oracleFailKass = await fabricateTokenAccountMint(f, kass.failMint, oracle, 0n);
+  return { question, kass, usdc, oraclePassKass, oracleFailKass };
+}
+
+/** Send the Kassandra `open_challenge` (program-signed `split_tokens` CPI →
+ * forked vault). Returns the fresh challenger + the Market PDA. */
+async function openChallengeReal(
+  f: Fixture,
+  nonce: bigint,
+  c: Challenged,
+  m: MarketComposition,
+  passAmm: Address,
+  failAmm: Address,
+): Promise<{ challenger: Keypair; market: Address }> {
+  const challenger = await Keypair.generate();
+  await f.harness.airdrop(challenger.publicKey.toString(), 2_000_000_000);
+  const challengerUsdcSrc = await fabricateTokenAccountMint(f, f.usdcMint.publicKey, challenger.publicKey, 5_000_000n);
+  const cvEventAuthority = (await Address.findProgramAddress([enc.encode("__event_authority")], VLTX))[0];
+
+  await sendIx(
+    f,
+    await openChallenge({
+      nonce,
+      proposer: c.proposer,
+      challenger: challenger.publicKey,
+      question: m.question,
+      kassVault: m.kass.vault,
+      usdcVault: m.usdc.vault,
+      passAmm,
+      failAmm,
+      kassVaultUnderlying: m.kass.underlying,
+      passKassMint: m.kass.passMint,
+      failKassMint: m.kass.failMint,
+      oraclePassKass: m.oraclePassKass,
+      oracleFailKass: m.oracleFailKass,
+      cvEventAuthority,
+      kassDao: f.kassDao,
+      usdcMint: f.usdcMint.publicKey,
+      challengerUsdcSrc,
+    }),
+    [challenger],
+    1_400_000,
+  );
+  const market = (await pda.market(c.aiClaim)).address;
+  return { challenger, market };
+}
+
+interface Payouts {
+  escrowVault: Address;
+  proposerUsdc: Address;
+  challengerUsdcDest: Address;
+  challengerKass: Address;
+}
+
+/** Fabricate the (empty) settle payout destinations, advance past `twap_end`, and
+ * send the Kassandra `settle_challenge`. Returns the payout accounts to assert on. */
+async function settleChallengeReal(
+  f: Fixture,
+  nonce: bigint,
+  c: Challenged,
+  m: MarketComposition,
+  market: Address,
+  challenger: Keypair,
+  passAmm: Address,
+  failAmm: Address,
+): Promise<Payouts> {
+  const proposerUsdc = await fabricateTokenAccountMint(f, f.usdcMint.publicKey, c.proposerAuthority, 0n);
+  const challengerUsdcDest = await fabricateTokenAccountMint(f, f.usdcMint.publicKey, challenger.publicKey, 0n);
+  const challengerKass = await fabricateTokenAccountMint(f, f.kassMint.publicKey, challenger.publicKey, 0n);
+  const escrowVault = (await pda.challengeUsdcVault(market)).address;
+  const cvEventAuthority = (await Address.findProgramAddress([enc.encode("__event_authority")], VLTX))[0];
+
+  // Gate: settle is allowed only after market.twap_end (now + oracle.twap_window).
+  const twapEnd = decodeMarket(await fetchAccount(f, market)).twapEnd;
+  await f.harness.advanceToUnix(twapEnd + 120n);
+
+  await sendIx(
+    f,
+    await settleChallenge({
+      nonce,
+      aiClaim: c.aiClaim,
+      proposer: c.proposer,
+      question: m.question,
+      passAmm,
+      failAmm,
+      cvEventAuthority,
+      kassVault: m.kass.vault,
+      kassVaultUnderlying: m.kass.underlying,
+      passKassMint: m.kass.passMint,
+      failKassMint: m.kass.failMint,
+      oraclePassKass: m.oraclePassKass,
+      oracleFailKass: m.oracleFailKass,
+      proposerUsdc,
+      challengerUsdcDest,
+      challengerKass,
+    }),
+    [],
+    1_400_000,
+  );
+  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerKass };
+}
+
+// ---------------------------------------------------------------------------
+// Real v0.4 AMM pool driving over RPC (port challenge_e2e.rs build/swap/crank)
+// ---------------------------------------------------------------------------
+
+/** Write canonical SPL token-account bytes AT a specific (ATA) address. */
+async function setTokenAccountAt(
+  f: Fixture,
+  address: Address,
+  mint: Address,
+  owner: Address,
+  amount: bigint,
+): Promise<void> {
+  await f.harness.setAccount(address.toString(), {
+    lamports: 5_000_000,
+    owner: TOKEN_PROGRAM_ID.toString(),
+    executable: false,
+    data: toHex(tokenAccountBytes(mint.toBytes(), owner.toBytes(), amount)),
+  });
+}
+
+/** Wait for the on-chain EXECUTION slot to advance by ≥ `n` (the v0.4 AMM crank
+ * rate-limit is slot-based: `ONE_MINUTE_IN_SLOTS == 150`). In `clock`
+ * block-production mode the slot advances on a wall-clock timer, so we poll
+ * `getSlot` until it has moved past `start + n`. */
+async function advanceSlots(f: Fixture, n: number): Promise<void> {
+  const start = await f.harness.currentSlot();
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    if ((await f.harness.currentSlot()) >= start + n) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`slot did not advance by ${n} within 30s (clock mode not producing blocks?)`);
+}
+
+/** `create_amm` + `add_liquidity` for one (base, quote) conditional pair. Funds
+ * the payer's base/quote ATAs (4× reserve) so a later swap has headroom. Returns
+ * the `Amm` PDA. Mirrors `challenge_e2e.rs::build_pool`. */
+async function buildPool(
+  f: Fixture,
+  baseMint: Address,
+  quoteMint: Address,
+  baseReserve: bigint,
+  quoteReserve: bigint,
+): Promise<Address> {
+  const ammAddr = (await ammV04.pda.amm(baseMint, quoteMint)).address;
+  const lp = (await ammV04.pda.lpMint(ammAddr)).address;
+  const userBase = await ammV04.pda.ata(f.payer.publicKey, baseMint);
+  const userQuote = await ammV04.pda.ata(f.payer.publicKey, quoteMint);
+  await setTokenAccountAt(f, userBase, baseMint, f.payer.publicKey, baseReserve * 4n);
+  await setTokenAccountAt(f, userQuote, quoteMint, f.payer.publicKey, quoteReserve * 4n);
+
+  const initialObs = (quoteReserve * 1_000_000_000_000n) / baseReserve;
+  await sendIx(
+    f,
+    await ammV04.createAmm({
+      payer: f.payer.publicKey,
+      baseMint,
+      quoteMint,
+      twapInitialObservation: initialObs,
+      twapMaxObservationChangePerUpdate: MAX_PRICE,
+      twapStartDelaySlots: 0n,
+    }),
+    [],
+    1_400_000,
+  );
+
+  const userLp = await ammV04.pda.ata(f.payer.publicKey, lp);
+  await setTokenAccountAt(f, userLp, lp, f.payer.publicKey, 0n);
+  await sendIx(
+    f,
+    await ammV04.addLiquidity({
+      payer: f.payer.publicKey,
+      baseMint,
+      quoteMint,
+      quoteAmount: quoteReserve,
+      maxBaseAmount: baseReserve,
+      minLpTokens: 0n,
+    }),
+    [],
+    1_400_000,
+  );
+  return ammAddr;
+}
+
+/** A genuine BUY (quote in, base out) that pushes the pool's price UP. Warps 5
+ * slots first (mirror `swap_buy`'s `warp_slots(0, 5)`). */
+async function swapBuy(f: Fixture, baseMint: Address, quoteMint: Address, amountIn: bigint): Promise<void> {
+  // A generous forward jump (surfnet_timeTravel rejects tiny increments that
+  // land at/under its internal slot with "Internal error"); the cranks below
+  // weight the post-swap price into the slot-weighted TWAP regardless.
+  await advanceSlots(f, 200);
+  await sendIx(
+    f,
+    await ammV04.swap({
+      payer: f.payer.publicKey,
+      baseMint,
+      quoteMint,
+      swapType: ammV04.SwapType.Buy,
+      inputAmount: amountIn,
+      minOutputAmount: 0n,
+    }),
+    [],
+    1_400_000,
+  );
+}
+
+/** Advance ≥ ONE_MINUTE_IN_SLOTS (150) slots, then `crank_that_twap` once
+ * (mirror `crank_pool`'s `warp_slots(0, 300)`). */
+async function crankPool(f: Fixture, amm: Address): Promise<void> {
+  await advanceSlots(f, 300);
+  await sendIx(f, await ammV04.crankThatTwap({ amm }), [], 400_000);
+}
+
+/** Decode the v0.4 `Amm` TWAP fields + compute `get_twap()` (offsets from
+ * `cpi/metadao.rs`: created_at @9, last_updated @131, aggregator(u128) @171,
+ * start_delay @219). */
+function decodeAmmTwap(data: Uint8Array): {
+  createdAt: bigint;
+  lastUpdated: bigint;
+  aggregator: bigint;
+  startDelay: bigint;
+  twap: bigint;
+} {
+  const dv = new DataView(data.buffer, data.byteOffset, data.length);
+  const u128 = (off: number): bigint => dv.getBigUint64(off, true) | (dv.getBigUint64(off + 8, true) << 64n);
+  const createdAt = dv.getBigUint64(9, true);
+  const lastUpdated = dv.getBigUint64(131, true);
+  const aggregator = u128(171);
+  const startDelay = dv.getBigUint64(219, true);
+  const slots = lastUpdated - (createdAt + startDelay);
+  const twap = slots > 0n && aggregator > 0n ? aggregator / slots : 0n;
+  return { createdAt, lastUpdated, aggregator, startDelay, twap };
+}
+
+/** Read `Question.payout_numerators[0..2]` (after the u32 Vec length @72; the two
+ * u32 numerators at @76, @80) to confirm the resolution `[pass, fail]`. */
+function questionResolution(data: Uint8Array): [number, number] {
+  const dv = new DataView(data.buffer, data.byteOffset, data.length);
+  return [dv.getUint32(76, true), dv.getUint32(80, true)];
 }
 
 // ---------------------------------------------------------------------------

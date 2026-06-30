@@ -9,7 +9,7 @@ far as tractable, and the **full futarchy governance loop** (proposal → real T
 verdict → Squads execute → Kassandra config change) runs end to end on forked
 mainnet — see "Full futarchy governance" below.
 
-This suite is **GATED / opt-in**: the default `pnpm test` (88 tests) stays fast,
+This suite is **GATED / opt-in**: the default `pnpm test` (101 tests) stays fast,
 offline, and never spawns surfpool. The E2E suite only runs under
 `KASSANDRA_E2E=1` (see `sdk/vitest.config.ts`, which excludes
 `test/surfpool/**` otherwise) and **skips cleanly** (does not fail) when surfpool
@@ -34,8 +34,8 @@ offline, and never spawns surfpool. The E2E suite only runs under
 
 ```sh
 cd sdk
-pnpm test          # default: 88 tests, offline, no surfpool
-KASSANDRA_E2E=1 pnpm test:e2e   # gated E2E: 98 tests (spawns surfpool, needs network for the forks)
+pnpm test          # default: 101 tests, offline, no surfpool
+KASSANDRA_E2E=1 pnpm test:e2e   # gated E2E: 113 tests (spawns surfpool, needs network for the forks; lifecycle/runner arms skip without the runner binary)
 # a single arm:
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/challenge-market-e2e.test.ts
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/futarchy-governance-e2e.test.ts
@@ -57,7 +57,7 @@ futarchy-governance 8921) so they never collide.
 | `surfpool-smoke.test.ts` | T1: surfpool up → `.so` deployed → `initProtocol` over RPC → decode Protocol. |
 | `runner-mock-anthropic.test.ts` | T2: the real runner against the mock (success + refusal). No surfpool. |
 | `lifecycle-e2e.test.ts` | T3: full core lifecycle on a standalone simnet — uncontested resolve + dispute→AI-claim (runner in the loop). |
-| `challenge-market-e2e.test.ts` | T4: the challenge-market path against **forked-mainnet** MetaDAO programs. |
+| `challenge-market-e2e.test.ts` | T4 + CS2: the challenge-market path against **forked-mainnet** MetaDAO programs — opens a challenge, then drives `settle_challenge` end to end through a **real swap-driven v0.4 AMM TWAP** (both arms: disqualify + survive). Runs in `clock` block-production mode so the on-chain execution slot advances for the slot-based AMM crank. |
 | `futarchy-governance-e2e.test.ts` | G3: the FULL futarchy governance loop against **forked-mainnet** MetaDAO programs — bootstrap → staged Squads VaultTransaction → proposal → real TWAP verdict → `vault_transaction_execute` → Kassandra `set_config` + `resolve_deadend` applied on-chain. Requires futarchy **v0.6.1** (the deployed program). |
 
 ## Full futarchy governance (G3)
@@ -189,24 +189,45 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
     in the vault). Asserted: `Market` PDA created + bound, `ai_claim.challenged`
     flipped, USDC escrow funded with the on-chain-computed amount,
     `open_challenge_count == 1`.
+  - **`settle_challenge` END-TO-END, both arms, REAL swap-driven v0.4 AMM TWAP
+    (CS2).** After opening, the test builds the **real** pass/fail v0.4 AMM pools
+    on the fork (`ammV04.createAmm` + `addLiquidity` on this market's conditional
+    KASS/USDC mint pairs), then drives a **genuine TWAP** (no seeded/forced
+    aggregator) and settles:
+    - **DISQUALIFY (challenge succeeds):** the PASS pool is left neutral; a real
+      `ammV04.swap` BUY pushes the FAIL pool's price up, and two
+      `ammV04.crankThatTwap` cranks ≥150 slots apart fold the post-swap price
+      into the slot-weighted TWAP — decoded over RPC, `fail_twap (≈2.4e9) × DEN >
+      pass_twap (1.0e9) × (DEN+NUM)`, clearing the 10% margin. `settleChallenge`
+      then resolves the question FAIL-side `[0,1]`, carves `kass_fee = bond/100`
+      to the challenger, redeems `bond − kass_fee` into `stake_vault`, returns the
+      full USDC escrow to the challenger, and records the slash
+      (`slashed_amount == bond − kass_fee`, `bond_pool += that`, `surviving_count
+      − 1`) — all asserted from on-chain accounts.
+    - **SURVIVE (challenge fails):** both pools are cranked neutral (both TWAPs
+      real + non-zero, the margin holds). `settleChallenge` resolves PASS-side
+      `[1,0]`, redeems the full bond back into `stake_vault` (un-slashed,
+      `bond_pool` unchanged), routes `usdc_fee = escrow/100` to the proposer and
+      the remainder to the challenger.
+
+    The slot-based v0.4 AMM crank needs the on-chain **execution** slot to advance
+    (`surfnet_timeTravel` moves only `getSlot`/`unix_timestamp`, not the slot the
+    program reads during execution — unlike G3's *timestamp*-based futarchy
+    oracle), so this suite boots surfpool in **`clock` block-production mode**
+    (fast slot-time) and waits real slots between cranks.
+
+    *Honesty note (fabricated inputs, real outcomes).* The TWAP, the swap, the
+    crank, the resolution, the redeem, and every directional-fee transfer run
+    through the **real** deployed AMM / conditional-vault + the real Kassandra
+    `settle_challenge`. What is fabricated is SPL plumbing only: the pools'
+    conditional-token liquidity (canonical SPL balances at the payer's ATAs) and
+    the escrow-price `Dao` blob the challenge arm sizes its USDC escrow from
+    (same `surfnet_setAccount` input-materialization pattern as T4/G3). The
+    swap-driven TWAP → disqualify/survive decision and the settled economics are
+    not seeded.
 
 ### Deferred (NOT asserted — documented honestly)
 
-- **`settle_challenge` on the fork.** Settlement reads a **swap-driven AMM
-  TWAP**: it requires building TWO live MetaDAO AMM pools (`create_amm` +
-  `add_liquidity`), seeding their conditional-token reserves, executing a real
-  `swap`, and cranking the delayed-twap oracle across ≥150-slot windows — all
-  over RPC on a fork. In `open_challenge` the pass/fail AMMs only need to be
-  **owned by the AMM program**, so the T4 test uses placeholder AMM-owned
-  accounts and stops at a successfully **opened** market. The complete settle
-  (real AMM pools + TWAP + redeem + directional fees + KASS/USDC conservation) is
-  covered exhaustively in the LiteSVM Rust suite
-  (`programs/kassandra/tests/challenge_e2e.rs`, against the bundled MetaDAO
-  fixtures) and is left to a future surfpool pass — driving the full real-AMM
-  TWAP production over a forked RPC validator is substantial and non-deterministic.
-  The T4 challenge arm also still sizes its escrow from a fabricated `Dao` blob —
-  G3's live `kass_price` read from a real `Dao` is a separate, read-only path and
-  does NOT retire the T4 escrow fabrication.
 - **Meteora DAMM v2 spot-path builders.** The conditional pass/fail VERDICT
   markets are the futarchy program's OWN embedded AMM (driven by
   `launch_proposal` + `conditional_swap` + `finalize_proposal`) — the G3 verdict
