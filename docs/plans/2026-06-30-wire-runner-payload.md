@@ -49,5 +49,54 @@
 - **Tests:** `sdk/test/runner-bridge.test.ts` (6, all green): (a) `data == [Ix.SubmitAiClaim, ...payload_hex]` parity holds against the genuine fixture; JSON-string input accepted; (b) account order/roles with aiClaim PDA `[b"claim", oracle, proposer]`; (c) a tampered `model_id_hex` byte makes the parity guard THROW; (d) wrong-width hash hex throws; (e) `claim_pda_seeds` oracle mismatch throws.
 - **Verification:** `pnpm typecheck` clean; `pnpm test` 71 passed (8 files, incl. the existing litesvm suite after `cargo build-sbf` produced `target/deploy/kassandra_program.so`). Scope held — no W2 litesvm e2e.
 
+## W2 delta (done)
+
+- **Test:** `sdk/test/runner-bridge-e2e.test.ts` — loads the real
+  `target/deploy/kassandra_program.so` and drives ONE genuine path:
+  `runner-output.json` → `submitAiClaimFromRunner` → `toLiteSvmTransaction` →
+  the real program → on-chain `AiClaim` decoded by `decodeAiClaim`.
+- **Verified precondition (`processor/submit_ai_claim.rs`):** oracle is a
+  program-owned `Oracle` in `Phase::AiClaim` with the window open
+  (`now < phase_ends_at`); proposer is a program-owned `Proposer` with
+  `proposer.oracle == oracle` and `proposer.authority == the signer`, NOT
+  disqualified; `option < oracle.options_count` (fixture's `0 < 2`); the AiClaim
+  PDA `[b"claim", oracle, proposer]` is empty (created here). The processor does
+  NOT re-derive the Oracle/Proposer addresses (those PDA derivations are enforced
+  only at create/propose), so seeding at arbitrary program-owned addresses is
+  accepted.
+- **Seeding (vs. live):** seeded the Oracle + Proposer bytes directly via
+  `svm.setAccount` (program-owned; layout per `state.rs` / the SDK decoder
+  offsets, mirroring the Rust harness `seed_disputed_oracle` + `set_phase`):
+  Oracle `account_type=1`, `phase=AiClaim`, `options_count=2`,
+  `phase_ends_at=now+100000`, `proposer_count=surviving_count=1`; Proposer
+  `account_type=2`, `oracle`=the oracle, `authority`=a funded signer keypair,
+  `claim_option=CLAIM_OPTION_NONE`, not disqualified. Seeded at the EXACT
+  addresses the fixture's `claim_pda_seeds` names (`GuBhyNi5…` / `84yVtd…`) so
+  the bridge's PDA cross-check passes and the AiClaim PDA is the runner's.
+  Driving the full create→propose×2→finalize→facts→…→AiClaim pipeline live is
+  COVERED BY THE RUST SUITE; this test isolates the runner→bridge→program→
+  AiClaim leg.
+- **Acceptance:** the REAL program ACCEPTED the bridge-built instruction
+  (`TransactionMetadata`, not `FailedTransactionMetadata` — the test throws and
+  surfaces the program error on any rejection, so it cannot be a masked pass).
+- **AiClaim match:** the created `AiClaim` PDA decodes at 208 bytes with
+  `model_id`/`params_hash`/`io_hash` (hex) and `option` (0) byte-identical to the
+  fixture, `oracle`/`proposer` == the seeded accounts, and `authority` == the
+  submit-time signer.
+- **Verification:** `pnpm typecheck` clean; `pnpm test` 72 passed (9 files, incl.
+  the new e2e). Offline — no API key, no cluster. No runner/program change.
+
+## wire-runner: covered vs deferred
+
+- **Covered:** runner `RunOutput` JSON → SDK `submitAiClaimFromRunner` bridge
+  (W1, with the 97-byte byte-parity guard + PDA cross-check) → the real
+  on-chain program accepting `submit_ai_claim` → the resulting `AiClaim`
+  byte-matching the runner's metadata (W2, litesvm). The upstream dispute
+  pipeline that lands an oracle in `Phase::AiClaim` is covered by the program's
+  own Rust test suite (seeded here rather than re-driven).
+- **Deferred:** live-cluster submission (funded wallet, RPC, real MetaDAO
+  accounts on devnet/surfpool). The bridge returns a ready-to-sign instruction;
+  signing+sending to a real cluster is a later step.
+
 ## Execution note
 After each task: `cd sdk && pnpm typecheck && pnpm test` green (+ `just build` for the .so before W2's litesvm test), commit. The PARITY GUARD (W1) is the core value — it makes runner↔SDK encoding drift a hard failure. W2 is the end-to-end proof. Append a W1/W2 delta here.
