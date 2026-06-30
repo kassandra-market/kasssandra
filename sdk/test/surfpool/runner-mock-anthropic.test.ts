@@ -17,59 +17,16 @@
  * NOT need surfpool — only the built runner binary — so it SKIPS (not fails)
  * when the binary is missing. The default `pnpm test` never imports this file.
  */
-import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { MockAnthropic } from "./mock-anthropic.js";
+import { runRunner, runnerAvailable, type RunOutput } from "./run-runner.js";
 
-const here = dirname(fileURLToPath(import.meta.url));
-/** The debug runner binary (`cargo build -p kassandra-runner`). */
-const RUNNER_BIN = resolve(here, "../../../target/debug/kassandra-runner");
-
-const ENABLED = process.env.KASSANDRA_E2E === "1" && existsSync(RUNNER_BIN);
-
-/** The RunOutput JSON shape the runner prints on stdout. */
-interface RunOutput {
-  option_index: number;
-  model_id_hex: string;
-  params_hash_hex: string;
-  io_hash_hex: string;
-  submit_ai_claim_payload_hex: string;
-  resolved_model_id: string;
-}
-
-interface RunResult {
-  code: number | null;
-  stdout: string;
-  stderr: string;
-}
-
-/** Spawn the runner `run` command against the mock; capture stdout/stderr/code. */
-function runRunner(configPath: string, baseUrl: string): Promise<RunResult> {
-  return new Promise((resolveRun, reject) => {
-    const child = spawn(RUNNER_BIN, ["run", "--config", configPath], {
-      env: {
-        ...process.env,
-        ANTHROPIC_BASE_URL: baseUrl,
-        ANTHROPIC_API_KEY: "sk-mock-dummy-key",
-        // Belt-and-suspenders: ensure the MockProvider path is NOT taken.
-        KASSANDRA_RUNNER_MOCK: "",
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (c) => (stdout += c));
-    child.stderr.on("data", (c) => (stderr += c));
-    child.on("error", reject);
-    child.on("close", (code) => resolveRun({ code, stdout, stderr }));
-  });
-}
+const ENABLED = process.env.KASSANDRA_E2E === "1" && runnerAvailable();
 
 describe.skipIf(!ENABLED)("runner real AnthropicProvider against mock server", () => {
   let mock: MockAnthropic;

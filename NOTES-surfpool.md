@@ -95,10 +95,25 @@ the balance settles within a poll), `getHealth`, `getVersion`, `getBalance`,
 Not present: `surfnet_setEpoch`, `surfnet_getAccountProfile`, `svm_setAccount`,
 `surfnet_setProgramAccount`, `surfnet_setProgramFromFile`, `rpc.discover`.
 
-For T3 phase windows: the on-chain `now()` reads the Clock `unix_timestamp`.
-`surfnet_timeTravel` moves the slot/epoch; confirm whether it also advances
-`unix_timestamp` enough to cross `phase_ends_at`, or whether the real
-slot→time relationship must be driven (revisit in T3).
+### T3 RESOLVED — `surfnet_timeTravel({absoluteSlot})` DOES move `unix_timestamp`
+
+The on-chain `now()` reads `Clock::get()?.unix_timestamp`. Empirically (T3):
+`surfnet_timeTravel({absoluteSlot: N})` advances the Clock sysvar's
+`unix_timestamp` **proportionally to the slot delta at ~0.4 s/slot** (a +100000
+slot jump moved `unix_timestamp` +40000s; +9013 slots → +3592s). So jumping the
+absolute slot forward DOES cross `phase_ends_at`. This is the T3 phase-window
+mechanism. Notes:
+
+- Only `absoluteSlot` works. `absoluteTimestamp` returns `Internal error` for a
+  plain value; there is NO `surfnet_setClock`; `absoluteEpoch` is destructive
+  (it writes the value straight into the epoch/unix fields — do not use).
+- The robust helper (`SurfpoolHarness.advanceToUnix(targetUnix)`) reads the
+  Clock sysvar's `unix_timestamp` (offset 32, i64 LE) + `getSlot`, jumps
+  `ceil((target-now)/0.38)+50` slots, and re-checks/re-jumps until
+  `unix_timestamp >= target` — so it reliably crosses any window.
+- Wall-clock time does NOT move the chain clock (block-production `transaction`
+  mode + no live clock), so long-running steps between phases (e.g. spawning the
+  runner subprocess) never accidentally elapse a window.
 
 ## Runner base-URL override (T1 runner change)
 

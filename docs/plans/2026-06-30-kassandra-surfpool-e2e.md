@@ -110,5 +110,53 @@
   clean; `cargo test -p kassandra-runner` green. `pnpm test:e2e` now also runs
   the runner↔mock integration (2 tests, no surfpool spawn needed for them).
 
+### T3 — DONE (2026-06-30)
+- **Time mechanism PROVEN.** `surfnet_timeTravel({absoluteSlot})` advances the
+  Clock sysvar's `unix_timestamp` (the value the program's `now()` reads) at
+  ~0.4 s/slot, so jumping the absolute slot forward crosses `phase_ends_at`.
+  Only `absoluteSlot` works (`absoluteTimestamp` → Internal error, no
+  `surfnet_setClock`, `absoluteEpoch` is destructive). The harness gained
+  `clockUnixTimestamp()` / `currentSlot()` / `advanceToUnix(target)` (read the
+  Clock sysvar + re-jump until `unix_timestamp >= target`) + `confirmSignature()`
+  (poll `getSignatureStatuses`). Wall-clock time never moves the chain clock
+  (block-per-tx, no live clock), so the long runner-subprocess step inside the
+  AiClaim window is safe. Documented in `NOTES-surfpool.md` (T3 RESOLVED).
+- **Runner helper factored** (T2 reviewer flag). `sdk/test/surfpool/run-runner.ts`:
+  `RUNNER_BIN` / `runnerAvailable()` / `runRunner(configPath, baseUrl)` (the
+  `ANTHROPIC_BASE_URL` + non-empty key + `KASSANDRA_RUNNER_MOCK=""` real-provider
+  env trick) + `RunOutput` + `writeRunnerConfig()`. `runner-mock-anthropic.test.ts`
+  now imports it (no behavior change; still green).
+- **Lifecycle E2E** (`sdk/test/surfpool/lifecycle-e2e.test.ts`, gated by
+  `KASSANDRA_E2E=1`; skips if surfpool/`.so`/runner absent; its own port 8901):
+  - **Uncontested arm:** init → create_oracle(3 opts) → propose×3 (same option,
+    fresh funded authorities) → advance past the proposal window → finalize_proposals
+    → `decodeOracle` over RPC asserts `Resolved` + `resolvedOption == agreed` +
+    the stake vault holds Σ bonds. ALL real ix.
+  - **Dispute → AI-claim arm (headline, runner in the loop):** create_oracle(2) →
+    propose×2 CONFLICTING (opts 0/1) → finalize_proposals (→ FactProposal) →
+    submit_fact → advance → advance_phase (→ FactVoting) → vote_fact (approve 2000,
+    clears 2/3 quorum) → advance → finalize_facts (→ AiClaim) → **for each
+    proposer: invoke the REAL runner** (genuine `AnthropicProvider` → the T2 mock,
+    `setOption(0)`, config carrying the oracle+proposer so the bridge's
+    `claim_pda_seeds` cross-check is exercised) → `submitAiClaimFromRunner` →
+    submit over RPC → finalize_ai_claims (→ Challenge) → finalize_oracle (→ Resolved).
+    Asserts `Oracle.phase == Resolved` + `resolvedOption == 0` (the AI's option),
+    AND `decodeAiClaim` of the on-chain claim matches the runner's exact
+    model_id/params_hash/io_hash/option + oracle/proposer/authority. Proves
+    runner(mock AI) → SDK bridge → real program on surfpool → resolved oracle.
+  - **Real vs seeded:** the ENTIRE phase chain (propose…finalize_oracle) is driven
+    by REAL instructions over RPC — NO `setAccount` seeding of any Kassandra
+    program account or phase. The only fabricated state is SPL plumbing (KASS/USDC
+    mints + funded creator/proposer/submitter/voter KASS token accounts), packed
+    as canonical SPL bytes token-program-owned, exactly as the litesvm `e2e.test.ts`
+    / Rust `common/mod.rs` fund them; the program's own SPL CPIs run against the
+    real Token program (auto-available on surfpool). The KASS mint is given supply
+    `1e18` and the creator a large balance so create_oracle's dynamic EMA fee
+    `Burn` (0 on the genesis oracle, positive on the 2nd in the shared protocol —
+    cf. Rust `e2e_second_oracle_fee_is_burned`) succeeds.
+- No program/runner edits (T1's env override sufficed). Default `pnpm test` =
+  **72** offline (verified). `KASSANDRA_E2E=1 pnpm test:e2e` = **77** (72 + smoke +
+  2 runner↔mock + 2 lifecycle); both lifecycle arms green. typecheck clean.
+
 ## Execution note
 After each task: the relevant build/test green; the GATED suite must not break the default offline `pnpm test` (72) or the runner's `cargo test` (71). T1 (can we drive surfpool headless + deploy the .so + SDK-over-RPC) is the make-or-break — stop-and-report if not. The runner edit is additive (base-URL override) only. Prefer a standalone simnet for the core path (hermetic) and fork only for T4. Append a T1–T4 delta log here.

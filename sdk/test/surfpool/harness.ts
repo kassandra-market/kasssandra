@@ -38,6 +38,9 @@ export const SO_PATH = resolve(here, "../../../target/deploy/kassandra_program.s
 /** The deprecated (non-upgradeable) BPF loader: a program account IS its ELF. */
 const BPF_LOADER_2 = "BPFLoader2111111111111111111111111111111111";
 
+/** The Clock sysvar — the account the program's `now()` reads `unix_timestamp` from. */
+const CLOCK_SYSVAR = "SysvarC1ock11111111111111111111111111111111";
+
 /** Candidate locations for the surfpool binary, in priority order. */
 function surfpoolCandidates(): string[] {
   const fromEnv = process.env.SURFPOOL_BIN;
@@ -198,6 +201,69 @@ export class SurfpoolHarness {
     await this.rpc("surfnet_timeTravel", [{ absoluteSlot }]);
   }
 
+  /**
+   * Read the on-chain Clock sysvar's `unix_timestamp` — the EXACT value the
+   * program's `now()` reads (`Clock::get()?.unix_timestamp`), so phase-window
+   * gates (`now >= phase_ends_at`) are checked against it.
+   */
+  async clockUnixTimestamp(): Promise<bigint> {
+    const info = await this.rpc<{ value: { data: [string, string] } | null }>("getAccountInfo", [
+      CLOCK_SYSVAR,
+      { encoding: "base64" },
+    ]);
+    const b64 = info.value?.data?.[0];
+    if (!b64) throw new Error("Clock sysvar not readable");
+    // Clock layout: slot(8) ++ epoch_start_ts(8) ++ epoch(8) ++ leader_sched_epoch(8)
+    // ++ unix_timestamp(8, i64 LE) — unix_timestamp at offset 32.
+    return Buffer.from(b64, "base64").readBigInt64LE(32);
+  }
+
+  /** Current absolute slot (`getSlot`). */
+  async currentSlot(): Promise<number> {
+    return this.rpc<number>("getSlot", []);
+  }
+
+  /**
+   * Advance the on-chain clock until `unix_timestamp >= targetUnix` by jumping
+   * the absolute slot forward — surfpool's `surfnet_timeTravel({absoluteSlot})`
+   * moves `unix_timestamp` at ~0.4 s/slot (empirically verified in T3). This is
+   * the mechanism that crosses the program's phase windows. Verifies + re-jumps
+   * until satisfied (per-tx slot drift is small relative to the windows).
+   */
+  async advanceToUnix(targetUnix: bigint): Promise<void> {
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const cur = await this.clockUnixTimestamp();
+      if (cur >= targetUnix) return;
+      const slot = await this.currentSlot();
+      const needSec = Number(targetUnix - cur);
+      // 0.4 s/slot; divide by a conservative 0.38 and add a buffer so we overshoot.
+      const slotJump = Math.ceil(needSec / 0.38) + 50;
+      await this.timeTravelToSlot(slot + slotJump);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    const cur = await this.clockUnixTimestamp();
+    if (cur < targetUnix) {
+      throw new Error(`advanceToUnix: clock ${cur} still < target ${targetUnix}`);
+    }
+  }
+
+  /** Poll `getSignatureStatuses` until the tx confirms (throws on error/timeout). */
+  async confirmSignature(sig: string, timeoutMs = 20_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const r = await this.rpc<{
+        value: Array<{ confirmationStatus?: string; err: unknown } | null>;
+      }>("getSignatureStatuses", [[sig], { searchTransactionHistory: true }]);
+      const st = r.value?.[0];
+      if (st) {
+        if (st.err) throw new Error(`tx ${sig} failed: ${JSON.stringify(st.err)}`);
+        if (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized") return;
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    throw new Error(`tx ${sig} not confirmed within ${timeoutMs}ms`);
+  }
+
   /** Kill the surfpool child process. */
   async teardown(): Promise<void> {
     if (this.child.exitCode !== null) return;
@@ -227,6 +293,24 @@ export function mintBytes(authority: Uint8Array, supply: bigint, decimals: numbe
   data[44] = decimals;
   data[45] = 1; // is_initialized
   return data;
+}
+
+const TOKEN_ACCOUNT_LEN = 165;
+
+/** Pack a 165-byte SPL token `Account` holding `amount` of `mint`, owned by `owner`. */
+export function tokenAccountBytes(mint: Uint8Array, owner: Uint8Array, amount: bigint): Uint8Array {
+  const data = new Uint8Array(TOKEN_ACCOUNT_LEN);
+  const dv = new DataView(data.buffer);
+  data.set(mint, 0); // mint
+  data.set(owner, 32); // owner
+  dv.setBigUint64(64, amount, true); // amount
+  data[108] = 1; // state = Initialized (delegate/is_native/close_authority COptions stay None)
+  return data;
+}
+
+/** Read the `amount` (u64 @ offset 64) out of SPL token-account bytes. */
+export function tokenAccountAmount(data: Uint8Array): bigint {
+  return new DataView(data.buffer, data.byteOffset, data.length).getBigUint64(64, true);
 }
 
 /** Hex-encode a byte array for the `surfnet_setAccount` `data` field. */
