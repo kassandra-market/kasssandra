@@ -490,6 +490,75 @@ fn dest_owner_mismatch_rejected() {
 }
 
 #[test]
+fn flipped_survivor_not_overpaid() {
+    let mut ctx = TestCtx::new();
+    // resolved_option == 1. No facts, so the fact bucket rolls into the proposer
+    // cohort: reward_pool = Σ slashed = 500 + 500 = 1000 = proposer_bucket;
+    // total_correct = 1000 + 1000 = 2000 (both correct survivors weigh by bond).
+    let proposers = vec![
+        // honest correct survivor: 1000 − 0 + 500 = 1500
+        ClaimProposerSpec {
+            bond: 1_000,
+            claim_option: 1,
+            disqualified: false,
+            slashed_amount: 0,
+        },
+        // FLIP-slashed but SURVIVING + correct: 1000 − 500 + 500 = 1000 (NOT 1500)
+        ClaimProposerSpec {
+            bond: 1_000,
+            claim_option: 1,
+            disqualified: false,
+            slashed_amount: 500,
+        },
+        // FLIP-slashed but SURVIVING + wrong: 1000 − 500 + 0 = 500 (no reward)
+        ClaimProposerSpec {
+            bond: 1_000,
+            claim_option: 0,
+            disqualified: false,
+            slashed_amount: 500,
+        },
+    ];
+    let seed = ctx.seed_terminal_oracle(Phase::Resolved, 1, &proposers, &[], 1, 2);
+
+    let expects: Vec<u64> = seed.proposers.iter().map(|p| p.expected).collect();
+    assert_eq!(
+        expects,
+        vec![1_500, 1_000, 500],
+        "flip-slashed survivors get bond − slashed_amount (+reward iff correct)"
+    );
+    assert_eq!(seed.reward_pool, 1_000);
+
+    let mut sum = 0u64;
+    for i in 0..seed.proposers.len() {
+        let p = &seed.proposers[i];
+        sum += p.expected;
+        let ix = ctx.claim_proposer_ix(
+            seed.oracle,
+            seed.nonce,
+            p.account,
+            p.dest_kass,
+            seed.stake_vault,
+            p.authority.pubkey(),
+        );
+        let (account, dest, recip, expected) =
+            (p.account, p.dest_kass, p.authority.pubkey(), p.expected);
+        assert_claim(
+            &mut ctx,
+            ix,
+            account,
+            dest,
+            seed.stake_vault,
+            recip,
+            expected,
+        );
+    }
+    // Conservation holds WITH flipped survivors present: Σ + dust == vault.
+    let dust = ctx.token_balance(seed.stake_vault);
+    assert_eq!(sum + dust, seed.vault_initial);
+    assert_eq!(dust, 0, "exact split here — no floor dust");
+}
+
+#[test]
 fn submitter_before_voters_rejected() {
     let mut ctx = TestCtx::new();
     let seed = resolved_full(&mut ctx);

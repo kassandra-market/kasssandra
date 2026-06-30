@@ -24,17 +24,19 @@
 //! Cohort reward buckets are computed once from the oracle's resolution stamps
 //! via [`crate::reward::reward_buckets`]; rewards apply ONLY on `Resolved`.
 //!
-//! * **claim_proposer**
-//!   - `InvalidDeadend` → `bond` (full return; no reward).
-//!   - `Resolved` + `is_disqualified()` → `bond − slashed_amount` (the
-//!     `slashed_amount` already funded `bond_pool`).
-//!   - `Resolved` + surviving + `claim_option == resolved_option` (correct) →
-//!     `bond + proposer_reward(bond, proposer_bucket, total_correct)`.
-//!   - `Resolved` + surviving + `claim_option != resolved_option`
-//!     (wrong-but-survived) → `bond` (no reward).
-//!     NOTE: a surviving proposer's `slashed_amount` is assumed 0 in scope (only
-//!     disqualified proposers are slashed here); the flip-slash cross-path
-//!     (surviving + `slashed_amount > 0`) is out of S2 scope.
+//! * **claim_proposer** — UNIFORM base `bond − slashed_amount` (any slash already
+//!   funded `bond_pool`), plus the cohort reward only when Resolved + surviving +
+//!   correct: `entitlement = (bond − slashed_amount) + (resolved &&
+//!   !is_disqualified() && claim_option == resolved_option ? proposer_reward(bond,
+//!   proposer_bucket, total_correct) : 0)`. So:
+//!   - `InvalidDeadend` → `bond − slashed_amount` (= `bond` for an unslashed
+//!     proposer; a flip-slashed survivor that tied into a dead-end keeps only the
+//!     un-slashed remainder — never the full bond).
+//!   - `Resolved` + `is_disqualified()` → `bond − slashed_amount`, no reward.
+//!   - `Resolved` + surviving + correct → `(bond − slashed_amount) +
+//!     proposer_reward(...)` (= `bond + reward` for an honest survivor;
+//!     `bond − flip_slash + reward` for a flip-slashed-but-correct survivor).
+//!   - `Resolved` + surviving + wrong → `bond − slashed_amount`, no reward.
 //! * **claim_fact** (submitter)
 //!   - `InvalidDeadend` → `stake`.
 //!   - `Resolved` + `is_agreed()` → `stake + fact_reward(stake, fact_bucket,
@@ -251,14 +253,25 @@ pub fn claim_proposer(
     assert_token_account(dest_kass_ai, &oracle.kass_mint, &proposer.authority)?;
     assert_key(rent_recipient_ai, &proposer.authority)?;
 
-    let amount = if !resolved {
-        // InvalidDeadend: full bond return, no reward.
-        proposer.bond
-    } else if proposer.is_disqualified() {
-        // The slashed_amount already funded bond_pool.
-        proposer.bond.saturating_sub(proposer.slashed_amount)
-    } else if proposer.claim_option == oracle.resolved_option {
-        // Correct survivor: bond + pro-rata proposer-cohort reward.
+    // UNIFORM base = `bond − slashed_amount` for EVERY proposer, on BOTH terminal
+    // phases. Any `slashed_amount` (no-show / flip / challenge-fail / no-facts
+    // dead-end) was already moved into `bond_pool`, so returning the full bond
+    // would double-count it (it is both paid out as rewards AND returned). This
+    // is correct for all rows:
+    //  * disqualified  → slashed_amount is the (net) full slash → `bond − slashed`.
+    //  * honest survivor → slashed_amount == 0 → full `bond`.
+    //  * FLIP-slashed survivor → slashed_amount == bond·flip → `bond − slashed`
+    //    (the over-pay this fixes; a flipped proposer is NOT disqualified and can
+    //    survive to Resolved OR tie into InvalidDeadend, so the deduction must
+    //    apply on both branches — InvalidDeadend is not special-cased to `bond`).
+    // The reward (Resolved + surviving + correct only) keeps `bond` as its
+    // pro-rata weight, matching S1's `total_correct_proposer_stake = Σ bond`, so
+    // `Σ(bond − slashed) + reward_pool = Σbond − bond_pool + bond_pool = Σbond`.
+    let base = proposer.bond.saturating_sub(proposer.slashed_amount);
+    let reward = if resolved
+        && !proposer.is_disqualified()
+        && proposer.claim_option == oracle.resolved_option
+    {
         let (proposer_bucket, _) = reward::reward_buckets(
             oracle.reward_pool,
             oracle.reward_proposer_weight,
@@ -266,19 +279,17 @@ pub fn claim_proposer(
             oracle.total_correct_proposer_stake,
             oracle.total_approved_fact_stake,
         );
-        let r = reward::proposer_reward(
+        reward::proposer_reward(
             proposer.bond,
             proposer_bucket,
             oracle.total_correct_proposer_stake,
-        );
-        proposer
-            .bond
-            .checked_add(r)
-            .ok_or(ProgramError::ArithmeticOverflow)?
+        )
     } else {
-        // Wrong-but-survived: bond, no reward.
-        proposer.bond
+        0
     };
+    let amount = base
+        .checked_add(reward)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
 
     payout_and_close(
         oracle_ai,

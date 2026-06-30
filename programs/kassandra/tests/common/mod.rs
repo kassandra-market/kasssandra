@@ -1507,10 +1507,10 @@ impl TestCtx {
         }
         let mut reward_pool: u64 = 0;
         if resolved {
+            // ANY slashed_amount (disqualified OR flip-slashed-but-surviving)
+            // already funded bond_pool, so it is all distributable reward.
             for p in proposers {
-                if p.disqualified {
-                    reward_pool += p.slashed_amount;
-                }
+                reward_pool += p.slashed_amount;
             }
             for f in facts {
                 if !f.agreed && !f.duplicate {
@@ -1594,15 +1594,15 @@ impl TestCtx {
             acct.slashed_amount = p.slashed_amount;
             let account = self.seed_program_account(bytemuck::bytes_of(&acct).to_vec());
 
-            let expected = if !resolved {
-                p.bond
-            } else if p.disqualified {
-                p.bond.saturating_sub(p.slashed_amount)
-            } else if p.claim_option == resolved_option {
-                p.bond + reward::proposer_reward(p.bond, proposer_bucket, total_correct)
+            // Uniform: base `bond − slashed_amount` (+ reward iff Resolved +
+            // surviving + correct). Mirrors the on-chain `claim_proposer`.
+            let base = p.bond.saturating_sub(p.slashed_amount);
+            let reward = if resolved && !p.disqualified && p.claim_option == resolved_option {
+                reward::proposer_reward(p.bond, proposer_bucket, total_correct)
             } else {
-                p.bond
+                0
             };
+            let expected = base + reward;
 
             seeded_proposers.push(SeededClaim {
                 account,

@@ -189,8 +189,16 @@ CLOSE the claimant account.
 
 **Matrix impl** (reward buckets via `reward::reward_buckets(reward_pool, pw, fw,
 total_correct, total_approved)`, then `proposer_reward`/`fact_reward`; u128 floor):
-- proposer: InvalidDeadend→`bond`; Resolved+disqualified→`bond − slashed_amount`;
-  Resolved+survivor+correct→`bond + proposer_reward`; Resolved+survivor+wrong→`bond`.
+- proposer (UNIFORM base, corrected in the S2 follow-up): `entitlement = (bond −
+  slashed_amount) + (resolved && !is_disqualified() && claim_option ==
+  resolved_option ? proposer_reward(bond, proposer_bucket, total_correct) : 0)`,
+  on BOTH terminal phases. Any `slashed_amount` (no-show/flip/challenge-fail/
+  no-facts) already funded `bond_pool`, so deducting it everywhere prevents the
+  flip-slashed-but-surviving double-pay (full bond returned AND the slash paid out
+  as rewards). Honest survivor → `bond` (+reward if correct); disqualified →
+  `bond − slashed_amount`; flipped survivor → `bond − flip_slash` (+reward if
+  correct). Reward weight stays `bond` (== S1's `total_correct_proposer_stake =
+  Σbond`), so `Σ(bond − slashed) + reward_pool = Σbond` — conservation holds.
 - fact (submitter): InvalidDeadend→`stake`; agreed→`stake + fact_reward`;
   duplicate→`stake`; rejected→`0` (still close + reclaim rent).
 - fact vote: InvalidDeadend→`stake`; `VOTE_DUPLICATE`→`stake`; approve+agreed→
@@ -237,8 +245,10 @@ row the test asserts the exact dest KASS delta, the account closed (rent reclaim
 to its authority), and the vault decremented by exactly the entitlement. Full
 suite: 207 passed / 0 failed; clippy + fmt clean.
 
-> NOTE (out of S2 scope): a FLIP-slashed but SURVIVING proposer (`slashed_amount >
-> 0`, not disqualified) would be over-paid `bond` by the literal matrix. S2 seeds
-> only set `slashed_amount` on disqualified proposers (per the matrix as written).
-> S5's conservation fuzz should either subtract `slashed_amount` for survivors too
-> or assert the survivors-unslashed precondition.
+> FOLLOW-UP (FIXED): the flip-slashed-but-surviving over-pay flagged here is now
+> closed — `claim_proposer` deducts `slashed_amount` for ALL proposers (uniform
+> base above), and the builder's `reward_pool` sums `slashed_amount` over every
+> proposer (not just disqualified). New test `flipped_survivor_not_overpaid`:
+> honest-correct 1500, flipped-correct 1000 (= 1000 − 500 + 500, NOT 1500),
+> flipped-wrong 500 (= 1000 − 500, no reward); Σ + dust == vault with the flipped
+> survivors present. Full suite 208 passed / 0 failed; clippy + fmt clean.
