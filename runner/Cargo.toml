@@ -18,7 +18,7 @@ path = "src/main.rs"
 # allocator + panic handler) so the crate is usable as a plain host library.
 kassandra-program = { path = "../programs/kassandra", features = ["no-entrypoint"] }
 
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 sha2 = "0.10"
 serde = { version = "1", features = ["derive"] }

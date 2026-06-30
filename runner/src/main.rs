@@ -1,11 +1,10 @@
-//! `kassandra-runner` CLI entrypoint (stub).
+//! `kassandra-runner` CLI entrypoint.
 //!
-//! The `run` / `verify` subcommands are wired in Task R4. For R0 this is a
-//! placeholder so the binary target exists; the library carries the real logic.
+//! Thin wrapper: argument parsing + the `run` / `verify` orchestration live in
+//! [`kassandra_runner::cli`] (so the core is library-testable with mocks); this
+//! just provides the async runtime and prints errors.
 
-fn main() {
-    eprintln!(
-        "kassandra-runner {}: CLI not wired yet (Task R4). Use the library API.",
-        env!("CARGO_PKG_VERSION")
-    );
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    kassandra_runner::cli::run_cli().await
 }

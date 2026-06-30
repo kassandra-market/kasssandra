@@ -10,9 +10,11 @@
 //! claim encoding; see [`constants`] for what the runner reuses from it.
 //!
 //! Task R0 scaffolds the crate, the provider trait + a deterministic mock, and
-//! the constants recon; later tasks fill in the [`hashing`], [`prompt`], and
-//! [`fetch`] modules.
+//! the constants recon; R1–R3 fill in [`hashing`], [`prompt`], and [`fetch`];
+//! R4 adds the default [`anthropic`] provider and the [`cli`] (`run`/`verify`).
 
+pub mod anthropic;
+pub mod cli;
 pub mod constants;
 pub mod fetch;
 pub mod hashing;

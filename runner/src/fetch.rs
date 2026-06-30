@@ -44,8 +44,25 @@
 //!
 //! Fetching is behind the [`FactFetcher`] trait so the verification logic runs
 //! offline in tests. [`HttpFactFetcher`] is the real `reqwest`-based default
-//! (http/https only, with a timeout); [`MockFactFetcher`] is a deterministic,
-//! no-network map used by the tests.
+//! (http/https only, with a timeout and a body-size cap); [`MockFactFetcher`]
+//! is a deterministic, no-network map used by the tests.
+//!
+//! # Resource limits + SSRF (documented limitations)
+//!
+//! [`HttpFactFetcher`] caps the response body at [`DEFAULT_MAX_BODY_BYTES`]
+//! (overridable via [`HttpFactFetcher::with_max_body_bytes`]): it rejects a
+//! declared `Content-Length` over the cap up front, and streams the body
+//! chunk-by-chunk, aborting with [`FetchError::TooLarge`] the moment the
+//! accumulated size would exceed the cap — so an unbounded or hostile body can't
+//! exhaust memory.
+//!
+//! **SSRF is NOT mitigated here.** The scheme allowlist (http/https) stops
+//! `file:`/`data:`/etc., but a fact `uri` may still resolve to an internal /
+//! link-local / loopback address (e.g. `http://169.254.169.254/...` or
+//! `http://10.0.0.5/...`), and redirects are followed within `reqwest`'s default
+//! cap. Treat fact URIs as untrusted: run the runner where it has no privileged
+//! network position, or add egress filtering / DNS-pinning at the deployment
+//! layer. This is a deliberate, documented limitation for v1.
 //!
 //! # Batch policy (fail-fast)
 //!
@@ -64,6 +81,12 @@ use crate::prompt::Fact;
 
 /// Default HTTP request timeout for [`HttpFactFetcher`].
 pub const DEFAULT_FETCH_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Default maximum fact-content body size for [`HttpFactFetcher`] (8 MiB). A
+/// body exceeding this is rejected with [`FetchError::TooLarge`] so a hostile or
+/// unbounded response can't exhaust memory. Fact content is small text, so this
+/// is generous.
+pub const DEFAULT_MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 
 /// An agreed fact as committed on-chain: the 32-byte `content_hash` plus the
 /// off-chain `uri` its content is served from. (This mirrors the on-chain
@@ -117,6 +140,15 @@ pub enum FetchError {
         uri: String,
         /// The HTTP status code.
         status: u16,
+    },
+    /// The response body exceeded the configured size cap (declared
+    /// `Content-Length` or streamed bytes). Rejected to bound memory.
+    #[error("body of `{uri}` exceeds the {limit}-byte size cap")]
+    TooLarge {
+        /// The uri whose body was too large.
+        uri: String,
+        /// The configured cap in bytes.
+        limit: usize,
     },
     /// The fetcher has no content for this `uri` (used by the mock; analogous to
     /// a 404 / DNS failure for the real fetcher).
@@ -181,18 +213,25 @@ pub trait FactFetcher {
 /// **Timeout:** a per-request timeout (default [`DEFAULT_FETCH_TIMEOUT`]) bounds
 /// each fetch. Redirects follow `reqwest`'s default policy (capped); nothing
 /// exotic is enabled.
+///
+/// **Body-size cap:** the response body is capped at `max_body_bytes` (default
+/// [`DEFAULT_MAX_BODY_BYTES`]) — a declared `Content-Length` over the cap is
+/// rejected up front, and the body is streamed chunk-by-chunk and aborted with
+/// [`FetchError::TooLarge`] the moment it would exceed the cap.
 #[derive(Clone, Debug)]
 pub struct HttpFactFetcher {
     client: reqwest::Client,
+    max_body_bytes: usize,
 }
 
 impl HttpFactFetcher {
-    /// Build a fetcher with the [default timeout](DEFAULT_FETCH_TIMEOUT).
+    /// Build a fetcher with the [default timeout](DEFAULT_FETCH_TIMEOUT) and
+    /// [default body cap](DEFAULT_MAX_BODY_BYTES).
     pub fn new() -> Result<Self, FetchError> {
         Self::with_timeout(DEFAULT_FETCH_TIMEOUT)
     }
 
-    /// Build a fetcher with a custom request timeout.
+    /// Build a fetcher with a custom request timeout (default body cap).
     pub fn with_timeout(timeout: Duration) -> Result<Self, FetchError> {
         let client = reqwest::Client::builder()
             .timeout(timeout)
@@ -201,7 +240,16 @@ impl HttpFactFetcher {
                 uri: "<client init>".to_string(),
                 message: e.to_string(),
             })?;
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            max_body_bytes: DEFAULT_MAX_BODY_BYTES,
+        })
+    }
+
+    /// Override the maximum response body size (builder-style).
+    pub fn with_max_body_bytes(mut self, max_body_bytes: usize) -> Self {
+        self.max_body_bytes = max_body_bytes;
+        self
     }
 }
 
@@ -242,13 +290,34 @@ impl FactFetcher for HttpFactFetcher {
             });
         }
 
-        resp.bytes()
-            .await
-            .map(|b| b.to_vec())
-            .map_err(|e| FetchError::Transport {
-                uri: uri.to_string(),
-                message: e.to_string(),
-            })
+        // Reject an over-cap declared Content-Length up front (cheap, before
+        // reading the body).
+        if let Some(len) = resp.content_length() {
+            if len > self.max_body_bytes as u64 {
+                return Err(FetchError::TooLarge {
+                    uri: uri.to_string(),
+                    limit: self.max_body_bytes,
+                });
+            }
+        }
+
+        // Stream chunk-by-chunk so a body with no/lying Content-Length still
+        // can't exceed the cap or exhaust memory.
+        let mut resp = resp;
+        let mut buf = Vec::new();
+        while let Some(chunk) = resp.chunk().await.map_err(|e| FetchError::Transport {
+            uri: uri.to_string(),
+            message: e.to_string(),
+        })? {
+            if buf.len() + chunk.len() > self.max_body_bytes {
+                return Err(FetchError::TooLarge {
+                    uri: uri.to_string(),
+                    limit: self.max_body_bytes,
+                });
+            }
+            buf.extend_from_slice(&chunk);
+        }
+        Ok(buf)
     }
 }
 
@@ -477,6 +546,43 @@ mod tests {
                 assert_eq!(scheme, "file");
             }
             other => panic!("expected UnsupportedScheme, got {other:?}"),
+        }
+    }
+
+    // --- body-size cap (local server, offline) ------------------------------
+
+    #[tokio::test]
+    async fn http_fetcher_rejects_oversize_body() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // A one-shot server that returns a body larger than the cap we set.
+        tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            // Drain the request headers so reqwest's write completes.
+            let mut buf = [0u8; 1024];
+            let _ = sock.read(&mut buf).await;
+            let body = vec![b'x'; 1000];
+            let head = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/plain\r\n\r\n",
+                body.len()
+            );
+            let _ = sock.write_all(head.as_bytes()).await;
+            let _ = sock.write_all(&body).await;
+            let _ = sock.flush().await;
+        });
+
+        let fetcher = HttpFactFetcher::new().unwrap().with_max_body_bytes(100);
+        let uri = format!("http://{addr}/big");
+        let err = fetcher.fetch(&uri).await.unwrap_err();
+        match err {
+            FetchError::TooLarge { uri: u, limit } => {
+                assert_eq!(u, uri);
+                assert_eq!(limit, 100);
+            }
+            other => panic!("expected TooLarge, got {other:?}"),
         }
     }
 
