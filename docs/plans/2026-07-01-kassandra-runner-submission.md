@@ -1,0 +1,43 @@
+# Runner-side Transaction Submission — Design + Plan
+
+> **For Claude:** REQUIRED SUB-SKILL: subagent-driven-development (per-task implement + review).
+
+**Goal:** Make the runner a self-contained Rust keeper: a `run --submit --oracle <pubkey> --rpc-url <url> --keypair <path> --prompt-file <path>` mode that fetches the oracle/facts from chain (I3), runs the AI, then BUILDS + SIGNS + SENDS the `submit_ai_claim` transaction and CONFIRMS it — reporting the signature (or a clear program error). Today the runner only emits the payload; the SDK bridge submits it in TS. This closes the last integration deferral. NO on-chain program change.
+
+**Decisions (locked with the user):**
+1. **Build+sign via the split solana-* crates; send via the I3 reqwest JSON-RPC.** Use `solana-message`/`solana-transaction`/`solana-instruction`/`solana-keypair`/`solana-hash`/`solana-pubkey`/`solana-signer` (the modern granular crates) for CORRECT legacy-message serialization + ed25519 signing — NOT hand-rolled compact-u16, NOT the full solana-sdk/solana-client. Keep `getLatestBlockhash`/`sendTransaction`/`getSignatureStatuses` on the existing `runner/src/rpc.rs` `JsonRpc` trait (reqwest; no solana-client — consistent with I3, no duplicate RPC stack). (solana-sdk is dev-only in the program crate → no conflict; these host deps are a fresh, isolated choice.)
+2. **Full keeper mode:** `--submit` composes with I3's on-chain fetch (fetch → AI → sign+send) AND works with the explicit-config path. Emit-only stays the default (no `--submit`).
+3. **Send + confirm:** `sendTransaction` then poll `getSignatureStatuses` until confirmed (or a timeout), surfacing program errors (e.g. already-submitted / wrong-phase) clearly.
+4. **Keypair source:** the standard Solana CLI keypair JSON file (a 64-byte array) via `--keypair <path>` (load with the solana-keypair reader / a small json parse). Env fallback optional.
+
+## Source of truth (verified directly, file:line)
+- **submit_ai_claim accounts** (`programs/kassandra/src/processor/submit_ai_claim.rs` doc): `[0] oracle (w) [1] proposer PDA (w) [2] ai_claim PDA (w, created here) [3] authority (signer, w; must == proposer.authority) [4] system program`. Payload (after the 1-byte disc) = `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option u8` = 97 bytes exact (the runner ALREADY builds this — `hashing.rs` `submit_ai_claim_payload_hex` / the RunOutput). PDA `ai_claim = [b"claim", oracle, proposer]`, program = kassandra ID.
+- **The I3 RPC layer** (`runner/src/rpc.rs`): `trait JsonRpc { async fn call(&self, method, params: Value) -> Result<Value, RpcError> }`, `HttpJsonRpc` (reqwest) + `MockRpc` (canned). `sendTransaction`/`getLatestBlockhash`/`getSignatureStatuses` are just more `call(...)` methods — reuse the transport + MockRpc for offline tests. I3 also gives `fetch_oracle`/`fetch_agreed_facts` + the proposer/authority relationship.
+- **Runner deps today** (`runner/Cargo.toml`): kassandra-program (pinocchio, no-entrypoint), tokio, reqwest(rustls, no-default), sha2, bytemuck, bs58, base64, serde, serde_json, clap, anyhow, thiserror, async-trait. NO solana-* crate yet. `solana-sdk = "2"` is DEV-only in the program crate (doesn't propagate).
+- **The Ix discriminant** for submit_ai_claim + the payload: the runner already knows the 97-byte payload; the instruction data = `[Ix::SubmitAiClaim byte] ++ payload`. Confirm the disc value from `programs/kassandra/src/instruction.rs` (submit_ai_claim = 3).
+- **The proposer/authority requirement:** the signer (`--keypair`) MUST be the proposer's `authority` (submit_ai_claim asserts `authority == proposer.authority` + the proposer is registered + phase == AiClaim window + option < options_count). The keeper is run BY that proposer.
+
+## Tasks
+
+### RS1 — Tx build + sign + send-and-confirm (runner)
+- Add the split solana-* crates to `runner/Cargo.toml` (message/transaction/instruction/keypair/hash/pubkey/signer — the minimal set for legacy-message build + ed25519 sign; pick the versions that resolve cleanly on the host; verify no conflict with the pinocchio program dep). Keep solana-client OUT.
+- **Instruction builder** (`runner/src/submit.rs` or extend rpc.rs): build the `submit_ai_claim` `Instruction` — program id = kassandra ID, account metas in the EXACT processor order `[oracle(w), proposer PDA(w), ai_claim PDA(w), authority(signer,w), system(ro)]` (derive the ai_claim PDA `[b"claim", oracle, proposer]` + the proposer PDA if needed — reuse the shared program crate's seeds/ID), data = `[Ix::SubmitAiClaim] ++ the 97-byte payload` (reuse the payload the runner already computes — do NOT recompute the hashes differently; the tx must carry the SAME bytes as the emitted RunOutput). 
+- **Message + sign:** build a legacy `Message` (payer = the authority keypair) with a fetched recent blockhash (`getLatestBlockhash` via the JsonRpc), `Transaction::new` + sign with the loaded keypair (ed25519). Serialize (bincode/the solana-transaction serializer) → base64.
+- **Send + confirm** over the I3 `JsonRpc`: `sendTransaction` (base64, the right encoding/params), then poll `getSignatureStatuses` until confirmed/finalized or a timeout; surface the program error (a failed tx / an "already processed" / a preflight error) clearly. Return the signature + status.
+- **Keypair loader:** `--keypair <path>` reads the Solana CLI JSON keypair (64-byte array) → the signer. Clear error if missing/malformed.
+- Tests (offline, via `MockRpc`): the instruction builder produces the exact account metas (order/roles) + data (`[disc] ++ 97-byte payload`) for known inputs (assert the ai_claim PDA + the payload bytes match the RunOutput); the message build + sign produces a valid signed tx (verify the signature against the keypair pubkey + that the message's account keys/blockhash are correct — a known-vector or self-verify); the send+confirm flow drives `getLatestBlockhash` → `sendTransaction` → `getSignatureStatuses` against canned MockRpc responses (success + a failed-status arm surfacing the error). Do NOT hit a real network in the default suite.
+- `cargo build -p kassandra-runner` + `cargo test -p kassandra-runner` (green) + clippy + fmt. Commit `feat(runner): build+sign+send submit_ai_claim (split solana-* crates + I3 rpc)`.
+
+### RS2 — `--submit` keeper CLI wiring + docs (+ optional surfpool E2E)
+- Wire `--submit` into the `run` command: after the pipeline produces the claim (via I3 on-chain fetch OR explicit config), if `--submit` is set, require `--keypair` (+ `--rpc-url`, already there for the I3 fetch), build+sign+send+confirm the submit_ai_claim tx, and report the signature + confirmation (or the program error). Emit-only stays the default. The full keeper path: `run --submit --oracle <pk> --rpc-url <url> --keypair <path> --prompt-file <path>` → fetch → AI → sign+submit → confirmed signature.
+- Update `runner/README.md`: the new `--submit` keeper mode (+ that the signer must be the proposer's authority; the phase/idempotency notes — a second submit fails because the ai_claim PDA exists) + move "runner-side submission" from deferred to DONE.
+- **(Optional, if tractable) a gated surfpool E2E** proving the keeper end-to-end: on a fork/simnet, drive an oracle to the AiClaim phase (reuse the settlement/lifecycle harness setup), run the runner binary with `--submit` (real AnthropicProvider → the mock server, or a fixed config) pointed at the surfpool RPC + a funded keypair that is the proposer's authority → assert the on-chain AiClaim was created (decode it) matching the runner's payload. If wiring the runner subprocess + a proposer-authority keypair into the surfpool harness is heavy, the offline MockRpc tests (RS1) + the existing wire-runner/bridge E2E coverage are sufficient — document what's covered vs deferred (don't force it; STOP-and-report a real blocker). 
+- `cargo build/test -p kassandra-runner` green; if the surfpool E2E is added, `just build` + gated run. Commit `feat(runner): --submit keeper mode + docs (+ e2e)`.
+
+## Out of scope / deferred
+- On-chain program change (none).
+- Submitting OTHER instructions from the runner (only submit_ai_claim — the runner's job).
+- Replacing the SDK bridge (it stays; the runner-side submission is an ALTERNATIVE self-contained path).
+
+## Execution note
+After each task: `cargo test -p kassandra-runner` + clippy + fmt green; the default SDK `pnpm test` is unaffected (no sdk/ change). The tx MUST carry the SAME 97-byte payload the runner already emits (reuse it — don't recompute). Use the split solana-* crates for correctness (not hand-rolled); reuse the I3 reqwest RPC for send (no solana-client). Verify the split crates resolve without conflicting the pinocchio program dep (they're host-only). Append an RS1/RS2 delta log here.
