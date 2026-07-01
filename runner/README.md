@@ -18,9 +18,11 @@ the runner:
    `submit_ai_claim` payload — the bytes the on-chain program records and that a
    **challenger can independently reproduce**.
 
-It does not submit a transaction and does not read accounts from chain (see
-[v1 limitations](#v1-limitations)); it takes an explicit config as input and
-prints the claim metadata.
+It does not submit a transaction (see [v1 limitations](#v1-limitations)). It can
+read the oracle/fact accounts read-only from chain (the [on-chain config
+mode](#on-chain-config-mode), which pairs an RPC fetch with a `--prompt-file`
+supplying the interpretation text that hashes to the on-chain `prompt_hash`), or
+take an explicit config as input; either way it prints the claim metadata.
 
 ## Determinism caveat (read this first)
 
