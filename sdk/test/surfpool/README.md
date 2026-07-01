@@ -9,7 +9,7 @@ far as tractable, and the **full futarchy governance loop** (proposal → real T
 verdict → Squads execute → Kassandra config change) runs end to end on forked
 mainnet — see "Full futarchy governance" below.
 
-This suite is **GATED / opt-in**: the default `pnpm test` (101 tests) stays fast,
+This suite is **GATED / opt-in**: the default `pnpm test` (127 tests) stays fast,
 offline, and never spawns surfpool. The E2E suite only runs under
 `KASSANDRA_E2E=1` (see `sdk/vitest.config.ts`, which excludes
 `test/surfpool/**` otherwise) and **skips cleanly** (does not fail) when surfpool
@@ -34,19 +34,21 @@ offline, and never spawns surfpool. The E2E suite only runs under
 
 ```sh
 cd sdk
-pnpm test          # default: 101 tests, offline, no surfpool
-KASSANDRA_E2E=1 pnpm test:e2e   # gated E2E: 113 tests (spawns surfpool, needs network for the forks; lifecycle/runner arms skip without the runner binary)
+pnpm test          # default: 127 tests, offline, no surfpool
+KASSANDRA_E2E=1 pnpm test:e2e   # gated E2E: 115 tests (spawns surfpool, needs network for the forks; lifecycle/runner arms skip without the runner binary)
 # a single arm:
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/challenge-market-e2e.test.ts
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/futarchy-governance-e2e.test.ts
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/meteora-spot-e2e.test.ts
+KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/futarchy-meteora-treasury-e2e.test.ts
 ```
 
 The harness (`harness.ts` `SurfpoolHarness`) spawns `surfpool start --no-tui
 --block-production-mode transaction --no-deploy [--network mainnet]`, polls
 `getHealth`, writes the `.so` at the fixed id, and tears the process down. Each
 suite owns a distinct port (smoke 8899, lifecycle 8901, challenge 8920,
-futarchy-governance 8921) so they never collide.
+futarchy-governance 8921, meteora-spot 8922, futarchy-meteora-treasury 8923) so
+they never collide.
 
 ## Files
 
@@ -61,6 +63,7 @@ futarchy-governance 8921) so they never collide.
 | `challenge-market-e2e.test.ts` | T4 + CS2: the challenge-market path against **forked-mainnet** MetaDAO programs — opens a challenge, then drives `settle_challenge` end to end through a **real swap-driven v0.4 AMM TWAP** (both arms: disqualify + survive). Runs in `clock` block-production mode so the on-chain execution slot advances for the slot-based AMM crank. |
 | `futarchy-governance-e2e.test.ts` | G3: the FULL futarchy governance loop against **forked-mainnet** MetaDAO programs — bootstrap → staged Squads VaultTransaction → proposal → real TWAP verdict → `vault_transaction_execute` → Kassandra `set_config` + `resolve_deadend` applied on-chain. Requires futarchy **v0.6.1** (the deployed program). |
 | `meteora-spot-e2e.test.ts` | M2 + F1: the Meteora **DAMM v2 (cp-amm)** spot path against the **forked-mainnet** real program — clones a real public `Config`, drives `initializePool → addLiquidity → swap → createPosition → claimPositionFee → removeLiquidity` over RPC, and decodes the resulting `Pool`/`Position` to VERIFY the M1 zero-copy offsets (`sqrt_price`@456, reserves@680/688, `unlocked_liquidity`@152, `fee_b_pending`@144) against the DEPLOYED binary. F1 adds a NONZERO fee claim + a full liquidity removal. Also decodes a genuine mainnet pool. |
+| `futarchy-meteora-treasury-e2e.test.ts` | F2b: the futarchy→Meteora DAO-treasury fee-collection (`collect_meteora_damm_fees`) as a **documented-partial with a live deployed-verification proof**. The full sweep can't be driven on a fork (the `production` handler requires the MetaDAO-controlled `admin` signer `tSTp6B6k…`), so instead it **reaches the admin gate**: real `initialize_dao` (genuine `Dao` + Squads multisig/vault) + fabricated fee-recipient ATAs → the F2a `collectMeteoraDammFees` builder is submitted to the DEPLOYED futarchy with a STAND-IN admin → asserted rejected SPECIFICALLY at `InvalidAdmin` (Anchor custom **6020**, `collect_meteora_damm_fees.rs:119`). Since `#[access_control(validate())]` runs only AFTER `try_accounts` validates all 27 accounts, reaching 6020 PROVES the 27-account wire format deserializes on the deployed binary. Plus a real-mainnet-`Dao` cross-verification of the Squads PDA derivations. Full live sweep DEFERRED (production admin). |
 
 ## Full futarchy governance (G3)
 

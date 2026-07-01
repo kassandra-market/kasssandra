@@ -332,7 +332,37 @@ Account order (then the `#[event_cpi]` tail), role w=writable / s=signer:
 ```
 Builder: `futarchy.collectMeteoraDammFees` (`instructions.ts`); offline byte/meta
 test in `test/futarchy.test.ts` (`describe("collect_meteora_damm_fees …")`).
-Confidence: HIGH — both sources agree exactly. NOT DRIVEN LIVE yet (F2b).
+Confidence: HIGH — both sources agree exactly.
+
+### F2b — reach-the-admin-gate LIVE proof (full sweep DEFERRED)
+
+The 27-account wire format is now also **verified LIVE against the DEPLOYED
+futarchy binary** by the gated fork E2E
+`sdk/test/surfpool/futarchy-meteora-treasury-e2e.test.ts`. The handler's admin
+check lives in `validate()` (`collect_meteora_damm_fees.rs:117`,
+`#[cfg(feature = "production")] require_keys_eq!(admin, metadao_admin::ID,
+InvalidAdmin)`) and is wired via `#[access_control(ctx.accounts.validate())]`
+(`lib.rs:157`), so it runs ONLY AFTER Anchor's `try_accounts` deserializes +
+constraint-checks all 27 accounts. The E2E runs the real `initialize_dao`
+(genuine `Dao` + Squads multisig/vault on the fork), fabricates the two
+fee-recipient ATAs (owned by `metadao_multisig_vault::ID` = `6awyHMsh…`), builds
+the `collectMeteoraDammFees` ix with a STAND-IN admin (≠ `tSTp6B6k…`) + the public
+permissionless signer, submits it to the deployed futarchy, and asserts it is
+rejected SPECIFICALLY at `InvalidAdmin` (Anchor custom **6020**) — captured log:
+`AnchorError thrown in …/collect_meteora_damm_fees.rs:119. Error Code:
+InvalidAdmin. Error Number: 6020`. Because that gate is only reachable once all 27
+accounts pass their layout/PDA/associated-token/address constraints, a
+wire-format bug would have failed EARLIER (`ConstraintSeeds`/`ConstraintRaw`/
+`AccountNotInitialized`/`ConstraintAddress`) — so reaching 6020 PROVES the layout
+deserializes on the deployed binary. A second arm cross-verifies the Squads
+multisig/vault PDA derivations against a REAL mainnet `Dao`'s recorded fields.
+
+**DEFERRED — full live sweep.** The end-to-end fee collection cannot be driven on
+a fork: the `production` admin (`tSTp6B6k…`, a MetaDAO-controlled key) must sign,
+and the handler then stages the cp-amm `claim_position_fee` through the DAO's
+Squads permissionless-member chain — so a real sweep needs a MetaDAO-admin
+context. The builder is wire-verified (F2a byte test) + layout-verified live (this
+F2b reach-the-admin-gate proof); the live sweep is deferred.
 
 ---
 

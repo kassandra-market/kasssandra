@@ -109,3 +109,53 @@ cp-amm builders now have live coverage.
   gated `KASSANDRA_E2E=1 … meteora-spot-e2e.test.ts` → 3/3 pass, ~1.4s test runtime
   (post surfpool boot). Docs updated: E2E header, `sdk/test/surfpool/README.md`,
   `sdk/src/futarchy/NOTES.md`.
+
+### F2b — futarchy→Meteora treasury fee-collection — DOCUMENTED-PARTIAL with a LIVE deployed-verification proof (DONE) — 2026-07-01
+
+A FULL live sweep is NOT feasible on a fork: the DEPLOYED futarchy is the
+`production` build, whose `collect_meteora_damm_fees` handler enforces
+`require_keys_eq!(admin, tSTp6B6kE9o6ZaTmHm2ZwnJBBtgd3x112tapxFhmBEQ, InvalidAdmin)`
+in `validate()` (`collect_meteora_damm_fees.rs:117`), and that admin key is
+MetaDAO-controlled (secret unavailable) — the sweep then stages the cp-amm claim
+through the DAO's Squads permissionless chain. So instead of faking a sweep, F2b
+ships a GENUINE **reach-the-admin-gate** proof in a new gated E2E
+`sdk/test/surfpool/futarchy-meteora-treasury-e2e.test.ts`:
+
+- **Reach-the-admin-gate (the valuable partial).** `validate()` is wired via
+  `#[access_control(ctx.accounts.validate())]` (`lib.rs:157`), so it runs ONLY
+  AFTER Anchor's `try_accounts` deserializes + constraint-checks ALL 27 accounts.
+  The test runs the real `initialize_dao` (genuine `Dao` + Squads multisig/vault
+  on the fork), fabricates the two fee-recipient ATAs owned by
+  `metadao_multisig_vault::ID` (`6awyHMsh…`; required because `token_{a,b}_account`
+  are `Account<TokenAccount>` with `associated_token` constraints checked in
+  `try_accounts`), builds the F2a `collectMeteoraDammFees` with a STAND-IN admin
+  (our payer, ≠ `tSTp6B6k…`) + the public permissionless signer (`EP3SoC2…`), and
+  submits it to the DEPLOYED futarchy. Result: rejected SPECIFICALLY at
+  `InvalidAdmin` — `err = InstructionError[0, Custom(6020)]`; log = `AnchorError
+  thrown in …/collect_meteora_damm_fees.rs:119. Error Code: InvalidAdmin. Error
+  Number: 6020`. The test asserts the code is 6020 AND that the logs contain NO
+  earlier account-layout error (`ConstraintSeeds`/`AccountNotInitialized`/
+  `ConstraintAssociated`/`ConstraintAddress`/`AccountOwnedByWrongProgram`), plus a
+  belt-and-braces `skipPreflight:false` send that is rejected too.
+  **Diagnosis: reached-admin-gate = the 27-account layout deserializes correctly on
+  the deployed binary.** (No F2a builder bug — the layout is confirmed live.)
+- **Real-account cross-verification.** A second arm clones a REAL mainnet futarchy
+  `Dao` (`1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv`, PoolState::Spot), derives
+  its Squads multisig/vault via the SAME derivers the builder uses, and asserts
+  both derived keys are present in the Dao's genuine deployed bytes AND the derived
+  multisig exists on-chain owned by Squads.
+- **Verified:** `pnpm typecheck` clean; default `pnpm test` **127/127** offline
+  green; gated `KASSANDRA_E2E=1 … futarchy-meteora-treasury-e2e.test.ts` → **2/2
+  pass**, ~1.5s test runtime (post surfpool boot). Docs updated:
+  `sdk/test/surfpool/README.md`, `sdk/src/futarchy/NOTES.md`, `sdk/README.md`.
+
+## Covered vs deferred (final)
+
+- **COVERED (live, deployed binary):** all 6 Meteora cp-amm builders (M1/M2/F1);
+  the futarchy governance loop end-to-end (G3); the futarchy
+  `collect_meteora_damm_fees` 27-account wire format — byte-verified (F2a) AND
+  layout-verified live to the deployed admin gate (F2b).
+- **DEFERRED:** the FULL futarchy→Meteora fee sweep (moves real DAO funds) — it
+  requires the MetaDAO-controlled `production` admin signer (`tSTp6B6k…`) + the
+  Squads permissionless staging chain, so it is undrivable on a fork and deferred
+  to a real MetaDAO-admin context. The builder itself is fully verified.

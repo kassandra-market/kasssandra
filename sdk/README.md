@@ -151,7 +151,15 @@ transactions off-chain):
   through the real cp-amm + decodes a genuine mainnet pool). No longer deferred.
 - **`ammV04.*`** — MetaDAO v0.4 AMM (create/add/swap/crank + TWAP decode).
 - **`futarchy.*`** — futarchy v0.6 + Squads v4 builders/PDAs (see
-  `src/futarchy/NOTES.md`).
+  `src/futarchy/NOTES.md`). Includes **`collectMeteoraDammFees`** — the
+  futarchy→Meteora DAO-treasury fee-collection CPI (27-account wire format pinned
+  from the deployed v0.6.1 source + the on-chain IDL). It is **wire-verified**
+  (offline byte test) and **layout-verified LIVE** against the deployed futarchy by
+  the gated fork E2E `test/surfpool/futarchy-meteora-treasury-e2e.test.ts`, which
+  drives the builder to the deployed program's admin gate (rejected at
+  `InvalidAdmin`/6020 only AFTER all 27 accounts deserialize). The **full live
+  sweep is DEFERRED** — it requires the MetaDAO-controlled `production` admin
+  signer (`tSTp6B6k…`), so it can't be driven on a fork.
 
 ### Errors
 
