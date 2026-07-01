@@ -12,11 +12,19 @@
  *   initializePool (creates Pool + first position, funded `liquidity`+`sqrt_price`,
  *                   mints the Token-2022 position NFT)
  *     → addLiquidity (deposits into that position)
- *     → swap (A→B; direction implicit in the token-account order)
+ *     → swap (A→B; direction implicit in the token-account order; ACCRUES an LP fee)
  *     → createPosition (opens a second, empty position)
+ *     → claimPositionFee (F1: sweeps the swap-accrued LP fee — NONZERO, in token B on
+ *                         this Config's collect_fee_mode — to the owner; owner balance
+ *                         rises by exactly the pending fee)
+ *     → removeLiquidity (F1: withdraws ALL unlocked liquidity from the first
+ *                        position; pool liquidity + both reserves fall, owner receives
+ *                        the withdrawn amounts)
  *
  * All ixs go out with `skipPreflight:false` and confirm-throws-on-err, so a
- * rejected instruction FAILS the test.
+ * rejected instruction FAILS the test. F1 completes LIVE coverage of all 6
+ * cp-amm builders against the deployed binary (claim + remove were previously
+ * unit-tested only).
  *
  * THE POINT — offset verification against the deployed layout:
  *   - after init, `decodePool` reads `sqrt_price` (abs offset 456), `liquidity`
@@ -312,6 +320,151 @@ describe.skipIf(!ENABLED)("surfpool Meteora DAMM v2 spot path on FORKED mainnet 
     const pos2 = meteora.decodePosition(await fetchAccount(f, pos2Addr));
     expect(pos2.pool.toString()).toBe(poolAddr.toString());
     expect(pos2.unlockedLiquidity).toBe(0n); // freshly opened, empty
+
+    // ========================================================================
+    // F1 — claim_position_fee: sweep the swap-accrued LP fee to the owner
+    // ========================================================================
+    // The A→B swaps accrue an LP trading fee. On THIS cloned public Config the
+    // cp-amm `collect_fee_mode` collects fees in token B (the quote side) for
+    // BOTH swap directions (empirically: after the A→B swaps `fee_b_pending`/
+    // `protocol_b_fee` are nonzero while the A side stays 0), so the nonzero
+    // claimable fee lands in token B. cp-amm updates a position's fee LAZILY
+    // (only when the position is touched), so: (1) do a couple more A→B swaps to
+    // grow a healthy fee, (2) a TINY addLiquidity to CHECKPOINT the accrued fee
+    // onto the position (making `fee_b_pending` nonzero + decodable BEFORE the
+    // claim), then claim.
+    for (const extra of [200_000_000n, 200_000_000n]) {
+      await sendIx(
+        f,
+        await meteora.swap({
+          pool: poolAddr,
+          inputTokenAccount: f.payerTokenA,
+          outputTokenAccount: f.payerTokenB,
+          tokenAVault,
+          tokenBVault,
+          tokenAMint: f.mintA,
+          tokenBMint: f.mintB,
+          payer: f.payer.publicKey,
+          amountIn: extra,
+          minimumAmountOut: 0n,
+        }),
+        [],
+        1_400_000,
+      );
+    }
+    // Tiny addLiquidity → forces `update_position_fee` → `fee_a_pending` populates.
+    await sendIx(
+      f,
+      await meteora.addLiquidity({
+        pool: poolAddr,
+        position: positionAddr,
+        tokenAAccount: f.payerTokenA,
+        tokenBAccount: f.payerTokenB,
+        tokenAVault,
+        tokenBVault,
+        tokenAMint: f.mintA,
+        tokenBMint: f.mintB,
+        positionNftAccount: posNftAccount,
+        signer: f.payer.publicKey,
+        liquidityDelta: 1n << 64n,
+        tokenAAmountThreshold: U64_MAX,
+        tokenBAmountThreshold: U64_MAX,
+      }),
+      [],
+      1_400_000,
+    );
+
+    // Position now carries a NONZERO pending fee in token B (this Config's
+    // collect_fee_mode). The A side stays 0. The nonzero B fee is the real,
+    // claimable LP fee — asserting it proves a genuine (not no-op) claim.
+    position = meteora.decodePosition(await fetchAccount(f, positionAddr));
+    const feeA = position.feeAPending;
+    const feeB = position.feeBPending;
+    expect(feeB).toBeGreaterThan(0n); // real accrued LP fee (token B) — NOT a no-op claim
+
+    const ownerABeforeClaim = await tokenBalance(f, f.payerTokenA);
+    const ownerBBeforeClaim = await tokenBalance(f, f.payerTokenB);
+
+    await sendIx(
+      f,
+      await meteora.claimPositionFee({
+        pool: poolAddr,
+        position: positionAddr,
+        tokenAAccount: f.payerTokenA,
+        tokenBAccount: f.payerTokenB,
+        tokenAVault,
+        tokenBVault,
+        tokenAMint: f.mintA,
+        tokenBMint: f.mintB,
+        positionNftAccount: posNftAccount,
+        signer: f.payer.publicKey,
+      }),
+      [],
+      1_400_000,
+    );
+
+    // The owner's token-B account rose by EXACTLY the claimed fee (nonzero, real
+    // transfer), token-A by feeA (0 here), and the Position's pending fees cleared.
+    const ownerAAfterClaim = await tokenBalance(f, f.payerTokenA);
+    const ownerBAfterClaim = await tokenBalance(f, f.payerTokenB);
+    expect(ownerBAfterClaim - ownerBBeforeClaim).toBe(feeB);
+    expect(ownerBAfterClaim - ownerBBeforeClaim).toBeGreaterThan(0n);
+    expect(ownerAAfterClaim - ownerABeforeClaim).toBe(feeA);
+    position = meteora.decodePosition(await fetchAccount(f, positionAddr));
+    expect(position.feeAPending).toBe(0n); // swept
+    expect(position.feeBPending).toBe(0n);
+
+    // ========================================================================
+    // F1 — remove_liquidity: withdraw ALL unlocked liquidity from the position
+    // ========================================================================
+    pool = meteora.decodePool(await fetchAccount(f, poolAddr));
+    position = meteora.decodePosition(await fetchAccount(f, positionAddr));
+    const removeDelta = position.unlockedLiquidity; // remove everything
+    expect(removeDelta).toBeGreaterThan(0n);
+    const poolLiqBeforeRemove = pool.liquidity;
+    const poolABeforeRemove = pool.tokenAAmount;
+    const poolBBeforeRemove = pool.tokenBAmount;
+    const ownerABeforeRemove = await tokenBalance(f, f.payerTokenA);
+    const ownerBBeforeRemove = await tokenBalance(f, f.payerTokenB);
+
+    await sendIx(
+      f,
+      await meteora.removeLiquidity({
+        pool: poolAddr,
+        position: positionAddr,
+        tokenAAccount: f.payerTokenA,
+        tokenBAccount: f.payerTokenB,
+        tokenAVault,
+        tokenBVault,
+        tokenAMint: f.mintA,
+        tokenBMint: f.mintB,
+        positionNftAccount: posNftAccount,
+        signer: f.payer.publicKey,
+        liquidityDelta: removeDelta,
+        tokenAAmountThreshold: 0n, // MIN to receive — no lower bound
+        tokenBAmountThreshold: 0n,
+      }),
+      [],
+      1_400_000,
+    );
+
+    pool = meteora.decodePool(await fetchAccount(f, poolAddr));
+    position = meteora.decodePosition(await fetchAccount(f, positionAddr));
+    const ownerAAfterRemove = await tokenBalance(f, f.payerTokenA);
+    const ownerBAfterRemove = await tokenBalance(f, f.payerTokenB);
+
+    // Position's unlocked_liquidity dropped by the full delta (→ 0).
+    expect(position.unlockedLiquidity).toBe(0n);
+    // Pool liquidity dropped by exactly the removed delta.
+    expect(pool.liquidity).toBe(poolLiqBeforeRemove - removeDelta);
+    // Both tracked reserves fell.
+    expect(pool.tokenAAmount).toBeLessThan(poolABeforeRemove);
+    expect(pool.tokenBAmount).toBeLessThan(poolBBeforeRemove);
+    // The owner received the withdrawn amounts == the reserve deltas (exact).
+    expect(ownerAAfterRemove - ownerABeforeRemove).toBe(poolABeforeRemove - pool.tokenAAmount);
+    expect(ownerBAfterRemove - ownerBBeforeRemove).toBe(poolBBeforeRemove - pool.tokenBAmount);
+    expect(ownerAAfterRemove - ownerABeforeRemove).toBeGreaterThan(0n);
+    expect(ownerBAfterRemove - ownerBBeforeRemove).toBeGreaterThan(0n);
   }, 300_000);
 });
 

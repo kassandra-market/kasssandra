@@ -45,3 +45,33 @@
 
 ## Execution note
 SDK/test only; default `pnpm test` stays offline + green; the E2Es are gated. F1 + F2a are INDEPENDENT (F1 = the meteora-spot E2E; F2a = the futarchy builder) → can run in parallel. F2b DEPENDS on F2a (needs the pinned builder) — sequential. F2a is the risk: pin the wire format AUTHORITATIVELY (≥2 sources) or STOP-report — never guess a fund-moving CPI. Append an F1/F2a/F2b delta log here.
+
+## Delta log
+
+### F1 — removeLiquidity + claimPositionFee driven LIVE (DONE)
+Extended `sdk/test/surfpool/meteora-spot-e2e.test.ts`: after the existing
+init→add→swap→createPosition arm, added `claimPositionFee` + `removeLiquidity`
+driven through the DEPLOYED cp-amm (`skipPreflight:false`, confirm-throws). All 6
+cp-amm builders now have live coverage.
+
+- **claimPositionFee (NONZERO, real transfer).** Two extra A→B swaps (200M each)
+  grow the accrued LP fee; a tiny `addLiquidity` (Δ = 2^64) checkpoints it onto the
+  position (cp-amm updates position fees lazily). **Finding:** on the cloned public
+  Config (index 0) the `collect_fee_mode` collects fees in **token B** for BOTH swap
+  directions — after the A→B swaps `fee_b_pending` ≈ **852,979 raw** (protocol_b_fee
+  ≈ 213,244; vaultB−reserveB ≈ 1,066,224 = LP+protocol) while `fee_a_pending`/
+  `protocol_a_fee` stay 0. NOT the plan's assumed "fee in the input token A" — this
+  is a legitimate Config-level `collect_fee_mode` feature, not a builder bug, so the
+  assertion targets the token-B side. Asserted: owner token-B rose by EXACTLY
+  `fee_b_pending` (> 0), position `fee_a_pending`/`fee_b_pending` both cleared to 0.
+- **removeLiquidity (full withdrawal).** Removes ALL `unlocked_liquidity`. Asserted:
+  position `unlocked_liquidity` → 0, pool `liquidity` dropped by exactly the removed
+  delta, both reserves (`token_a_amount`/`token_b_amount`) fell, owner token accounts
+  rose by exactly the reserve deltas (> 0 on both sides). Withdrew ≈ 2.0e9 raw A /
+  ≈ 1.125e9 raw B.
+- **No M1/program bug.** The only deviation from the plan's expectation (fee side)
+  is a Config `collect_fee_mode` detail, documented above. Builders unchanged.
+- **Verified:** `pnpm typecheck` clean; default `pnpm test` 124/124 offline green;
+  gated `KASSANDRA_E2E=1 … meteora-spot-e2e.test.ts` → 3/3 pass, ~1.4s test runtime
+  (post surfpool boot). Docs updated: E2E header, `sdk/test/surfpool/README.md`,
+  `sdk/src/futarchy/NOTES.md`.

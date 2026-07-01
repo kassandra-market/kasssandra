@@ -60,7 +60,7 @@ futarchy-governance 8921) so they never collide.
 | `lifecycle-e2e.test.ts` | T3: full core lifecycle on a standalone simnet — uncontested resolve + dispute→AI-claim (runner in the loop). |
 | `challenge-market-e2e.test.ts` | T4 + CS2: the challenge-market path against **forked-mainnet** MetaDAO programs — opens a challenge, then drives `settle_challenge` end to end through a **real swap-driven v0.4 AMM TWAP** (both arms: disqualify + survive). Runs in `clock` block-production mode so the on-chain execution slot advances for the slot-based AMM crank. |
 | `futarchy-governance-e2e.test.ts` | G3: the FULL futarchy governance loop against **forked-mainnet** MetaDAO programs — bootstrap → staged Squads VaultTransaction → proposal → real TWAP verdict → `vault_transaction_execute` → Kassandra `set_config` + `resolve_deadend` applied on-chain. Requires futarchy **v0.6.1** (the deployed program). |
-| `meteora-spot-e2e.test.ts` | M2: the Meteora **DAMM v2 (cp-amm)** spot path against the **forked-mainnet** real program — clones a real public `Config`, drives `initializePool → addLiquidity → swap → createPosition` over RPC, and decodes the resulting `Pool`/`Position` to VERIFY the M1 zero-copy offsets (`sqrt_price`@456, reserves@680/688, `unlocked_liquidity`@152) against the DEPLOYED binary. Also decodes a genuine mainnet pool. |
+| `meteora-spot-e2e.test.ts` | M2 + F1: the Meteora **DAMM v2 (cp-amm)** spot path against the **forked-mainnet** real program — clones a real public `Config`, drives `initializePool → addLiquidity → swap → createPosition → claimPositionFee → removeLiquidity` over RPC, and decodes the resulting `Pool`/`Position` to VERIFY the M1 zero-copy offsets (`sqrt_price`@456, reserves@680/688, `unlocked_liquidity`@152, `fee_b_pending`@144) against the DEPLOYED binary. F1 adds a NONZERO fee claim + a full liquidity removal. Also decodes a genuine mainnet pool. |
 
 ## Full futarchy governance (G3)
 
@@ -253,13 +253,25 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
   surfpool is up (transaction block mode; no slot crank needed — cp-amm price is
   instantaneous). Runtime deps: network (fork + a direct mainnet `getAccountInfo`).
 
+  **F1 — `claimPositionFee` + `removeLiquidity` driven LIVE (all 6 builders now
+  covered).** After the swap, the same arm drives the last two cp-amm builders
+  through the real program (`skipPreflight:false`, confirm-throws):
+  - **`claimPositionFee` (NONZERO, real transfer).** A couple more A→B swaps grow
+    the accrued LP trading fee, then a tiny `addLiquidity` CHECKPOINTS it onto the
+    position (cp-amm updates position fees lazily). On this cloned public Config
+    the `collect_fee_mode` collects fees in **token B** for both swap directions,
+    so `fee_b_pending` is nonzero (empirically ~8.5e5 raw; `fee_a_pending` stays
+    0). The claim is asserted to transfer EXACTLY `fee_b_pending` to the owner's
+    token-B account (`> 0`) and to clear the position's pending fees — a genuine,
+    nonzero fee sweep, not a no-op.
+  - **`removeLiquidity` (full withdrawal).** Removes ALL `unlocked_liquidity` from
+    the first position and asserts: the position's `unlocked_liquidity` → 0, the
+    pool `liquidity` dropped by exactly the removed delta, both tracked reserves
+    (`token_a_amount`/`token_b_amount`) fell, and the owner's token accounts rose
+    by exactly the reserve deltas (the withdrawn amounts, `> 0` on both sides).
+
 ### Deferred (NOT asserted — documented honestly)
 
-- **Meteora cp-amm `removeLiquidity` / `claimPositionFee` end-to-end.** The two
-  remaining M1 builders are unit-tested (bytes/metas/PDAs) but not driven live in
-  M2 (the init→add→swap→create_position arm already exercises the deposit + swap +
-  position-mint offsets against the deployed program). Driving a fee-claim needs
-  swap fees to accrue to a position and is left as a follow-on.
 - **Meteora dynamic-fee / reward-emission mechanics** beyond the spot lifecycle.
 - **Dead-end ECONOMIC settlement.** G3 proves `resolve_deadend` is
   governance-driven and STAMPS the outcome (`Phase::Resolved` + `resolved_option`);

@@ -280,7 +280,7 @@ The TWAP verdict comes from the embedded `Pool.oracle.get_twap()`. Meteora cp-am
 is only used for the DAO's SPOT liquidity / fee collection (`collect_meteora_damm_fees`,
 `provide_liquidity`), which the proposal→TWAP→Squads→set_config loop does NOT need.
 
-The full Meteora cp-amm spot-path SDK now lives in `sdk/src/meteora/` (M1/M2): the
+The full Meteora cp-amm spot-path SDK now lives in `sdk/src/meteora/` (M1/M2/F1): the
 6 position-based builders (`initializePool`, `createPosition`, `addLiquidity`,
 `removeLiquidity`, `swap`, `claimPositionFee`) + the `Pool`/`Position` zero-copy
 decoders, all byte-sourced from `MeteoraAg/damm-v2@bdd8a1e`. The previously-deferred
@@ -293,3 +293,12 @@ over RPC, and decodes the resulting Pool/Position (sqrt_price moved the correct
 direction, reserves match the live vaults, unlocked_liquidity matches the deposit) —
 plus decodes a genuine mainnet pool (sqrt_price² ≈ reserve ratio). Not STOP-REPORTED
 anymore.
+
+**F1 — ALL 6 builders now DRIVEN LIVE (not just unit-tested).** The two remaining
+builders `claimPositionFee` + `removeLiquidity` are now driven through the deployed
+cp-amm in the same E2E (previously unit-tested-only). `claimPositionFee` sweeps a
+NONZERO swap-accrued LP fee (on the cloned public Config the `collect_fee_mode`
+collects in token B for both directions, so `fee_b_pending` is nonzero after A→B
+swaps; the owner's token-B account rises by exactly the pending fee and the position
+clears). `removeLiquidity` withdraws all `unlocked_liquidity` (position/pool liquidity
+drop by the exact delta, both reserves fall, owner receives the withdrawn amounts).
