@@ -45,3 +45,36 @@
 
 ## Execution note
 SDK-only; default `pnpm test` stays offline + green; the E2E is gated. Byte-source EVERYTHING from the repo (pin a commit) + VERIFY the offsets against a real cloned mainnet Pool (that's the whole point — the blocker was "offsets not determinable offline"; the E2E proves them against the deployed binary). Mirror the `amm-v04` module + the challenge-market surfpool harness. Append an M1/M2 delta log here.
+
+## Delta log
+
+### M1 — DONE (SDK module `sdk/src/meteora/{constants,pda,instructions,accounts,index}.ts` + `test/meteora.test.ts`)
+
+**Pinned commit:** `MeteoraAg/damm-v2@bdd8a1e355f484b3cff131578a662c560b97b72f` (resolved off `main` 2026-07-01). Program id `cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG` (`lib.rs:41`). Raw source via `raw.githubusercontent.com/MeteoraAg/damm-v2/<commit>/programs/cp-amm/src/…`.
+
+**6 instruction discs** (Anchor `sha256("global:<name>")[..8]`):
+| ix | disc | source |
+|----|------|--------|
+| `initialize_pool` | `5fb40aac54aee828` | ✓ matches `cpi/metadao_v06.rs:127` |
+| `swap` | `f8c69e91e17587c8` | ✓ matches `metadao_v06.rs:129` (== v0.4 `global:swap`) |
+| `add_liquidity` | `b59d59438fb63448` | ✓ matches `metadao_v06.rs:131` |
+| `create_position` | `30d7c59960cbb485` | computed (name `lib.rs:246`) |
+| `remove_liquidity` | `5055d14818ceb16c` | computed (name `lib.rs:257`) |
+| `claim_position_fee` | `b4269a118521a2d3` | computed (name `lib.rs:294`) |
+
+Account discs: `Pool = f19a6d0411b16dbc` (✓ `metadao_v06.rs:133`), `Position = aabc8fe47a40f7d0`.
+
+**Arg layouts** (Borsh LE): `initialize_pool` = `liquidity:u128 ++ sqrt_price:u128 ++ activation_point:Option<u64>`; `create_position` = none; `add_liquidity`/`remove_liquidity` = `liquidity_delta:u128 ++ token_a_amount_threshold:u64 ++ token_b_amount_threshold:u64` (add = MAX to spend, remove = MIN to receive); `swap` = `amount_in:u64 ++ minimum_amount_out:u64`; `claim_position_fee` = none.
+
+**PDA seeds** (from `constants.rs` `mod seeds` + `const_pda.rs`): Pool `[b"pool", config, max(mint_a,mint_b), min(mint_a,mint_b)]` (mints SORTED by raw bytes, larger first; keyed by a `config` account); Position `[b"position", nft_mint]`; Position-NFT token acct `[b"position_nft_account", nft_mint]`; Token vault `[b"token_vault", mint, pool]`; Pool authority `[b"pool_authority"]` (const); Event authority `[b"__event_authority"]`.
+
+**Decoder offsets (RE-DERIVED from the pinned field order; every u128 is 16-byte aligned via explicit padding):** Pool `INIT_SPACE == 1104`, on-chain `8 + 1104 = 1112`; `sqrt_price` at STRUCT-offset **448 / ABSOLUTE 456** (confirmed ✓ — matches the plan). Other Pool abs offsets: token_a_mint 168, token_b_mint 200, token_a_vault 232, token_b_vault 264, liquidity 360, sqrt_min_price 424, sqrt_max_price 440, protocol_a_fee 392, protocol_b_fee 400, creator 648, token_a_amount 680, token_b_amount 688. Position `INIT_SPACE == 400`, on-chain 408; abs: pool 8, nft_mint 40, fee_a_pending 136, fee_b_pending 144, unlocked_liquidity 152, vested_liquidity 168, permanent_locked_liquidity 184. `NUM_REWARDS == 2`, `UserRewardInfo::INIT_SPACE == 48`, `PoolFeesStruct::INIT_SPACE == 160`, `PoolMetrics == 80` — all confirmed against the pinned structs.
+
+**Deviations from the plan's assumptions (repo is source of truth):**
+- **`swap` has NO `swap_type`/direction arg** (the plan carried the v0.4 AMM shape). Direction is IMPLICIT — determined by which token account is `input`/`output`. `swap` also has a trailing OPTIONAL `referral_token_account` (Anchor `Option<…>`; the program-id is passed as the None sentinel).
+- **`initialize_pool` also mints the FIRST position + its Token-2022 NFT** (combined) and takes `liquidity` + `sqrt_price` directly; `create_position` opens an EMPTY position. Both mint the NFT under **Token-2022** (`TokenzQd…`).
+- **Pool PDA requires a `config` account** (fee/price-range params) plus the sorted mint pair — there is no bare `[prefix, a, b]` pool.
+- **`claim_position_fee`'s `pool` account is READ-ONLY** (fees live on the Position); `remove_liquidity` prefixes the account list with `pool_authority` (the vault-transfer signer) vs `add_liquidity`.
+- `Pool` struct at this commit adds `PoolMetrics(80)` / `layout_version` / extra padding vs the plan's sketch, but the pinned offsets still land `sqrt_price` at abs 456 and total 1104 — the plan's arithmetic holds.
+
+**Verification:** `pnpm typecheck` clean; `pnpm test` → 13 files, **124 passed** (incl. 20 new meteora tests: builder `data` bytes, account metas/roles, PDA seeds, decoder round-trips asserting sqrt_price@456 + sizes 1112/408). Offline/hermetic — no network in the default suite. Program UNTOUCHED (added a shared `readU128LE` to `sdk/src/accounts/common.ts`; barrel-exported `meteora` from `sdk/src/index.ts`). Offsets still to be verified against the DEPLOYED binary in M2.

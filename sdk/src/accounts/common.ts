@@ -53,6 +53,13 @@ export function readI64LE(dv: DataView, offset: number): bigint {
   return dv.getBigInt64(offset, true);
 }
 
+/** Read a little-endian unsigned 128-bit integer at `offset` as a `bigint` (low 64 ++ high 64). */
+export function readU128LE(dv: DataView, offset: number): bigint {
+  const lo = dv.getBigUint64(offset, true);
+  const hi = dv.getBigUint64(offset + 8, true);
+  return (hi << 64n) | lo;
+}
+
 /** Read a bool-ish `u8` flag at `offset` (`0` → false, anything else → true). */
 export function readBool(dv: DataView, offset: number): boolean {
   return dv.getUint8(offset) !== 0;

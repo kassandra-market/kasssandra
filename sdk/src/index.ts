@@ -48,3 +48,6 @@ export * as futarchy from "./futarchy/index.js";
 
 // MetaDAO v0.4 standalone AMM builders + PDA derivers (under `ammV04.*`).
 export * as ammV04 from "./amm-v04/index.js";
+
+// Meteora DAMM v2 (cp-amm) spot-path builders + Pool/Position decoders (under `meteora.*`).
+export * as meteora from "./meteora/index.js";
