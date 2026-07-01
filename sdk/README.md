@@ -134,6 +134,25 @@ payload bytes the program expects.
 `Uint8Array`, validates the `account_type` tag + exact size, and returns a typed
 object. The matching types (`Protocol`, `Oracle`, …) are exported.
 
+### External-protocol modules (`ammV04.*`, `futarchy.*`, `meteora.*`)
+
+Byte-sourced builders/decoders for the MetaDAO + Meteora programs the DAO
+treasury interacts with (Kassandra does not CPI these; they are for composing DAO
+transactions off-chain):
+
+- **`meteora.*` — Meteora DAMM v2 (cp-amm) spot path — DONE.** The 6 position-based
+  builders (`initializePool`, `createPosition`, `addLiquidity`, `removeLiquidity`,
+  `swap`, `claimPositionFee`) + the `Pool`/`Position` zero-copy decoders
+  (`decodePool`/`decodePosition`) + `pda.*`, byte-sourced from
+  `MeteoraAg/damm-v2@bdd8a1e`. The `Pool` field offsets (`sqrt_price` @ abs 456,
+  reserves @ 680/688, `liquidity` @ 360, `Position.unlocked_liquidity` @ 152) are
+  **verified against the DEPLOYED mainnet program** by the gated fork E2E
+  `test/surfpool/meteora-spot-e2e.test.ts` (drives init→add→swap→create_position
+  through the real cp-amm + decodes a genuine mainnet pool). No longer deferred.
+- **`ammV04.*`** — MetaDAO v0.4 AMM (create/add/swap/crank + TWAP decode).
+- **`futarchy.*`** — futarchy v0.6 + Squads v4 builders/PDAs (see
+  `src/futarchy/NOTES.md`).
+
 ### Errors
 
 `decodeError(custom: number)` maps a `ProgramError::Custom(u32)` (0..=30) to

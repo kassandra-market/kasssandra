@@ -78,3 +78,31 @@ Account discs: `Pool = f19a6d0411b16dbc` (✓ `metadao_v06.rs:133`), `Position =
 - `Pool` struct at this commit adds `PoolMetrics(80)` / `layout_version` / extra padding vs the plan's sketch, but the pinned offsets still land `sqrt_price` at abs 456 and total 1104 — the plan's arithmetic holds.
 
 **Verification:** `pnpm typecheck` clean; `pnpm test` → 13 files, **124 passed** (incl. 20 new meteora tests: builder `data` bytes, account metas/roles, PDA seeds, decoder round-trips asserting sqrt_price@456 + sizes 1112/408). Offline/hermetic — no network in the default suite. Program UNTOUCHED (added a shared `readU128LE` to `sdk/src/accounts/common.ts`; barrel-exported `meteora` from `sdk/src/index.ts`). Offsets still to be verified against the DEPLOYED binary in M2.
+
+### M2 — DONE (gated mainnet-fork E2E `sdk/test/surfpool/meteora-spot-e2e.test.ts`) — offsets VERIFIED vs the deployed binary
+
+**Full init flow driven live (no fallback needed).** surfpool boots forking mainnet (`--network mainnet`, port 8922) so the REAL cp-amm `cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG` executes over RPC.
+
+**Cloned (real deployed state):**
+- **cp-amm `Config` `8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF`** (index 0) — fetched from mainnet + written cp-amm-owned onto the fork. Chosen because `pool_creator_authority == Pubkey::default` (public/permissionless — `initialize_pool` requires this or `== payer`) and `config_type == Static` (required by the handler); full-range bounds `sqrt_min=4295048016`, `sqrt_max=79226673521066979257578248091`. Discovered via `getProgramAccounts(dataSize:328)` over 672 public configs. Config on-chain size = `8 + Config::INIT_SPACE(320) = 328`; `pool_creator_authority` @ abs 40, `config_type` @ abs 194 — asserted in the test.
+- **A real mainnet Pool `11BWLuxs8ow5x42hXjVPi55j9KLVa4SCn1MspbBepVQ`** (token_b == USDC) — fetched from mainnet + `decodePool`d as an independent decoder cross-check on genuine deployed bytes.
+
+**Fabricated (SPL plumbing only):** two SPL-Token mints (6 dp, authority = payer), the payer's funded token-A/token-B source accounts (10^15 each), and SOL. The cp-amm vaults / position / Token-2022 position-NFT mint are all created BY the real program during the driven ixs.
+
+**Ixs driven through the real program (`skipPreflight:false`, confirm-throws-on-err):**
+`initializePool` (liquidity `1e9 · 2^64`, sqrt_price `2^64` → price 1.0; mints the first Token-2022-NFT position) → `addLiquidity` (`+INIT/2`) → `swap` A→B (`amount_in = 1e8`) → `createPosition` (a second, empty position). Position-NFT mint keypairs freshly generated + signed. No token-badge / remaining-account needed (plain SPL mints are `is_supported_mint`).
+
+**Offset-verification assertions (all PASS — this is the point):**
+- after init: `decodePool` → `sqrt_price`(@456)==`2^64`, `sqrt_min`(@424)/`sqrt_max`(@440)==config bounds, `liquidity`(@360)==`INIT`, mints(@168/200) + vaults(@232/264) == derived, `token_a_amount`/`token_b_amount`(@680/688) == cp-amm's exact `get_delta_amount_{a,b}` (Rounding::Up) AND == the live vault balances. `decodePosition` → `unlocked_liquidity`(@152)==`INIT`, `pool`(@8)/`nft_mint`(@40) correct.
+- after add: position `unlocked_liquidity` == `INIT+delta`; pool `liquidity` == `INIT+delta`.
+- after A→B swap: **`sqrt_price` MOVED DOWN** (selling A lowers `sqrt(B/A)`), token-A reserve rose by exactly `amount_in`, token-B reserve fell, `liquidity` unchanged, each vault ≥ its decoded reserve (holds reserve + accrued LP fee — a real cp-amm fee value, `1406484375` vs reserve `1406250000`, surfaced this and confirms live execution).
+- after create_position: second position `unlocked_liquidity == 0`.
+- genuine mainnet pool `11BW…`: `(sqrt_price/2^64)² ≈ token_b/token_a` reserve ratio within 1%.
+
+If any computed offset were wrong these reads would be garbage → the assertions prove the M1 offsets against the DEPLOYED layout.
+
+**Result:** gated `KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/meteora-spot-e2e.test.ts` → **3 passed** (~1.3s tests once surfpool is up). Default `pnpm test` still **124 passed**, offline (the E2E is under `test/surfpool/**`, excluded unless gated). `pnpm typecheck` clean. Program + M1 module UNTOUCHED (no M1 bug found — the builders drove the real program first try; the only test edit was relaxing a post-swap `vault == reserve` check to `vault >= reserve` to allow the LP fee that accrues in the vault). Docs updated: `sdk/src/futarchy/NOTES.md` (Meteora section flipped DEFERRED → DONE), `sdk/test/surfpool/README.md` (covered-vs-deferred + files table + run cmd), `sdk/README.md` (external-protocol modules subsection).
+
+### Final covered-vs-deferred
+- **Covered (proven live vs the deployed cp-amm):** `initializePool`, `addLiquidity`, `swap`, `createPosition` + `decodePool`/`decodePosition` — offsets verified against the deployed binary on a mainnet fork, plus a genuine mainnet-pool decode.
+- **Deferred (unit-tested, not driven live):** `removeLiquidity`, `claimPositionFee` (init→add→swap→create already covers the deposit/swap/position-mint offsets; a fee-claim needs accrued fees routed to a position — a follow-on). Meteora dynamic-fee / reward-emission mechanics beyond the spot lifecycle. Wiring the builders into a governance E2E for real DAO spot liquidity.

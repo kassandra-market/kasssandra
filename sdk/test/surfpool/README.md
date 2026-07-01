@@ -39,6 +39,7 @@ KASSANDRA_E2E=1 pnpm test:e2e   # gated E2E: 113 tests (spawns surfpool, needs n
 # a single arm:
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/challenge-market-e2e.test.ts
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/futarchy-governance-e2e.test.ts
+KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/meteora-spot-e2e.test.ts
 ```
 
 The harness (`harness.ts` `SurfpoolHarness`) spawns `surfpool start --no-tui
@@ -59,6 +60,7 @@ futarchy-governance 8921) so they never collide.
 | `lifecycle-e2e.test.ts` | T3: full core lifecycle on a standalone simnet — uncontested resolve + dispute→AI-claim (runner in the loop). |
 | `challenge-market-e2e.test.ts` | T4 + CS2: the challenge-market path against **forked-mainnet** MetaDAO programs — opens a challenge, then drives `settle_challenge` end to end through a **real swap-driven v0.4 AMM TWAP** (both arms: disqualify + survive). Runs in `clock` block-production mode so the on-chain execution slot advances for the slot-based AMM crank. |
 | `futarchy-governance-e2e.test.ts` | G3: the FULL futarchy governance loop against **forked-mainnet** MetaDAO programs — bootstrap → staged Squads VaultTransaction → proposal → real TWAP verdict → `vault_transaction_execute` → Kassandra `set_config` + `resolve_deadend` applied on-chain. Requires futarchy **v0.6.1** (the deployed program). |
+| `meteora-spot-e2e.test.ts` | M2: the Meteora **DAMM v2 (cp-amm)** spot path against the **forked-mainnet** real program — clones a real public `Config`, drives `initializePool → addLiquidity → swap → createPosition` over RPC, and decodes the resulting `Pool`/`Position` to VERIFY the M1 zero-copy offsets (`sqrt_price`@456, reserves@680/688, `unlocked_liquidity`@152) against the DEPLOYED binary. Also decodes a genuine mainnet pool. |
 
 ## Full futarchy governance (G3)
 
@@ -226,16 +228,39 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
     swap-driven TWAP → disqualify/survive decision and the settled economics are
     not seeded.
 
+- **Meteora DAMM v2 spot path on FORKED mainnet (M2), offsets verified vs the
+  DEPLOYED binary.** `meteora-spot-e2e.test.ts` boots surfpool forking mainnet so
+  the REAL cp-amm `cpamdpZC…` executes over RPC, clones a REAL public + static
+  mainnet `Config` (index 0, `8CNy9goNQNLM4wtgRw528tUQGMKD3vSuFRZY2gLGLLvF`,
+  `pool_creator_authority == default`), fabricates two SPL mints + funded payer
+  token accounts, then DRIVES the M1 builders through the real program
+  (`skipPreflight:false`, confirm-throws): `initializePool` (creates the pool +
+  first Token-2022-NFT position, funded `liquidity`+`sqrt_price`) → `addLiquidity`
+  → `swap` (A→B) → `createPosition` (a second, empty position).
+
+  **Offset verification (the point).** `decodePool`/`decodePosition` read the
+  freshly-driven on-chain accounts and assert: `sqrt_price` (abs 456) ==
+  `SQRT_PRICE_INIT`; `liquidity` (360), `sqrt_min/max` (424/440), mints (168/200),
+  vaults (232/264), `token_a_amount`/`token_b_amount` (680/688) all == the driven
+  values (reserves computed with cp-amm's exact deposit math AND matching the live
+  vault balances); `unlocked_liquidity` (152) == the deposited liquidity, rising by
+  the `addLiquidity` delta; after the A→B swap `sqrt_price` MOVED DOWN, the token-A
+  reserve rose by exactly `amount_in`, and token-B fell (each vault holds
+  reserve + accrued LP fee). Independently, a genuine mainnet pool is fetched from
+  mainnet and `decodePool`d, asserting `(sqrt_price/2^64)² ≈ reserve_b/reserve_a`
+  within 1%. If any computed offset were wrong these reads would be garbage — so
+  passing proves the offsets against the deployed layout. Runs in ~1–2s once
+  surfpool is up (transaction block mode; no slot crank needed — cp-amm price is
+  instantaneous). Runtime deps: network (fork + a direct mainnet `getAccountInfo`).
+
 ### Deferred (NOT asserted — documented honestly)
 
-- **Meteora DAMM v2 spot-path builders.** The conditional pass/fail VERDICT
-  markets are the futarchy program's OWN embedded AMM (driven by
-  `launch_proposal` + `conditional_swap` + `finalize_proposal`) — the G3 verdict
-  flows through THOSE, not Meteora. Meteora cp-amm is only the DAO's SPOT
-  liquidity / fee collection, which the governance loop does not need; its
-  zero-copy `Pool` field offsets (e.g. `sqrt_price`, behind the C-padded
-  `PoolFeesStruct`) are undeterminable offline, so only the discriminators are
-  pinned. Not built (see `sdk/src/futarchy/NOTES.md`, "Meteora DAMM v2").
+- **Meteora cp-amm `removeLiquidity` / `claimPositionFee` end-to-end.** The two
+  remaining M1 builders are unit-tested (bytes/metas/PDAs) but not driven live in
+  M2 (the init→add→swap→create_position arm already exercises the deposit + swap +
+  position-mint offsets against the deployed program). Driving a fee-claim needs
+  swap fees to accrue to a position and is left as a follow-on.
+- **Meteora dynamic-fee / reward-emission mechanics** beyond the spot lifecycle.
 - **Dead-end ECONOMIC settlement.** G3 proves `resolve_deadend` is
   governance-driven and STAMPS the outcome (`Phase::Resolved` + `resolved_option`);
   the token movement / payout for a governance-resolved dead-end belongs to the

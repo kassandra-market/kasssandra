@@ -271,7 +271,7 @@ into Kassandra signed by the Squads vault PDA == `Protocol.dao_authority`.
 
 ---
 
-## Meteora DAMM v2 — **DEFERRED / STOP-REPORTED (not built)**
+## Meteora DAMM v2 — **DONE (SDK builders + decoders; offsets verified vs deployed)**
 
 The v0.6 conditional pass/fail VERDICT markets are the futarchy program's OWN
 EMBEDDED AMM (`Dao.amm` `PoolState::Futarchy{pass,fail,spot}`), driven by
@@ -280,11 +280,16 @@ The TWAP verdict comes from the embedded `Pool.oracle.get_twap()`. Meteora cp-am
 is only used for the DAO's SPOT liquidity / fee collection (`collect_meteora_damm_fees`,
 `provide_liquidity`), which the proposal→TWAP→Squads→set_config loop does NOT need.
 
-Meteora cp-amm pool-init / add-liquidity / swap builders are therefore NOT built:
-their account lists are position-NFT-heavy and their `Pool` is a zero-copy
-`#[repr(C)]` struct whose field offsets (e.g. `sqrt_price`) require the nested
-`PoolFeesStruct` C-padding, which `metadao_v06.rs` already flags as the deferred
-unknown ("MUST pin against a LIVE pool dump and/or the published cp-amm IDL").
-Only the discriminators (`initialize_pool`, `swap`, `add_liquidity`) are pinned;
-the arg/account wire formats are NOT authoritatively determinable offline →
-**STOP-REPORTED**, to be pinned at G3 if the spot-liquidity path is exercised.
+The full Meteora cp-amm spot-path SDK now lives in `sdk/src/meteora/` (M1/M2): the
+6 position-based builders (`initializePool`, `createPosition`, `addLiquidity`,
+`removeLiquidity`, `swap`, `claimPositionFee`) + the `Pool`/`Position` zero-copy
+decoders, all byte-sourced from `MeteoraAg/damm-v2@bdd8a1e`. The previously-deferred
+unknown — the `Pool` field offsets behind the nested C-padded `PoolFeesStruct`
+(`sqrt_price` @ abs 456, reserves @ 680/688, etc.) — is RESOLVED: the repo source
+pins every offset AND they are now VERIFIED against the DEPLOYED binary by the gated
+mainnet-fork E2E (`sdk/test/surfpool/meteora-spot-e2e.test.ts`), which clones a real
+public cp-amm `Config`, drives init→add→swap→create_position through the real program
+over RPC, and decodes the resulting Pool/Position (sqrt_price moved the correct
+direction, reserves match the live vaults, unlocked_liquidity matches the deposit) —
+plus decodes a genuine mainnet pool (sqrt_price² ≈ reserve ratio). Not STOP-REPORTED
+anymore.
