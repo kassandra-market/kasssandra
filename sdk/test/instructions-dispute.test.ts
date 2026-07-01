@@ -28,6 +28,7 @@ import {
   claimProposer,
   closeAiClaim,
   closeMarket,
+  sweepOracle,
   finalizeAiClaims,
   finalizeFacts,
   finalizeOracle,
@@ -483,6 +484,39 @@ describe("D3b settlement builders — claims + closes", () => {
       [MARKET_ARG, false, true],
       [escrow.address.toString(), false, true],
       [RENT_RECIPIENT, false, true],
+      [TOKEN_PROGRAM_ID.toString(), false, false],
+    ]);
+  });
+
+  it("sweepOracle: nonce u64 payload, oracle/vault/protocol/treasury/creator/token", async () => {
+    const nonce = 7n;
+    // daoAuthority = KASS_DAO stand-in, creator = AUTHORITY, mint = KASS_MINT.
+    const ix = await sweepOracle({
+      nonce,
+      kassMint: KASS_MINT,
+      daoAuthority: KASS_DAO,
+      creator: AUTHORITY,
+    });
+
+    expect(ix.data).toEqual(bytesOf(Ix.SweepOracle, leU64(nonce)));
+
+    const oracle = await pda.oracle(nonce);
+    const stakeVault = await pda.stakeVault(oracle.address);
+    const protocol = await pda.protocol();
+    const daoTreasury = await pda.associatedTokenAccount(KASS_DAO, KASS_MINT);
+    // Treasury is the KASS ATA of dao_authority under the ATA program.
+    const [expectedAta] = await Address.findProgramAddress(
+      [new Address(KASS_DAO).toBytes(), TOKEN_PROGRAM_ID.toBytes(), new Address(KASS_MINT).toBytes()],
+      new Address("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"),
+    );
+    expect(daoTreasury.address.toString()).toBe(expectedAta.toString());
+
+    expect(metaTriples(ix.keys)).toEqual([
+      [oracle.address.toString(), false, true],
+      [stakeVault.address.toString(), false, true],
+      [protocol.address.toString(), false, false],
+      [daoTreasury.address.toString(), false, true],
+      [AUTHORITY, false, true],
       [TOKEN_PROGRAM_ID.toString(), false, false],
     ]);
   });

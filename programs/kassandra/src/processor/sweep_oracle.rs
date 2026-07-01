@@ -26,8 +26,13 @@
 //! # Grace gate — the terminal-time anchor
 //! `phase_ends_at` is the terminal-ENTRY anchor: `finalize_oracle` can only drive
 //! the oracle terminal at `now >= phase_ends_at` (the challenge window's end) and
-//! does NOT advance it, so it is a lower bound on the true terminal time and the
-//! effective grace is never SHORTER than [`SWEEP_GRACE`]. See the config const.
+//! does NOT advance it. The sweep is therefore gated to a FIXED, publicly known
+//! instant — `phase_ends_at + SWEEP_GRACE` — regardless of when the finalize
+//! actually landed. (A delayed finalize enters terminal LATER than
+//! `phase_ends_at`, which can shrink the window measured from terminal-entry; the
+//! guarantee is not a minimum span since terminal-entry but this fixed anchor,
+//! computed from `phase_ends_at` — a value published on the oracle at creation.)
+//! See the config const.
 //!
 //! # FORFEITURE TRADE-OFF (starkly documented)
 //! There is NO outstanding-claims counter (design decision: grace-forced close,

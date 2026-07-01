@@ -79,8 +79,24 @@ challenge-market portion depends on a KASS price oracle (futarchy) that does not
 > gained an `oracle_nonce` payload + fixed `kass_mint`/`stake_vault`/token-program accounts (the burn
 > signer), mirroring `finalize_oracle`; threaded to the SDK `finalizeFacts` builder. Covered by
 > `deadend_settlement.rs`, `settlement_e2e.rs` (incl. the real-driven fact/vote dead-end tests
-> `e2e_fact_vote_deadend_*`), and the `invariants.rs` conservation fuzz (Arms E/F). DEFERRED to the
-> NEXT milestone: dust sweeping / closing the terminal Oracle + `stake_vault` accounts.
+> `e2e_fact_vote_deadend_*`), and the `invariants.rs` conservation fuzz (Arms E/F). FOLLOW-UP now DONE
+> (see the dust-sweep note below): dust sweeping / closing the terminal Oracle + `stake_vault` accounts.
+
+> **Dust sweeping + terminal-account closure — DONE (2026-07-01, dust-sweep milestone).** The residual
+> `stake_vault` KASS — the bounded floor/ceil rounding dust the pull-claims can never reach, PLUS any
+> unclaimed principal from a no-show staker — and the rent of the terminal `Oracle` + `stake_vault`
+> accounts no longer stay locked forever. New permissionless **`sweep_oracle` (Ix 22)**: once the oracle
+> is TERMINAL and `now >= oracle.phase_ends_at + SWEEP_GRACE` (**30 days** — deliberately generous, gated
+> to the FIXED public instant `phase_ends_at + SWEEP_GRACE`), it transfers the ENTIRE remaining vault
+> balance to the **DAO treasury** = `ATA(dao_authority, kass_mint)` (oracle-PDA-signed `Transfer`), then
+> CLOSES the vault (SPL `CloseAccount`) and the `Oracle` PDA — both rents (~0.0077 SOL) refunded to
+> `oracle.creator` (the original payer). Requires `governance_set == 1` (`GovernanceNotSet` else) and
+> validates the treasury == the canonical ATA (`InvalidTreasury` else); before grace →
+> `SweepGraceNotElapsed`. Errors 33/34/35; SDK `sweepOracle` builder. **FORFEITURE TRADE-OFF (stark):**
+> there is NO outstanding-claims counter — a staker who never claims within the 30-day grace **FORFEITS
+> their unclaimed KASS principal (swept to the treasury) AND their per-account rent**, and their later
+> claim fails on the closed oracle. The long grace makes this a genuine abandonment, not a race. See
+> `docs/plans/2026-07-01-kassandra-dust-sweep.md`.
 
 - **Challengers:** paid by the challenge market (see deferred section) — a **KASS fee from the bond
   on success**; NOT from `bond_pool` directly.

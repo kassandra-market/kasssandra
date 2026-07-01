@@ -23,8 +23,11 @@ pub const PROPOSAL_WINDOW: i64 = 3600;
 /// gated on `now >= oracle.phase_ends_at + SWEEP_GRACE` (AND the oracle being
 /// terminal). `phase_ends_at` is the terminal-entry anchor: `finalize_oracle`
 /// can only drive the oracle terminal at `now >= phase_ends_at` (the challenge
-/// window's end) and does NOT advance it, so it is a lower bound on the true
-/// terminal time — the effective grace is therefore never SHORTER than this.
+/// window's end) and does NOT advance it. The sweep is thus gated to a FIXED,
+/// publicly known instant — `phase_ends_at + SWEEP_GRACE` — no matter when the
+/// finalize actually landed (a delayed finalize enters terminal later, which can
+/// shrink the span measured from terminal-entry; the guarantee is this fixed
+/// anchor off `phase_ends_at`, not a minimum span since terminal-entry).
 ///
 /// TRADE-OFF (starkly documented): a staker who never claims within the grace
 /// FORFEITS their unclaimed KASS principal (swept to the treasury) AND their

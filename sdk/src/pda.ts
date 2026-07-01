@@ -15,7 +15,7 @@
  */
 import { Address } from "@solana/web3.js";
 
-import { KASSANDRA_PROGRAM_ID } from "./constants.js";
+import { ATA_PROGRAM_ID, KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
 
 /** Anything that can name an account: a web3.js `Address`/`PublicKey` or a base58 string. */
 export type AddressInput = Address | string;
@@ -109,4 +109,18 @@ export function market(aiClaimAddr: AddressInput, programId?: Address): Promise<
 /** Challenger USDC escrow PDA (SPL token account) — seeds `[b"challenge_usdc", market]`. */
 export function challengeUsdcVault(marketAddr: AddressInput, programId?: Address): Promise<Pda> {
   return derive([enc.encode("challenge_usdc"), pubkeyBytes(marketAddr)], programId);
+}
+
+/**
+ * SPL associated-token-account address — seeds `[owner, TOKEN_PROGRAM, mint]`
+ * under the {@link ATA_PROGRAM_ID}. `sweep_oracle`'s DAO treasury is
+ * `ATA(dao_authority, kass_mint)`, derived exactly as the program does in
+ * `processor/sweep_oracle.rs`. NOTE: derived under the ATA program, NOT the
+ * Kassandra program — there is no `programId` override.
+ */
+export function associatedTokenAccount(
+  owner: AddressInput,
+  mint: AddressInput,
+): Promise<Pda> {
+  return derive([pubkeyBytes(owner), TOKEN_PROGRAM_ID.toBytes(), pubkeyBytes(mint)], ATA_PROGRAM_ID);
 }

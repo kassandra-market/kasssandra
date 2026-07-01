@@ -53,5 +53,40 @@
 - **The one new CPI:** full-balance `Transfer` vault→treasury (oracle-PDA-signed `[b"oracle", nonce_le, [bump]]`), mirroring `finalize_oracle`'s signed token CPI (Transfer instead of Burn). Zero balance = no-op. Then the two closes mirror `close_market` EXACTLY: SPL `CloseAccount` of the vault (rent → creator) + lamport-drain + `AccountInfo::close()` of the Oracle (rent → creator). Permissionless; idempotent by closure.
 - **Tests** (`tests/sweep.rs`, 10 arms, mirror `closure.rs`): happy (dust → treasury ATA, both closed, rent → creator) + empty-vault-still-closes + before-grace (`SweepGraceNotElapsed`) + governance-not-set + wrong-treasury (`InvalidTreasury`) + wrong-creator + wrong-vault + non-terminal (`WrongPhase`) + **forfeiture** (unclaimed staker's FULL principal + dust → treasury, oracle+vault closed, the no-show's later `claim_proposer` fails on the closed oracle) + idempotent (second sweep → `InvalidAccount`). Harness helpers added to `tests/common/mod.rs`: `set_creator`, `fund_vault`, `kass_ata`, `seed_kass_treasury`, `sweep_oracle_ix`, `ATA_PROGRAM_ID`. `just build` + `cargo test -p kassandra-program` (all green incl. existing) + clippy + fmt clean.
 
+## SW2 delta (DONE — SDK + docs)
+
+- **SDK `sweepOracle` builder** (`sdk/src/instructions/settlement.ts`, barrel-exported):
+  `sweepOracle({ nonce, kassMint, daoAuthority, creator, programId? })`. Derives the
+  oracle PDA (`[b"oracle", nonce_le]`), the `stake_vault` PDA (`[b"vault", oracle]`), the
+  `protocol` singleton (`[b"protocol"]`), and the DAO treasury = `ATA(daoAuthority,
+  TOKEN_PROGRAM, kassMint)` under the ATA program. Emits `data = [Ix.SweepOracle,
+  oracle_nonce u64 LE]` and the EXACT processor account order/roles:
+  `[oracle(w), stake_vault(w), protocol(ro), dao_treasury(w), creator(w), token program(ro)]`.
+- **Shared ATA deriver:** `pda.associatedTokenAccount(owner, mint)` — seeds
+  `[owner, TOKEN_PROGRAM, mint]` under the new top-level `ATA_PROGRAM_ID`
+  (`ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`) in `constants.ts` — mirrors the
+  in-program `ATA(dao_authority, kass_mint)` validation. (The amm-v04/futarchy modules
+  keep their own local `ata`; this is the shared main-SDK one for the treasury.)
+- **Constants + parity:** `Ix.SweepOracle = 22` + `KassandraError` 33/34/35
+  (`SweepGraceNotElapsed`/`GovernanceNotSet`/`InvalidTreasury`) + their `decodeError`
+  messages in `constants.ts`; `parity.test.ts` bumped (Ix count 23 / 0..=22, error
+  count 36 / 0..=35).
+- **Unit test** (`instructions-dispute.test.ts`, settlement suite): asserts
+  `data == [Ix.SweepOracle, ...nonce LE]`, the 6 account metas (order + isSigner/isWritable)
+  match the processor, and the derived treasury == `ATA(dao_authority, kass_mint)` for
+  known inputs. Offline / default suite.
+- **Docstring precision fix (SW1 review):** `processor/sweep_oracle.rs` + `config.rs` — the
+  grace guarantee is reworded from the imprecise "effective grace is never SHORTER than
+  SWEEP_GRACE" to the accurate statement that the sweep is gated to a FIXED, publicly known
+  instant `phase_ends_at + SWEEP_GRACE` (a delayed finalize can shrink the span measured
+  from terminal-entry; the anchor off `phase_ends_at` is the real guarantee). Docs-only, no
+  logic change; program still green.
+- **Docs / covered-vs-deferred:** `2026-06-30-kassandra-staker-settlement.md` +
+  `2026-06-29-kassandra-settlement-economics.md` updated — dust sweeping + terminal-account
+  closure moved from DEFERRED to DONE, with the grace-forced-close model (30-day
+  `SWEEP_GRACE`, gated to `phase_ends_at + SWEEP_GRACE`), dust + forfeited principal → DAO
+  treasury ATA, permissionless + rent → creator, and the FORFEITURE trade-off starkly noted
+  (a no-show staker forfeits BOTH unclaimed principal AND rent).
+
 ## Execution note
 After each task: `just build` + `cargo test -p kassandra-program` green; default `pnpm test` stays green. SW1 is the program instruction (the grace gate + the treasury-validated transfer + the two closes + the forfeiture semantics — get the oracle-PDA-signed Transfer/CloseAccount right, mirror the existing patterns). SW2 is the SDK builder + docs. The forfeiture trade-off (a no-show staker's principal → treasury after grace) MUST be documented starkly. Append a SW1/SW2 delta log here.

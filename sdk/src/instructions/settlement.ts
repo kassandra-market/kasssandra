@@ -190,3 +190,49 @@ export async function closeMarket(args: CloseMarketArgs): Promise<TransactionIns
     data: withDisc(Ix.CloseMarket, u64LE(args.nonce)),
   });
 }
+
+// ---------------------------------------------------------------------------
+// SweepOracle (Ix=22) — processor/sweep_oracle.rs
+// Permissionless, grace-gated dust sweep + terminal Oracle/stake_vault closure.
+// After the grace (now >= oracle.phase_ends_at + SWEEP_GRACE) the residual vault
+// balance (bounded dust, or a no-show staker's FORFEITED principal) is
+// transferred to the DAO treasury = ATA(dao_authority, kass_mint), then the vault
+// and the Oracle are closed with both rents refunded to oracle.creator.
+// Accounts: 0 oracle(w,closed) 1 stake_vault(w,PDA,closed) 2 protocol(ro)
+//           3 dao_treasury(w) 4 creator(w) 5 token program(ro).
+// Payload: oracle_nonce u64.
+// ---------------------------------------------------------------------------
+export interface SweepOracleArgs {
+  /** Oracle nonce — payload + derives the oracle/stake_vault PDAs (the vault authority). */
+  nonce: bigint | number;
+  /** `Protocol.kass_mint` — the vault/treasury mint; derives the treasury ATA. */
+  kassMint: AddressInput;
+  /** `Protocol.dao_authority` (the Squads vault) — owner of the treasury ATA. */
+  daoAuthority: AddressInput;
+  /** Rent recipient for both reclaimed rents (`== oracle.creator`). */
+  creator: AddressInput;
+  programId?: Address;
+}
+
+export async function sweepOracle(args: SweepOracleArgs): Promise<TransactionInstruction> {
+  const programId = args.programId ?? KASSANDRA_PROGRAM_ID;
+  const oracle = await pda.oracle(BigInt(args.nonce), programId);
+  const stakeVault = await pda.stakeVault(oracle.address, programId);
+  const protocol = await pda.protocol(programId);
+  // DAO treasury = canonical KASS ATA of dao_authority (derived under the ATA
+  // program, matching the in-program ATA(dao_authority, kass_mint) validation).
+  const daoTreasury = await pda.associatedTokenAccount(args.daoAuthority, args.kassMint);
+
+  return new TransactionInstruction({
+    programId,
+    keys: [
+      w(oracle.address),
+      w(stakeVault.address),
+      ro(protocol.address),
+      w(daoTreasury.address),
+      w(addr(args.creator)),
+      ro(TOKEN_PROGRAM_ID),
+    ],
+    data: withDisc(Ix.SweepOracle, u64LE(args.nonce)),
+  });
+}

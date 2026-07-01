@@ -19,7 +19,7 @@ import {
   decodeError,
 } from "../src/constants.js";
 
-describe("parity guard: Ix discriminants (instruction.rs 0..=21)", () => {
+describe("parity guard: Ix discriminants (instruction.rs 0..=22)", () => {
   // Pinned from programs/kassandra/src/instruction.rs.
   const PINNED: Record<string, number> = {
     SubmitFact: 0,
@@ -44,6 +44,7 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=21)", () => {
     ClaimFactVote: 19,
     CloseAiClaim: 20,
     CloseMarket: 21,
+    SweepOracle: 22,
   };
 
   it("matches every Ix by name and value", () => {
@@ -52,10 +53,10 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=21)", () => {
     }
   });
 
-  it("has exactly 22 instructions (0..=21), no more, no fewer", () => {
+  it("has exactly 23 instructions (0..=22), no more, no fewer", () => {
     const numericValues = Object.values(Ix).filter((v) => typeof v === "number");
     expect(numericValues.sort((a, b) => (a as number) - (b as number))).toEqual(
-      Array.from({ length: 22 }, (_, i) => i),
+      Array.from({ length: 23 }, (_, i) => i),
     );
   });
 });
@@ -115,7 +116,7 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
   });
 });
 
-describe("parity guard: KassandraError (error.rs 0..=32)", () => {
+describe("parity guard: KassandraError (error.rs 0..=35)", () => {
   // Pinned from programs/kassandra/src/error.rs.
   const PINNED: Record<string, number> = {
     NotImplemented: 0,
@@ -151,6 +152,9 @@ describe("parity guard: KassandraError (error.rs 0..=32)", () => {
     EscrowNotEmpty: 30,
     InvalidFutarchyDao: 31,
     DaoAuthorityMismatch: 32,
+    SweepGraceNotElapsed: 33,
+    GovernanceNotSet: 34,
+    InvalidTreasury: 35,
   };
 
   it("matches every KassandraError by name and value", () => {
@@ -159,9 +163,9 @@ describe("parity guard: KassandraError (error.rs 0..=32)", () => {
     }
   });
 
-  it("has exactly 33 errors (0..=32)", () => {
+  it("has exactly 36 errors (0..=35)", () => {
     const numericValues = Object.values(KassandraError).filter((v) => typeof v === "number");
-    expect(numericValues.length).toBe(33);
+    expect(numericValues.length).toBe(36);
   });
 
   it("decodeError maps a custom code to its name + a non-empty message", () => {

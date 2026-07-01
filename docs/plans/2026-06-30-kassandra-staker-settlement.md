@@ -562,18 +562,34 @@ Full suite **235 passed / 0 failed** (228 baseline + 5 e2e + 2 new fuzz arms);
 - Emission minted at creation from the reservoir (fee-burn boost, mint-authority
   guard, disabled-at-genesis) — `tests/emissions.rs`.
 - Account closure — `close_ai_claim` (order-independent) + `close_market` (escrow
-  `CloseAccount` + Market close).
+  `CloseAccount` + Market close) + **`sweep_oracle`** (grace-gated dust sweep +
+  terminal `Oracle`/`stake_vault` closure — see below, DONE 2026-07-01).
 - KASS conservation sourced from `stake_vault` / `slashed_amount` / resolution
   stamps (NEVER `total_oracle_stake`), proven by the e2e sweeps + the
   independent-reference fuzz (Resolved + InvalidDeadend + deadend-after-settled-
   challenge, all with emission).
 
+**Dust sweeping + terminal-account closure — DONE (2026-07-01, dust-sweep milestone):**
+- **`sweep_oracle` (Ix 22)** — permissionless, grace-gated. Once the oracle is
+  TERMINAL (`Resolved`/`InvalidDeadend`) AND `now >= oracle.phase_ends_at +
+  SWEEP_GRACE` (30 days), it transfers the ENTIRE residual `stake_vault` balance
+  (the bounded floor/ceil dust + any forfeited no-show principal) to the **DAO
+  treasury** = `ATA(dao_authority, kass_mint)` (oracle-PDA-signed `Transfer`),
+  then closes the vault (SPL `CloseAccount`) and the `Oracle` PDA — both rents
+  (~0.0057 + ~0.0020 SOL) refunded to `oracle.creator`. Requires
+  `governance_set == 1` (else `GovernanceNotSet`) and validates the passed
+  treasury == the canonical ATA (else `InvalidTreasury`); before-grace →
+  `SweepGraceNotElapsed`. Idempotent by closure. Errors 33/34/35, SDK
+  `sweepOracle` builder.
+- **FORFEITURE TRADE-OFF (stark):** there is NO outstanding-claims counter. A
+  staker who never claims within the generous 30-day grace **FORFEITS their
+  unclaimed KASS principal** — it is swept to the DAO treasury with the dust —
+  **AND forfeits their per-account rent**. Their later claim then fails because
+  the `Oracle` is closed. This is deliberate: the long grace makes a no-show a
+  genuine abandonment, not a race, and the reap can never run before the fixed,
+  publicly known instant `phase_ends_at + SWEEP_GRACE`.
+
 **Deferred (known, documented):**
-- **Dust sweeping** — floor-division remainders (bucket split + pro-rata) and the
-  conservation-safe surpluses (disqualified forfeit remainder, ceil-slash margin)
-  remain in `stake_vault`, claimable by no one this milestone. A future
-  governance sweep can reclaim the residual (noted in `reward.rs` + "Out of
-  scope"). Always an under-pay — never an over-pay, so no claimant is ever short.
 - KASS bootstrapping presale-avoidance beyond the emission curve; the runner/SDK/
   app; MetaDAO proposal-lifecycle on a real validator; v0.6 market migration
   (all per the original Out-of-scope).
@@ -613,5 +629,7 @@ that (see `docs/plans/2026-06-30-kassandra-deadend-settlement.md`):
   driven to a Tie dead-end with a rejected fact + a slashed approve-voter + an agreed
   fact, then claimed; proves the floor-credit-vs-ceil-forfeit dust is conservation-
   safe end-to-end, plain AND governance-resolved), and `invariants.rs` Arms E/F.
-- **Still deferred:** dust sweeping / closing the terminal Oracle + `stake_vault`
-  accounts — the NEXT milestone.
+- **Follow-up DONE:** dust sweeping / closing the terminal Oracle + `stake_vault`
+  accounts — shipped as the dust-sweep milestone (`sweep_oracle`, Ix 22; see the
+  covered-vs-deferred section above and
+  `docs/plans/2026-07-01-kassandra-dust-sweep.md`).
