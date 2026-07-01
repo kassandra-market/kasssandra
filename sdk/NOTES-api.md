@@ -135,3 +135,57 @@ strings) maps to **`@solana/kit`**, not to web3.js v3. Two viable styles going f
 Both are available from the installed deps. Recommendation: pick one consistently in D1
 (kit-native is the lower-friction path for litesvm, but web3.js v3 is what the plan
 pins as the client lib — the bridge makes it a non-issue either way).
+
+## v0 transactions + Address Lookup Tables (I2) — `src/v0.ts`
+
+`@solana/web3.js@3.0.0-rc.2` DOES export the classic ALT/v0 API (confirmed in
+the installed `lib/index.d.ts`, NOT guessed). The near-cap finalizes
+(`finalizeProposals` / `finalizeOracle`) inline the FULL proposer set as account
+metas; past ~28 proposers a legacy compiled message exceeds the 1232-byte packet
+(`PACKET_DATA_SIZE`, also exported), so a near-cap set (`MAX_PROPOSERS = 60`)
+overflows. The v0/ALT path packs the read-only proposer PDAs into a lookup table
+and references them by a 1-byte index instead of a 32-byte inline key.
+
+**Exact symbols/signatures used (`src/v0.ts`):**
+
+- `AddressLookupTableProgram.createLookupTable(params: { authority: Address;
+  payer: Address; recentSlot: bigint | number }): Promise<[TransactionInstruction,
+  Address]>` — **ASYNC**; returns `[createIx, lookupTableAddress]`. `recentSlot`
+  is read from `connection.getSlot()` (must be < the slot the create ix executes
+  in — true since slots advance before the confirmed tx).
+- `AddressLookupTableProgram.extendLookupTable(params: { lookupTable: Address;
+  authority: Address; payer?: Address; addresses: Address[] }):
+  TransactionInstruction` — **SYNC**; the extend ix itself inlines each 32-byte
+  key, so the address list is CHUNKED (`DEFAULT_EXTEND_CHUNK = 30`, one extend
+  tx each).
+- `connection.getAddressLookupTable(key: Address):
+  Promise<RpcResponseAndContext<AddressLookupTableAccount | null>>` — fetch the
+  resolved table after creation. `AddressLookupTableAccount` has `.key`,
+  `.state.addresses`, `.state.lastExtendedSlot`, and `.isActive()`.
+- `new TransactionMessage({ payerKey, instructions, recentBlockhash })
+    .compileToV0Message(lookupTableAccounts?: AddressLookupTableAccount[]):
+    MessageV0` — read-only, non-signer, non-programId keys present in a supplied
+  ALT are replaced by `addressTableLookups` (readonlyIndexes). `MessageV0.version
+  === 0`; `compileToLegacyMessage()` is the legacy comparison used in the unit test.
+- `new VersionedTransaction(message: VersionedMessage)`; `.sign(signers:
+  MessagePartialSigner[])` — **ASYNC** (a `Keypair[]`); `.serialize(): Uint8Array`
+  — **SYNC** (note: differs from the legacy `Transaction.serialize()` which is
+  async). Sent via `connection.sendRawTransaction(bytes, ...)`.
+
+**ALT activation is 2+ txs + a slot wait.** A lookup table is only usable in a v0
+tx once it is on-chain AND at least one slot has passed since its last extend
+(the added addresses become active the FOLLOWING slot). `createProposerAlt`
+polls `getAddressLookupTable` until all addresses are present AND
+`getSlot() > state.lastExtendedSlot`. This makes the path **live-cluster /
+surfpool only — NOT litesvm** (no ALT resolution / slot progression). On
+surfpool, boot with `blockProductionMode: "clock"` + a fast `slotTimeMs` so the
+slot advances over wall-clock (the slot-vs-timestamp finding: `surfnet_timeTravel`
+moves `getSlot`/`unix_timestamp` but the execution slot only advances in clock
+mode). The dispute-core time gates still cross via `advanceToUnix`/timeTravel.
+
+**Public API** (`src/v0.ts`, re-exported from the barrel): `compileV0Message`
+(pure, offline-testable), `createProposerAlt`, `sendV0`, and the one-shot
+`sendFinalizeViaAlt({ connection, payer, instruction, lookupAddresses,
+prependInstructions?, signers?, confirm?, extendChunkSize? })`. Proven in
+`test/surfpool/v0-alt-e2e.test.ts` (a 40-proposer legacy finalize overflows;
+the v0+ALT finalize resolves the oracle) + offline in `test/v0.test.ts`.

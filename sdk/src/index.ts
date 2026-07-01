@@ -37,6 +37,9 @@ export * from "./instructions/index.js";
 // web3.js v3 ↔ litesvm transaction bridge (for local testing).
 export * from "./litesvm-interop.js";
 
+// v0-tx + Address Lookup Table path for near-cap finalizes (live-cluster only).
+export * from "./v0.js";
+
 // Runner → SDK bridge: submitAiClaimFromRunner + the runner-payload parity guard.
 export * from "./runner-bridge.js";
 

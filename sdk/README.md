@@ -148,13 +148,22 @@ Meteora / Squads), `CONFIG` (default governable params), and the sentinels
 
 ## Known limitations / future work
 
-- **Legacy transactions only — large `finalizeProposals` / `finalizeOracle` can
-  overflow the packet.** The SDK builds legacy (pre-v0) transactions. These
-  instructions append the **full proposer set** as an account tail; a near-cap
-  proposer set (`MAX_PROPOSERS == 60`) blows past a legacy transaction's
-  1232-byte packet limit. Such calls need a **versioned (v0) transaction + an
-  Address Lookup Table** to fit the accounts — not yet provided here. Small/
-  moderate proposer sets work fine as legacy txs.
+- **Near-cap `finalizeProposals` / `finalizeOracle` — SUPPORTED via a v0-tx +
+  Address Lookup Table path (`src/v0.ts`).** These instructions append the
+  **full proposer set** as an account tail; past ~28 proposers a *legacy*
+  transaction's compiled message exceeds the 1232-byte packet (each key inlines
+  32 bytes), and a near-cap set (`MAX_PROPOSERS == 60`) overflows outright.
+  `src/v0.ts` removes that limit: `sendFinalizeViaAlt({ connection, payer,
+  instruction, lookupAddresses })` publishes an Address Lookup Table over the
+  proposer PDAs and sends the finalize as a **versioned (v0) transaction** that
+  references those keys by 1-byte index (or use the two-step `createProposerAlt`
+  + `sendV0`). Small/moderate proposer sets still work fine as plain legacy txs.
+  **Caveat:** ALT setup is inherently **2+ transactions + a one-slot wait** (the
+  create tx, chunked extends, then the table becomes usable the following slot),
+  so this path is **live-cluster / surfpool only — NOT litesvm** (no ALT
+  resolution / slot progression). Proven end-to-end in
+  `test/surfpool/v0-alt-e2e.test.ts` (a 40-proposer legacy finalize overflows;
+  the v0+ALT finalize resolves the oracle).
 - **MetaDAO market composition is caller-supplied.** `openChallenge` (25
   accounts) and `settleChallenge` (21 accounts) take the externally-composed
   MetaDAO conditional-vault / AMM / mint accounts as inputs — the SDK derives
@@ -175,6 +184,7 @@ src/
   accounts/             the 7 Pod account decoders (+ common readers)
   instructions/         the 22 builders (lifecycle / dispute / challenge / settlement)
   litesvm-interop.ts    web3.js v3 -> litesvm transaction bridge
+  v0.ts                 v0-tx + Address Lookup Table path (near-cap finalizes)
   index.ts              the public barrel
 examples/quickstart.ts  runnable end-to-end example
 test/                   unit + parity + litesvm end-to-end

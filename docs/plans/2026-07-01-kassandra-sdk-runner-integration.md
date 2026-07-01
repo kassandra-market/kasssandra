@@ -95,3 +95,52 @@ Gated (`KASSANDRA_E2E=1`) surfpool E2E driving all 6 SETTLEMENT builders through
 **Real vs seeded:** every settlement builder + the dispute core is REAL over RPC; seeded (documented in the file header): the SPL mints/token accounts, the governance handoff's `kass_dao` account (fabricated futarchy-owned + Dao disc so the REAL `set_governance` validates — no futarchy program is deployed in a standalone simnet, and `set_governance` does no CPI, only owner/disc/PDA checks), the treasury ATA, and `close_market`'s settled-Market/escrow bytes. The disqualified-proposer claim row (→ 0) needs a real `settle_challenge` disqualify (forked AMMs) and stays covered by `challenge-market-e2e` (asserts `slashed_amount == bond − kass_fee`) + Rust `settlement_e2e`; the duplicate-dominant fact rows stay covered by Rust `settlement_e2e` tests 6-7.
 
 **No SDK↔program mismatch:** all 6 builders were accepted by the real program and their on-chain entitlement/close/sweep effects matched the reimplemented `reward.rs` math. Default `pnpm test` stays 102 offline.
+
+## I2 delta log — DONE (2026-07-01): `sdk/src/v0.ts` + tests
+
+**New module `sdk/src/v0.ts`** (barrel-exported) — a v0-tx + Address Lookup Table
+path removing the legacy near-cap-finalize overflow. Uses the CLASSIC web3.js
+v3 ALT/v0 API confirmed against the installed `lib/index.d.ts` (NOT guessed):
+`AddressLookupTableProgram.createLookupTable` (async → `[ix, address]`) +
+`extendLookupTable` (sync, CHUNKED at `DEFAULT_EXTEND_CHUNK = 30`), poll
+`connection.getAddressLookupTable` until active (all addresses present AND
+`getSlot() > lastExtendedSlot`), then
+`new TransactionMessage(...).compileToV0Message([alt])` →
+`new VersionedTransaction(msg)` → `.sign([...])` (async) → `.serialize()` (sync,
+unlike the legacy async serialize) → `sendRawTransaction`. Public API:
+`compileV0Message` (pure/offline), `createProposerAlt`, `sendV0`, and the
+one-shot `sendFinalizeViaAlt({ connection, payer, instruction, lookupAddresses,
+prependInstructions?, signers?, confirm? })`. No program change.
+
+**Overflow arithmetic:** `finalize*` inline the full proposer set (32 B/key), so
+a legacy compiled message exceeds the 1232-byte packet (`PACKET_DATA_SIZE`) at
+~28 proposers; a near-cap set (`MAX_PROPOSERS = 60`) overflows outright. The v0
+message references the read-only proposers via `addressTableLookups`
+(readonlyIndexes) — 1 byte each.
+
+**Offline unit test `test/v0.test.ts`** (default suite, hermetic): builds a
+40-proposer `finalizeOracle`; asserts (1) the legacy compiled message > 1232 B,
+(2) `compileV0Message` with a MOCK `AddressLookupTableAccount` yields a
+`version === 0` message with one `addressTableLookups` entry whose 40
+`readonlyIndexes` resolve back to the exact proposer PDAs, (3) the v0 message
+fits the packet and is smaller than legacy.
+
+**Surfpool proof `test/surfpool/v0-alt-e2e.test.ts`** (gated `KASSANDRA_E2E=1`,
+`clock` block-production + `slotTimeMs: 10` so the ALT activates). Standalone
+simnet: init_protocol → create oracle → propose × **40** (same option,
+uncontested) → advance. FIRST asserts the LEGACY `finalize_proposals` tx over
+the 40-proposer set THROWS on serialize (packet overflow) and leaves the oracle
+in `Proposal`. THEN `sendFinalizeViaAlt` (with a `setComputeUnitLimit(600k)`
+prepend — 40-proposer finalize exceeds the 200k CU default) publishes the ALT +
+sends the v0 finalize → oracle decodes to `Resolved` with the agreed option; the
+ALT holds all 40 addresses. Count 40 is documented: past the ~28 overflow
+threshold, under MAX_PROPOSERS = 60, reliably fundable/proposable on the simnet.
+Run: `KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/v0-alt-e2e.test.ts` →
+1 passed (~48s).
+
+**Docs:** `NOTES-api.md` gains a "v0 transactions + Address Lookup Tables" section
+(exact symbols/signatures + the 2-txs-and-a-slot-wait + live-cluster-only
+caveat); `README.md`'s "Legacy transactions only" known-limitation flipped to
+SUPPORTED-via-`src/v0.ts` with the caveat + layout entry. Default `pnpm test`
+now 104 offline (102 + 2); `pnpm typecheck` clean. Untouched: the I1 settlement
+test, the I3 runner files, and the on-chain program.
