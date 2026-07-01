@@ -696,12 +696,24 @@ export interface CollectMeteoraDammFeesArgs {
 }
 
 /**
- * `collect_meteora_damm_fees` — the futarchy program sweeps the DAO's Meteora
- * cp-amm position fees to the MetaDAO protocol vault. It builds a cp-amm
- * `claim_position_fee` CPI, stages it in the DAO's Squads multisig
- * (`vault_transaction_create` → `proposal_create` → `proposal_approve` →
- * `vault_transaction_execute`, all CPI'd internally), so the DAO's Squads vault
- * signs the actual claim. NO positional args (disc only).
+ * `collect_meteora_damm_fees` — **MetaDAO's protocol-rake op; NOT a Kassandra
+ * dependency.** The futarchy program sweeps a DAO's Meteora cp-amm position fees
+ * to **MetaDAO's OWN protocol vault** (`token_{a,b}_account` are
+ * `associated_token::authority = metadao_multisig_vault::ID` = `6awyHMsh…`),
+ * gated on **MetaDAO's keeper** (`require_keys_eq!(admin, metadao_admin::ID =
+ * tSTp6B6k…)` under `production`). It builds a cp-amm `claim_position_fee` CPI,
+ * stages it in the DAO's Squads multisig (`vault_transaction_create` →
+ * `proposal_create` → `proposal_approve` → `vault_transaction_execute`, all CPI'd
+ * internally), so the DAO's Squads vault signs the actual claim. NO positional
+ * args (disc only).
+ *
+ * **Kassandra does NOT call this.** The DAO collects its OWN Meteora treasury fees
+ * ADMIN-FREE — position owned by the DAO's Squads vault, claim authorized by the
+ * DAO's own futarchy governance, fees → the DAO's OWN ATAs — via the M1
+ * `meteora.claimPositionFee` builder wrapped in a Squads `vault_transaction`
+ * (see `test/surfpool/dao-meteora-treasury-e2e.test.ts` / NOTES.md "D1"). This
+ * builder is kept only as a faithful, wire-verified pin of the deployed
+ * instruction (F2a byte test + F2b live admin-gate + D2 litesvm full-drive).
  *
  * Wire format PINNED from TWO authoritative sources that AGREE exactly (27
  * accounts incl. the `#[event_cpi]` tail, no args):

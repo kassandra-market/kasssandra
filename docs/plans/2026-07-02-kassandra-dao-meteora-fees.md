@@ -59,6 +59,53 @@ SDK/test/docs only; default `pnpm test` stays green (offline; D2 litesvm is offl
 
 ## Delta log
 
+### D1 — DONE (DAO-owned admin-free Meteora fee claim; driven LIVE on the surfpool fork)
+
+The FIX is proven end-to-end. `sdk/test/surfpool/dao-meteora-treasury-e2e.test.ts`
+(gated `KASSANDRA_E2E=1`, port 8924) forks mainnet and drives, through the REAL
+deployed programs (`skipPreflight:false`, confirm-throws): a real `initialize_dao`
+→ the DAO + its Squads multisig/vault; then a cp-amm position **OWNED BY the DAO's
+Squads vault** and a governance-authorized `claim_position_fee` sweeping the fee to
+the DAO's OWN ATAs. 3 tests, ~14s live, 3/3 green on 3 consecutive runs.
+
+- **Ownership route — (a), no NFT transfer.** cp-amm `initialize_pool` mints the
+  FUNDED first position's NFT to `creator`, an `UncheckedAccount` with
+  `token::authority = creator` (`MeteoraAg/damm-v2@bdd8a1e`
+  `ix_initialize_pool.rs:74,325`). Calling it with `creator == the Squads vault`
+  makes the vault the outright owner (payer funds the liquidity). VERIFIED by
+  decoding the position NFT account's authority (owner @32) == the vault +
+  `decodePosition` (`pool`/`nftMint`/`unlockedLiquidity == INIT_LIQUIDITY`).
+- **Fee accrual.** A→B swaps accrue a token-B (quote) LP fee (F1 finding); a
+  payer-owned probe position is checkpointed to DECODE `fee_b_pending > 0`.
+- **Governance-authorized claim.** The M1 `meteora.claimPositionFee` (owner == the
+  vault, recipients == the DAO's OWN vault-owned ATAs) is compiled into a Squads
+  compact `TransactionMessage` (a generic `compileSquadsMessage` translating the
+  web3 ix → `[w-signers, ro-signers, w-non-signers, ro-non-signers]`, u16 data
+  prefix) and staged via `vault_transaction_create` + `proposal_create`. **Squads
+  multisig config = threshold 1 with the Dao PDA as the SOLE Vote member** (NOTES.md
+  G3 addendum), so the ONLY way to approve is a passing futarchy proposal — the
+  test runs G3's exact swap-driven PASS TWAP verdict, `finalize_proposal`
+  CPI-approves the Squads proposal, and `vault_transaction_execute` (member = the
+  public permissionless member) `invoke_signed`s the cp-amm claim AS THE VAULT
+  (`assert_authority`: `signer == position_nft_account.owner == vault`).
+- **Asserted:** the DAO's OWN ATA rose by a NONZERO fee, the vault position's
+  `fee_{a,b}_pending` cleared to 0, and NO `metadao_admin` (`tSTp6B6k…`) /
+  `metadao_multisig_vault` (`6awyHMsh…`) appears in ANY account of the inner claim,
+  the staged Squads message, or the execute remaining-accounts (`assertNoMetaDao`).
+- **No blocker, no M1 bug.** Both risks cleared: the Squads vault CAN own a cp-amm
+  position (route (a)) and a Squads `vault_transaction` CAN wrap the cp-amm claim.
+  The M1 module + program were not modified.
+
+### D3 — DONE (F2a re-documented as MetaDAO's protocol-rake op)
+
+`collect_meteora_damm_fees` is re-scoped honestly across `sdk/src/futarchy/NOTES.md`
+(F2a scope banner + a new "D1" subsection), `sdk/src/futarchy/instructions.ts`
+(the `collectMeteoraDammFees` docstring), `sdk/README.md`, and
+`sdk/test/surfpool/README.md`: it is **MetaDAO's protocol-rake op** (fees →
+MetaDAO's vault `6awyHMsh…`, gated on MetaDAO's keeper `tSTp6B6k…`), kept +
+wire-verified (F2a bytes + F2b live admin-gate + D2 litesvm full-drive) but **NOT a
+Kassandra dependency** — the DAO uses the admin-free D1 path.
+
 ### D2 — DONE (litesvm full-drive to COMPLETION; the F2b-deferred sweep is now proven)
 
 litesvm CAN host the 3-program multi-CPI env. `sdk/test/meteora-collect-litesvm.test.ts`

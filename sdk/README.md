@@ -149,18 +149,33 @@ transactions off-chain):
   **verified against the DEPLOYED mainnet program** by the gated fork E2E
   `test/surfpool/meteora-spot-e2e.test.ts` (drives init→add→swap→create_position
   through the real cp-amm + decodes a genuine mainnet pool). No longer deferred.
+
+  **DAO treasury-fee collection (the supported path).** The DAO collects its OWN
+  Meteora LP fees **admin-free** via its Squads vault: `claimPositionFee` with the
+  position OWNED BY the vault (created by `initializePool`/`createPosition` with
+  `creator`/`owner == the vault`), authorized by the DAO's own futarchy governance
+  (a passing proposal → `finalize_proposal` approves a Squads `vault_transaction`
+  → `vault_transaction_execute` `invoke_signed`s the claim as the vault). Proven
+  end-to-end LIVE on the fork by
+  `test/surfpool/dao-meteora-treasury-e2e.test.ts` (D1): the DAO's OWN ATA
+  receives a NONZERO fee, the position's pending fees clear, and NO MetaDAO admin
+  (`tSTp6B6k…`) / vault (`6awyHMsh…`) appears anywhere. **This is the Kassandra
+  treasury path** — `collectMeteoraDammFees` below is NOT.
 - **`ammV04.*`** — MetaDAO v0.4 AMM (create/add/swap/crank + TWAP decode).
 - **`futarchy.*`** — futarchy v0.6 + Squads v4 builders/PDAs (see
-  `src/futarchy/NOTES.md`). Includes **`collectMeteoraDammFees`** — the
-  futarchy→Meteora DAO-treasury fee-collection CPI (27-account wire format pinned
-  from the deployed v0.6.1 source + the on-chain IDL). It is **wire-verified**
-  (offline byte test) and **layout-verified LIVE** against the deployed futarchy by
-  the gated fork E2E `test/surfpool/futarchy-meteora-treasury-e2e.test.ts`, which
-  drives the builder to the deployed program's admin gate (rejected at
-  `InvalidAdmin`/6020, which `try_accounts` reaches only AFTER accepting the full
-  27-account layout). The **full live
-  sweep is DEFERRED** — it requires the MetaDAO-controlled `production` admin
-  signer (`tSTp6B6k…`), so it can't be driven on a fork.
+  `src/futarchy/NOTES.md`). Includes **`collectMeteoraDammFees`** — **MetaDAO's
+  protocol-rake op**, which sweeps a DAO's Meteora fees into **MetaDAO's OWN vault**
+  (`6awyHMsh…`) gated on **MetaDAO's keeper** (`tSTp6B6k…`). **Kassandra does NOT
+  call it** (the DAO uses the admin-free D1 path above); the builder is KEPT +
+  wire-verified as a faithful pin of the deployed instruction: the 27-account wire
+  format (pinned from the deployed v0.6.1 source + the on-chain IDL) is
+  **byte-verified** (offline test), **layout-verified LIVE** to the deployed
+  program's admin gate (F2b, `test/surfpool/futarchy-meteora-treasury-e2e.test.ts`,
+  rejected at `InvalidAdmin`/6020 — reached only AFTER `try_accounts` accepts all
+  27 accounts), and **full-driven to completion** in litesvm via
+  `withSigverify(false)` (D2, `test/meteora-collect-litesvm.test.ts`). The **full
+  live sweep on a fork is DEFERRED** — it requires the MetaDAO-controlled
+  `production` admin signer, so it can't be driven on a fork.
 
 ### Errors
 

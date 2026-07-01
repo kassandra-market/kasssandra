@@ -375,6 +375,46 @@ Squads permissionless-member chain — so a real sweep needs a MetaDAO-admin
 context. The builder is wire-verified (F2a byte test) + layout-verified live (this
 F2b reach-the-admin-gate proof); the live sweep is deferred.
 
+### D1 — DAO-owned admin-free Meteora fee claim (the FIX; driven LIVE on surfpool)
+
+The CORRECT/supported treasury path — the DAO collects its OWN Meteora fees
+WITHOUT any MetaDAO admin — is proven end-to-end LIVE on the mainnet fork by
+`sdk/test/surfpool/dao-meteora-treasury-e2e.test.ts`. It does NOT use
+`collect_meteora_damm_fees` at all. Instead it composes the DAO's Squads
+governance directly with the M1 cp-amm `claim_position_fee` builder:
+
+1. **The Squads vault OWNS the cp-amm position.** cp-amm `initialize_pool` mints
+   the FUNDED first position's NFT to `creator`, which is an `UncheckedAccount`
+   with `token::authority = creator` (see
+   `MeteoraAg/damm-v2@bdd8a1e` `ix_initialize_pool.rs:74,325`), so calling it with
+   `creator == the DAO's Squads vault` makes the vault the position owner outright
+   — the payer funds the liquidity but the NFT authority is the vault. Verified by
+   decoding the position NFT account's authority (owner @ offset 32) == the vault.
+   (Route (a); no NFT transfer needed. `create_position` is identical —
+   `owner: UncheckedAccount`, `token::authority = owner` — for the empty case.)
+2. **Fees accrue + are claimed via the DAO's OWN governance.** A→B swaps accrue a
+   token-B (quote) LP fee. The cp-amm `claim_position_fee` ix (`signer == the
+   vault`, recipients == the DAO's OWN vault-owned ATAs — NOT `6awyHMsh…`) is
+   compiled into a Squads compact `TransactionMessage` and staged via
+   `vault_transaction_create` + `proposal_create`. A REAL futarchy proposal is
+   then driven to a PASS TWAP verdict, whose `finalize_proposal` CPI-approves the
+   Squads proposal (**threshold 1, the sole Vote member is the Dao PDA — so a
+   passing futarchy proposal is the ONLY way the DAO's vault ever acts; there is
+   no shortcut approve**). `vault_transaction_execute` (member = the public
+   permissionless member) then `invoke_signed`s the cp-amm claim AS THE VAULT
+   (`cp-amm` sees `signer == position_nft_account.owner == vault` → its
+   `assert_authority` passes). This is EXACTLY the CPI the MetaDAO op does
+   internally, but authorized by the DAO's own futarchy verdict and paying the DAO,
+   not MetaDAO.
+3. **Asserted:** the DAO's OWN ATA balance rose by a NONZERO fee; the vault
+   position's `fee_{a,b}_pending` cleared to 0; and NO `metadao_admin` (`tSTp6B6k…`)
+   or `metadao_multisig_vault` (`6awyHMsh…`) appears in ANY account of the inner
+   claim, the staged Squads message, or the `vault_transaction_execute`
+   remaining-accounts. DAO-owned, governance-authorized, admin-free. ~14s live.
+
+**⇒ This is the Kassandra treasury path.** `collect_meteora_damm_fees` (F2a/F2b/D2)
+is MetaDAO's separate protocol-rake op — kept + verified, but not a dependency.
+
 ### D2 — litesvm FULL-DRIVE to COMPLETION (the sweep F2b had to defer)
 
 The DEFERRED full sweep is now **driven to COMPLETION** — past the admin gate,

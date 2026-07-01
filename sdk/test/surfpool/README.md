@@ -41,14 +41,15 @@ KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/challenge-market-e2e.test.ts
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/futarchy-governance-e2e.test.ts
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/meteora-spot-e2e.test.ts
 KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/futarchy-meteora-treasury-e2e.test.ts
+KASSANDRA_E2E=1 pnpm exec vitest run test/surfpool/dao-meteora-treasury-e2e.test.ts
 ```
 
 The harness (`harness.ts` `SurfpoolHarness`) spawns `surfpool start --no-tui
 --block-production-mode transaction --no-deploy [--network mainnet]`, polls
 `getHealth`, writes the `.so` at the fixed id, and tears the process down. Each
 suite owns a distinct port (smoke 8899, lifecycle 8901, challenge 8920,
-futarchy-governance 8921, meteora-spot 8922, futarchy-meteora-treasury 8923) so
-they never collide.
+futarchy-governance 8921, meteora-spot 8922, futarchy-meteora-treasury 8923,
+dao-meteora-treasury 8924) so they never collide.
 
 ## Files
 
@@ -63,7 +64,8 @@ they never collide.
 | `challenge-market-e2e.test.ts` | T4 + CS2: the challenge-market path against **forked-mainnet** MetaDAO programs — opens a challenge, then drives `settle_challenge` end to end through a **real swap-driven v0.4 AMM TWAP** (both arms: disqualify + survive). Runs in `clock` block-production mode so the on-chain execution slot advances for the slot-based AMM crank. |
 | `futarchy-governance-e2e.test.ts` | G3: the FULL futarchy governance loop against **forked-mainnet** MetaDAO programs — bootstrap → staged Squads VaultTransaction → proposal → real TWAP verdict → `vault_transaction_execute` → Kassandra `set_config` + `resolve_deadend` applied on-chain. Requires futarchy **v0.6.1** (the deployed program). |
 | `meteora-spot-e2e.test.ts` | M2 + F1: the Meteora **DAMM v2 (cp-amm)** spot path against the **forked-mainnet** real program — clones a real public `Config`, drives `initializePool → addLiquidity → swap → createPosition → claimPositionFee → removeLiquidity` over RPC, and decodes the resulting `Pool`/`Position` to VERIFY the M1 zero-copy offsets (`sqrt_price`@456, reserves@680/688, `unlocked_liquidity`@152, `fee_b_pending`@144) against the DEPLOYED binary. F1 adds a NONZERO fee claim + a full liquidity removal. Also decodes a genuine mainnet pool. |
-| `futarchy-meteora-treasury-e2e.test.ts` | F2b: the futarchy→Meteora DAO-treasury fee-collection (`collect_meteora_damm_fees`) as a **documented-partial with a live deployed-verification proof**. The full sweep can't be driven on a fork (the `production` handler requires the MetaDAO-controlled `admin` signer `tSTp6B6k…`), so instead it **reaches the admin gate**: real `initialize_dao` (genuine `Dao` + Squads multisig/vault) + fabricated fee-recipient ATAs → the F2a `collectMeteoraDammFees` builder is submitted to the DEPLOYED futarchy with a STAND-IN admin → asserted rejected SPECIFICALLY at `InvalidAdmin` (Anchor custom **6020**, `collect_meteora_damm_fees.rs:119`). Since `#[access_control(validate())]` runs only AFTER `try_accounts` accepts the full 27-account layout (order/count/roles + the typed-account, PDA-seed & address constraints), reaching 6020 PROVES the 27-account wire format is accepted on the deployed binary. Plus a real-mainnet-`Dao` cross-verification of the Squads PDA derivations. Full live sweep DEFERRED (production admin). |
+| `futarchy-meteora-treasury-e2e.test.ts` | F2b: the futarchy→Meteora DAO-treasury fee-collection (`collect_meteora_damm_fees`) as a **documented-partial with a live deployed-verification proof**. The full sweep can't be driven on a fork (the `production` handler requires the MetaDAO-controlled `admin` signer `tSTp6B6k…`), so instead it **reaches the admin gate**: real `initialize_dao` (genuine `Dao` + Squads multisig/vault) + fabricated fee-recipient ATAs → the F2a `collectMeteoraDammFees` builder is submitted to the DEPLOYED futarchy with a STAND-IN admin → asserted rejected SPECIFICALLY at `InvalidAdmin` (Anchor custom **6020**, `collect_meteora_damm_fees.rs:119`). Since `#[access_control(validate())]` runs only AFTER `try_accounts` accepts the full 27-account layout (order/count/roles + the typed-account, PDA-seed & address constraints), reaching 6020 PROVES the 27-account wire format is accepted on the deployed binary. Plus a real-mainnet-`Dao` cross-verification of the Squads PDA derivations. NOTE: `collect_meteora_damm_fees` is **MetaDAO's protocol-rake op** (fees → MetaDAO's vault `6awyHMsh…`, gated on MetaDAO's keeper `tSTp6B6k…`), NOT a Kassandra dependency — the DAO collects its OWN Meteora fees admin-free via D1 below. Full live sweep DEFERRED (production admin). |
+| `dao-meteora-treasury-e2e.test.ts` | **D1: the FIX — a futarchy DAO collects its OWN Meteora treasury fees admin-free**, driven live. Real `initialize_dao` → the DAO's Squads vault; a cp-amm position whose OWNER is that vault (route (a): `initialize_pool` with `creator == the vault` mints the FUNDED first position's NFT straight to the vault — `creator` is an unchecked non-signer, `token::authority = creator`; verified by decoding the NFT account authority == the vault); A→B swaps accrue a NONZERO token-B (quote) LP fee (decoded > 0 on a payer probe). The cp-amm `claim_position_fee` (owner == the vault, recipients == the DAO's OWN vault-owned ATAs) is staged in a Squads `vault_transaction_create → proposal_create`, then a REAL futarchy proposal is driven to a PASS TWAP verdict so `finalize_proposal` CPI-approves the Squads proposal (threshold 1; the sole Vote member is the Dao PDA), then `vault_transaction_execute` (member = the public permissionless member) `invoke_signed`s the claim as the vault. ASSERTS: the DAO's ATA received the accrued fee (NONZERO delta), the vault position's `fee_b_pending` cleared to 0, and NO MetaDAO admin (`tSTp6B6k…`) or MetaDAO vault (`6awyHMsh…`) appears in ANY account of the claim / staged message / execute remaining-accounts. Governance-authorized, admin-free, DAO-owned. |
 
 ## Full futarchy governance (G3)
 
@@ -272,6 +274,43 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
     pool `liquidity` dropped by exactly the removed delta, both tracked reserves
     (`token_a_amount`/`token_b_amount`) fell, and the owner's token accounts rose
     by exactly the reserve deltas (the withdrawn amounts, `> 0` on both sides).
+
+- **DAO-OWNED, ADMIN-FREE Meteora treasury-fee claim on FORKED mainnet (D1) —
+  the FIX for the F2a/F2b MetaDAO-admin dependency.** `dao-meteora-treasury-e2e.test.ts`
+  proves a futarchy DAO collects its OWN Meteora cp-amm LP fees WITHOUT any
+  MetaDAO admin, governance-authorized, end to end over RPC (real futarchy
+  v0.6.1 + Squads v4 + cp-amm):
+  - **The position is genuinely DAO-owned.** `initialize_pool` is called with
+    `creator == the DAO's Squads vault`, so cp-amm mints the FUNDED first
+    position's NFT straight to the vault (cp-amm `creator` is an unchecked
+    non-signer with `token::authority = creator`; the payer funds the liquidity
+    but the NFT authority is the vault) — verified by decoding the position NFT
+    account's authority (owner @32) == the Squads vault. No NFT transfer needed.
+  - **The fee is real + nonzero.** A→B swaps accrue a token-B (quote) LP fee; a
+    payer-owned probe position is checkpointed to DECODE `fee_b_pending > 0`
+    (proof the pool accrues real quote-side fees; the vault position, with larger
+    liquidity, accrues more).
+  - **The claim is authorized by the DAO's own governance (not an admin, not a
+    plain keypair).** The cp-amm `claim_position_fee` (owner == the vault,
+    recipients == the DAO's OWN vault-owned ATAs) is compiled into a Squads
+    compact `TransactionMessage` and staged via `vault_transaction_create` +
+    `proposal_create`. A REAL futarchy proposal is then driven to a PASS TWAP
+    verdict (G3's swap-driven machinery), whose `finalize_proposal` CPI-approves
+    the Squads proposal (threshold 1; the sole Vote member is the Dao PDA — so a
+    passing proposal is the ONLY way the vault acts). Finally
+    `vault_transaction_execute` (member = the public permissionless member)
+    `invoke_signed`s the Meteora claim AS THE VAULT.
+  - **Asserted:** the DAO's OWN ATA balance rose by a NONZERO fee; the vault
+    position's `fee_b_pending`/`fee_a_pending` cleared to 0 (a genuine, non-no-op
+    sweep); and NO MetaDAO admin (`tSTp6B6k…`) or MetaDAO vault (`6awyHMsh…`)
+    appears in ANY account of the inner claim, the staged Squads message, or the
+    `vault_transaction_execute` remaining-accounts (asserted absent). This is the
+    correct/supported treasury path: DAO-owned, governance-authorized, admin-free.
+    Runs in ~14s once surfpool is up. *(Honesty note: as in G3, the TWAP pass
+    margin is thin — deterministic-pass-on-a-fork, not economic width — and the
+    SPL token balances / LP liquidity are `surfnet_setAccount` fabrications; the
+    OWNERSHIP, the governance approval, the vault-signed CPI, and the swept fee
+    are all REAL through the deployed programs.)*
 
 ### Deferred (NOT asserted — documented honestly)
 
