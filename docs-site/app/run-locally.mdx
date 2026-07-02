@@ -1,0 +1,106 @@
+---
+title: "Run the dApp locally"
+description: "Install dependencies, build the SDK, and run the Kassandra web app against localnet, devnet, or mainnet-beta."
+---
+
+The Kassandra dApp is a Vite + React 19 + TypeScript + Tailwind v4 single-page app (`app/package.json`, `app/README.md`), styled in the "Delphi" visual language. It links the hand-written TypeScript SDK via the pnpm workspace (`@kassandra/sdk`, `workspace:*`) and talks to the on-chain program over a wallet-adapter `Connection`.
+
+This page walks through a fresh local setup and lists every project script.
+
+## Prerequisites
+
+- **Node.js** and **pnpm** — the repo is a pnpm workspace (`pnpm-workspace.yaml` lists `sdk` and `app`).
+- A **Solana wallet** browser extension for the write flows (read-only browsing works fully disconnected).
+- For localnet: a local validator or a seeded surfpool on `127.0.0.1:8899`. See [Clusters & RPC](/ops/clusters-and-rpc).
+
+<Note>
+The app imports `@kassandra/sdk` and resolves its types from `sdk/dist/`, which is
+gitignored. On a fresh clone you MUST build the SDK **before** the app's
+typecheck/build, or the SDK import won't resolve (`app/README.md`).
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Install dependencies">
+    From the repo root, install the whole workspace:
+
+    ```bash
+    pnpm install
+    ```
+  </Step>
+  <Step title="Build the SDK first">
+    The app depends on the built SDK artifact in `sdk/dist/`:
+
+    ```bash
+    pnpm --filter @kassandra/sdk build
+    ```
+
+    Or build every workspace package at once:
+
+    ```bash
+    pnpm -r build
+    ```
+  </Step>
+  <Step title="Run the dev server">
+    Start the app with HMR:
+
+    ```bash
+    pnpm --filter app dev
+    ```
+
+    Vite serves the SPA locally. Open `/oracles` to browse, or `/oracles/new` to create an oracle.
+  </Step>
+</Steps>
+
+## Project scripts
+
+Every script below is defined verbatim in `app/package.json`.
+
+| Command | Runs | Purpose |
+| --- | --- | --- |
+| `pnpm --filter app dev` | `vite` | Dev server with hot-module reload. |
+| `pnpm --filter app build` | `tsc -b && vite build && node scripts/verify-css.mjs` | Production build; the `verify-css.mjs` guard asserts the Tailwind v4 plugin actually compiled (fails rather than ship unstyled). |
+| `pnpm --filter app preview` | `vite preview` | Serve the production build locally. |
+| `pnpm --filter app typecheck` | `tsc -b` | Type-check only. |
+| `pnpm --filter app lint` | `oxlint` | Lint. |
+| `pnpm --filter app test` | `vitest run` | Unit tests. |
+| `pnpm --filter app test:e2e` | `KASSANDRA_E2E=1 vitest run` | Gated surfpool end-to-end tests (require a seeded validator). |
+| `pnpm --filter app verify-css` | `node scripts/verify-css.mjs` | Run the CSS guard on its own. |
+
+<Tip>
+The build is route-code-split and vendor-chunked via `vite.config.ts`
+`manualChunks` (`solana`, `sdk`, `react-vendor`), so each page ships as its own
+lazily-loaded chunk (`app/README.md`).
+</Tip>
+
+## Selecting a cluster
+
+The NavBar carries a cluster selector — `localnet`, `devnet`, or `mainnet-beta` (`app/src/lib/cluster.ts`, `type Cluster`). The choice is persisted per-browser in `localStorage` under the key `kassandra:cluster` (`CLUSTER_STORAGE_KEY`); the default is `localnet` (`readStoredCluster()`).
+
+The selected cluster resolves to an RPC endpoint via `endpointFor(cluster)`:
+
+- `localnet` → `import.meta.env.VITE_RPC_URL`, or the default `http://127.0.0.1:8899` (also the surfpool default).
+- `devnet` → `https://api.devnet.solana.com`
+- `mainnet-beta` → `https://api.mainnet-beta.solana.com`
+
+The wallet-adapter `Connection` from `useConnection()` reflects the selected endpoint, so switching clusters re-points every read and write.
+
+To point localnet at a custom RPC (for example a seeded surfpool on another port), set `VITE_RPC_URL` before starting the dev server:
+
+```bash
+VITE_RPC_URL=http://127.0.0.1:8899 pnpm --filter app dev
+```
+
+## Offline preview (mock mode)
+
+There is no standing deployment, so the browse views ship a mock affordance that does **not** touch the real data path (`app/README.md`): set `VITE_MOCK=1` at build/dev time, or append `?mock` to any browse URL (for example `/oracles?mock`). Fixtures live in `app/src/data/mockOracles.ts`. Under `?mock` you can also script write-form states with `&wallet=connected` and `&tx=success|error|reject|failconfirm|slow` (`app/src/lib/mockWrite.ts`).
+
+<CardGroup cols={2}>
+  <Card title="Clusters & RPC" icon="server" href="/ops/clusters-and-rpc">
+    How the app resolves endpoints and how to run a local validator or surfpool.
+  </Card>
+  <Card title="Browse oracles" icon="magnifying-glass" href="/app/browsing">
+    The Landing and Oracles pages — read on-chain oracle state and phase.
+  </Card>
+</CardGroup>

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Kassandra",
+  "description": "A decentralized, AI-assisted optimistic oracle on Solana.",
+  "colors": {
+    "primary": "#7C3AED",
+    "light": "#A78BFA",
+    "dark": "#6D28D9"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": [
+              "index",
+              "guide/what-is-kassandra",
+              "guide/why-optimistic-oracles",
+              "guide/ai-assisted-claims",
+              "guide/quickstart"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/oracles-and-questions",
+              "concepts/lifecycle",
+              "concepts/proposals",
+              "concepts/facts",
+              "concepts/ai-claims",
+              "concepts/challenge-markets",
+              "concepts/economics",
+              "concepts/dead-end-settlement",
+              "concepts/tokens"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/program",
+              "architecture/sdk",
+              "architecture/runner",
+              "architecture/dapp"
+            ]
+          },
+          {
+            "group": "dApp guide",
+            "pages": [
+              "app/run-locally",
+              "app/browsing",
+              "app/create-oracle",
+              "app/participate",
+              "app/finalize-and-crank",
+              "app/challenge",
+              "app/claim-and-close"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "ops/clusters-and-rpc",
+              "ops/deploy-program",
+              "ops/runner",
+              "ops/docs-site"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "contributing/repo-layout",
+              "contributing/build-and-test",
+              "contributing/conventions",
+              "contributing/glossary"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Protocol",
+            "pages": [
+              "protocol/overview",
+              "protocol/instructions",
+              "protocol/accounts",
+              "protocol/phases",
+              "protocol/pdas",
+              "protocol/errors",
+              "protocol/constants"
+            ]
+          },
+          {
+            "group": "Challenge markets",
+            "pages": [
+              "challenge/overview",
+              "challenge/conditional-vaults",
+              "challenge/amms-and-twap",
+              "challenge/composing",
+              "challenge/trading",
+              "challenge/cranking",
+              "challenge/settle",
+              "challenge/economics"
+            ]
+          },
+          {
+            "group": "SDK",
+            "pages": [
+              "sdk/overview",
+              "sdk/instruction-builders",
+              "sdk/account-decoders",
+              "sdk/pdas",
+              "sdk/amm-v04",
+              "sdk/futarchy",
+              "sdk/recipes"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Design doc",
+        "href": "https://github.com/Dodecahedr0x/kassandra/blob/master/docs/plans/2026-06-29-kassandra-design.md"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/Dodecahedr0x/kassandra"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Dodecahedr0x/kassandra"
+    }
+  },
+  "search": {
+    "prompt": "Search the Kassandra docs"
+  }
+}

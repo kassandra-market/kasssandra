@@ -1,0 +1,135 @@
+---
+title: "Quickstart"
+description: "Clone the repo, install the toolchains, build the program and SDK, run the dApp, and follow an oracle through its lifecycle."
+---
+
+This quickstart gets you from a fresh clone to a running dApp, and then walks the
+conceptual path of following an oracle. Every command here matches the repo's `justfile`
+and the `package.json` scripts — nothing invented.
+
+## Prerequisites
+
+<Info>
+  You need a **Rust** toolchain (the workspace pins `channel = "stable"` in
+  `rust-toolchain.toml`) with the Solana `cargo build-sbf` tooling, plus **Node** and
+  **pnpm** for the TypeScript SDK and the dApp. The `runner` is a Rust crate; `sdk` and
+  `app` are the only pnpm workspace members (`pnpm-workspace.yaml`).
+</Info>
+
+| Tool | Used for |
+|---|---|
+| Rust (stable) + `cargo build-sbf` | building the on-chain program (`programs/kassandra`) and the runner |
+| Node + pnpm | building the SDK (`sdk`) and running the dApp (`app`) |
+| A Solana RPC (optional to start) | the app defaults to `localnet` at `http://127.0.0.1:8899` (also the surfpool default) |
+
+## Steps
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone <your-fork-or-repo-url> kassandra
+    cd kassandra
+    ```
+    The monorepo holds `programs/kassandra` (the Pinocchio program), `runner` (the AI
+    runner), `sdk` (the TypeScript client), and `app` (the dApp).
+  </Step>
+
+  <Step title="Build the on-chain program">
+    The repo ships a two-target `justfile`. Build the SBF program with:
+    ```bash
+    just build
+    # equivalent to:
+    # cargo build-sbf --manifest-path programs/kassandra/Cargo.toml
+    ```
+    <Warning>
+      If you plan to run the program tests, run `just build` **before** `cargo test -p
+      kassandra-program`. The LiteSVM tests `include_bytes!` the compiled `.so`, so a stale
+      build silently tests old code. The `just test` target already depends on `build` for
+      this reason.
+    </Warning>
+  </Step>
+
+  <Step title="Build the SDK">
+    The app resolves `@kassandra/sdk` from `sdk/dist/`, which is gitignored — so build the
+    SDK first:
+    ```bash
+    pnpm install
+    pnpm --filter @kassandra/sdk build   # or: pnpm -r build
+    ```
+  </Step>
+
+  <Step title="Run the dApp">
+    Start the Vite dev server (React 19 + TypeScript + Tailwind v4):
+    ```bash
+    pnpm --filter app dev
+    ```
+    The app opens on the local Vite port. Use the NavBar cluster selector to pick
+    `localnet`, `devnet`, or `mainnet-beta` — the choice is persisted in `localStorage`
+    (`app/src/lib/cluster.ts`). For a wallet-free tour, browse any URL with `?mock` (or
+    build with `VITE_MOCK=1`) to load fixtures from `app/src/data/mockOracles.ts`.
+  </Step>
+
+  <Step title="(Optional) Build and run the AI runner">
+    The runner is a standalone Rust crate, not a pnpm member:
+    ```bash
+    cargo build -p kassandra-runner
+    cargo test  -p kassandra-runner        # fully offline + keyless (mock provider)
+    ```
+    Resolve an oracle offline with the deterministic mock, or with real Claude:
+    ```bash
+    kassandra-runner run --config oracle.json --mock       # offline, no key
+    export ANTHROPIC_API_KEY=sk-...
+    kassandra-runner run --config oracle.json              # real model
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Other useful app scripts (`app/package.json`): `pnpm --filter app typecheck`,
+  `pnpm --filter app lint`, `pnpm --filter app build` (runs a CSS-verification guard after
+  `vite build`), `pnpm --filter app test`, and `pnpm --filter app preview` to serve a
+  production build.
+</Tip>
+
+## Following an oracle end to end
+
+With the dApp running, the conceptual path mirrors the [lifecycle](/concepts/lifecycle):
+
+<Steps>
+  <Step title="Browse or create">
+    The `/oracles` dashboard decodes every on-chain oracle into a card with a phase chip.
+    Create one at `/oracles/new`: a question (hashed into `prompt_hash`), an options count,
+    a deadline, and the KASS/USDC mints. Creation burns a dynamic KASS fee.
+  </Step>
+  <Step title="Propose">
+    After the deadline, in the `Proposal` phase, pick an option and escrow a KASS bond. If
+    the window closes with everyone agreeing, the oracle resolves — done.
+  </Step>
+  <Step title="Dispute: facts, then votes">
+    On conflict, submit candidate facts (content hash + URI + stake) in the `FactProposal`
+    window, then approve or flag-duplicate them in the disjoint `FactVoting` window.
+  </Step>
+  <Step title="AI claims and challenges">
+    Locked-in proposers run the runner over the agreed facts and submit an AI claim.
+    Anyone can reproduce a claim and, if it differs, open a challenge market and trade the
+    pass/fail pools.
+  </Step>
+  <Step title="Finalize, claim, and close">
+    Permissionless crank instructions advance and finalize each phase; once terminal, each
+    participant pulls their KASS entitlement and closes their accounts.
+  </Step>
+</Steps>
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Run locally" icon="laptop-code" href="/app/run-locally">
+    Local cluster, RPC config, and driving the dApp against a live program.
+  </Card>
+  <Card title="The lifecycle" icon="diagram-project" href="/concepts/lifecycle">
+    The complete phase machine and which instruction advances each edge.
+  </Card>
+  <Card title="Architecture" icon="cubes" href="/architecture/overview">
+    How the program, SDK, runner, and dApp compose.
+  </Card>
+</CardGroup>

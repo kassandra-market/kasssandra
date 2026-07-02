@@ -1,0 +1,105 @@
+---
+title: "Account decoders"
+description: "The 7 Kassandra account decoders — decodeProtocol…decodeMarket — their signatures, on-chain accounts, sizes, and returned fields."
+---
+
+The SDK ships one decoder per on-chain Pod account. Each has the signature
+`decodeX(data: Uint8Array): X` and validates two things before returning: the
+`account_type` tag (the first byte) and the **exact byte size** (from `ACCOUNT_SIZES`),
+via `assertAccount`. A mismatch throws — decoders never return a partially-parsed or
+type-confused account. The decoded types (`Protocol`, `Oracle`, …) are exported alongside
+each function.
+
+For the full field-by-field on-chain layouts these mirror, see
+[Program accounts](/protocol/accounts).
+
+<Note>
+Numeric fields decode to JavaScript types faithfully to the wire: `u64` / `i64` / `u128`
+become `bigint`, and pubkeys become web3.js `Address`. Enum-typed fields expose both the raw
+byte (e.g. `phaseRaw`) and the parsed enum (e.g. `phase: Phase | undefined`, `undefined`
+when the byte is out of range).
+</Note>
+
+## The seven decoders
+
+| Decoder → type | On-chain account (`AccountType`) | Size (bytes) |
+| --- | --- | --- |
+| `decodeProtocol` → `Protocol` | Protocol singleton (`Protocol` = 7) | 368 |
+| `decodeOracle` → `Oracle` | Oracle (`Oracle` = 1) | 392 |
+| `decodeProposer` → `Proposer` | Proposer (`Proposer` = 2) | 96 |
+| `decodeFact` → `Fact` | Fact (`Fact` = 3) | 336 |
+| `decodeFactVote` → `FactVote` | FactVote (`FactVote` = 4) | 88 |
+| `decodeAiClaim` → `AiClaim` | AiClaim (`AiClaim` = 5) | 208 |
+| `decodeMarket` → `Market` | Market (`Market` = 6) | 416 |
+
+## Returned fields
+
+<AccordionGroup>
+  <Accordion title="decodeProtocol → Protocol (368 bytes)">
+    Global config singleton. Fields: `admin, kassMint, usdcMint, feeEma, lastCreationUnix,
+    bump, governanceSet, daoAuthority, kassDao` — plus the **22 governable params**
+    (`emissionNum` … `challengeSuccessKassFeeDen`). See the
+    [Protocol layout](/protocol/accounts).
+  </Accordion>
+  <Accordion title="decodeOracle → Oracle (392 bytes)">
+    Top-level dispute account. Fields include `creator, kassMint, usdcMint, stakeVault,
+    deadline, phaseEndsAt, twapWindow, optionsCount, phaseRaw, phase: Phase | undefined,
+    proposerCount, survivingCount, factCount, totalOracleStake, bondPool, disputeBondTotal,
+    settledCount, aiFinalizedCount, bump, resolvedOption, openChallengeCount, promptHash`,
+    the 12-field governable-param snapshot, the 4 challenge-fee fields, plus
+    `totalCorrectProposerStake, totalApprovedFactStake, rewardPool, rewardEmission`.
+  </Accordion>
+  <Accordion title="decodeProposer → Proposer (96 bytes)">
+    A proposer's commitment: `oracle, authority, bond, originalOption, claimOption,
+    disqualified, slashed, flipped, bump, aiFinalized, slashedAmount`. A `claimOption` of
+    `CLAIM_OPTION_NONE` (`0xff`) means no AI claim has been submitted yet.
+  </Accordion>
+  <Accordion title="decodeFact → Fact (336 bytes)">
+    A submitted fact: `oracle, proposer, contentHash, stake, approveStake, duplicateStake,
+    uriLen, agreed, duplicate, settled, bump`, plus the decoded `uri: string` and the raw
+    `uriRaw: Uint8Array` (200 bytes).
+  </Accordion>
+  <Accordion title="decodeFactVote → FactVote (88 bytes)">
+    A stake-weighted vote: `fact, voter, stake, kindRaw, kind: VoteKind | undefined, bump`.
+    The module also exports `enum VoteKind { Approve = 0, Duplicate = 1 }`.
+  </Accordion>
+  <Accordion title="decodeAiClaim → AiClaim (208 bytes)">
+    A pinned-model AI claim: `oracle, proposer, modelId, paramsHash, ioHash, option,
+    challenged, bump, authority`.
+  </Accordion>
+  <Accordion title="decodeMarket → Market (416 bytes)">
+    A challenge decision-market binding: `oracle, aiClaim, proposer, challenger, question,
+    kassVault, usdcVault, passAmm, failAmm, oraclePassKass, oracleFailKass,
+    challengerUsdcVault, twapEnd, challengerUsdc, settled, bump`.
+  </Accordion>
+</AccordionGroup>
+
+## Low-level readers — `sdk/src/accounts/common.ts`
+
+The decoders are built on a small set of exported byte readers, handy for custom parsing:
+
+- `ACCOUNT_TYPE_OFFSET`, `view(data)`.
+- `readU8`, `readU16LE`, `readU32LE`, `readU64LE`, `readI64LE`, `readU128LE`, `readBool`,
+  `readBytes`, `readPubkey`.
+- `assertAccount(data, expectedType, size, name)` — the tag + size guard every decoder runs.
+
+`readU64LE` / `readI64LE` / `readU128LE` return `bigint`; `readPubkey` returns a web3.js
+`Address`.
+
+## Example
+
+```ts
+import { decodeProtocol, decodeOracle, pda, Phase } from "@kassandra/sdk";
+
+const protocolPda = await pda.protocol();
+const protocol = decodeProtocol(fetchData(protocolPda.address));
+
+const oracle = decodeOracle(fetchData((await pda.oracle(1n)).address));
+console.log("resolved:", oracle.phase === Phase.Resolved, oracle.resolvedOption);
+```
+
+<Tip>
+Because each decoder asserts the size and type tag, you can point it at any account and let
+it fail loudly if the bytes are the wrong shape — no need to pre-check the discriminator
+yourself. Pair the decoders with the [PDA derivers](/sdk/pdas) to fetch-then-decode.
+</Tip>

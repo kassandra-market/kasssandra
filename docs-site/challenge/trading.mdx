@@ -1,0 +1,103 @@
+---
+title: "Trading"
+description: "Trading a challenge market — the swap semantics for betting pass vs fail, and the SDK/app builders that drive the pass and fail pools."
+---
+
+Once a market is open, anyone can trade the two pools. Trading is how the verdict is
+determined: every swap folds a new price into that pool's TWAP oracle, and settlement
+reads the accumulated fail-vs-pass TWAP to decide the outcome. Traders who believe the
+AI claim is fraudulent push the **fail** price up; traders who believe it is honest push
+the **pass** price up (or leave fail neutral).
+
+## The swap instruction
+
+Trading uses the MetaDAO AMM's `swap` (discriminator `f8 c6 9e 91 e1 75 87 c8`). Its
+Borsh args (`programs/kassandra/src/cpi/metadao.rs:78-90`):
+
+```rust
+swap { swap_type: u8, input_amount: u64, output_amount_min: u64 }
+// swap_type: 0 = Buy (quote → base), 1 = Sell (base → quote)
+```
+
+- **Buy** (`swap_type = 0`) spends **quote** (USDC) to receive **base** (KASS), which
+  pushes the conditional-KASS price **up**.
+- **Sell** (`swap_type = 1`) spends **base** (KASS) to receive **quote** (USDC), which
+  pushes the conditional-KASS price **down**.
+
+## Betting semantics
+
+Because the pass pool prices pass-KASS in pass-USDC and the fail pool prices fail-KASS
+in fail-USDC, the direction you trade and the pool you trade in together express your
+bet:
+
+| You believe | Do this | Effect on TWAP |
+| --- | --- | --- |
+| The claim is **fraud** | **Buy** the fail pool with fail-USDC (raise fail-KASS) | fail up → toward disqualify |
+| The claim is **fraud** | (or) **Sell** pass-KASS → pass-USDC (lower pass-KASS) | pass down → toward disqualify |
+| The claim is **honest** | **Buy** the pass pool (raise pass-KASS) / keep fail neutral | pass up / fail flat → survive |
+
+The verdict compares `fail_twap` against `pass_twap` (see [Settlement](/challenge/settle)),
+so a challenge succeeds when fail is driven sufficiently above pass. In practice the
+challenger and fraud-believers **buy fail** (raising the fail-KASS price) while leaving
+the pass pool neutral — the cleanest way to push `fail_twap * DEN > pass_twap * (DEN +
+NUM)`.
+
+<Info>
+  pass-KASS and fail-KASS are **fungible across all participants**. The TWAP therefore
+  reflects the conditional value of a unit of the proposer's stake regardless of whose
+  tokens are trading — the market prices the *stake*, not any individual's position.
+</Info>
+
+## The SDK builder
+
+```ts title="sdk/src/amm-v04/instructions.ts:201"
+const ix = await ammV04.swap({
+  payer, baseMint, quoteMint,
+  swapType: ammV04.SwapType.Buy,   // Buy = 0, Sell = 1
+  inputAmount: 90_000_000n,        // e.g. 90 USDC (6 dp) to buy fail-KASS
+  minOutputAmount: 0n,
+});
+```
+
+`ammV04.SwapType` is `{ Buy = 0, Sell = 1 }`. The accounts are the pool, the trader's
+base/quote token accounts, the pool's vault ATAs, plus the `#[event_cpi]` trailer. See
+the [SDK amm-v04 reference](/sdk/amm-v04).
+
+## The app builder
+
+```ts title="app/src/data/actions/challengeTrade.ts:236"
+buildSwapIxs(/* ... */) // → ammV04.swap
+```
+
+The app wraps `ammV04.swap` with client-side previews before you submit:
+
+| Helper | Source | Purpose |
+| --- | --- | --- |
+| `constantProductOut` | `challengeTrade.ts:158` | Constant-product output estimate. |
+| `swapEstimate` | `:174` | Expected output for a given input. |
+| `minOutFromSlippage` | `:201` | Derives `output_amount_min` from a slippage tolerance. |
+| `conditionalTokenMint` | `:92` | Resolves a pool's conditional mint by side/index. |
+| `poolMints` | `:116` | The `(base, quote)` mint pair for a pool. |
+
+The React surface is `ChallengeTradeControls`
+(`app/src/components/oracles/actions/ChallengeTradeControls.tsx`), which wires
+`buildSwapIxs` alongside the crank and settle controls and shows the live verdict
+preview.
+
+<Tip>
+  Every swap also refreshes that pool's TWAP as a side effect — but a single swap late
+  in the window barely moves a time-weighted average. To make trading load-bearing on
+  the verdict, the new price must be **sustained and cranked** across the window. See
+  [Cranking the TWAP](/challenge/cranking).
+</Tip>
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Cranking the TWAP" icon="rotate" href="/challenge/cranking">
+    Accumulating the time-weighted price so trades count.
+  </Card>
+  <Card title="Settle" icon="scale-balanced" href="/challenge/settle">
+    The verdict formula the TWAP feeds.
+  </Card>
+</CardGroup>

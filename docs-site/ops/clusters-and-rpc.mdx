@@ -1,0 +1,72 @@
+---
+title: "Clusters & RPC"
+description: "The clusters the dApp supports, how it resolves RPC endpoints, and how to run a local validator or surfpool for localnet."
+---
+
+The dApp talks to Solana through a wallet-adapter `Connection` whose endpoint is selected in the NavBar. All the cluster logic lives in `app/src/lib/cluster.ts`.
+
+## Supported clusters
+
+The app supports three clusters (`app/src/lib/cluster.ts`, `type Cluster`):
+
+```ts
+export type Cluster = 'localnet' | 'devnet' | 'mainnet-beta'
+```
+
+The NavBar cluster selector switches between them. The choice is persisted per-browser in `localStorage` under the key `kassandra:cluster` (`CLUSTER_STORAGE_KEY`), and the default when nothing is stored is `localnet` (`readStoredCluster()`).
+
+## How endpoints resolve
+
+`endpointFor(cluster)` maps each cluster to an RPC URL (`app/src/lib/cluster.ts`):
+
+| Cluster | Endpoint |
+| --- | --- |
+| `localnet` | `import.meta.env.VITE_RPC_URL`, or the default `http://127.0.0.1:8899` |
+| `devnet` | `https://api.devnet.solana.com` |
+| `mainnet-beta` | `https://api.mainnet-beta.solana.com` |
+
+The wallet-adapter `Connection` from `useConnection()` reflects the selected endpoint, so switching clusters re-points every read and write. Switching the cluster also re-fetches the oracle list (`app/src/hooks/useOracles.ts`).
+
+## `VITE_RPC_URL`
+
+`localnet` is the only cluster with an overridable endpoint. Set `VITE_RPC_URL` at dev/build time to point localnet at a specific RPC (`app/src/lib/cluster.ts`, `LOCAL_RPC_URL`):
+
+```bash
+VITE_RPC_URL=http://127.0.0.1:8899 pnpm --filter app dev
+```
+
+If `VITE_RPC_URL` is unset, localnet falls back to `http://127.0.0.1:8899`, which is also the surfpool default.
+
+## Running a local backend for localnet
+
+To browse or drive real transactions on `localnet`, you need a validator serving the Kassandra program (and, for the challenge markets, the MetaDAO v0.4 fixtures).
+
+<Steps>
+  <Step title="Start a local validator or surfpool">
+    Bring up a validator on `127.0.0.1:8899` with the Kassandra program deployed.
+    surfpool defaults to that host/port, matching the app's localnet default.
+  </Step>
+  <Step title="Seed oracles (optional)">
+    The gated E2E seed flow deploys the program and seeds oracles on a local
+    surfpool (`app/test/oracle-data.e2e.test.ts`, run with `KASSANDRA_E2E=1`).
+    Use it to populate `/oracles` with live data.
+  </Step>
+  <Step title="Point the app at it">
+    Run `pnpm --filter app dev`, set the NavBar cluster to **Localnet** (or point
+    `VITE_RPC_URL` at the RPC), and open `/oracles`.
+  </Step>
+</Steps>
+
+<Note>
+Read-only browsing works fully disconnected. A wallet is only needed for the
+write flows (propose, submit fact, vote, claims, challenge).
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Deploy the program" icon="rocket" href="/ops/deploy-program">
+    Build the SBF program and deploy it with `solana program deploy`.
+  </Card>
+  <Card title="Run the dApp locally" icon="browser" href="/app/run-locally">
+    Install, build the SDK, and start the dev server.
+  </Card>
+</CardGroup>

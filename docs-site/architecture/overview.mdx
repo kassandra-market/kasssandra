@@ -1,0 +1,116 @@
+---
+title: "Architecture overview"
+description: "The four Kassandra components — program, SDK, runner, dApp — how they compose, and the Pinocchio design choice."
+---
+
+Kassandra is an AI-assisted optimistic oracle built as a small on-chain program plus three off-chain
+components that surround it. The program is the source of truth for every stake, phase transition, and
+resolution; everything else composes transactions against it. It reuses MetaDAO's deployed
+conditional-vault and AMM programs for the challenge decision markets rather than reimplementing them.
+
+## The four components
+
+<CardGroup cols={2}>
+  <Card title="On-chain program" icon="microchip" href="/architecture/program">
+    The core Solana program (`programs/kassandra/`) written in Pinocchio. Owns oracle requests,
+    proposal windows, the fact phase, the AI-claim registry, plurality resolution, slashing,
+    KASS staking, emissions, and the dynamic fee.
+  </Card>
+  <Card title="TypeScript SDK" icon="cube" href="/architecture/sdk">
+    The hand-written client (`sdk/`) — no IDL. PDA derivers, instruction builders, and account
+    decoders that mirror the program's wire format, plus submodules for the external MetaDAO and
+    Meteora programs.
+  </Card>
+  <Card title="AI runner" icon="robot" href="/architecture/runner">
+    The reproducible off-chain resolver (`runner/`, Rust binary `kassandra-runner`). Turns an
+    oracle's prompt + agreed facts + options into a categorical answer plus the exact 97-byte
+    `submit_ai_claim` payload.
+  </Card>
+  <Card title="dApp" icon="browser" href="/architecture/dapp">
+    The frontend (`app/`, Vite + React 19). Browse oracles, create them, participate in every
+    lifecycle phase, compose and trade challenge markets, and claim/close.
+  </Card>
+</CardGroup>
+
+## MetaDAO reuse
+
+Kassandra does not build its own decision markets. When an AI claim is challenged, the challenger
+composes a binary **pass/fail** market out of MetaDAO's **v0.4 conditional-vault + standalone AMM**
+programs, and the Kassandra program CPIs into them to split the bond and resolve the question. A
+separate **v0.6 futarchy** stack (plus Squads v4 and Meteora DAMM v2) provides the governance
+linkage and the KASS/USDC price anchor. See [Challenge markets](/challenge/overview) and
+[Protocol reference](/protocol/overview).
+
+## How they compose
+
+<Steps>
+  <Step title="The program defines the wire format">
+    Discriminant bytes, account orderings, payload layouts, account structs, PDA seeds, phases, and
+    error codes are the contract. They are declared stable and only ever appended
+    (`programs/kassandra/src/instruction.rs`, `error.rs`).
+  </Step>
+  <Step title="The SDK mirrors that format by hand">
+    Because there is no Anchor IDL, the SDK hand-encodes each instruction's `[disc_byte, ...payload]`
+    and hand-decodes each account struct. A parity test (`sdk/test/parity.test.ts`) keeps the two in
+    lockstep.
+  </Step>
+  <Step title="The runner produces the AI claim">
+    The runner reads the oracle on-chain, assembles a deterministic prompt, completes it with a
+    pinned model, and emits the exact bytes the `submit_ai_claim` instruction expects — which the SDK
+    can submit verbatim via its runner bridge.
+  </Step>
+  <Step title="The dApp drives the human-facing flow">
+    Every write path is a pure `build*Ixs` action layer over the SDK, signed through a wallet
+    adapter. It composes the MetaDAO market off-chain for challenges and derives the settle account
+    set from decoded on-chain state.
+  </Step>
+</Steps>
+
+## Monorepo layout
+
+```text
+kassandra/
+├── programs/kassandra/   Pinocchio on-chain program (crate: kassandra-program)
+├── runner/               Rust binary + library (kassandra-runner) — AI resolver
+├── sdk/                  TypeScript SDK (@kassandra/sdk) — hand-written, no IDL
+├── app/                  Vite + React 19 dApp
+├── scripts/              MetaDAO/Meteora fixture fetchers for hermetic CPI tests
+└── justfile              build / test (cargo build-sbf)
+```
+
+The Cargo workspace (`Cargo.toml`, `resolver = "2"`) contains two members: `programs/kassandra` and
+`runner`. The pnpm workspace (`pnpm-workspace.yaml`) contains two packages: `sdk` and `app`. The app
+consumes `@kassandra/sdk` via `workspace:*`, so the SDK must be built first. See
+[Repo layout](/contributing/repo-layout).
+
+## On-chain vs off-chain split
+
+| On-chain (program) | Off-chain |
+| --- | --- |
+| Request config: prompt hash, options, deadline, TWAP window | Model inference (private to each runner) |
+| All KASS stakes/bonds and USDC market collateral | Prompt assembly and fact fetching |
+| Fact set, votes, and approval tallies | Raw AI output (never stored on-chain) |
+| AI-claim metadata (model/params/io hashes, option) | MetaDAO market composition transactions |
+| Plurality result, slash triggers, emissions, fee state | Off-chain fact URIs (content-hash-committed) |
+
+Only the categorical claim and its verifiable metadata reach the chain — never the raw model output
+(design doc §2, "On-chain vs off-chain").
+
+## The Pinocchio choice
+
+The program is written in **Pinocchio, not Anchor**. That decision cascades through every other
+component:
+
+- **Manual deserialization and dispatch.** There are no Anchor macros or generated IDL. The first
+  byte of `instruction_data` selects an `Ix` variant; each processor parses its own payload and
+  validates its own accounts (`instruction.rs`, `processor/mod.rs`).
+- **Hand-built CPI.** Kassandra drives MetaDAO's Anchor programs by reconstructing their 8-byte
+  sighash discriminators, account metas, and Borsh args itself (`cpi/metadao.rs`,
+  `cpi/metadao_v06.rs`).
+- **Hand-written SDK.** With no IDL to generate a client, the SDK's layouts are written by hand to
+  mirror the program and guarded by a parity test.
+
+<Note>
+The trade-off is accepted deliberately: more manual (and more `unsafe`) serialization in exchange for
+a smaller, cheaper, dependency-light program (design doc §2, "Pinocchio implications").
+</Note>

@@ -1,0 +1,125 @@
+---
+title: "Why optimistic oracles"
+description: "The optimistic pattern — cheap on the happy path, expensive only on dispute — and how Kassandra sharpens it by fixing interpretation at creation."
+---
+
+An oracle's job is to bring an off-chain fact on-chain that a contract can act on. The hard
+part is not reporting a fact — it is making the report *trustworthy* without a trusted
+reporter. Kassandra takes the **optimistic** approach: assume a bonded claim is correct,
+and spend real resources verifying it only when someone stakes against it.
+
+## Cheap happy path, expensive only on dispute
+
+The economic argument for optimism is simple. Most questions are not controversial. If
+every answer had to run a full adversarial verification — inference, evidence curation,
+markets — the oracle would be slow and expensive for the 99% of cases where nobody
+actually disagrees. So Kassandra inverts the cost:
+
+<CardGroup cols={2}>
+  <Card title="Happy path — nearly free" icon="feather">
+    A proposer posts a value and a KASS bond. If the proposal window closes with everyone
+    in agreement, `finalize_proposals` resolves the oracle directly to that value
+    (`finalize_proposals.rs`). No AI runs. No market opens. Bonds are returned. The only
+    unavoidable cost was the burned creation fee.
+  </Card>
+  <Card title="Dispute path — deliberately costly" icon="fire">
+    Two or more distinct proposed values lock the proposers in and open the dispute:
+    a fact-proposal window, a fact-voting window, an AI-claim window, and a challenge
+    window with live decision markets. This is slow and capital-intensive by design.
+  </Card>
+</CardGroup>
+
+Cost is a feature, not a bug. Because disagreeing is expensive, a rational actor disputes
+only when they genuinely believe the proposed answer is wrong and expect to profit from
+correcting it. The bond pool then *redistributes* slashed stake from the losing side to the
+honest winners, so being right pays and being wrong (or lazy) is net-negative. See
+[Economics](/concepts/economics).
+
+<Note>
+  The dispute path is also strictly **bounded**. The single challenge round terminates at
+  the last market's TWAP window; there is no unbounded recompute cascade (design §9,
+  invariant 2). Finalization is **incremental** — facts, AI claims, and the proposer set
+  are settled in batches (`settled_count`, `ai_finalized_count`) so an arbitrarily large
+  dispute can never wedge the oracle in one oversized transaction.
+</Note>
+
+## How Kassandra differs from a classic optimistic oracle
+
+Classic optimistic oracles (think of a generic "propose an answer, anyone can dispute,
+a human court votes") share one structural weakness: the dispute is ultimately resolved by
+a **subjective** vote on *what the answer should be*. That is a Schelling game, and
+Schelling games can be captured by whoever coordinates the most stake. Kassandra keeps the
+optimistic skeleton but changes what a dispute is *about*.
+
+### 1. Fixed interpretation turns subjective disputes into objective ones
+
+The creator commits the prompt **and the interpretation rules** at creation, immutable
+thereafter and pinned as `oracle.prompt_hash`. Because the rule for mapping evidence to an
+answer is frozen, a dispute cannot be "I read this differently." It can only be **"which
+evidence is real and relevant"** — an objective evidence question. That is what the
+[fact phase](/concepts/facts) resolves: participants stake to include or exclude candidate
+facts, and a supermajority-of-bond quorum decides the *agreed set*.
+
+### 2. The AI applies the interpretation — it does not invent it
+
+Once the evidence set is agreed, an open-source **runner** applies the fixed interpretation
+to that set with a pinned model and produces one of the allowed options
+(see [AI-assisted claims](/guide/ai-assisted-claims)). The AI is a deterministic-ish
+*executor* of a policy that was already decided by a human at creation time — not a judge
+forming its own opinion. Its output is a categorical option plus reproducibility metadata,
+recorded in an `AiClaim` account.
+
+### 3. Markets are the final arbiter, not a human vote
+
+If an AI claim is wrong, anyone who can reproduce the runner opens a **MetaDAO decision
+market** against it (`open_challenge`). The proposer's already-locked KASS bond is the
+conditional collateral; the challenger posts USDC. Traders push a **fail-vs-pass TWAP**,
+and settlement reads that TWAP after a window: disqualify iff
+`fail_twap * DEN > pass_twap * (DEN + NUM)` (strict, in `u128`;
+`settle_challenge.rs:346-358`). A market with no counter-trading leaves the claim
+standing — uncontested is treated as honest. The market, not a committee, has the last
+word. See [Challenge markets](/concepts/challenge-markets).
+
+<Info>
+  The net effect: subjective judgment happens **once**, in public, at creation — when the
+  interpretation is written. Everything after that is objective (which facts are real) or
+  adversarial-and-priced (a market on whether the AI applied the rules correctly).
+</Info>
+
+## Why not zkTLS or a TEE?
+
+A different school of oracle design tries to make the off-chain step *verifiable* — proving
+via zkTLS that a fetched web response really came from a given server, or running inference
+in a trusted execution environment that attests to what it did. Kassandra rejects both by
+design (design §2; `runner` v1 limitations).
+
+- **Determinism is not on the table for frontier models.** No frontier model API is
+  bit-reproducible, so an on-chain "the model output exactly these bytes" proof would be
+  brittle at best. The runner instead commits an `io_hash` as a *commitment* to the exact
+  input and output, and challengers reproduce the **categorical option** (plus matching
+  `model_id`/`params_hash`), not bit-identical text.
+- **The market is a stronger backstop than an attestation.** A TEE proves *a* computation
+  happened; it does not prove the computation used the *right, agreed* evidence, nor that
+  the fixed interpretation was applied faithfully. A decision market prices exactly that
+  question and pays people to be right about it.
+- **Simplicity and cost.** Kassandra is a small Pinocchio program that reuses MetaDAO's
+  audited conditional-vault and AMM programs by CPI rather than embedding cryptographic
+  verification. The trade-off — accept economically-enforced honesty instead of
+  cryptographic proof — is deliberate.
+
+## The upshot
+
+Optimism gives Kassandra a cheap default. Fixed interpretation shrinks the disputes that
+remain from "what does this mean?" to "which evidence counts?". The AI mechanically applies
+the fixed rule to the agreed evidence. And a decision market — not a vote — has the final
+say over a bad claim. Every layer converts a would-be subjective judgment into something
+either objective or priced.
+
+<CardGroup cols={2}>
+  <Card title="AI-assisted claims" icon="robot" href="/guide/ai-assisted-claims">
+    How the runner applies the fixed interpretation and what it commits on-chain.
+  </Card>
+  <Card title="The lifecycle" icon="diagram-project" href="/concepts/lifecycle">
+    The full phase machine that implements the cheap-then-expensive shape.
+  </Card>
+</CardGroup>

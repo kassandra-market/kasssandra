@@ -1,0 +1,64 @@
+---
+title: "Creating an oracle"
+description: "The CreateOracle form — question, options, deadline, and bonding params — and the create_oracle instruction it builds."
+---
+
+The route `/oracles/new` renders `app/src/pages/CreateOracle.tsx`, the form that mints a new oracle. It is the first wallet-signed action in the lifecycle. On success it navigates to the new oracle's detail page.
+
+The form wraps the pure action layer at `app/src/data/actions/create.ts`, which builds the `create_oracle` instruction via the SDK's `createOracle` builder (`sdk/src/instructions/lifecycle.ts`, Ix = 10).
+
+## Form fields
+
+<ParamField path="question" type="string">
+  The oracle's resolution rules in plain text. The app hashes it to the on-chain
+  `prompt_hash` (32 bytes) — the interpretation commitment. Keep the exact text
+  you hashed; the AI runner must re-supply it verbatim so its `sha256` matches
+  (see [Running the runner](/ops/runner)).
+</ParamField>
+
+<ParamField path="options count" type="number">
+  The number of categorical options (mirrors `Oracle.options_count`).
+</ParamField>
+
+<ParamField path="deadline" type="timestamp">
+  The oracle's resolution deadline. Encoded as an `i64` unix timestamp in the
+  instruction payload.
+</ParamField>
+
+<ParamField path="KASS / USDC mints" type="address">
+  The staking and quote mints, defaulted from the Protocol singleton. KASS is the
+  bond/stake asset; USDC is the challenge-market quote asset.
+</ParamField>
+
+The TWAP window (`twap_window`) — the length of the challenge-market TWAP window, in seconds — is also part of the create payload (`sdk/src/instructions/lifecycle.ts` `CreateOracleArgs`).
+
+## The instruction it builds
+
+`createOracle` produces the `create_oracle` instruction. Its 57-byte payload is (`sdk/src/instructions/lifecycle.ts`):
+
+```
+nonce u64 ++ prompt_hash[32] ++ options_count u8 ++ deadline i64 ++ twap_window i64
+```
+
+The **nonce** is the oracle's identity: the Oracle PDA is derived as `[b"oracle", nonce_u64_le]` (`sdk/src/pda.ts` `oracle`). Because the nonce is not stored on-chain but is needed later by finalize-facts, finalize-oracle, and the claim/close/sweep instructions, the app persists it per-browser at create time (`app/src/lib/nonceStore.ts`).
+
+<Note>
+Every staking action across the lifecycle requires **KASS** and is denominated in
+**raw base units**. A missing KASS associated-token account is created idempotently
+on the first action.
+</Note>
+
+## Creation fee (burned KASS)
+
+Creating an oracle carries a KASS creation fee. See the economics concept page for how the fee and the rest of the token flows work.
+
+<CardGroup cols={2}>
+  <Card title="Oracles & questions" icon="circle-question" href="/concepts/oracles-and-questions">
+    What an oracle commits to and how its question is framed.
+  </Card>
+  <Card title="Instruction reference" icon="list" href="/protocol/instructions">
+    The full `create_oracle` account list and payload.
+  </Card>
+</CardGroup>
+
+Once created, the oracle enters the `Proposal` phase and is ready for participation — see [Participate](/app/participate).

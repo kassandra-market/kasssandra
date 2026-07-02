@@ -1,0 +1,69 @@
+---
+title: "This documentation site"
+description: "How the Mintlify docs site is built, run locally, link-checked, and auto-deployed on every push to master."
+---
+
+This site — the pages you are reading — is built with [Mintlify](https://mintlify.com). The configuration lives at `docs-site/docs.json` and the content is MDX under `docs-site/`. This page covers local development, link validation, and how deploys happen.
+
+## Local development
+
+```bash
+cd docs-site
+npm install
+npm run dev        # or: npx mint dev
+```
+
+The Mintlify dev server renders the site locally with live reload.
+
+<Note>
+The `mint` CLI requires **Node.js ≤ 22** — it fails on Node 25+. CI pins Node 20.
+If `mint dev` or `mint broken-links` crashes on startup, check your Node version
+first (`node --version`).
+</Note>
+
+## Validate links
+
+Broken internal links fail the build, so validate before pushing:
+
+```bash
+cd docs-site
+npm run check-links   # runs: mint broken-links
+```
+
+Only link to targets that exist in the navigation (`docs-site/docs.json`); a link to any other internal path fails `mint broken-links`.
+
+## How deploys happen
+
+Two mechanisms cover publishing and validation:
+
+- **Auto-deploy** — the **Mintlify GitHub App** auto-deploys the `docs-site/` project on **every push to `master`**. No manual publish step.
+- **Validation gate** — the GitHub Actions workflow `.github/workflows/docs.yml` runs `mint broken-links` on pushes to `master` and on PRs, so a broken link is caught before it merges.
+
+## One-time setup
+
+Connecting the repo to Mintlify is a one-time task in the Mintlify dashboard:
+
+<Steps>
+  <Step title="Sign in with GitHub">
+    Go to [dashboard.mintlify.com](https://dashboard.mintlify.com) and sign in
+    with GitHub.
+  </Step>
+  <Step title="Connect the repository">
+    Connect `Dodecahedr0x/kassandra`.
+  </Step>
+  <Step title="Set the content directory and branch">
+    Set the content directory to `docs-site` and the deployment branch to `master`.
+  </Step>
+  <Step title="Install the GitHub App">
+    Install the Mintlify GitHub App so it can auto-deploy on every push to `master`.
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="Contributing conventions" icon="pen-nib" href="/contributing/conventions">
+    Repo conventions, including the docs-driven plans.
+  </Card>
+  <Card title="Repo layout" icon="folder-tree" href="/contributing/repo-layout">
+    Where `docs-site/` sits in the monorepo.
+  </Card>
+</CardGroup>

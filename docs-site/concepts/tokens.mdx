@@ -1,0 +1,107 @@
+---
+title: "Tokens"
+description: "The two tokens Kassandra uses — KASS (staking, slashing, collateral; fair-launched via emissions) and USDC (challenge-market collateral) — their demand drivers and the burn-vs-mint balance."
+---
+
+Kassandra uses two tokens. **KASS** is the native protocol token — the medium for every
+stake, bond, slash, reward, and the burned creation fee. **USDC** is the external collateral
+a challenger posts to open a decision market. This page covers each token's role, what drives
+demand for KASS, and how mint and burn stay in balance.
+
+## KASS — the protocol token
+
+KASS is an SPL token, pinned as the canonical `kass_mint` on the `Protocol` singleton and
+snapshotted onto every `Oracle`. It has **no presale**; the entire supply enters through
+participation **emissions** (a fair launch; design §8). Every KASS-denominated flow in the
+protocol touches the oracle's `stake_vault`.
+
+### What KASS is used for
+
+<CardGroup cols={2}>
+  <Card title="Proposing" icon="hand">
+    A proposer escrows a KASS `bond` to register a value. The bond is credible because it
+    can be slashed — and it becomes conditional collateral if the claim is challenged.
+  </Card>
+  <Card title="Facts and votes" icon="list-check">
+    Fact submitters escrow a KASS `stake`; fact voters escrow a KASS stake as their vote
+    weight. Approving good evidence earns rewards; backing rejected facts is slashed.
+  </Card>
+  <Card title="Challenge collateral" icon="scale-balanced">
+    A challenged proposer's already-locked KASS bond is split into pass/fail conditional
+    KASS — the collateral the decision market resolves over. See
+    [Challenge markets](/concepts/challenge-markets).
+  </Card>
+  <Card title="Governance" icon="landmark">
+    KASS governs protocol config (thresholds, fee and emission params) and is the only
+    authority that can resolve an [Invalid dead-end](/concepts/dead-end-settlement) —
+    ideally via MetaDAO futarchy.
+  </Card>
+</CardGroup>
+
+### Demand drivers
+
+You must hold and stake KASS to participate at all: to propose a value, to stake on facts,
+and — as a proposer — it *is* your conditional market collateral (design §8). Demand scales
+with oracle activity: more disputes mean more bonds and stakes locked, and a higher dynamic
+creation fee burning more KASS per oracle.
+
+### Supply: fair-launch via emissions
+
+The supply enters through **work-to-earn** emissions minted to honest participants
+(correct proposers, approved-fact stakers, and successful challengers). Emission for an
+oracle is a fixed fraction of the *remaining* reservoir, computed at creation:
+`reward_emission = (total_supply_cap − supply) * emission_num / emission_den`
+(`create_oracle.rs`). Because it draws down a shrinking reservoir, it is a **decaying curve**
+— early honest participation is rewarded more, and supply asymptotes toward
+`total_supply_cap` (recommended `1e18` = 1e9 KASS at 9 decimals). Emissions are **disabled at
+genesis** and turned on later by governance. See [Economics](/concepts/economics).
+
+## USDC — challenge-market collateral
+
+USDC is the external stable collateral used only in the challenge phase. A challenger opens a
+decision market by posting USDC, sized to the proposer's bond value at the current KASS price:
+`required_usdc = bond * kass_price / KASS_PRICE_SCALE`, where `kass_price` is the
+governance-anchored futarchy spot TWAP (`KASS_PRICE_SCALE = 1e12`; `open_challenge.rs`). The
+USDC is escrowed in a market-owned PDA and split into pass/fail conditional USDC to seed the
+AMM pools. At settlement it is routed directionally:
+
+- **Challenge succeeds (disqualify):** the full USDC escrow returns to the challenger.
+- **Challenge fails (survive):** a small `usdc_fee` (default 1/100) goes to the proposer as
+  compensation; the remainder returns to the challenger.
+
+The USDC mint is pinned per oracle as `usdc_mint` (must match the Protocol's canonical USDC).
+See [Challenge economics](/challenge/economics) for the full split.
+
+## The burn-vs-mint balance
+
+KASS supply is shaped by two opposing forces, both demand-responsive:
+
+<CardGroup cols={2}>
+  <Card title="Mint — emissions" icon="arrow-up">
+    New KASS is minted to honest participants on the decaying reservoir curve, rewarding the
+    work that makes the oracle trustworthy.
+  </Card>
+  <Card title="Burn — the creation fee (and dead-end burns)" icon="fire">
+    Every oracle creation burns a dynamic KASS fee proportional to a demand EMA (0 at
+    genesis, rising with activity). On a dead-end, slashed amounts and the emission are burned
+    too. The burn is the deflationary counterweight to emissions, with **no USDC floor**.
+  </Card>
+</CardGroup>
+
+Design invariant 3 keeps the whole system closed: for any oracle,
+`Σ stakes_in = Σ returned + Σ to_bond_pool + Σ burned + Σ emitted`. No KASS is created or
+destroyed outside emissions (mint) and the fee/dead-end burns.
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Economics" icon="coins" href="/concepts/economics">
+    Bonds, slashing, reward buckets, emissions, and the EMA fee in full.
+  </Card>
+  <Card title="Challenge markets" icon="scale-balanced" href="/concepts/challenge-markets">
+    How locked KASS and posted USDC become a priced verdict.
+  </Card>
+  <Card title="Dead-end settlement" icon="ban" href="/concepts/dead-end-settlement">
+    Where burns of slashed KASS and emissions happen.
+  </Card>
+</CardGroup>

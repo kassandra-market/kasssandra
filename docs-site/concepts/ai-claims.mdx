@@ -1,0 +1,124 @@
+---
+title: "AI claims"
+description: "The AI-resolution phase — locked-in proposers rerun the runner over the agreed facts, resubmit a value plus reproducibility metadata, and are slashed for no-shows and flips."
+---
+
+Once the agreed fact set is settled, the oracle enters the **AI-claim** phase. Here each
+locked-in proposer reruns the open-source runner over the *agreed facts* — applying the
+oracle's fixed interpretation — and resubmits a value backed by reproducibility metadata.
+This is where a dispute can quietly collapse: proposers who see the evidence may converge on
+the same answer.
+
+## Who submits, and why the value can change
+
+The only actors who put values on-chain are the **proposers** from the proposal window —
+the ones now locked in by the dispute. "Anyone can run the AI" means anyone may run the
+runner to *verify and challenge*; only proposers submit claims (design §5).
+
+A proposer's AI claim value **may differ** from the `original_option` they proposed. That is
+by design: after seeing the agreed evidence run through the fixed interpretation, an honest
+proposer may realize their initial value was wrong and correct it. If enough proposers
+converge, the dispute collapses toward a single plurality without ever needing a market.
+
+<Info>
+  A value change is called a **flip** (`claim_option != original_option`). Flipping is
+  honest error-correction and is only **partially** slashed — a proposer who flips still
+  survives into the challenge phase. See slashing below.
+</Info>
+
+## Submitting a claim
+
+A proposer submits with `submit_ai_claim` (`Ix::SubmitAiClaim = 3`) during `Phase::AiClaim`
+(`submit_ai_claim.rs`). There is **no token CPI** — the proposer's bond is already escrowed;
+this instruction only records the claim. It:
+
+- checks the signer is the proposer's `authority` and the proposer is not disqualified
+  (else `Unauthorized`), and `option < options_count` (else `InvalidOption`);
+- records `claim_option = option` on the `Proposer`, marking `flipped` if it differs from
+  `original_option`; and
+- creates an `AiClaim` PDA at `[b"claim", oracle, proposer]` — a second submit for the same
+  proposer fails with `DuplicateClaim`.
+
+The payload is exactly **97 bytes**:
+`model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option[1]` — the exact bytes the runner
+emits (`submit_ai_claim.rs`; `runner` docs). See
+[AI-assisted claims](/guide/ai-assisted-claims) for how the runner produces them.
+
+## The `AiClaim` account
+
+The claim is a small metadata record (`state.rs`, `AiClaim`, LEN = 208):
+
+<ResponseField name="model_id" type="[u8;32]">
+  Hash/identifier of the pinned model. Default `sha256("claude-opus-4-8")`. A pure function
+  of the declared model string — a challenger recomputes it exactly.
+</ResponseField>
+
+<ResponseField name="params_hash" type="[u8;32]">
+  Hash of the declared parameters — provider, thinking mode, `max_tokens`, prompt-assembly
+  version, and output schema id/version. Also a pure function of the declared config, so it
+  is byte-for-byte reproducible.
+</ResponseField>
+
+<ResponseField name="io_hash" type="[u8;32]">
+  `sha256(system ++ user ++ raw_response)` — a **commitment** to the exact prompt input and
+  raw model output. It is not a reproducibility oracle for the raw text (no frontier model is
+  bit-reproducible); a challenger reproduces the categorical **option**, not identical bytes.
+</ResponseField>
+
+<ResponseField name="option" type="u8">
+  The claimed categorical option — the actual answer this proposer is asserting.
+</ResponseField>
+
+<ResponseField name="challenged" type="u8">
+  Set to 1 when a challenge market is opened against this claim (`open_challenge`).
+</ResponseField>
+
+<ResponseField name="authority" type="Pubkey">
+  The proposer's human authority (equals `proposer.authority`), so `close_ai_claim` can
+  route rent order-independently when the oracle is terminal.
+</ResponseField>
+
+The account is **closed on resolution** and its rent reclaimed via `close_ai_claim`
+(`Ix=20`), a permissionless close that runs once the oracle is terminal.
+
+## Finalizing the round: no-shows and flips
+
+After the window, `finalize_ai_claims` (`Ix::FinalizeAiClaims = 8`) **incrementally**
+settles proposers in batches (no token CPI; `finalize_ai_claims.rs`):
+
+| Case | Test | Result |
+|---|---|---|
+| **No-show** | `claim_option == CLAIM_OPTION_NONE` (0xFF) | full slash + `disqualified` + `surviving_count -= 1` |
+| **Flip** | `claim_option != original_option` | partial slash `bond * flip_slash_num / flip_slash_den` (default 1/2); **remains surviving** |
+| **Submitted, not flipped** | claim submitted, value unchanged | no slash |
+
+The phase advances to `Challenge` once `ai_finalized_count == proposer_count`. Each proposer
+is settled exactly once (an already-finalized proposer fails with `AlreadySettled`).
+
+<Warning>
+  A proposer who **fails to resubmit** is fully slashed and disqualified. Abandoning
+  mid-dispute is treated as likely responsible for the costly dispute; a flip, by contrast,
+  is honest correction and only partially penalized (design §7).
+</Warning>
+
+## Why the claim is not verified on-chain
+
+The program never checks that the model produced `option` or that `io_hash` matches a real
+inference. Honesty is enforced downstream: a challenger reproduces the claim by running the
+*declared* model over the *agreed* facts, and if the categorical option differs, they open a
+decision market. The market — not the chain — is the arbiter over a faulty claim. See
+[Challenge markets](/concepts/challenge-markets).
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Challenge markets" icon="scale-balanced" href="/concepts/challenge-markets">
+    How a reproduced disagreement becomes a priced, adversarial decision.
+  </Card>
+  <Card title="The runner" icon="robot" href="/architecture/runner">
+    Provider trait, deterministic prompt assembly, and the hashing scheme.
+  </Card>
+  <Card title="The AiClaim account" icon="table-cells" href="/protocol/accounts">
+    The full field-by-field layout with offsets.
+  </Card>
+</CardGroup>

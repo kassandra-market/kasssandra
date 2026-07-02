@@ -1,0 +1,56 @@
+---
+title: "Glossary"
+description: "Every Kassandra term, defined in one or two sentences with a link to the concept or reference page that covers it."
+---
+
+A quick reference to the vocabulary used across these docs. Each entry links to the page that covers it in depth.
+
+## Core objects
+
+**Oracle** — The on-chain account (`AccountType.Oracle`) representing one question: it commits to an interpretation (`prompt_hash`), a set of categorical options, a deadline, and a TWAP window, and moves through the lifecycle phases. See [Oracles & questions](/concepts/oracles-and-questions).
+
+**Proposer** — A participant who bonds KASS on a chosen option during the Proposal phase; recorded as a `Proposer` account keyed by `[b"proposer", oracle, authority]`. See [Proposals](/concepts/proposals).
+
+**Proposal** — The act (and resulting `Proposer` account) of committing a KASS bond to one option, built by the `propose` instruction. See [Proposals](/concepts/proposals).
+
+**Fact** — A piece of evidence submitted during the FactProposal phase: a content hash plus an off-chain URI and a KASS stake, stored as a `Fact` account. See [Facts](/concepts/facts).
+
+**Fact voting** — The FactVoting phase, where participants stake KASS to Approve a fact or flag it as a Duplicate (`vote_fact`). See [Facts](/concepts/facts).
+
+**Agreed set** — The set of approved, non-duplicate facts (each `Fact.agreed` flag set) that the AI claim is resolved against; the runner keeps only these when fetching facts. See [Facts](/concepts/facts).
+
+**Duplicate** — A fact-vote kind (`VoteKind.Duplicate` = 1) flagging a fact as redundant with another, as opposed to Approve (0). See [Facts](/concepts/facts).
+
+**AI claim** — The proposer's AI-resolved answer plus its reproducibility metadata: three 32-byte commitments (`model_id` / `params_hash` / `io_hash`) and the chosen option, submitted via `submit_ai_claim`. See [AI claims](/concepts/ai-claims).
+
+**Runner** — `kassandra-runner`, the open-source off-chain AI resolver that fetches and verifies facts, assembles a deterministic prompt, completes it with a pinned model, and emits the 97-byte `submit_ai_claim` payload. See [Runner architecture](/architecture/runner).
+
+## Challenge market
+
+**Challenge** — Opening a decision market against a submitted AI claim to argue it is fraudulent; the whole flow only happens for a challenged claim (`open_challenge` → trade → `settle_challenge`). See [Challenge markets overview](/challenge/overview).
+
+**Decision market** — The MetaDAO v0.4 binary futarchy market a challenge opens: pass-KASS vs fail-KASS, each priced in conditional USDC, whose TWAP decides the verdict at settle. See [Challenge markets](/concepts/challenge-markets).
+
+**Conditional vault** — The MetaDAO conditional-vault program that splits an underlying token (KASS or USDC) into pass/fail conditional tokens tied to the question's outcome. See [Conditional vaults](/challenge/conditional-vaults).
+
+**Pass / fail token** — The conditional tokens minted by a conditional vault: index 0 = pass, index 1 = fail; the winning side redeems 1:1 and the losing side redeems to zero at settle. See [Tokens](/concepts/tokens).
+
+**TWAP** — Time/slot-weighted average price. The v0.4 AMM's slot-weighted delayed-TWAP oracle accumulates `price * 1e12` per slot; settle reads the stored average (`aggregator / slots`) rather than a last-moment spot price. See [AMMs & TWAP](/challenge/amms-and-twap).
+
+## Economics & resolution
+
+**Plurality** — The rule that selects the winning option by aggregated correct-proposer stake; the final plurality recompute happens in `finalize_oracle`. See [Lifecycle](/concepts/lifecycle).
+
+**Bond pool** — The oracle's pool (`Oracle.bondPool`) of slashed bond value redistributed to the correct side; a disqualified proposer's `bond − kass_fee` becomes its bond-pool contribution. See [Economics](/concepts/economics).
+
+**Slash** — The confiscation of a proposer's bond when a challenge succeeds: the proposer is marked `disqualified`/`slashed` and its bond feeds the bond pool (minus the challenger's success fee). See [Economics](/concepts/economics).
+
+**Emissions** — The KASS rewards distributed to correct participants, drawn from the oracle's reward pool/emission, governed by the emission and reward-weight parameters. See [Economics](/concepts/economics).
+
+**Dynamic fee** — The EMA-based creation/usage fee tracked by the Protocol (`feeEma`, `feePerEmaUnit`, `feeEmaHalflife`, `feeEmaIncrement`), which adjusts with activity. See [Economics](/concepts/economics).
+
+**Dead-end** — A terminal resolution where an oracle cannot resolve normally and lands in the `InvalidDeadend` phase (for example a no-facts dead-end). See [Dead-end settlement](/concepts/dead-end-settlement).
+
+**KASS** — The protocol's staking and bond token; every staking action (propose, submit fact, vote) escrows KASS in raw base units, and the challenge market prices the bond in conditional USDC via `kass_price`. See [Tokens](/concepts/tokens).
+
+**Phase** — The oracle's position in its state machine (`Created`, `Proposal`, `FactProposal`, `FactVoting`, `AiClaim`, `Challenge`, `FinalRecompute`, `Resolved`, `InvalidDeadend`), advanced by permissionless cranks. See [Phases](/protocol/phases).

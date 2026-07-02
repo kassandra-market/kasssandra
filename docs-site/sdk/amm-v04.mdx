@@ -1,0 +1,93 @@
+---
+title: "AMM v0.4 submodule"
+description: "The ammV04.* submodule — MetaDAO v0.4 standalone AMM builders and PDA derivers for challenge-market decision AMMs."
+---
+
+`ammV04.*` wraps MetaDAO's **v0.4 standalone AMM** (program `AMMyu265…`, exported as
+`AMM_V04_ID`). Kassandra does **not** CPI this program — the challenge machinery composes
+these AMM instructions off-chain into the transactions that stand up a decision market's
+pass/fail AMMs. Every instruction is an Anchor `#[event_cpi]` call, so the builders append
+the `event_authority` + program accounts automatically.
+
+All builders are async and return `Promise<TransactionInstruction>`. Cross-reference
+[Trading](/challenge/trading) and [AMMs and TWAP](/challenge/amms-and-twap) for how these
+AMMs settle a challenge, and [Composing](/challenge/composing) for the wiring.
+
+## Builders
+
+<AccordionGroup>
+  <Accordion title="createAmm — CreateAmmArgs">
+    ```ts
+    ammV04.createAmm(a: CreateAmmArgs {
+      payer, baseMint, quoteMint,
+      twapInitialObservation: bigint | number,
+      twapMaxObservationChangePerUpdate: bigint | number,
+      twapStartDelaySlots?,
+    })
+    ```
+    Builds `amm::create_amm`. Args (40 bytes): `u128 ++ u128 ++ u64` — the initial TWAP
+    observation, the max per-update observation change, and the start-delay slots.
+  </Accordion>
+  <Accordion title="addLiquidity — AddLiquidityArgs">
+    ```ts
+    ammV04.addLiquidity(a: AddLiquidityArgs {
+      payer, baseMint, quoteMint,
+      quoteAmount, maxBaseAmount, minLpTokens?,
+    })
+    ```
+    Builds `amm::add_liquidity`. Args: three `u64` — `quote_amount`, `max_base_amount`,
+    `min_lp_tokens`.
+  </Accordion>
+  <Accordion title="swap — SwapArgs">
+    ```ts
+    ammV04.swap(a: SwapArgs {
+      payer, baseMint, quoteMint,
+      swapType: SwapType,
+      inputAmount, minOutputAmount?,
+    })
+    ```
+    Builds `amm::swap`. Args: `swap_type u8 ++ input u64 ++ min_out u64`. `swapType` is the
+    exported `enum SwapType { Buy = 0, Sell = 1 }`.
+  </Accordion>
+  <Accordion title="crankThatTwap — CrankThatTwapArgs">
+    ```ts
+    ammV04.crankThatTwap(a: CrankThatTwapArgs { amm })
+    ```
+    Builds `amm::crank_that_twap` — advances the AMM's TWAP oracle. No args. See
+    [Cranking](/challenge/cranking).
+  </Accordion>
+</AccordionGroup>
+
+## PDA derivers — `ammV04.pda.*`
+
+| Helper | Derives | Seeds |
+| --- | --- | --- |
+| `amm(baseMint, quoteMint)` | The AMM account | `[b"amm__", base, quote]` |
+| `lpMint(amm)` | The LP mint | `[b"amm_lp_mint", amm]` |
+| `eventAuthority()` | Anchor event authority | `[b"__event_authority"]` |
+| `ata(owner, mint)` | Associated token account → `Promise<Address>` | under `ATA_PROGRAM_ID` |
+
+<Note>
+`ammV04.pda.ata` returns a bare `Promise<Address>` (not a `Pda`), matching the SPL ATA
+convention.
+</Note>
+
+## Constants
+
+Exported from the submodule: `AMM_V04_ID`, `ATA_PROGRAM_ID`, `DISC` (the
+`createAmm` / `addLiquidity` / `swap` / `crankThatTwap` discriminators),
+`AMM_ACCOUNT_DISCRIMINATOR`, `SEED { amm: "amm__", lpMint: "amm_lp_mint", eventAuthority:
+"__event_authority" }`, and `enum SwapType { Buy = 0, Sell = 1 }`.
+
+## Example
+
+```ts
+import { ammV04 } from "@kassandra/sdk";
+
+const ix = await ammV04.swap({
+  payer, baseMint, quoteMint,
+  swapType: ammV04.SwapType.Buy,
+  inputAmount: 1_000_000n,
+  minOutputAmount: 0n,
+});
+```

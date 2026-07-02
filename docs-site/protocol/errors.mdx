@@ -1,0 +1,55 @@
+---
+title: "Errors"
+description: "All 36 KassandraError codes (0–35) — code, name, and meaning."
+---
+
+Every failure the program raises is a variant of `KassandraError` (`programs/kassandra/src/error.rs`),
+declared `#[repr(u32)]` and surfaced to clients as `ProgramError::Custom(n)`. Error codes are a
+**stable public contract** — never renumbered, only appended. The SDK re-exports this enum plus a
+`decodeError(custom)` helper (see [SDK · Overview](/sdk/overview)).
+
+| Code | Name | Meaning |
+| --- | --- | --- |
+| 0 | `NotImplemented` | Recognized instruction, processor not implemented. Legacy placeholder — **no live dispatch arm ever returns it** (all 23 variants are wired). |
+| 1 | `WrongPhase` | Oracle not in the phase this instruction requires. |
+| 2 | `WindowClosed` | Phase window already closed (`now >= phase_ends_at`). |
+| 3 | `WindowNotElapsed` | Phase window not yet elapsed (`now < phase_ends_at`). |
+| 4 | `Unauthorized` | Signer not authorized. |
+| 5 | `InvalidAccount` | Account invalid (wrong owner, address, or contents). |
+| 6 | `DuplicateFact` | A fact with this `content_hash` already exists. |
+| 7 | `ZeroStake` | Zero stake/bond where a positive amount is required. |
+| 8 | `DuplicateVote` | Voter already voted on this fact. |
+| 9 | `IncompleteFactSet` | `finalize_facts` / `finalize_ai_claims` called with an empty account tail. |
+| 10 | `AlreadySettled` | Fact / proposer / market already settled (idempotency). |
+| 11 | `NoDisputeBond` | `finalize_facts` with `dispute_bond_total == 0`. |
+| 12 | `DuplicateClaim` | An AI claim already exists for this proposer. |
+| 13 | `InvalidOption` | Claimed `option >= options_count` (`submit_ai_claim`). |
+| 14 | `AlreadyChallenged` | Claim already has an open challenge market. |
+| 15 | `TwapWindowOpen` | `settle_challenge` before `market.twap_end`. |
+| 16 | `ChallengesOutstanding` | `finalize_oracle` while `open_challenge_count != 0`. |
+| 17 | `AlreadyInitialized` | `init_protocol` on an already-initialized protocol. |
+| 18 | `InvalidDeadline` | `create_oracle` with `deadline < now`. |
+| 19 | `InvalidOptionsCount` | `options_count < 2` (`create_oracle`) OR `option >= options_count` (`propose` / `resolve_deadend`). |
+| 20 | `DeadlineNotReached` | `propose` before `deadline`. |
+| 21 | `ProposalWindowClosed` | `propose` after the window closed with existing proposers. |
+| 22 | `TooManyProposers` | `propose` would exceed `MAX_PROPOSERS`. |
+| 23 | `DuplicateProposer` | Authority already registered a proposal. |
+| 24 | `NoProposals` | `finalize_proposals` with `proposer_count == 0`. |
+| 25 | `GovernanceAlreadySet` | `set_governance` after handoff, by a non-`dao_authority` signer. |
+| 26 | `InvalidConfig` | `set_config` out-of-bounds param (also `settle_challenge` fee with `den == 0`). |
+| 27 | `VotersOutstanding` | `claim_fact` while `approve_stake != 0` or `duplicate_stake != 0`. |
+| 28 | `BadMintAuthority` | `create_oracle` emission: kass_mint authority is not the `[b"mint_authority"]` PDA (or None). |
+| 29 | `MarketNotSettled` | `close_market` on `market.settled == 0`. |
+| 30 | `EscrowNotEmpty` | `close_market` while the escrow `amount != 0`. |
+| 31 | `InvalidFutarchyDao` | `set_governance`: `kass_dao` not futarchy-owned or bad discriminator. |
+| 32 | `DaoAuthorityMismatch` | `set_governance`: `dao_authority` != the derived Squads vault PDA. |
+| 33 | `SweepGraceNotElapsed` | `sweep_oracle` before `phase_ends_at + SWEEP_GRACE`. |
+| 34 | `GovernanceNotSet` | `sweep_oracle` while `governance_set == 0`. |
+| 35 | `InvalidTreasury` | `sweep_oracle`: `dao_treasury` != `ATA(dao_authority, kass_mint)`. |
+
+<Note>
+Code **0 `NotImplemented`** exists in `error.rs` but is never returned live — every one of the 23
+instruction variants is wired in `processor/mod.rs`. Beyond these custom codes, the program can also
+surface standard `ProgramError`s such as `NotEnoughAccountKeys`, `InvalidInstructionData`, and
+`ArithmeticOverflow` from account destructuring, payload-length checks, and checked math.
+</Note>

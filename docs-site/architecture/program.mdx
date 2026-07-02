@@ -1,0 +1,107 @@
+---
+title: "On-chain program"
+description: "The Pinocchio program — manual dispatch, module layout, and how an instruction flows from entrypoint to processor."
+---
+
+The Kassandra program is the source of truth for the protocol. It is a single Solana program deployed
+at `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY` (`programs/kassandra/src/lib.rs`), written in
+**Pinocchio** rather than Anchor. Everything about how it is structured follows from that choice:
+manual instruction dispatch, manual account validation, and hand-built CPI into MetaDAO.
+
+## Pinocchio, not Anchor
+
+Anchor generates an IDL, deserializes accounts, and dispatches instructions from macros. Pinocchio
+does none of that — the program owns all of it explicitly. The wire format is deliberately minimal:
+the **first byte** of `instruction_data` is a discriminant that selects an `Ix` variant, and the
+remaining bytes are a per-instruction payload parsed inside each processor
+(`instruction.rs`, `processor/mod.rs`).
+
+Discriminant bytes and error codes are a **stable public contract** — never renumbered, only appended
+(`instruction.rs`, `error.rs`). Errors surface to clients as `ProgramError::Custom(u32)`.
+
+## Module layout
+
+```text
+programs/kassandra/src/
+├── lib.rs          entrypoint! + process_instruction + program ID
+├── instruction.rs  Ix enum (0..=22) + from_u8 dispatch discriminants
+├── processor/      one module per instruction + mod.rs dispatch table + guards.rs
+├── state.rs        7 account structs (Pod/Zeroable), AccountType, Phase enums
+├── config.rs       compile-time constants + defaults
+├── error.rs        KassandraError (36 codes) → ProgramError::Custom
+├── reward.rs       reward-bucket + pro-rata settlement math (pure, no token movement)
+├── fee.rs          dynamic creation-fee EMA (decay / charge / bump)
+├── price.rs        governance-anchored KASS/USDC TWAP (kass_price)
+├── plurality.rs    strict-plurality resolution over surviving proposers
+├── clock.rs        unix-time helpers / phase-window gates
+└── cpi/            metadao.rs (v0.4 vault+AMM), metadao_v06.rs (futarchy/Meteora)
+```
+
+| Module | Responsibility |
+| --- | --- |
+| `lib.rs` | Installs the entrypoint (gated behind `no-entrypoint` for library reuse) and forwards to the processor. |
+| `instruction.rs` | The `Ix` enum and its `from_u8` mapping — the 23 discriminants. |
+| `processor/` | One file per instruction (`submit_fact.rs`, `create_oracle.rs`, …), plus `mod.rs` (dispatch) and `guards.rs` (shared validation). |
+| `state.rs` | The `#[repr(C)]`, `Pod + Zeroable` account structs read/written zero-copy via `bytemuck`; the `AccountType` and `Phase` enums. |
+| `config.rs` | Compile-time constants and the genesis defaults snapshotted onto Protocol/Oracle. |
+| `error.rs` | The `KassandraError` enum (`#[repr(u32)]`). |
+| `reward.rs`, `fee.rs`, `price.rs`, `plurality.rs` | Pure economic-logic helpers — no token movement of their own. |
+| `cpi/` | Hand-reconstructed MetaDAO Anchor CPI (discriminators, metas, Borsh args). |
+
+See [Protocol reference](/protocol/overview) for the exhaustive instruction, account, phase, PDA,
+error, and constant tables.
+
+## How an instruction flows
+
+<Steps>
+  <Step title="Entrypoint">
+    `entrypoint!(process_instruction)` receives `(program_id, accounts, instruction_data)` and
+    forwards to `processor::process` (`lib.rs`). The entrypoint is gated behind the `no-entrypoint`
+    feature so the crate can be reused as a plain library (the runner does exactly this).
+  </Step>
+  <Step title="Dispatch">
+    `processor::process` reads `instruction_data[0]` as the discriminant, resolves it to an `Ix`
+    variant, and calls the matching processor with the account slice and the remaining payload bytes
+    (`processor/mod.rs`). An unknown discriminant is rejected.
+  </Step>
+  <Step title="Payload parse">
+    The processor parses its fixed- or variable-length payload from the remaining bytes. Most
+    payloads are exact-length (e.g. `submit_ai_claim` requires exactly 97 bytes); a bad length
+    returns `InvalidInstructionData`.
+  </Step>
+  <Step title="Account validation">
+    The processor destructures its expected accounts (`let [a, b, ..] = accounts else { return
+    NotEnoughAccountKeys }`) and validates each with the shared helpers in `guards.rs`:
+    `assert_signer` → `Unauthorized`; `assert_owned_by_program` / `assert_key` / `load_*` →
+    `InvalidAccount`; `assert_dao_authority` checks signer AND `signer.key == protocol.dao_authority`.
+  </Step>
+  <Step title="Phase gate + state change">
+    Lifecycle instructions gate on the oracle's phase and window (`require_phase`,
+    `require_before_end` / `require_after_end`) before mutating account bytes, moving KASS/USDC via
+    token CPI, or CPI-ing into MetaDAO. PDAs are created with `create_pda` (a system `CreateAccount`
+    signed by PDA seeds).
+  </Step>
+</Steps>
+
+<Note>
+Signer flags are enforced on-chain by `assert_signer`. The **writable** flag on each account is
+enforced by the Solana runtime, not the program — the account tables in
+[Protocol · Instructions](/protocol/instructions) list the intended metas.
+</Note>
+
+## Reading further
+
+<CardGroup cols={2}>
+  <Card title="Instructions" icon="list-check" href="/protocol/instructions">
+    All 23 instructions with accounts, payloads, phase gates, and errors.
+  </Card>
+  <Card title="Accounts" icon="database" href="/protocol/accounts">
+    The 7 account structs with full field tables and byte offsets.
+  </Card>
+  <Card title="Phases" icon="diagram-project" href="/protocol/phases">
+    The `Phase` enum and the full transition map.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/protocol/errors">
+    All 36 `KassandraError` codes.
+  </Card>
+</CardGroup>

@@ -1,0 +1,109 @@
+---
+title: "Cranking the TWAP"
+description: "Why the slot-weighted TWAP must be cranked, the ≥150-slot rate limit, who cranks, and the app builder — plus why settle deliberately does not crank."
+---
+
+The challenge verdict reads a **time-weighted** average price, not a spot price. That
+average only advances when someone folds the current price into the pool's aggregator.
+Swaps do this automatically, but between swaps the price still needs to be *carried
+forward* over the slots that pass — that is what **cranking** does. Cranking is how the
+market accumulates a sustained price into the TWAP so that trades made during the window
+actually count at settlement.
+
+## The crank instruction
+
+```text
+crank_that_twap  (disc dc 64 19 f9 00 5c c3 c1)   // no args
+accounts: [ amm(w), event_authority, amm_program ]
+```
+
+`crank_that_twap` (`programs/kassandra/src/cpi/metadao.rs:91-94`) folds the current spot
+price into the pool's slot-weighted `aggregator`. It takes **no arguments** and needs
+**no signer** — the only writable account is the `amm` itself, plus the `#[event_cpi]`
+trailer.
+
+## The ≥150-slot rate limit
+
+A crank only takes effect once per **`ONE_MINUTE_IN_SLOTS = 150` slots**. Cranking more
+often is a no-op; cranks spaced ≥150 slots apart each add their slot-weighted
+contribution to the aggregator.
+
+```text
+aggregator += price × (slots elapsed since last update)   // per accepted crank
+twap        = aggregator / (last_updated_slot − (created_at_slot + start_delay_slots))
+```
+
+The app mirrors this limit client-side:
+
+```ts title="app/src/data/actions/challengeTrade.ts"
+const CRANK_MIN_SLOTS = 150n;         // :286
+crankRateLimited(/* ... */)           // :310  — guards the UI against too-soon cranks
+```
+
+<Warning>
+  A **single** crank cannot move the TWAP meaningfully. The aggregator weights the
+  previous observation across the whole elapsed window, so one fold barely shifts a
+  time-weighted average. To make a swap load-bearing you must **accumulate** the new
+  price over **multiple** cranks ≥150 slots apart — the E2E fraud path uses two cranks
+  300 slots apart to push the fail TWAP past the 10% margin. This is by design: the TWAP
+  measures a *sustained* price, which is what resists last-block manipulation.
+</Warning>
+
+## Who cranks
+
+Cranking is **permissionless** — no signer, anyone can do it. In practice:
+
+- **The challenger** and fraud-believers crank the **fail** pool to accumulate the
+  higher fail price they are trading toward.
+- **The proposer** and honesty-believers can crank the **pass** pool to keep pass fresh
+  and defend the claim.
+- Any third party can crank either pool; there is no privileged cranker.
+
+Because the aggregator is a public good that both sides may want to advance (or leave
+stale), the permissionless design lets whoever benefits from an accurate average keep it
+fresh throughout the `market.twap_end` window.
+
+## The app builder
+
+```ts title="app/src/data/actions/challengeTrade.ts:295"
+buildCrankTwapIxs(/* ... */) // → ammV04.crankThatTwap
+```
+
+which wraps the SDK builder:
+
+```ts title="sdk/src/amm-v04/instructions.ts:246"
+const ix = await ammV04.crankThatTwap({ amm });
+```
+
+The React surface is `ChallengeTradeControls`
+(`app/src/components/oracles/actions/ChallengeTradeControls.tsx`), which exposes the
+crank button (rate-limit-guarded by `crankRateLimited`) next to the trade and settle
+controls.
+
+## Settle does NOT crank
+
+<Info>
+  **Settlement reads the *stored* aggregator — it never cranks.** Kassandra's
+  `verify_and_read_twap` (`programs/kassandra/src/processor/settle_challenge.rs:203-217,
+  23-34`) computes `aggregator / (last_updated_slot − (created_at_slot +
+  start_delay_slots))` from whatever was already accumulated. This is deliberate: if
+  settle cranked, a settler could fold a last-moment price into the average at the
+  instant of judgment and dominate the window. Because settle consumes only the
+  pre-existing average, the manipulation resistance holds — the price you want to matter
+  must have been cranked in *during* the window.
+</Info>
+
+If a pool was never cranked (or never traded), its `aggregator == 0` and the TWAP reads
+`0`. For the pass pool that means "no counter-trading → the claim survives"; see the
+`pass_twap == 0` guard on the [Settlement](/challenge/settle) page.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Settle" icon="scale-balanced" href="/challenge/settle">
+    How the accumulated TWAP feeds the exact verdict formula.
+  </Card>
+  <Card title="AMMs and the TWAP" icon="chart-line" href="/challenge/amms-and-twap">
+    The oracle math behind the aggregator.
+  </Card>
+</CardGroup>

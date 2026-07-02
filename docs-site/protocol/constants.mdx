@@ -1,0 +1,123 @@
+---
+title: "Constants"
+description: "Every Kassandra config constant and governable field — name, type, value/default, and meaning."
+---
+
+This page lists the compile-time constants (`programs/kassandra/src/config.rs`) and the governable
+Protocol fields they seed. The behavioral/monetary constants are the **recommended defaults**;
+`init_protocol` snapshots most of them into the `Protocol` singleton, and `create_oracle` snapshots
+the behavioral subset onto each `Oracle` (frozen per-oracle so mid-dispute governance changes cannot
+move the goalposts). The SDK mirrors the defaults in its `CONFIG` object (see
+[SDK · Overview](/sdk/overview)).
+
+<Warning>
+**Genesis defaults differ from the emission consts.** `init_protocol` deliberately sets
+`emission_num = 0`, `emission_den = 1`, and `total_supply_cap = 0` — **emission is disabled at
+genesis**, regardless of the `EMISSION_*` / `TOTAL_SUPPLY_CAP` consts below. All fee, threshold, slash,
+reward, and challenge-fee params ARE defaulted to their consts (`init_protocol.rs`). Emission is a
+governance opt-in via `set_config`.
+</Warning>
+
+## Windows & limits
+
+| Name | Type | Value | Meaning |
+| --- | --- | --- | --- |
+| `PHASE_WINDOW` | i64 | `3600` (1h) | Dispute phase window seconds; `phase_ends_at = now + PHASE_WINDOW`. |
+| `PROPOSAL_WINDOW` | i64 | `3600` (1h) | Proposal-registration window; `phase_ends_at = deadline + PROPOSAL_WINDOW`. |
+| `SWEEP_GRACE` | i64 | `2_592_000` (30d) | Grace after terminal `phase_ends_at` before `sweep_oracle` may reap. |
+| `MAX_PROPOSERS` | u16 | `60` | Cap on an oracle's proposer set (single-tx account-lock budget). |
+
+## Fact quorum
+
+| Name | Type | Value | Meaning |
+| --- | --- | --- | --- |
+| `THRESHOLD_NUM` | u64 | `2` | Fact-approval supermajority numerator (2/3). |
+| `THRESHOLD_DEN` | u64 | `3` | Fact-approval supermajority denominator. |
+| `FACT_VOTE_SLASH_NUM` | u64 | `1` | Approve-voter slash on a rejected fact (1/2 = 50%). |
+| `FACT_VOTE_SLASH_DEN` | u64 | `2` | Denominator. |
+
+The agreed test (`finalize_facts`): `approve_stake > duplicate_stake && approve_stake·threshold_den >=
+dispute_bond_total·threshold_num` (u128).
+
+## Challenge market
+
+| Name | Type | Value | Meaning |
+| --- | --- | --- | --- |
+| `MARKET_THRESHOLD_NUM` | u128 | `1` | Slash-trigger relative margin numerator (1/10 = fail must beat pass by ≥10%). |
+| `MARKET_THRESHOLD_DEN` | u128 | `10` | Slash-trigger margin denominator. |
+| `CHALLENGE_FAIL_USDC_FEE_NUM` | u64 | `1` | USDC fee on a failed challenge (→ proposer), 1/100. |
+| `CHALLENGE_FAIL_USDC_FEE_DEN` | u64 | `100` | Denominator. |
+| `CHALLENGE_SUCCESS_KASS_FEE_NUM` | u64 | `1` | KASS fee on a successful challenge (→ challenger), 1/100. |
+| `CHALLENGE_SUCCESS_KASS_FEE_DEN` | u64 | `100` | Denominator. |
+| `KASS_PRICE_SCALE` | u128 | `1_000_000_000_000` (1e12) | Fixed-point scale of the `kass_price` TWAP (raw USDC per raw KASS × 1e12). |
+
+Slash trigger (`settle_challenge`): disqualify iff `pass_twap != 0 && fail_twap·market_threshold_den >
+pass_twap·(market_threshold_den + market_threshold_num)`. See [Settle](/challenge/settle).
+
+## AI-claim slashing & rewards
+
+| Name | Type | Value | Meaning |
+| --- | --- | --- | --- |
+| `FLIP_SLASH_NUM` | u64 | `1` | Flip-slash fraction numerator (1/2 = 50%). |
+| `FLIP_SLASH_DEN` | u64 | `2` | Flip-slash denominator. |
+| `REWARD_PROPOSER_WEIGHT` | u64 | `2` | Proposer cohort reward-split weight (PW). |
+| `REWARD_FACT_WEIGHT` | u64 | `1` | Fact cohort reward-split weight (FW). |
+
+Reward buckets (`reward.rs`): `proposer_bucket = reward_pool·PW/(PW+FW)`,
+`fact_bucket = reward_pool·FW/(PW+FW)` (u128 floor).
+
+## Dynamic creation fee (EMA)
+
+`Protocol.fee_ema` is a fixed-point accumulator scaled by `FEE_EMA_SCALE`; `fee_ema == FEE_EMA_SCALE`
+means 1.0 creation units. Genesis (`fee_ema == 0`) is free. See [Economics](/concepts/economics).
+
+| Name | Type | Value | Meaning |
+| --- | --- | --- | --- |
+| `FEE_EMA_SCALE` | u128 | `1_000_000_000` (1e9) | Fixed-point scale of `fee_ema`. |
+| `FEE_EMA_HALFLIFE_SECS` | i64 | `86_400` (1d) | Half-life of the activity EMA. |
+| `FEE_EMA_INCREMENT` | u64 | `1e9` (`= FEE_EMA_SCALE`) | Scaled EMA bump per creation (one creation unit). |
+| `FEE_PER_EMA_UNIT` | u64 | `1_000_000_000` (1e9) | KASS base units charged per 1.0 EMA (1 KASS/unit; KASS 9dp). |
+
+Per creation (`create_oracle`): decay the EMA → charge `fee_for_ema` → bump by `FEE_EMA_INCREMENT` →
+stamp `last_creation_unix`. Compile-time guards enforce `FEE_EMA_HALFLIFE_SECS > 0` and
+`FEE_EMA_SCALE > 0`.
+
+## Emission (governance opt-in)
+
+| Name | Type | Value | Meaning |
+| --- | --- | --- | --- |
+| `TOTAL_SUPPLY_CAP` | u64 | `1e18` (1e9 KASS @ 9dp) | Recommended supply cap; emission reservoir = `cap − supply`. Genesis default `0` (disabled). |
+| `EMISSION_NUM` | u64 | `1` | Recommended emission rate numerator (1/1e6 of the reservoir per creation). |
+| `EMISSION_DEN` | u64 | `1_000_000` (1e6) | Emission rate denominator. |
+
+Emission per creation (when enabled): `reward_emission = (total_supply_cap − supply)·emission_num /
+emission_den` (u128 floor), minted into `stake_vault` signed by `[b"mint_authority"]`.
+
+## Other constants
+
+| Name | Type | Value | Meaning |
+| --- | --- | --- | --- |
+| `MINT_AUTHORITY_SEED` | `&[u8]` | `b"mint_authority"` | Seed of the KASS mint-authority PDA. |
+| `CLAIM_OPTION_NONE` | u8 | `0xFF` | `Proposer.claim_option` "no AI claim yet" sentinel; also `Oracle.resolved_option` on dead-end. |
+| `VOTE_APPROVE` | u8 | `0` | `FactVote.kind` approve. |
+| `VOTE_DUPLICATE` | u8 | `1` | `FactVote.kind` duplicate. |
+
+## Governable via `set_config`
+
+`set_config` overwrites 22 Protocol fields as a single 176-byte payload (22 × 8-byte LE), in this
+fixed order (`set_config.rs`). Monetary fields take effect on the Protocol immediately; behavioral
+fields only affect **future** oracles (existing oracles keep their frozen snapshot).
+
+`emission_num`, `emission_den`, `total_supply_cap`, `fee_ema_halflife`, `fee_per_ema_unit`,
+`fee_ema_increment`, `threshold_num`, `threshold_den`, `market_threshold_num`, `market_threshold_den`,
+`flip_slash_num`, `flip_slash_den`, `phase_window`, `proposal_window`, `fact_vote_slash_num`,
+`fact_vote_slash_den`, `reward_proposer_weight`, `reward_fact_weight`, `challenge_fail_usdc_fee_num`,
+`challenge_fail_usdc_fee_den`, `challenge_success_kass_fee_num`, `challenge_success_kass_fee_den`.
+
+Bounds enforced (`InvalidConfig` otherwise): no zero denominators; no `num > den` fractions;
+`phase_window` / `proposal_window` / `fee_ema_halflife` must be positive; the two reward weights
+cannot both be zero; and the joint bound `flip_num·fee_den + fee_num·flip_den <= flip_den·fee_den`.
+
+Identity/linkage/accounting fields (`admin`, mints, `fee_ema`, `last_creation_unix`, `bump`,
+`governance_set`, `dao_authority`, `kass_dao`) are **not** governable via `set_config`. See
+[Accounts · Protocol](/protocol/accounts) and [Governance economics](/concepts/economics).

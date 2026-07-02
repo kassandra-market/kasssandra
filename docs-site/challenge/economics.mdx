@@ -1,0 +1,150 @@
+---
+title: "Economics"
+description: "The economics of a challenge — the bond, the USDC escrow sized via kass_price, the slash, the fail-side payout, directional fees, and the game theory of griefing."
+---
+
+A challenge is a wager with real, comparable skin-in-the-game on both sides: the
+proposer's locked **KASS bond** is the conditional collateral, and the challenger must
+**escrow USDC** worth roughly the same amount. The market decides who is right, and
+settlement moves value between them plus small directional fees. This page covers where
+every unit goes and why the incentives make honest, uncontested claims the default.
+
+For the broader protocol economics — bonds, emissions, and the dynamic fee — see
+[Concepts: economics](/concepts/economics).
+
+## The two stakes
+
+<CardGroup cols={2}>
+  <Card title="Proposer's bond (KASS)" icon="lock">
+    Locked when the AI claim was made. `open_challenge` splits it into **idle**
+    pass-KASS + fail-KASS (never LP'd → no impermanent loss). Slashed if the market
+    disqualifies the proposer.
+  </Card>
+  <Card title="Challenger's escrow (USDC)" icon="vault">
+    Posted at `open_challenge` into a market-owned SPL escrow at PDA
+    `[b"challenge_usdc", market]` (token authority = the oracle PDA). Sized to the
+    bond's KASS value so both sides risk comparable amounts.
+  </Card>
+</CardGroup>
+
+## Sizing the escrow via `kass_price`
+
+`open_challenge` computes the required escrow from the bond and the governance-anchored
+KASS spot price (`open_challenge.rs:354-433`):
+
+```text
+required_usdc = bond × twap / KASS_PRICE_SCALE
+twap          = kass_price(protocol, kass_dao)     // raw USDC per raw KASS × 1e12
+KASS_PRICE_SCALE = 1_000_000_000_000               // 1e12
+```
+
+`kass_price` is the v0.6 futarchy embedded spot TWAP, anchored to `Protocol.kass_dao`.
+Its `1e12` scale already folds in the KASS 9 dp ↔ USDC 6 dp decimal difference, so **no
+extra `10^Δdec` factor** is needed. Dimensionally `[KASS_raw] × [USDC_raw / KASS_raw] =
+[USDC_raw]`.
+
+<Info>
+  **Worked example** (from the C1 delta log). KASS at $0.50 → `twap = 500_000_000`. A
+  1 KASS bond (`1e9` base units) escrows `1e9 × 5e8 / 1e12 = 500_000` USDC base units =
+  $0.50. Both sides then have ≈$0.50 at risk.
+</Info>
+
+The escrow is funded by a **challenger-signed** SPL `Transfer`; an under-funded source
+makes the transfer fail and the whole instruction reverts. `required_usdc == 0` (a
+sub-micro bond that truncates to nothing) is rejected with `ZeroStake` — otherwise there
+would be no fee source at settle.
+
+## Where the value goes at settle
+
+Both outcomes first `redeem_tokens` the idle bond 1:1 back into `oracle.stake_vault`
+(see [Settlement](/challenge/settle)). Then:
+
+### Disqualify — challenge SUCCEEDED (fail-win)
+
+| Flow | Amount | Destination |
+| --- | --- | --- |
+| KASS fee (challenger reward) | `bond × challenge_success_kass_fee_num/den` (default `1/100`) | challenger KASS (from `stake_vault`) |
+| Slashed bond | `bond − kass_fee` | proposer's `bond_pool` contribution (`== slashed_amount`) |
+| USDC escrow | full `challenger_usdc` | returned to challenger |
+
+`surviving_count -= 1`; `proposer.disqualified = slashed = 1`. The challenger risked USDC
+and gets it **all** back plus a KASS reward carved out of the slashed bond; the rest of
+the bond is slashed into the pool.
+
+### Survive — challenge FAILED (pass-win)
+
+| Flow | Amount | Destination |
+| --- | --- | --- |
+| USDC fee (proposer reward) | `challenger_usdc × challenge_fail_usdc_fee_num/den` (default `1/100`) | proposer USDC |
+| USDC remainder | `challenger_usdc − usdc_fee` | returned to challenger |
+| Bond | full `bond` | stays the proposer's (in `stake_vault`) |
+
+The proposer keeps their whole bond and pockets a small USDC fee from the challenger's
+escrow as compensation for the nuisance; the challenger gets their escrow back minus that
+fee.
+
+<Note>
+  The directional-fee rates are **governable** per-oracle snapshots
+  (`challenge_fail_usdc_fee_num/den`, `challenge_success_kass_fee_num/den`), defaulting to
+  `1/100 = 1%`. They are snapshotted from `Protocol` at oracle creation and updated via
+  `set_config` under bounds (`den > 0`, `num ≤ den`).
+</Note>
+
+## Conservation
+
+The rework holds two exact conservation identities, verified end-to-end against an
+independent reference model (`docs/plans/2026-06-29-kassandra-challenge-rework.md`, C3):
+
+```text
+USDC:  proposer_usdc + challenger_usdc_dest == escrow                     // both outcomes
+KASS (survive):     stake_vault + kass_vault_underlying == total_oracle_stake
+KASS (disqualify):  stake_vault + kass_vault_underlying + challenger_kass == total_oracle_stake
+```
+
+On disqualify the `kass_fee` physically leaves `stake_vault` to the challenger, so
+`total_oracle_stake` becomes an **idealized accumulator, not physical KASS** — the
+carve-out is the difference. The per-proposer identity `slashed_amount == bond_pool
+contribution == bond − kass_fee` is the authoritative slash figure; settlement always
+sources payouts from real `stake_vault` / `bond_pool` balances and this ledger, never
+from `total_oracle_stake` or live token-account balances.
+
+<Warning>
+  **The bond is never AMM liquidity.** It is split into idle conditional tokens and
+  redeemed 1:1 — so slashing is clean and KASS is conserved. Market liquidity and its
+  impermanent-loss risk belong entirely to the challenger and traders, never the bond.
+</Warning>
+
+## The game theory
+
+- **Uncontested = honest by assumption.** With no challenge, there is no `Market` and no
+  cost — the common case is free. The machinery only fires when someone stakes real
+  money on "this is fraud."
+- **Symmetric skin-in-the-game.** The escrow is sized to the bond via `kass_price`, so a
+  frivolous challenge risks USDC comparable to the bond it attacks.
+- **The cost of griefing.** To disqualify an honest proposer, a challenger must drive
+  `fail_twap * DEN > pass_twap * (DEN + NUM)` — a *sustained* fail price cranked across
+  the window (see [Cranking](/challenge/cranking)) — against anyone who counter-trades
+  pass. The `pass_twap == 0` guard means an honest claim that nobody bothers to defend
+  still survives, so a griefer cannot win by cranking fail alone. If the challenge fails,
+  the challenger forfeits the `usdc_fee` to the proposer and recovers only the remainder.
+- **The reward for catching fraud.** A successful challenge returns the challenger's full
+  escrow **and** pays a KASS fee carved from the slashed bond — a positive expected value
+  only when the claim really is fraudulent and the market agrees.
+
+## Deferred (rent)
+
+`settle_challenge` sets `market.settled = 1` but does **not** close the `Market` PDA or
+the `challenger_usdc_vault` escrow — the challenger's rent stays locked until a
+settlement-era close instruction (`close_market`, Ix=21), mirroring the Proposer/Fact
+non-closure convention.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Settle" icon="scale-balanced" href="/challenge/settle">
+    The verdict formula and the exact token movements per outcome.
+  </Card>
+  <Card title="Concept: economics" icon="coins" href="/concepts/economics">
+    Bonds, emissions, and the protocol-wide incentive design.
+  </Card>
+</CardGroup>

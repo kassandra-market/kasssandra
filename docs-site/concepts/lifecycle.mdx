@@ -1,0 +1,175 @@
+---
+title: "The oracle lifecycle"
+description: "The full phase state machine — from Proposal through the dispute phases to Resolved or InvalidDeadend — and which instruction advances each edge."
+---
+
+Every oracle is a state machine. Its position is stored as a single `u8` in
+`Oracle.phase`, decoded through the `Phase` enum (`state.rs`). This page is the central map:
+the phases, the happy path, the dispute path, and the exact instruction that moves the
+oracle across each edge. Each phase links to its own concept page.
+
+## The `Phase` enum
+
+`Phase` has nine variants (`state.rs`); two are reserved for ABI stability and never hold a
+live oracle.
+
+| # | Variant | Meaning |
+|---|---|---|
+| 0 | `Created` | **Reserved / unused.** `create_oracle` initializes directly into `Proposal`; no live oracle is ever in `Created`. |
+| 1 | `Proposal` | Proposal-registration window (oracles are created here). |
+| 2 | `FactProposal` | Fact-submission phase (dispute opens here). |
+| 3 | `FactVoting` | Stake-weighted fact voting. |
+| 4 | `AiClaim` | AI-claim submission phase. |
+| 5 | `Challenge` | Challenge window — decision markets trade here. |
+| 6 | `FinalRecompute` | **Reserved / unused.** `Challenge` transitions directly to a terminal state. |
+| 7 | `Resolved` | Terminal: a winning categorical option was resolved. |
+| 8 | `InvalidDeadend` | Terminal: tie, no survivors, or no facts — no valid resolution. |
+
+<Note>
+  `Created` (0) and `FinalRecompute` (6) are kept only for ABI stability. Oracles are
+  created straight into `Proposal`, and `Challenge` advances straight to a terminal state
+  via `finalize_oracle` — the recompute happens inside that one instruction, not in a
+  separate phase.
+</Note>
+
+## The two paths
+
+<CardGroup cols={2}>
+  <Card title="Happy path (no dispute)" icon="feather">
+    `Proposal → Resolved`. Everyone who proposed agreed on one value, so
+    `finalize_proposals` resolves the oracle directly. **No facts, no AI, no markets.**
+  </Card>
+  <Card title="Dispute path (conflict)" icon="scale-balanced">
+    `Proposal → FactProposal → FactVoting → AiClaim → Challenge → Resolved | InvalidDeadend`.
+    Two or more distinct values lock the proposers in and run the full machinery.
+  </Card>
+</CardGroup>
+
+## Walkthrough
+
+<Steps>
+  <Step title="Create → Proposal">
+    `create_oracle` (`Ix=10`) stands the oracle up directly in `Phase::Proposal` with a
+    future deadline, a KASS stake vault, a burned creation fee, and an immutable config
+    snapshotted from the Protocol. See [Oracles and questions](/concepts/oracles-and-questions).
+  </Step>
+
+  <Step title="Proposal — register values and bonds">
+    After the `deadline`, proposers call `propose` (`Ix=11`) to register a categorical
+    option plus a KASS bond (no proofs). The window runs `proposal_window` seconds; an empty
+    window re-opens on the first proposal. See [Proposals](/concepts/proposals).
+  </Step>
+
+  <Step title="finalize_proposals — resolve or open the dispute">
+    After the window, `finalize_proposals` (`Ix=12`) takes the full proposer set:
+    **all agree → `Resolved`** with `resolved_option`; **≥2 distinct options → `FactProposal`**,
+    fixing `dispute_bond_total = total_oracle_stake` and opening a fresh window. Proposers
+    are now locked in.
+  </Step>
+
+  <Step title="FactProposal — submit evidence">
+    Anyone posts candidate facts with `submit_fact` (`Ix=0`): a `content_hash`, a URI, and a
+    KASS stake. **No voting is possible here** — the disjoint window is an anti-grief
+    measure. See [Facts](/concepts/facts).
+  </Step>
+
+  <Step title="advance_phase — freeze the fact set">
+    Once the fact-proposal window elapses, the permissionless `advance_phase` (`Ix=7`, no
+    signer) freezes `FactProposal → FactVoting`. The fact set is now fixed.
+  </Step>
+
+  <Step title="FactVoting — approve or flag duplicate">
+    Participants stake-vote per fact with `vote_fact` (`Ix=1`): `approve` or `duplicate`.
+    Voting is non-exclusive (one staker may approve every fact). See [Facts](/concepts/facts).
+  </Step>
+
+  <Step title="finalize_facts — settle the agreed set">
+    After the window, `finalize_facts` (`Ix=2`) **incrementally** classifies facts
+    (agreed / duplicate / rejected), accumulating `bond_pool` and
+    `total_approved_fact_stake`. When `settled_count == fact_count` it advances to `AiClaim`.
+    If **no proposer submitted any fact**, it takes the no-facts dead-end: slash all
+    proposers, burn `bond_pool + reward_emission`, and terminate in `InvalidDeadend`.
+  </Step>
+
+  <Step title="AiClaim — apply the fixed interpretation">
+    Each locked-in proposer reruns the runner over the agreed facts and submits a value plus
+    metadata with `submit_ai_claim` (`Ix=3`). The value may change from the original (this
+    can collapse the dispute). See [AI claims](/concepts/ai-claims).
+  </Step>
+
+  <Step title="finalize_ai_claims — slash no-shows and flips">
+    After the window, `finalize_ai_claims` (`Ix=8`) **incrementally** settles the round:
+    a no-show (`claim_option == CLAIM_OPTION_NONE`) is fully slashed and disqualified; a
+    flip is partially slashed but survives; a submitted, non-flipped claim is untouched.
+    When `ai_finalized_count == proposer_count` it advances to `Challenge`.
+  </Step>
+
+  <Step title="Challenge — decision markets">
+    Every AI claim is challengeable **in parallel**. `open_challenge` (`Ix=4`) opens a
+    MetaDAO market against a claim; traders push a TWAP; `settle_challenge` (`Ix=5`) settles
+    one market after its window and either disqualifies the proposer or lets the claim
+    survive. Settling stays in `Challenge` and decrements `open_challenge_count`. See
+    [Challenge markets](/concepts/challenge-markets).
+  </Step>
+
+  <Step title="finalize_oracle — resolve or dead-end">
+    After the challenge window, with `open_challenge_count == 0`, `finalize_oracle` (`Ix=6`)
+    computes the final **plurality** over surviving proposers: `Winner(opt) → Resolved`
+    (stamping `total_correct_proposer_stake` and `reward_pool = bond_pool + reward_emission`);
+    `Tie` / `NoSurvivors → InvalidDeadend` (burning `reward_emission + bond_pool`).
+  </Step>
+</Steps>
+
+## Phases and their advancing instructions
+
+| Edge | Instruction | Condition |
+|---|---|---|
+| (none) → `Proposal` | `create_oracle` (`Ix=10`) | oracle initialized directly into `Proposal` |
+| `Proposal` → `Resolved` | `finalize_proposals` (`Ix=12`) | all proposers agree on one option |
+| `Proposal` → `FactProposal` | `finalize_proposals` (`Ix=12`) | ≥2 distinct options; sets `dispute_bond_total` |
+| `FactProposal` → `FactVoting` | `advance_phase` (`Ix=7`) | window elapsed; permissionless, no signer |
+| `FactVoting` → `AiClaim` | `finalize_facts` (`Ix=2`) | `settled_count == fact_count` |
+| `FactVoting` → `InvalidDeadend` | `finalize_facts` (`Ix=2`) | no-facts dead-end (`surviving_count == 0`) |
+| `AiClaim` → `Challenge` | `finalize_ai_claims` (`Ix=8`) | `ai_finalized_count == proposer_count` |
+| `Challenge` → `Challenge` (self) | `settle_challenge` (`Ix=5`) | settles one market; decrements `open_challenge_count` |
+| `Challenge` → `Resolved` | `finalize_oracle` (`Ix=6`) | plurality `Winner(opt)`; requires `open_challenge_count == 0` |
+| `Challenge` → `InvalidDeadend` | `finalize_oracle` (`Ix=6`) | plurality `Tie` / `NoSurvivors` |
+| `InvalidDeadend` → `Resolved` | `resolve_deadend` (`Ix=15`) | DAO-gated governance stamp of a final option |
+
+<Info>
+  Time gates use `phase_ends_at`. Instructions that *add* to a phase require
+  `require_before_end` (fail with `WindowClosed`); instructions that *close* a phase require
+  `require_after_end` (fail with `WindowNotElapsed`). The one non-advancing writer of
+  `phase_ends_at` is `propose`, which extends the window only in the empty-window seeding
+  branch.
+</Info>
+
+## Terminal states
+
+An oracle ends in **exactly one** terminal state (design invariant 9):
+
+- **`Resolved`** — a winning option survived every phase. `resolved_option` is valid, and
+  a reward pool is distributed to honest proposers and fact stakers via the permissionless
+  `claim_*` instructions. See [Economics](/concepts/economics).
+- **`InvalidDeadend`** — all values disqualified, a final plurality tie, or no facts at all.
+  `resolved_option` is the `0xFF` sentinel. All non-slashed principal is returned, slashed
+  amounts and emissions are burned, and only KASS governance can stamp a final option via
+  `resolve_deadend`. See [Dead-end settlement](/concepts/dead-end-settlement).
+
+After a terminal state, participants pull their entitlements and close accounts
+(`claim_proposer`, `claim_fact`, `claim_fact_vote`, `close_ai_claim`, `close_market`), and
+after a 30-day grace the residual is swept to the DAO treasury (`sweep_oracle`).
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Proposals" icon="hand" href="/concepts/proposals">
+    The proposal window: agreement, conflict, and lock-in.
+  </Card>
+  <Card title="Facts" icon="list-check" href="/concepts/facts">
+    Disjoint proposal, stake-weighted voting, and the agreed-set quorum.
+  </Card>
+  <Card title="Phases reference" icon="diagram-project" href="/protocol/phases">
+    The `Phase` enum, pinned values, and every transition in the code.
+  </Card>
+</CardGroup>

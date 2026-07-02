@@ -1,0 +1,271 @@
+---
+title: "Accounts"
+description: "Complete reference for the 7 Kassandra account structs — full field tables, byte sizes, AccountType tags, and the enums and sentinels."
+---
+
+Kassandra stores state in **7 account types**, all defined in `programs/kassandra/src/state.rs`. Every
+struct is `#[repr(C)]`, `Pod + Zeroable`, fully packed (explicit `_pad` arrays), and read/written
+zero-copy via `bytemuck`. Each begins with an 8-byte header: `account_type: u8` at offset 0 followed
+by `_pad_hdr: [u8;7]`. Byte sizes and offsets are pinned by `programs/kassandra/tests/state_layout.rs`.
+Throughout, `type Pubkey = [u8;32]`.
+
+## Enums & sentinels
+
+### AccountType (`#[repr(u8)]`)
+
+Stored as the first byte of every account to reject type-confusion. A freshly zeroed `CreateAccount`'d
+account carries `Uninitialized` (0) until it is stamped.
+
+| Variant | Value |
+| --- | --- |
+| `Uninitialized` | 0 |
+| `Oracle` | 1 |
+| `Proposer` | 2 |
+| `Fact` | 3 |
+| `FactVote` | 4 |
+| `AiClaim` | 5 |
+| `Market` | 6 |
+| `Protocol` | 7 |
+
+### Phase (`#[repr(u8)]`)
+
+Stored on `Oracle.phase`. Values 0–8; see [Phases](/protocol/phases) for the full transition map.
+Pinned: `Created as u8 == 0`, `InvalidDeadend as u8 == 8`, `from_u8(9) == None`.
+
+### Plurality (in-memory only)
+
+The return type of the plurality resolution (`plurality.rs`), never stored: `Winner(u8)` (the
+strictly-highest option), `Tie` (≥2 options share the maximum), `NoSurvivors` (empty slice).
+
+### Sentinels (`state.rs`)
+
+- `CLAIM_OPTION_NONE: u8 = 0xFF` — `Proposer.claim_option` "no AI claim yet"; also stamped into
+  `Oracle.resolved_option` on `InvalidDeadend`.
+- `VOTE_APPROVE: u8 = 0`, `VOTE_DUPLICATE: u8 = 1` — the `FactVote.kind` values.
+
+## Account sizes
+
+| Account | Tag | `LEN` (bytes) |
+| --- | --- | --- |
+| `Protocol` | 7 | 368 |
+| `Oracle` | 1 | 392 |
+| `Proposer` | 2 | 96 |
+| `Fact` | 3 | 336 |
+| `FactVote` | 4 | 88 |
+| `AiClaim` | 5 | 208 |
+| `Market` | 6 | 416 |
+
+## Protocol — LEN 368
+
+The program singleton / global config. Created once by `init_protocol`, never re-initialized. Pins the
+canonical KASS/USDC mints and carries the creation-fee EMA state plus the governable
+monetary/behavioral params (the mutable source snapshotted onto each Oracle). **PDA:** `[b"protocol"]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::Protocol` |
+| `_pad_hdr` | [u8;7] | 1 | header padding |
+| `admin` | Pubkey | 8 | initializer; gates one-time `set_governance` |
+| `kass_mint` | Pubkey | 40 | canonical KASS mint |
+| `usdc_mint` | Pubkey | 72 | canonical USDC mint |
+| `fee_ema` | u64 | 104 | fixed-point activity EMA (scaled by `FEE_EMA_SCALE`); 0 at genesis |
+| `last_creation_unix` | i64 | 112 | unix of most recent oracle creation (EMA decay); 0 at genesis |
+| `bump` | u8 | 120 | PDA bump |
+| `governance_set` | u8 | 121 | 1 once `set_governance` recorded the DAO linkage (one-shot) |
+| `_pad` | [u8;6] | 122 | padding |
+| `dao_authority` | Pubkey | 128 | Squads v4 multisig vault PDA; gates `set_config` & `resolve_deadend`; zero until set |
+| `kass_dao` | Pubkey | 160 | futarchy `Dao`; its embedded spot AMM is the KASS price source; zero until set |
+| `emission_num` | u64 | 192 | emission rate numerator |
+| `emission_den` | u64 | 200 | emission rate denominator |
+| `total_supply_cap` | u64 | 208 | hard cap on circulating KASS supply |
+| `fee_ema_halflife` | i64 | 216 | mirror of `FEE_EMA_HALFLIFE_SECS` |
+| `fee_per_ema_unit` | u64 | 224 | mirror of `FEE_PER_EMA_UNIT` |
+| `fee_ema_increment` | u64 | 232 | mirror of `FEE_EMA_INCREMENT` |
+| `threshold_num` | u64 | 240 | fact-quorum supermajority numerator |
+| `threshold_den` | u64 | 248 | fact-quorum supermajority denominator |
+| `market_threshold_num` | u64 | 256 | slash-trigger margin numerator |
+| `market_threshold_den` | u64 | 264 | slash-trigger margin denominator |
+| `flip_slash_num` | u64 | 272 | flip-slash fraction numerator |
+| `flip_slash_den` | u64 | 280 | flip-slash fraction denominator |
+| `phase_window` | i64 | 288 | dispute phase window seconds |
+| `proposal_window` | i64 | 296 | proposal-registration window seconds |
+| `fact_vote_slash_num` | u64 | 304 | reserved (voter slash) numerator |
+| `fact_vote_slash_den` | u64 | 312 | reserved denominator |
+| `reward_proposer_weight` | u64 | 320 | reward weight PW |
+| `reward_fact_weight` | u64 | 328 | reward weight FW |
+| `challenge_fail_usdc_fee_num` | u64 | 336 | USDC fee on failed challenge numerator |
+| `challenge_fail_usdc_fee_den` | u64 | 344 | denominator |
+| `challenge_success_kass_fee_num` | u64 | 352 | KASS fee on successful challenge numerator |
+| `challenge_success_kass_fee_den` | u64 | 360 | denominator |
+
+The governable params are detailed in [Constants](/protocol/constants). Identity/accounting fields
+(`admin`, mints, `fee_ema`, `last_creation_unix`, `bump`, `governance_set`, `dao_authority`,
+`kass_dao`) are **not** touched by `set_config`.
+
+## Oracle — LEN 392
+
+The top-level dispute account. Its governable params are **snapshotted from `Protocol` at
+`create_oracle`** and read by downstream processors from the Oracle, so mid-dispute governance changes
+cannot move the goalposts. **PDA:** `[b"oracle", nonce_le]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::Oracle` |
+| `_pad_hdr` | [u8;7] | 1 | header padding |
+| `creator` | Pubkey | 8 | oracle creator |
+| `kass_mint` | Pubkey | 40 | KASS mint (must match Protocol) |
+| `usdc_mint` | Pubkey | 72 | USDC mint |
+| `stake_vault` | Pubkey | 104 | PDA token account holding all KASS bonds/stakes |
+| `deadline` | i64 | 136 | unix; proposals rejected before this |
+| `phase_ends_at` | i64 | 144 | end of the current window |
+| `twap_window` | i64 | 152 | per-oracle TWAP window, seconds |
+| `options_count` | u8 | 160 | number of categorical options |
+| `phase` | u8 | 161 | `Phase` as u8 |
+| `proposer_count` | u16 | 162 | total proposers |
+| `surviving_count` | u16 | 164 | proposers not disqualified |
+| `fact_count` | u16 | 166 | number of facts |
+| `total_oracle_stake` | u64 | 168 | conservation accumulator; == stake_vault balance until a challenge splits a bond |
+| `bond_pool` | u64 | 176 | accumulated slashed KASS (base units) |
+| `dispute_bond_total` | u64 | 184 | Σ proposer bonds, fixed at dispute start; fact-quorum denominator |
+| `settled_count` | u16 | 192 | facts settled so far |
+| `ai_finalized_count` | u16 | 194 | proposers ai-finalized so far |
+| `bump` | u8 | 196 | PDA bump |
+| `resolved_option` | u8 | 197 | final option; valid ONLY when `phase == Resolved`; `0xFF` on `InvalidDeadend` |
+| `open_challenge_count` | u16 | 198 | # open (created-but-unsettled) challenge markets; finalize requires 0 |
+| `prompt_hash` | [u8;32] | 200 | hash of the fixed prompt + interpretation |
+| `threshold_num` | u64 | 232 | fact-quorum supermajority numerator |
+| `threshold_den` | u64 | 240 | fact-quorum supermajority denominator |
+| `market_threshold_num` | u64 | 248 | slash-trigger margin numerator (widened to u128 on use) |
+| `market_threshold_den` | u64 | 256 | slash-trigger margin denominator |
+| `flip_slash_num` | u64 | 264 | flip-slash fraction numerator |
+| `flip_slash_den` | u64 | 272 | flip-slash fraction denominator |
+| `phase_window` | i64 | 280 | dispute phase window seconds |
+| `proposal_window` | i64 | 288 | proposal-registration window seconds |
+| `fact_vote_slash_num` | u64 | 296 | reserved (voter slash) numerator |
+| `fact_vote_slash_den` | u64 | 304 | reserved denominator |
+| `reward_proposer_weight` | u64 | 312 | reward weight PW |
+| `reward_fact_weight` | u64 | 320 | reward weight FW |
+| `challenge_fail_usdc_fee_num` | u64 | 328 | USDC fee on failed challenge numerator |
+| `challenge_fail_usdc_fee_den` | u64 | 336 | denominator |
+| `challenge_success_kass_fee_num` | u64 | 344 | KASS fee on successful challenge numerator |
+| `challenge_success_kass_fee_den` | u64 | 352 | denominator |
+| `total_correct_proposer_stake` | u64 | 360 | Σ bond over surviving proposers whose `claim_option == resolved_option` |
+| `total_approved_fact_stake` | u64 | 368 | Σ (`fact.stake` + `fact.approve_stake`) over agreed facts |
+| `reward_pool` | u64 | 376 | distributable pool at resolution; `= bond_pool + reward_emission` on Resolved; 0 on InvalidDeadend |
+| `reward_emission` | u64 | 384 | KASS minted into stake_vault at create; folded into reward_pool on Resolved, burned on InvalidDeadend |
+
+## Proposer — LEN 96
+
+A proposer's commitment within an oracle. **PDA:** `[b"proposer", oracle, authority]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::Proposer` |
+| `_pad_hdr` | [u8;7] | 1 | header padding |
+| `oracle` | Pubkey | 8 | parent oracle |
+| `authority` | Pubkey | 40 | human authority |
+| `bond` | u64 | 72 | locked KASS |
+| `original_option` | u8 | 80 | value at proposal time |
+| `claim_option` | u8 | 81 | value after AI claim; `0xFF` = not yet submitted (must init to 0xFF, not zeroed) |
+| `disqualified` | u8 | 82 | bool |
+| `slashed` | u8 | 83 | bool |
+| `flipped` | u8 | 84 | bool: `claim_option != original_option` |
+| `bump` | u8 | 85 | PDA bump |
+| `ai_finalized` | u8 | 86 | bool: settled by `finalize_ai_claims` |
+| `_pad` | [u8;1] | 87 | padding |
+| `slashed_amount` | u64 | 88 | KASS slashed from this proposer into `bond_pool` |
+
+## Fact — LEN 336
+
+A fact submitted in support of an option. **PDA:** `[b"fact", oracle, content_hash]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::Fact` |
+| `_pad_hdr` | [u8;7] | 1 | header padding |
+| `oracle` | Pubkey | 8 | parent oracle |
+| `proposer` | Pubkey | 40 | who submitted the fact |
+| `content_hash` | [u8;32] | 72 | content hash |
+| `stake` | u64 | 104 | submitter stake |
+| `approve_stake` | u64 | 112 | running tally of approve votes |
+| `duplicate_stake` | u64 | 120 | running tally of "duplicate" votes |
+| `uri_len` | u16 | 128 | length of uri bytes used |
+| `agreed` | u8 | 130 | set at finalize: 1 if accepted |
+| `duplicate` | u8 | 131 | set at finalize: 1 if duplicate-dominant |
+| `settled` | u8 | 132 | bool |
+| `bump` | u8 | 133 | PDA bump |
+| `_pad` | [u8;2] | 134 | padding |
+| `uri` | [u8;200] | 136 | URI bytes |
+
+## FactVote — LEN 88
+
+A stake-weighted vote on a fact. **PDA:** `[b"vote", fact, voter]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::FactVote` |
+| `_pad_hdr` | [u8;7] | 1 | header padding |
+| `fact` | Pubkey | 8 | fact voted on |
+| `voter` | Pubkey | 40 | voter authority |
+| `stake` | u64 | 72 | vote stake weight |
+| `kind` | u8 | 80 | 0 = approve (`VOTE_APPROVE`), 1 = duplicate (`VOTE_DUPLICATE`) |
+| `bump` | u8 | 81 | PDA bump |
+| `_pad` | [u8;6] | 82 | padding |
+
+## AiClaim — LEN 208
+
+A pinned-model AI claim for a proposer's option. **PDA:** `[b"claim", oracle, proposer]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::AiClaim` |
+| `_pad_hdr` | [u8;7] | 1 | header padding |
+| `oracle` | Pubkey | 8 | parent oracle |
+| `proposer` | Pubkey | 40 | proposer this claim is for |
+| `model_id` | [u8;32] | 72 | hash/ident of the pinned model |
+| `params_hash` | [u8;32] | 104 | hash of declared params |
+| `io_hash` | [u8;32] | 136 | hash(prompt + agreed facts + raw response) |
+| `option` | u8 | 168 | claimed option |
+| `challenged` | u8 | 169 | bool |
+| `bump` | u8 | 170 | PDA bump |
+| `_pad` | [u8;5] | 171 | padding |
+| `authority` | Pubkey | 176 | proposer's human authority; lets `close_ai_claim` route rent order-independently |
+
+## Market — LEN 416
+
+A challenge decision-market binding for one `AiClaim`, created lazily by `open_challenge`. Records the
+MetaDAO accounts, the oracle-PDA-owned conditional-KASS destinations, and the challenger's escrowed
+USDC. **PDA:** `[b"market", ai_claim]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::Market` |
+| `_pad_hdr` | [u8;7] | 1 | header padding |
+| `oracle` | Pubkey | 8 | parent oracle |
+| `ai_claim` | Pubkey | 40 | challenged claim |
+| `proposer` | Pubkey | 72 | proposer being challenged |
+| `challenger` | Pubkey | 104 | challenger |
+| `question` | Pubkey | 136 | MetaDAO binary question (resolver == oracle PDA) |
+| `kass_vault` | Pubkey | 168 | MetaDAO conditional vault, underlying == `oracle.kass_mint` |
+| `usdc_vault` | Pubkey | 200 | MetaDAO conditional vault, underlying == `oracle.usdc_mint` |
+| `pass_amm` | Pubkey | 232 | outcome-0 (pass) AMM |
+| `fail_amm` | Pubkey | 264 | outcome-1 (fail) AMM |
+| `oracle_pass_kass` | Pubkey | 296 | oracle-PDA-owned conditional-KASS token acct, pass side |
+| `oracle_fail_kass` | Pubkey | 328 | oracle-PDA-owned conditional-KASS token acct, fail side |
+| `challenger_usdc_vault` | Pubkey | 360 | market-owned USDC escrow (`[b"challenge_usdc", market]`) |
+| `twap_end` | i64 | 392 | `now + oracle.twap_window`; settle allowed only after |
+| `challenger_usdc` | u64 | 400 | challenger's escrowed USDC = `bond × kass_price` (raw base units) |
+| `settled` | u8 | 408 | bool; set by `settle_challenge` |
+| `bump` | u8 | 409 | PDA bump |
+| `_pad` | [u8;6] | 410 | padding |
+
+## See also
+
+<CardGroup cols={2}>
+  <Card title="PDAs" icon="key" href="/protocol/pdas">
+    The exact seed bytes deriving each account above.
+  </Card>
+  <Card title="SDK decoders" icon="cube" href="/sdk/account-decoders">
+    The TypeScript decoders that parse these layouts.
+  </Card>
+</CardGroup>

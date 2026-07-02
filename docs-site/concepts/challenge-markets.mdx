@@ -1,0 +1,118 @@
+---
+title: "Challenge markets"
+description: "A conceptual overview of the decision markets that arbitrate a contested AI claim — dormant by default, USDC-vs-locked-KASS collateral, a fail-vs-pass TWAP verdict, single round and parallel."
+---
+
+A challenge market is how Kassandra settles the question "is this AI claim actually
+correct?" without a human court. It is a **MetaDAO binary decision market** opened against a
+single `AiClaim`: the proposer's already-locked KASS is conditional collateral, a challenger
+posts USDC, and a fail-vs-pass **TWAP** read after a window delivers the verdict. This page
+is the conceptual overview — the deep, account-by-account mechanics live under
+[Challenge markets reference](/challenge/overview).
+
+## Dormant by default
+
+Markets cost nothing on an uncontested claim. An honest, unchallenged claim has **no
+`Market` account and no trade** — the challenge machinery is dormant unless someone actually
+disagrees (`open_challenge.rs`). This is the optimistic principle applied one level deeper:
+the expensive path only fires on a real dispute.
+
+## Opening a challenge
+
+A challenger who has reproduced a claim and found it wrong opens a market with
+`open_challenge` (`Ix::OpenChallenge = 4`) during `Phase::Challenge`. The MetaDAO market
+accounts (a binary question, KASS and USDC conditional vaults, and pass/fail AMMs) are
+**composed off-chain by the challenger** in their own transactions; `open_challenge` verifies
+and records them, then (`challenge-markets` reference):
+
+- **Splits the proposer's bond** into pass-KASS and fail-KASS via the conditional vault,
+  program-signed by the oracle PDA. The bond's conditional tokens stay **idle** (never
+  LP'd), so there is no impermanent loss on the bond.
+- **Escrows challenger USDC** sized to the bond's value:
+  `required_usdc = bond * kass_price / KASS_PRICE_SCALE`, where `kass_price` is the
+  governance-anchored futarchy spot TWAP (`KASS_PRICE_SCALE = 1e12`). A zero requirement
+  fails with `ZeroStake`.
+- Records a `Market` PDA at `[b"market", ai_claim]`, sets `ai_claim.challenged = 1`, and
+  increments `oracle.open_challenge_count`.
+
+<Info>
+  Outcome index **0 = pass** (the claim is honest) and **1 = fail** (the claim is fraud).
+  Traders who believe the claim is wrong buy the **fail** pool, pushing fail-KASS up; those
+  who believe it is honest hold the pass side. See [Trading](/challenge/trading).
+</Info>
+
+## The verdict: a fail-vs-pass TWAP
+
+After a market's TWAP window (`market.twap_end = open_time + oracle.twap_window`), anyone
+settles it with `settle_challenge` (`Ix::SettleChallenge = 5`). Settlement reads the stored
+slot-weighted TWAP of each pool (no crank at settle) and applies the exact trigger
+(`settle_challenge.rs:346-358`, computed in `u128`):
+
+```
+disqualify  iff  pass_twap != 0  AND  fail_twap * DEN > pass_twap * (DEN + NUM)
+```
+
+where `NUM/DEN` is the oracle's snapshotted relative margin (`market_threshold_num/den`,
+default `1/10` — fail must beat pass by **more than 10%**). The comparison is **strict**:
+at exact equality the claim **survives**.
+
+<Warning>
+  A **zero pass TWAP always survives** (the `pass_twap == 0` guard). A market with no
+  counter-trading on the pass side cannot flip the claim — uncontested is treated as honest.
+  Without this guard a challenger could crank only the fail pool and cheaply make
+  `fail_twap * DEN > 0` true.
+</Warning>
+
+## Pass/fail split of the collateral
+
+On settle, both paths resolve the MetaDAO question and physically redeem the bond KASS back
+into the oracle's `stake_vault` (winning side 1:1, losing side to 0). The directional fees
+differ:
+
+<CardGroup cols={2}>
+  <Card title="Disqualify (fail wins — challenge succeeded)" icon="gavel">
+    The proposer is disqualified and slashed: `bond − kass_fee` goes to `bond_pool`, a
+    `kass_fee = bond * challenge_success_kass_fee` (default 1/100) goes to the challenger,
+    the full USDC escrow returns to the challenger, and `surviving_count -= 1`.
+  </Card>
+  <Card title="Survive (pass wins — challenge failed)" icon="shield">
+    The claim stands and the proposer keeps their bond. A `usdc_fee = challenger_usdc *
+    challenge_fail_usdc_fee` (default 1/100) goes to the proposer as compensation; the USDC
+    remainder returns to the challenger.
+  </Card>
+</CardGroup>
+
+## Single round, parallel, incremental
+
+The challenge phase is a **single round** with **no cascade**. Every AI claim is
+challengeable **in parallel** within the one window; each opened market trades for the
+per-oracle TWAP duration. As each market settles it incrementally updates oracle state
+(decrementing `open_challenge_count` and, on a disqualify, `surviving_count`) but does
+**not** advance the phase — settling stays in `Challenge`. The last market's window is the
+structural upper bound, so termination is guaranteed with no max-rounds cap (design §6,
+invariant 2).
+
+Only once `open_challenge_count == 0` can `finalize_oracle` (`Ix=6`) run the final plurality
+recompute over surviving proposers and drive the oracle to `Resolved` or `InvalidDeadend`.
+An attempt while challenges are outstanding fails with `ChallengesOutstanding`.
+
+<Note>
+  Challenge markets are built on **MetaDAO v0.4** conditional-vault and AMM programs, driven
+  by CPI (the v0.4 AMM has the slot-weighted delayed-TWAP oracle Kassandra needs). The full
+  compose sequence, TWAP mechanics, cranking, and settle account sets are documented in the
+  challenge-markets reference.
+</Note>
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Challenge overview" icon="scale-balanced" href="/challenge/overview">
+    The full deep dive: compose, vaults, AMMs, trading, cranking, and settle.
+  </Card>
+  <Card title="AMMs and the TWAP" icon="chart-line" href="/challenge/amms-and-twap">
+    The slot-weighted delayed-TWAP oracle and how the verdict reads it.
+  </Card>
+  <Card title="Settle" icon="gavel" href="/challenge/settle">
+    The exact verdict, redemption, and fee routing at settlement.
+  </Card>
+</CardGroup>

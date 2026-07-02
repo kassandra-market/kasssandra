@@ -1,0 +1,146 @@
+---
+title: "Futarchy & Squads submodule"
+description: "The futarchy.* submodule — conditional-vault, futarchy v0.6, and Squads v4 builders plus bootstrapGovernance; and the meteora.* spot path."
+---
+
+`futarchy.*` (`sdk/src/futarchy/`) bundles the off-chain governance stack Kassandra composes
+around: MetaDAO's **conditional_vault**, **futarchy v0.6**, and **Squads v4** — plus a
+one-shot `bootstrapGovernance`. Kassandra does **not** CPI these programs; the SDK builds the
+instructions that a DAO/treasury transaction assembles off-chain. All builders are async and
+return `Promise<TransactionInstruction>`.
+
+Program ids exported here: `FUTARCHY_ID`, `CONDITIONAL_VAULT_ID`, `SQUADS_V4_ID`,
+`METEORA_DAMM_V2_ID`. Cross-reference [Conditional vaults](/challenge/conditional-vaults)
+and [Composing](/challenge/composing).
+
+## conditional_vault
+
+The binary pass/fail vault primitive behind challenge markets.
+
+| Builder | Args | Purpose |
+| --- | --- | --- |
+| `initializeQuestion` | `{ questionId: Uint8Array (32), oracle, numOutcomes, payer }` | Create a question resolved by the oracle PDA. |
+| `initializeConditionalVault` | `{ question, underlyingMint, payer, numOutcomes? }` | Create a vault over an underlying mint. |
+| `splitTokens` | `InteractWithVaultArgs & { amount }` | Split underlying → conditional tokens. |
+| `mergeTokens` | `InteractWithVaultArgs & { amount }` | Merge conditional tokens → underlying. |
+| `redeemTokens` | `InteractWithVaultArgs` | Redeem the winning conditional tokens. |
+| `resolveQuestion` | `{ question, oracle, payoutNumerators: [number, number] }` | Resolve the question. |
+
+```ts
+InteractWithVaultArgs = {
+  question, vault, vaultUnderlying, authority,
+  userUnderlying, conditionalMints[], userConditionalAccounts[],
+}
+```
+
+## futarchy v0.6
+
+The decision-market governance program (v0.6.1 arg layout).
+
+| Builder | Notes |
+| --- | --- |
+| `initializeDao(InitializeDaoArgs { ... })` | v0.6.1 layout, incl. trailing `teamSponsoredPassThresholdBps?` and `teamAddress?`. |
+| `initializeProposal(...)` | Create a proposal. |
+| `launchProposal(...)` | Launch a created proposal. |
+| `finalizeProposal(...)` | Finalize a proposal. |
+| `conditionalSwap(ConditionalSwapArgs { ..., market: Market, swapType: SwapType, inputAmount, minOutputAmount })` | Swap on a conditional market. |
+| `spotSwap(SpotSwapArgs { ..., inputAmount, swapType, minOutputAmount })` | Swap on the spot market. |
+| `provideLiquidity(ProvideLiquidityArgs { ..., quoteAmount, maxBaseAmount, minLiquidity })` | Provide liquidity. |
+| `collectMeteoraDammFees(CollectMeteoraDammFeesArgs { ... })` | **MetaDAO rake op — see warning below.** |
+
+The `enum Market { Spot = 0, Pass = 1, Fail = 2 }` and `enum SwapType { Buy = 0, Sell = 1 }`
+are exported for the swap args above.
+
+<Warning>
+`collectMeteoraDammFees` is **MetaDAO's protocol-rake op — Kassandra never calls it** (27
+accounts, no args); it sweeps fees to MetaDAO's own vault, gated on MetaDAO's admin. The
+**Kassandra DAO treasury fee path** is `meteora.claimPositionFee` wrapped in a Squads
+`vault_transaction` instead (see below).
+</Warning>
+
+## Squads v4
+
+Multisig vault-transaction plumbing for DAO-executed operations.
+
+| Builder | Args |
+| --- | --- |
+| `vaultTransactionCreate` | `VaultTransactionCreateArgs { multisig, creator, rentPayer, transactionIndex, vaultIndex?, ephemeralSigners?, transactionMessage: Uint8Array, memo? }` |
+| `proposalCreate` | `{ multisig, creator, rentPayer, transactionIndex, draft? }` |
+| `vaultTransactionExecute` | `{ multisig, transactionIndex, member, remainingAccounts? }` |
+
+Fixed addresses exported: `SQUADS_PERMISSIONLESS_MEMBER`, `METADAO_MULTISIG_VAULT`,
+`METADAO_ADMIN`, `DAMM_V2_POOL_AUTHORITY`.
+
+## bootstrapGovernance
+
+```ts
+futarchy.bootstrapGovernance(
+  a: BootstrapGovernanceArgs,
+): Promise<BootstrapGovernanceResult>
+```
+
+A one-shot composer that emits `[initializeDao, setGovernance]` and derives the full
+`dao` / `multisig` / `vault` / `programConfig` / `spendingLimit` account set — the standard
+way to stand up Kassandra's governance linkage in a single call.
+
+## PDA derivers — `futarchy.pda.*`
+
+| Helper | Seeds / notes |
+| --- | --- |
+| `dao(daoCreator, nonce)` | `[b"dao", creator, nonce_le]` |
+| `proposal(squadsProposal)` | derived from the Squads proposal |
+| `futarchyEventAuthority()` | Anchor event authority |
+| `ammPosition(dao, positionAuthority)` | AMM position |
+| `squadsMultisig(createKey)` | `[b"multisig", b"multisig", create_key]` (`create_key == Dao`) |
+| `squadsVault(multisig, vaultIndex = 0)` | Squads vault PDA |
+| `squadsProgramConfig()` | Squads program config |
+| `squadsSpendingLimit(multisig, createKey)` | spending limit |
+| `squadsTransaction(multisig, index)` | vault transaction |
+| `squadsProposal(multisig, index)` | proposal |
+| `question(questionId, oracle, numOutcomes)` | conditional-vault question |
+| `conditionalVault(question, underlyingMint)` | conditional vault |
+| `conditionalTokenMint(vault, index)` | conditional token mint |
+| `vaultEventAuthority()` | vault event authority |
+
+Also exported: `ata(owner, mint)`, `ATA_PROGRAM_ID`, `DISC`, `ACCOUNT_DISC`, `SEED`.
+
+## `meteora.*` — DAMM v2 (cp-amm) spot path
+
+`meteora.*` (`sdk/src/meteora/`) wraps Meteora **DAMM v2 / cp-amm** (program `cpamd…`,
+exported as `METEORA_DAMM_V2_ID`) — the position-based spot venue. Every instruction is
+`#[event_cpi]`. Six builders return `Promise<TransactionInstruction>`:
+
+- `initializePool(InitializePoolArgs { ... })` — args `liquidity u128 ++ sqrt_price u128 ++
+  activation_point Option<u64>`; also mints the first position NFT.
+- `createPosition(CreatePositionArgs { owner, positionNftMint, pool, payer })` — opens an
+  empty position; no args.
+- `addLiquidity(ModifyLiquidityArgs)` / `removeLiquidity(ModifyLiquidityArgs)` — args
+  `liquidity_delta u128 ++ token_a_amount_threshold u64 ++ token_b_amount_threshold u64`
+  (`removeLiquidity` prepends a `pool_authority` account).
+- `swap(SwapArgs { ... })` — args `amount_in u64 ++ minimum_amount_out u64`; direction is
+  implicit (no `swap_type`).
+- `claimPositionFee(ClaimPositionFeeArgs { ... })` — no args, pool read-only. **This is the
+  Kassandra DAO treasury-fee path** (wrapped in a Squads vault transaction).
+
+### Decoders
+
+- `meteora.decodePool(data): MeteoraPool` — size 1112 (`8 + 1104`). Fields: `tokenAMint,
+  tokenBMint, tokenAVault, tokenBVault, liquidity, sqrtMinPrice, sqrtMaxPrice, sqrtPrice,
+  protocolAFee, protocolBFee, creator, tokenAAmount, tokenBAmount`.
+- `meteora.decodePosition(data): MeteoraPosition` — size 408 (`8 + 400`). Fields: `pool,
+  nftMint, feeAPending, feeBPending, unlockedLiquidity, vestedLiquidity,
+  permanentLockedLiquidity`.
+
+Both validate the 8-byte Anchor discriminator + exact size.
+
+### Constants + PDAs
+
+Constants: `METEORA_DAMM_V2_ID`, `ATA_PROGRAM_ID`, `TOKEN_2022_PROGRAM_ID`, `DISC` (6 ix
+discriminators), `POOL_ACCOUNT_DISCRIMINATOR`, `POSITION_ACCOUNT_DISCRIMINATOR`,
+`POOL_INIT_SPACE = 1104`, `POOL_ACCOUNT_SIZE = 1112`, `POSITION_INIT_SPACE = 400`,
+`POSITION_ACCOUNT_SIZE = 408`, `SEED`.
+
+`meteora.pda.*`: `pool(config, mintA, mintB)` seeds `[b"pool", config, max(mint), min(mint)]`
+(mints sorted, larger first); `position(nftMint)`; `positionNftAccount(nftMint)`;
+`tokenVault(tokenMint, pool)`; `poolAuthority()` `[b"pool_authority"]`; `eventAuthority()`;
+`sortMints(a, b): [Uint8Array, Uint8Array]`.

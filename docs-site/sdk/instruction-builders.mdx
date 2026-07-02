@@ -1,0 +1,352 @@
+---
+title: "Instruction builders"
+description: "The 23 core Kassandra instruction builders (Ix 0–22) — exact names, *Args fields, and the on-chain instruction each produces."
+---
+
+The SDK exposes one builder per on-chain instruction. Each is **async** and returns a
+`Promise<TransactionInstruction>` (a classic web3.js instruction). The instruction `data`
+is `[disc_byte, ...payload_LE]` — `disc_byte` is the `Ix` discriminant (see
+[Constants](/protocol/constants)) and the payload is little-endian. Every builder takes an
+optional `programId?: Address` override that defaults to `KASSANDRA_PROGRAM_ID`.
+
+Builders are grouped by their source file under `sdk/src/instructions/`. For the on-chain
+semantics of each instruction, cross-reference [Program instructions](/protocol/instructions).
+
+<Note>
+All args-object fields are `AddressInput = Address | string` unless noted otherwise.
+`nonce`, `bond`, `stake`, `deadline`, and `twapWindow` accept `bigint | number`; hashes are
+`Uint8Array` of exactly 32 bytes.
+</Note>
+
+## Lifecycle — `sdk/src/instructions/lifecycle.ts`
+
+Creation, phase progression, and governance wiring.
+
+| Builder | `Ix` | On-chain ix | Purpose |
+| --- | --- | --- | --- |
+| `initProtocol` | 9 | `init_protocol` | Create the Protocol singleton. |
+| `createOracle` | 10 | `create_oracle` | Open a new oracle dispute. |
+| `propose` | 11 | `propose` | Register a proposer + stake vault. |
+| `finalizeProposals` | 12 | `finalize_proposals` | Close the proposal window; plurality tick. |
+| `advancePhase` | 7 | `advance_phase` | Permissionless FactProposal → FactVoting tick. |
+| `setGovernance` | 13 | `set_governance` | One-shot DAO linkage. |
+| `setConfig` | 14 | `set_config` | Update the governable params. |
+| `resolveDeadend` | 15 | `resolve_deadend` | DAO-forced resolution of a dead-end. |
+| `kassPrice` | 16 | `kass_price` | Read the KASS/USDC TWAP (return data). |
+
+<AccordionGroup>
+  <Accordion title="initProtocol — InitProtocolArgs">
+    ```ts
+    InitProtocolArgs { admin, kassMint, usdcMint, programId? }
+    ```
+    Builds `init_protocol`, creating the Protocol singleton that pins the canonical KASS +
+    USDC mints. Empty payload. See [Protocol account](/protocol/accounts).
+  </Accordion>
+  <Accordion title="createOracle — CreateOracleArgs">
+    ```ts
+    CreateOracleArgs {
+      nonce: bigint | number,
+      promptHash: Uint8Array, // 32 bytes
+      optionsCount: number,
+      deadline: bigint | number,
+      twapWindow: bigint | number,
+      creator, creatorKassToken, kassMint, usdcMint,
+      programId?,
+    }
+    ```
+    Builds `create_oracle`. Payload (57 bytes): `nonce u64 ++ prompt_hash[32] ++
+    options_count u8 ++ deadline i64 ++ twap_window i64`. The creator's KASS token account is
+    the fee-burn source.
+  </Accordion>
+  <Accordion title="propose — ProposeArgs">
+    ```ts
+    ProposeArgs { oracle, authority, authorityKass, option: number, bond: bigint | number, programId? }
+    ```
+    Builds `propose`. Payload (9 bytes): `option u8 ++ bond u64`. The SDK derives the
+    `proposer` PDA and the oracle `stake_vault`.
+  </Accordion>
+  <Accordion title="finalizeProposals — FinalizeProposalsArgs">
+    ```ts
+    FinalizeProposalsArgs { oracle, proposers: ReadonlyArray<AddressInput>, programId? }
+    ```
+    Builds `finalize_proposals` — writable oracle plus the **full proposer set** as a
+    read-only account tail. Empty payload.
+  </Accordion>
+  <Accordion title="advancePhase — AdvancePhaseArgs">
+    ```ts
+    AdvancePhaseArgs { oracle, programId? }
+    ```
+    Builds `advance_phase` — a permissionless FactProposal → FactVoting tick. Empty payload.
+  </Accordion>
+  <Accordion title="setGovernance — SetGovernanceArgs">
+    ```ts
+    SetGovernanceArgs { authority, daoAuthority, kassDao, programId? }
+    ```
+    Builds `set_governance`. Payload (64 bytes): `dao_authority[32] ++ kass_dao[32]`. One-shot
+    — records the Squads vault authority and the futarchy `Dao` price source.
+  </Accordion>
+  <Accordion title="setConfig — SetConfigArgs">
+    ```ts
+    SetConfigArgs { authority, params: SetConfigParams, programId? }
+    ```
+    Builds `set_config`. Payload (176 bytes) = `encodeSetConfigParams(params)` (below). Gated
+    by the DAO authority.
+  </Accordion>
+  <Accordion title="resolveDeadend — ResolveDeadendArgs">
+    ```ts
+    ResolveDeadendArgs { oracle, authority, option: number, programId? }
+    ```
+    Builds `resolve_deadend`. Payload (1 byte): `option u8`. See
+    [Dead-end settlement](/concepts/dead-end-settlement).
+  </Accordion>
+  <Accordion title="kassPrice — KassPriceArgs">
+    ```ts
+    KassPriceArgs { kassDao, programId? }
+    ```
+    Builds `kass_price` — a read-only instruction that returns the KASS/USDC TWAP as return
+    data. Empty payload.
+  </Accordion>
+</AccordionGroup>
+
+### `encodeSetConfigParams` + `SetConfigParams`
+
+Also exported from `lifecycle.ts`:
+
+```ts
+encodeSetConfigParams(p: SetConfigParams): Uint8Array
+```
+
+Produces the 176-byte `set_config` payload (no discriminator). `SetConfigParams` is 22
+`bigint` fields in this fixed order:
+
+```ts
+interface SetConfigParams {
+  emissionNum; emissionDen; totalSupplyCap;
+  feeEmaHalflife;            // i64
+  feePerEmaUnit; feeEmaIncrement;
+  thresholdNum; thresholdDen;
+  marketThresholdNum; marketThresholdDen;
+  flipSlashNum; flipSlashDen;
+  phaseWindow;               // i64
+  proposalWindow;            // i64
+  factVoteSlashNum; factVoteSlashDen;
+  rewardProposerWeight; rewardFactWeight;
+  challengeFailUsdcFeeNum; challengeFailUsdcFeeDen;
+  challengeSuccessKassFeeNum; challengeSuccessKassFeeDen;
+}
+```
+
+These map onto the governable params snapshotted from Protocol onto each Oracle at
+creation. See [Constants](/protocol/constants) and [Economics](/concepts/economics).
+
+## Dispute — `sdk/src/instructions/dispute.ts`
+
+The fact-submission, voting, and AI-claim rail plus the multi-step finalizers.
+
+| Builder | `Ix` | On-chain ix | Purpose |
+| --- | --- | --- | --- |
+| `submitFact` | 0 | `submit_fact` | Submit a fact with stake + URI. |
+| `voteFact` | 1 | `vote_fact` | Approve/duplicate vote on a fact. |
+| `finalizeFacts` | 2 | `finalize_facts` | Settle facts (writable tail). |
+| `submitAiClaim` | 3 | `submit_ai_claim` | Pin a model claim for a proposer. |
+| `finalizeAiClaims` | 8 | `finalize_ai_claims` | Flip-slash + settle AI claims. |
+| `finalizeOracle` | 6 | `finalize_oracle` | Final plurality recompute + resolve. |
+
+<AccordionGroup>
+  <Accordion title="submitFact — SubmitFactArgs">
+    ```ts
+    SubmitFactArgs {
+      oracle, submitter, submitterKass,
+      contentHash: Uint8Array, // 32 bytes
+      stake: bigint | number,
+      uri: Uint8Array | string,
+      programId?,
+    }
+    ```
+    Payload: `content_hash[32] ++ stake u64 ++ uri_len u16 ++ uri[]`.
+  </Accordion>
+  <Accordion title="voteFact — VoteFactArgs">
+    ```ts
+    VoteFactArgs { oracle, fact, voter, voterKass, kind: number, stake: bigint | number, programId? }
+    ```
+    Payload: `kind u8 ++ stake u64`. `kind` is `VOTE_APPROVE` (0) or `VOTE_DUPLICATE` (1).
+  </Accordion>
+  <Accordion title="finalizeFacts — FinalizeFactsArgs">
+    ```ts
+    FinalizeFactsArgs { nonce: bigint | number, kassMint, tail: ReadonlyArray<AddressInput>, programId? }
+    ```
+    Payload: `oracle_nonce u64`. The **writable** tail is the facts to settle (or the
+    proposers, in a no-facts dead-end).
+  </Accordion>
+  <Accordion title="submitAiClaim — SubmitAiClaimArgs">
+    ```ts
+    SubmitAiClaimArgs {
+      oracle, proposer, authority,
+      modelId: Uint8Array,     // 32 bytes
+      paramsHash: Uint8Array,  // 32 bytes
+      ioHash: Uint8Array,      // 32 bytes
+      option: number,
+      programId?,
+    }
+    ```
+    Payload (97 bytes): `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option u8`. See
+    also `submitAiClaimFromRunner` below for the runner path.
+  </Accordion>
+  <Accordion title="finalizeAiClaims — FinalizeAiClaimsArgs">
+    ```ts
+    FinalizeAiClaimsArgs { oracle, proposers: ReadonlyArray<AddressInput>, programId? }
+    ```
+    A **writable** proposer subset as the account tail. Empty payload. Applies flip-slash.
+  </Accordion>
+  <Accordion title="finalizeOracle — FinalizeOracleArgs">
+    ```ts
+    FinalizeOracleArgs { nonce: bigint | number, kassMint, proposers: ReadonlyArray<AddressInput>, programId? }
+    ```
+    Payload: `oracle_nonce u64`. Full proposer set as a **read-only** tail. Requires
+    `open_challenge_count == 0`.
+  </Accordion>
+</AccordionGroup>
+
+## Challenge — `sdk/src/instructions/challenge.ts`
+
+These two builders bind externally-composed MetaDAO accounts (conditional vaults, pass/fail
+AMMs) into the Kassandra program. The SDK derives the Kassandra-owned PDAs for you and pins
+the conditional-vault / token / system program ids. See
+[Conditional vaults](/challenge/conditional-vaults) and [Composing](/challenge/composing).
+
+<AccordionGroup>
+  <Accordion title="openChallenge (Ix 4) — OpenChallengeArgs">
+    ```ts
+    OpenChallengeArgs {
+      nonce, proposer, challenger, question,
+      kassVault, usdcVault, passAmm, failAmm, kassVaultUnderlying,
+      passKassMint, failKassMint, oraclePassKass, oracleFailKass,
+      cvEventAuthority, kassDao, usdcMint, challengerUsdcSrc,
+      programId?,
+    }
+    ```
+    Builds `open_challenge` — **25 accounts**, payload `oracle_nonce u64`. The SDK derives
+    `oracle`, `ai_claim`, `market`, `stake_vault`, `protocol`, and the USDC `escrow_vault`,
+    and pins the CV / token / system program ids. (`nonce` is `bigint | number`; all other
+    fields are `AddressInput`.)
+  </Accordion>
+  <Accordion title="settleChallenge (Ix 5) — SettleChallengeArgs">
+    ```ts
+    SettleChallengeArgs {
+      nonce, aiClaim, proposer, question,
+      passAmm, failAmm, cvEventAuthority,
+      kassVault, kassVaultUnderlying, passKassMint, failKassMint,
+      oraclePassKass, oracleFailKass,
+      proposerUsdc, challengerUsdcDest, challengerKass,
+      programId?,
+    }
+    ```
+    Builds `settle_challenge` — **21 accounts**, payload `oracle_nonce u64`. The SDK derives
+    `oracle`, `market`, `stake_vault`, and the USDC `escrow_vault`. See [Settle](/challenge/settle).
+  </Accordion>
+</AccordionGroup>
+
+## Settlement — `sdk/src/instructions/settlement.ts`
+
+Pull rewards, close accounts, and sweep dust. Each takes an oracle `nonce` and a
+`rentRecipient`, and pays out to a `destKass` where applicable.
+
+| Builder | `Ix` | On-chain ix | Purpose |
+| --- | --- | --- | --- |
+| `claimProposer` | 17 | `claim_proposer` | Pull + close a Proposer. |
+| `claimFact` | 18 | `claim_fact` | Pull + close a Fact. |
+| `claimFactVote` | 19 | `claim_fact_vote` | Pull + close a FactVote. |
+| `closeAiClaim` | 20 | `close_ai_claim` | Close a settled AiClaim. |
+| `closeMarket` | 21 | `close_market` | Close a settled Market + escrow. |
+| `sweepOracle` | 22 | `sweep_oracle` | Grace-gated dust sweep + terminal close. |
+
+<AccordionGroup>
+  <Accordion title="claimProposer — ClaimProposerArgs">
+    ```ts
+    ClaimProposerArgs { nonce, proposer, destKass, rentRecipient, programId? }
+    ```
+    Payload: `oracle_nonce u64`. Pulls the proposer's reward + bond into `destKass`, then
+    closes the Proposer to `rentRecipient`.
+  </Accordion>
+  <Accordion title="claimFact — ClaimFactArgs">
+    ```ts
+    ClaimFactArgs { nonce, fact, destKass, rentRecipient, programId? }
+    ```
+    Payload: `oracle_nonce u64`. Pulls + closes the Fact.
+  </Accordion>
+  <Accordion title="claimFactVote — ClaimFactVoteArgs">
+    ```ts
+    ClaimFactVoteArgs { nonce, factVote, fact, destKass, rentRecipient, programId? }
+    ```
+    Payload: `oracle_nonce u64`. Pulls + closes the FactVote.
+  </Accordion>
+  <Accordion title="closeAiClaim — CloseAiClaimArgs">
+    ```ts
+    CloseAiClaimArgs { oracle, aiClaim, rentRecipient, programId? }
+    ```
+    Empty payload. Closes a settled AiClaim to `rentRecipient`.
+  </Accordion>
+  <Accordion title="closeMarket — CloseMarketArgs">
+    ```ts
+    CloseMarketArgs { nonce, market, rentRecipient, programId? }
+    ```
+    Payload: `oracle_nonce u64`. Closes a settled Market and its USDC escrow.
+  </Accordion>
+  <Accordion title="sweepOracle — SweepOracleArgs">
+    ```ts
+    SweepOracleArgs { nonce, kassMint, daoAuthority, creator, programId? }
+    ```
+    Payload: `oracle_nonce u64`. Permissionless, grace-gated: sweeps residual dust to the DAO
+    treasury ATA — `associatedTokenAccount(daoAuthority, kassMint)` — and performs the
+    terminal Oracle + vault close.
+  </Accordion>
+</AccordionGroup>
+
+## Payload helpers — `sdk/src/instructions/payload.ts`
+
+The low-level byte + account-meta primitives every builder is built from. Useful when you
+compose a custom transaction by hand.
+
+| Helper | Purpose |
+| --- | --- |
+| `addr(a)` | Coerce an `AddressInput` to an `Address`. |
+| `w(pubkey, isSigner?)` | Writable `AccountMeta`. |
+| `ro(pubkey, isSigner?)` | Read-only `AccountMeta`. |
+| `u8(n)` | 1-byte encode. |
+| `u16LE(n)` | 2-byte little-endian. |
+| `u64LE(bigint \| number)` | 8-byte little-endian. |
+| `i64LE(bigint \| number)` | 8-byte signed little-endian. |
+| `pubkeyBytes(a)` | 32-byte pubkey. |
+| `fixedBytes(bytes, len)` | Assert-and-copy; throws on wrong length. |
+| `concatBytes(parts)` | Concatenate `Uint8Array`s. |
+| `withDisc(disc, ...payload)` | Prepend the `Ix` discriminator byte. |
+
+## Runner bridge — `submitAiClaimFromRunner`
+
+From `sdk/src/runner-bridge.ts`:
+
+```ts
+submitAiClaimFromRunner(
+  runOutput: RunnerOutput | string,
+  opts: SubmitAiClaimFromRunnerOpts,
+): Promise<TransactionInstruction>
+```
+
+Builds a `submit_ai_claim` instruction directly from the runner's JSON output, then
+**byte-asserts** the SDK-computed payload equals the runner's precomputed 97-byte payload —
+a parity guard against drift. `SubmitAiClaimFromRunnerOpts` is
+`{ oracle, proposer, authority, programId? }`. The `RunnerOutput` and `RunnerClaimPdaSeeds`
+interfaces are also exported. See [AI-assisted claims](/guide/ai-assisted-claims).
+
+## litesvm interop — `toLiteSvmTransaction`
+
+From `sdk/src/litesvm-interop.ts`:
+
+```ts
+toLiteSvmTransaction(tx: LegacyTransaction): Promise<KitTransaction>
+```
+
+Serializes a **signed** web3.js v3 legacy transaction and re-decodes it into the
+`@solana/kit` `Transaction` that litesvm expects. The input `tx` must already have its
+`feePayer`, `recentBlockhash`, and signatures set. This is the standard local-testing send
+path — see [Recipes](/sdk/recipes).

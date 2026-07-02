@@ -1,0 +1,141 @@
+---
+title: "AI-assisted claims"
+description: "How the open-source runner applies a fixed interpretation to an agreed fact set, what it commits on-chain, and why the claim is economically enforced rather than verified on-chain."
+---
+
+When an oracle enters a dispute, the question "what is the answer?" is settled by having an
+AI **apply the fixed interpretation** to the agreed evidence. The AI does not decide the
+policy — that was fixed at creation. It executes it. This page explains the runner, exactly
+what lands on-chain in an `AiClaim`, and why the whole thing is enforced by economics and
+markets rather than by on-chain verification.
+
+## The runner
+
+`kassandra-runner` is an open-source, reproducible **off-chain AI runner** (a Rust binary,
+crate `kassandra-runner`; `runner/README.md`). Anyone can run it — to *propose* a value, or
+to *verify* a submitted claim before deciding whether to challenge it. Given an oracle's
+fixed interpretation, its agreed facts, and its categorical options, the runner:
+
+<Steps>
+  <Step title="Fetch and verify each fact">
+    For every agreed fact it fetches the `uri` and checks the bytes against the fact's
+    on-chain `content_hash` (`fetch.rs`). Evidence that does not match its committed hash is
+    rejected — the agreed set is exactly what the fact phase pinned.
+  </Step>
+  <Step title="Assemble a byte-deterministic prompt">
+    It concatenates the interpretation text (whose `sha256` must equal
+    `oracle.prompt_hash`) and the verified facts into a fixed, versioned prompt layout
+    (`prompt.rs`, spec `runner/PROMPT.md`; `PROMPT_ASSEMBLY_VERSION = 1`).
+  </Step>
+  <Step title="Complete with a pinned model">
+    It calls a pinned model behind a generic `AiProvider` trait (Claude/Anthropic by
+    default; `provider.rs`, `anthropic.rs`). The answer is forced into a categorical
+    `{ "option_index": <int> }` via a structured output schema.
+  </Step>
+  <Step title="Hash into claim metadata and emit the payload">
+    It derives `model_id`, `params_hash`, and `io_hash`, and emits the chosen `option` plus
+    the exact **97-byte** `submit_ai_claim` payload (`hashing.rs`, spec `runner/HASHING.md`).
+  </Step>
+</Steps>
+
+The default model is `claude-opus-4-8` with `max_tokens = 4096` (`anthropic.rs`). The
+runner also ships a deterministic `MockProvider` (`--mock` or `KASSANDRA_RUNNER_MOCK=1`) so
+the whole pipeline runs offline and keyless for testing.
+
+<Tip>
+  The runner has two subcommands. `run` resolves the oracle and emits (or, with `--submit`,
+  signs and sends) the claim. `verify` re-runs the pipeline and tells you `"matches (no
+  challenge)"` versus `"differs (consider challenging)"` — the exact tool a would-be
+  challenger uses before opening a market.
+</Tip>
+
+## What goes on-chain: the `AiClaim`
+
+A locked-in proposer submits their claim with `submit_ai_claim` (`Ix::SubmitAiClaim = 3`).
+The processor records the `option` on the proposer (marking `flipped` if it differs from
+their `original_option`) and creates an `AiClaim` PDA at seeds `[b"claim", oracle, proposer]`.
+The account is intentionally minimal (`state.rs`, `AiClaim`, LEN = 208):
+
+| Field | Type | Meaning |
+|---|---|---|
+| `model_id` | `[u8;32]` | hash/identifier of the pinned model — `sha256("claude-opus-4-8")` by default |
+| `params_hash` | `[u8;32]` | hash of the declared parameters (provider, thinking mode, `max_tokens`, prompt-assembly version, output schema id/version) |
+| `io_hash` | `[u8;32]` | `sha256(system ++ user ++ raw_response)` — a commitment to the exact input and raw output |
+| `option` | `u8` | the claimed categorical option |
+| `challenged` | `u8` | set to 1 when a challenge market is opened against this claim |
+| `authority` | `Pubkey` | the proposer's human authority (routes `close_ai_claim` rent) |
+
+The **97-byte** payload is exactly
+`model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option[1]`
+(`submit_ai_claim.rs`; `constants.rs::SUBMIT_AI_CLAIM_PAYLOAD_LEN`, compile-time asserted
+== 97 and tied to the `AiClaim` field offsets). Crucially, the raw AI response is **never**
+put on-chain — only the categorical option and the three opaque commitments. On resolution
+the account is closed and its rent reclaimed (`close_ai_claim`, `Ix=20`).
+
+<Note>
+  The program does **not** compute these hashes and does **not** interpret them. The runner
+  is the canonical off-chain scheme that both the proposer and any challenger follow. On
+  chain, `model_id`/`params_hash`/`io_hash` are three opaque 32-byte commitments.
+</Note>
+
+## Why it is economically enforced, not verified on-chain
+
+There is no on-chain check that the model actually produced `option`, or that `io_hash`
+corresponds to a real inference. That is deliberate: **no frontier model API is
+bit-reproducible**, so a byte-exact on-chain proof would be impossible to satisfy honestly
+(`runner` determinism caveat). Instead, honesty is enforced two ways.
+
+- **A misreported claim is caught by reproduction, then a market.** `model_id` and
+  `params_hash` are pure functions of the *declared* config — a challenger recomputes them
+  byte-for-byte and confirms the proposer declared what they claimed to. The assembled
+  prompt is fully deterministic. The challenger then re-runs the declared model over the
+  agreed facts; if the **categorical option** differs from the submitted one, they open a
+  [challenge market](/concepts/challenge-markets). `io_hash` is a *commitment* to the exact
+  input and output — not a reproducibility oracle for the raw text.
+- **Abandoning or flipping is slashed.** A proposer who never submits a claim
+  (`claim_option == CLAIM_OPTION_NONE`) is **fully slashed** and disqualified at
+  `finalize_ai_claims`; a proposer who **flips** their value from `original_option` is
+  **partially slashed** (`bond * flip_slash_num / flip_slash_den`, default 1/2) but survives
+  — flipping is honest error-correction and only partly penalized. See
+  [AI resolution](/concepts/ai-claims).
+
+## How a challenger reproduces a claim
+
+<Steps>
+  <Step title="Read the claim and the agreed facts">
+    Build the runner config from the on-chain oracle: `--oracle <pubkey> --rpc-url <url>
+    --prompt-file <path>`. The runner enumerates the oracle's facts, keeps the `agreed`
+    ones, and asserts `sha256(prompt_file) == oracle.prompt_hash` (`rpc.rs`).
+  </Step>
+  <Step title="Re-run with the declared model and compare">
+    Run `kassandra-runner verify --option <n>` (optionally passing the submitted
+    `--submitted-model-id / --submitted-params-hash / --submitted-io-hash`). The runner
+    reproduces the categorical option and confirms the declared metadata.
+  </Step>
+  <Step title="Challenge if the option differs">
+    If the reproduced option differs, open a decision market with `open_challenge`: the
+    proposer's locked KASS becomes conditional collateral, you post USDC, and traders settle
+    it. See [Challenge markets](/concepts/challenge-markets).
+  </Step>
+</Steps>
+
+<Warning>
+  The runner's v1 has documented limits: on-chain reads are `confirmed`-commitment with no
+  retry/failover; SSRF to internal IPs is not blocked (scheme allowlist plus a body-size
+  cap only); and there is exactly one bundled provider plus the mock. There is **no TEE and
+  no zkTLS attestation** — that is a design choice, not an omission.
+</Warning>
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="AI claims in depth" icon="robot" href="/concepts/ai-claims">
+    The AI-resolution phase: locked-in proposers, value flips, and account closure.
+  </Card>
+  <Card title="The runner architecture" icon="gears" href="/architecture/runner">
+    Provider trait, prompt assembly, hashing scheme, and keeper submission.
+  </Card>
+  <Card title="Challenge markets" icon="scale-balanced" href="/concepts/challenge-markets">
+    How a reproduced disagreement becomes a priced, adversarial decision.
+  </Card>
+</CardGroup>

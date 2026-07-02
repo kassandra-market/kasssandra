@@ -1,0 +1,173 @@
+---
+title: "Recipes"
+description: "Runnable Kassandra SDK snippets — init + decode Protocol, create an oracle, propose + finalize, and build an AMM swap."
+---
+
+Practical, copy-pasteable snippets, taken verbatim from `sdk/examples/quickstart.ts` (the
+example-shaped twin of `sdk/test/e2e.test.ts`). They run against **litesvm** for local
+testing; against a live cluster you would `await tx.serialize()` and send the wire bytes
+through your own `Connection`/RPC. For the full narrated walkthrough, see the
+[Quickstart](/guide/quickstart).
+
+<Info>
+To actually run these you need the program artifact. From the repo root run `just build` to
+produce `target/deploy/kassandra_program.so`, then `pnpm dlx tsx examples/quickstart.ts`.
+</Info>
+
+## Imports
+
+Everything comes from the single public entry point:
+
+```ts
+import {
+  AccountType,
+  CLAIM_OPTION_NONE,
+  Phase,
+  TOKEN_PROGRAM_ID,
+  createOracle,
+  decodeOracle,
+  decodeProposer,
+  decodeProtocol,
+  finalizeProposals,
+  initProtocol,
+  pda,
+  propose,
+  toLiteSvmTransaction,
+} from "@kassandra/sdk";
+```
+
+## The submit bridge (web3.js v3 → litesvm)
+
+Every recipe below calls this `submit` helper. It is **the** web3.js v3 → litesvm path:
+build a legacy `Transaction`, set the fee payer + blockhash, `await tx.sign(...)` (async —
+WebCrypto), then `toLiteSvmTransaction(tx)` re-decodes it into the kit transaction litesvm
+expects.
+
+```ts
+async function submit(
+  svm: LiteSVM,
+  payer: Keypair,
+  ix: TransactionInstruction,
+  extraSigners: Keypair[] = [],
+): Promise<TransactionMetadata> {
+  const tx = new Transaction();
+  tx.feePayer = payer.publicKey;
+  tx.recentBlockhash = svm.latestBlockhash();
+  tx.add(ix);
+  await tx.sign(payer, ...extraSigners);
+  const result = svm.sendTransaction(await toLiteSvmTransaction(tx));
+  if (result instanceof FailedTransactionMetadata) {
+    throw new Error(`transaction failed: ${result.toString()}`);
+  }
+  return result;
+}
+```
+
+## Walkthrough
+
+<Steps>
+  <Step title="Init the protocol + decode it">
+    Create the Protocol singleton, then derive its PDA and decode the fresh account.
+
+    ```ts
+    await submit(svm, payer, await initProtocol({
+      admin: payer.publicKey,
+      kassMint: kassMint.publicKey,
+      usdcMint: usdcMint.publicKey,
+    }));
+
+    const protocolPda = await pda.protocol();
+    const protocolAcct = decodeProtocol(fetchData(svm, protocolPda.address));
+    console.log("protocol admin:", protocolAcct.admin.toString());
+    console.log(
+      "protocol.accountType === Protocol:",
+      protocolAcct.accountType === AccountType.Protocol,
+    );
+    ```
+  </Step>
+
+  <Step title="Create an oracle (nonce 1, 3 options) + decode it">
+    Derive the oracle PDA from the u64-LE nonce seed, build `create_oracle`, then decode and
+    confirm it started in `Phase.Proposal`.
+
+    ```ts
+    const nonce = 1n;
+    const oraclePda = await pda.oracle(nonce); // PDA from the u64-LE nonce seed
+
+    const deadline = svm.getClock().unixTimestamp + 1_000n;
+    await submit(svm, payer, await createOracle({
+      nonce,
+      promptHash: new Uint8Array(32).fill(0x42),
+      optionsCount: 3,
+      deadline,
+      twapWindow: 600n,
+      creator: payer.publicKey,
+      creatorKassToken: creatorKass.publicKey,
+      kassMint: kassMint.publicKey,
+      usdcMint: usdcMint.publicKey,
+    }));
+
+    let oracleAcct = decodeOracle(fetchData(svm, oraclePda.address));
+    console.log("oracle.phase === Proposal:", oracleAcct.phase === Phase.Proposal);
+    console.log("oracle.optionsCount:", oracleAcct.optionsCount);
+    ```
+  </Step>
+
+  <Step title="Propose, then finalize">
+    Each proposing authority co-signs its `propose` instruction (note the `[authority]`
+    extra-signer). After the proposal window closes, `finalizeProposals` takes the full
+    proposer set and resolves.
+
+    ```ts
+    await submit(svm, payer, await propose({
+      oracle: oraclePda.address,
+      authority: authority.publicKey,
+      authorityKass: authorityKass.publicKey,
+      option: agreedOption,
+      bond,
+    }), [authority]); // the proposing authority co-signs
+
+    const proposerPda = await pda.proposer(oraclePda.address, authority.publicKey);
+    const proposerAcct = decodeProposer(fetchData(svm, proposerPda.address));
+    console.log(
+      `proposer: option=${proposerAcct.originalOption} bond=${proposerAcct.bond} claimOption=${
+        proposerAcct.claimOption === CLAIM_OPTION_NONE ? "NONE" : proposerAcct.claimOption
+      }`,
+    );
+
+    // ...once the proposal window has passed:
+    await submit(svm, payer, await finalizeProposals({
+      oracle: oraclePda.address,
+      proposers,
+    }));
+
+    oracleAcct = decodeOracle(fetchData(svm, oraclePda.address));
+    console.log("oracle.phase === Resolved:", oracleAcct.phase === Phase.Resolved);
+    console.log("oracle.resolvedOption:", oracleAcct.resolvedOption);
+    ```
+  </Step>
+
+  <Step title="Build an AMM swap">
+    Challenge-market decision AMMs use the `ammV04.*` submodule. Building a buy swap:
+
+    ```ts
+    import { ammV04 } from "@kassandra/sdk";
+
+    const ix = await ammV04.swap({
+      payer, baseMint, quoteMint,
+      swapType: ammV04.SwapType.Buy,
+      inputAmount: 1_000_000n,
+      minOutputAmount: 0n,
+    });
+    ```
+
+    See [AMM v0.4](/sdk/amm-v04) and [Trading](/challenge/trading) for the full challenge flow.
+  </Step>
+</Steps>
+
+<Tip>
+Near the account limit on a big `finalize` (many proposers) on a live cluster, use the
+`v0` module's `sendFinalizeViaAlt` — it publishes an Address Lookup Table over the proposer
+PDAs and sends the finalize as a v0 transaction. That path is live-cluster/surfpool only,
+**not** litesvm.
+</Tip>

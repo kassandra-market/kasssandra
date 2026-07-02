@@ -1,0 +1,97 @@
+---
+title: "TypeScript SDK"
+description: "The hand-written @kassandra/sdk — no IDL, async PDA derivers and instruction builders, account decoders, and external-protocol submodules."
+---
+
+The SDK is the canonical TypeScript client for Kassandra, published in-repo as **`@kassandra/sdk`**
+(`sdk/package.json`). Because the program is Pinocchio and has **no Anchor IDL**, the SDK is written
+by hand: every instruction's wire bytes and every account layout are mirrored from the Rust program
+and kept in lockstep by a parity test (`sdk/test/parity.test.ts`).
+
+## Package
+
+- **Name:** `@kassandra/sdk` — `"private": true`, `"type": "module"` (ESM only). Not published to
+  npm; consumed in-repo from `sdk/dist/`.
+- **Exports:** a single entry `"."` → `./dist/index.js` (+ `.d.ts`), `"sideEffects": false`.
+- **Dependencies:** `@solana/kit ^6.10.0`, `@solana/web3.js 3.0.0-rc.2`. Dev: `litesvm 1.2.0`,
+  `vitest`, `typescript`.
+
+```ts
+import { createOracle, decodeOracle, pda, Phase } from "@kassandra/sdk";
+```
+
+The public barrel (`sdk/src/index.ts`) re-exports constants, the flat + namespaced `pda` helpers,
+the account decoders, the instruction builders and payload helpers, litesvm interop, the v0/ALT path,
+the runner bridge, and the namespaced external submodules `futarchy`, `ammV04`, and `meteora`.
+
+## No IDL — layouts mirror the program
+
+There is no code generation. Instead:
+
+- **Instruction builders** hand-encode `data = [disc_byte, ...payload_LE]` for each of the program's
+  23 instructions.
+- **Account decoders** hand-parse each `#[repr(C)]` struct, validating the `account_type` tag and
+  exact byte size.
+- **PDA derivers** reproduce the exact seed bytes the program uses.
+
+The parity test asserts the SDK's encodings and layouts still match the program, so a change to the
+Rust side fails CI until the SDK is updated.
+
+## Async by construction
+
+web3.js `3.0.0-rc.2` exposes only an **async** `Address.findProgramAddress`, so **every** PDA deriver
+and instruction builder is `async` and returns a `Promise`. Instruction builders return web3.js
+**classic** `TransactionInstruction` objects; each accepts an optional `programId?: Address` override
+(defaulting to `KASSANDRA_PROGRAM_ID`).
+
+```ts
+const oraclePda = await pda.oracle(1n);        // Promise<Pda> — { address, bump }
+const ix = await createOracle({ /* args */ }); // Promise<TransactionInstruction>
+```
+
+Convenience types: `AddressInput = Address | string` and `Pda = { address: Address; bump: number }`
+(`sdk/src/pda.ts`).
+
+## What the SDK provides
+
+| Surface | File(s) | What it does |
+| --- | --- | --- |
+| Instruction builders | `sdk/src/instructions/*.ts` | 22 core builders + `sweepOracle`, grouped `lifecycle` / `dispute` / `challenge` / `settlement`, plus `payload.ts` byte helpers. |
+| Account decoders | `sdk/src/accounts/*.ts` | `decodeProtocol`/`decodeOracle`/`decodeProposer`/`decodeFact`/`decodeFactVote`/`decodeAiClaim`/`decodeMarket`, each size- and tag-checked. |
+| PDA helpers | `sdk/src/pda.ts` | `protocol`, `oracle`, `stakeVault`, `proposer`, `fact`, `factVote`, `aiClaim`, `market`, `challengeUsdcVault`, `mintAuthority`, `associatedTokenAccount`. |
+| Constants | `sdk/src/constants.ts` | `KASSANDRA_PROGRAM_ID`, the `Ix` / `AccountType` / `Phase` / `KassandraError` enums, `ACCOUNT_SIZES`, `CONFIG` defaults, `EXTERNAL_PROGRAM_IDS`. |
+
+See [SDK · Overview](/sdk/overview) for the full API reference.
+
+## Submodules for external programs
+
+Kassandra composes MetaDAO and Meteora transactions **off-chain** (the on-chain program CPIs into
+them, but market composition happens client-side). The SDK namespaces those clients:
+
+<CardGroup cols={3}>
+  <Card title="ammV04" icon="chart-line" href="/sdk/amm-v04">
+    MetaDAO v0.4 standalone AMM — `createAmm`, `addLiquidity`, `swap`, `crankThatTwap`; the
+    slot-weighted delayed-TWAP venue used for pass/fail markets.
+  </Card>
+  <Card title="futarchy" icon="landmark" href="/sdk/futarchy">
+    v0.6 futarchy + conditional-vault + Squads v4 — questions, vaults, split/merge/redeem, DAO
+    bootstrap, and vault transactions.
+  </Card>
+  <Card title="meteora" icon="water" href="/sdk/futarchy">
+    Meteora DAMM v2 (cp-amm) — the DAO treasury fee path via `claimPositionFee`.
+  </Card>
+</CardGroup>
+
+## litesvm interop and the runner bridge
+
+- **litesvm interop** (`sdk/src/litesvm-interop.ts`): `toLiteSvmTransaction(tx)` serializes a signed
+  web3.js v3 transaction and re-decodes it into the `@solana/kit` `Transaction` that litesvm expects
+  — the bridge used throughout the SDK's example and test suites.
+- **Runner bridge** (`sdk/src/runner-bridge.ts`): `submitAiClaimFromRunner(runOutput, opts)` builds a
+  `submit_ai_claim` instruction from the runner's JSON output and byte-asserts that the SDK-built
+  97-byte payload equals the runner's precomputed payload. See [AI runner](/architecture/runner) and
+  [AI claims](/concepts/ai-claims).
+
+There is also a v0-transaction + Address Lookup Table path (`sdk/src/v0.ts`) for near-cap finalize
+transactions on live clusters, and the SDK is fully exercised end-to-end in
+`sdk/examples/quickstart.ts`.

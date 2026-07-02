@@ -1,0 +1,450 @@
+---
+title: "Instructions"
+description: "Complete reference for all 23 Kassandra instructions (Ix 0–22): accounts, payloads, phase gates, and errors."
+---
+
+The program exposes **23 instructions**. The first byte of `instruction_data` is the discriminant
+(the `Ix` value); the remaining bytes are the payload, parsed inside each processor
+(`programs/kassandra/src/instruction.rs`, `processor/mod.rs`). Discriminants are a stable contract —
+never renumbered, only appended.
+
+<Info>
+**Reading the account lists.** Slot numbers are the processor's destructure order. "signer" is
+enforced on-chain by `assert_signer`; "writable" reflects what the processor creates/mutates (the
+runtime enforces the actual meta). A trailing `..` means extra accounts are ignored. Payload sizes are
+exact unless noted. Full byte-level payloads are in the [SDK builders](/sdk/instruction-builders);
+phase semantics are in [Phases](/protocol/phases).
+</Info>
+
+## Init, config & governance
+
+<AccordionGroup>
+  <Accordion title="Ix 9 · InitProtocol — create the singleton" icon="wrench">
+    One-time creation of the `[b"protocol"]` singleton (`processor/init_protocol.rs`). Records the
+    admin and canonical KASS/USDC mints, defaults all governable params to the config consts (fee EMA
+    zeroed), and uses create-or-adopt to tolerate a pre-funded PDA.
+
+    **Accounts:** `0` protocol PDA (writable, `[b"protocol"]`, self-signs) · `1` admin (signer,
+    writable) · `2` kass_mint (SPL) · `3` usdc_mint (SPL) · `4` system program.
+
+    **Payload:** none (trailing bytes ignored).
+
+    **Errors:** re-init → `AlreadyInitialized`; non-SPL mints → `InvalidAccount`.
+  </Accordion>
+
+  <Accordion title="Ix 10 · CreateOracle — stand up an oracle" icon="star">
+    Stands up a new oracle in `Phase::Proposal` with a future deadline, a program-controlled KASS
+    stake vault (`[b"vault", oracle]`, authority = oracle PDA), a burned EMA creation fee, and
+    optional emission minted into the vault (`processor/create_oracle.rs`). Snapshots all governable
+    params from the Protocol onto the Oracle.
+
+    **Accounts:** `0` protocol (writable) · `1` oracle PDA (writable, uninit; `[b"oracle", nonce_le]`)
+    · `2` stake_vault PDA (writable, uninit; `[b"vault", oracle]`) · `3` creator (signer, writable) ·
+    `4` kass_mint (writable) · `5` usdc_mint · `6` token program · `7` system program · `8`
+    creator_kass_token (writable, fee burn source) · `9` mint_authority PDA (`[b"mint_authority"]`).
+
+    **Payload (57 bytes):** `nonce: u64 LE` ++ `prompt_hash: [u8;32]` ++ `options_count: u8` ++
+    `deadline: i64 LE` ++ `twap_window: i64 LE`.
+
+    **Errors:** `options_count < 2` → `InvalidOptionsCount`; `deadline < now` → `InvalidDeadline`;
+    `twap_window <= 0` → `InvalidInstructionData`; duplicate PDA / bad burn source → `InvalidAccount`;
+    emission mint-authority mismatch → `BadMintAuthority`.
+  </Accordion>
+
+  <Accordion title="Ix 13 · SetGovernance — admin→DAO handoff" icon="landmark">
+    One-time admin→DAO handoff recording `dao_authority` (a Squads v4 multisig vault PDA) and
+    `kass_dao` (a futarchy `Dao`), validated against real accounts (`processor/set_governance.rs`).
+    After the handoff only the current `dao_authority` may rotate.
+
+    **Accounts:** `0` protocol PDA (writable) · `1` authority (signer — `admin` pre-handoff,
+    `dao_authority` post) · `2` kass_dao (futarchy Dao; == payload `kass_dao`).
+
+    **Payload (≥ 64 bytes):** `dao_authority: [u8;32]` ++ `kass_dao: [u8;32]` (extra trailing bytes
+    ignored).
+
+    **Errors:** payload `< 64` → `InvalidInstructionData`; zero key → `InvalidAccount`; wrong signer
+    pre-handoff → `Unauthorized`; wrong signer post-handoff → `GovernanceAlreadySet`; bad futarchy Dao
+    → `InvalidFutarchyDao`; `dao_authority != derived Squads vault` → `DaoAuthorityMismatch`.
+  </Accordion>
+
+  <Accordion title="Ix 14 · SetConfig — overwrite governable params" icon="sliders">
+    DAO-gated wholesale overwrite of governable Protocol params (monetary + behavioral + reserved +
+    challenge fees), bounds-checked (`processor/set_config.rs`). Does **not** touch existing oracles
+    (frozen snapshots) or identity/linkage/accounting fields.
+
+    **Accounts:** `0` protocol PDA (writable) · `1` dao_authority (signer; == `protocol.dao_authority`).
+
+    **Payload (exactly 176 bytes):** 22 × 8-byte LE fields, in order: `emission_num, emission_den,
+    total_supply_cap, fee_ema_halflife (i64), fee_per_ema_unit, fee_ema_increment, threshold_num,
+    threshold_den, market_threshold_num, market_threshold_den, flip_slash_num, flip_slash_den,
+    phase_window (i64), proposal_window (i64), fact_vote_slash_num, fact_vote_slash_den,
+    reward_proposer_weight, reward_fact_weight, challenge_fail_usdc_fee_num, challenge_fail_usdc_fee_den,
+    challenge_success_kass_fee_num, challenge_success_kass_fee_den`.
+
+    **Errors:** wrong signer → `Unauthorized`; any bad bound (zero denominators, `num > den`
+    fractions, non-positive windows/halflife, both reward weights zero, or the joint bound
+    `flip_num*fee_den + fee_num*flip_den > flip_den*fee_den`) → `InvalidConfig`. See
+    [Constants](/protocol/constants).
+  </Accordion>
+
+  <Accordion title="Ix 16 · KassPrice — read the KASS/USDC TWAP" icon="magnifying-glass-dollar">
+    Read-only governance-anchored KASS/USDC spot TWAP from the futarchy `kass_dao`, returned via
+    `set_return_data` (`processor/kass_price.rs`). No state change.
+
+    **Accounts:** `0` protocol PDA · `1` kass_dao (== `protocol.kass_dao`).
+
+    **Payload:** none used. **Return:** 16-byte LE `u128` TWAP (scaled by `KASS_PRICE_SCALE = 1e12`).
+  </Accordion>
+</AccordionGroup>
+
+## Proposal lifecycle
+
+<AccordionGroup>
+  <Accordion title="Ix 11 · Propose — register a proposal" icon="hand">
+    Registers a proposal (categorical `option` + KASS `bond`) against an oracle in `Proposal` after
+    its deadline; escrows the bond into the stake vault; creates one `Proposer` PDA per (oracle,
+    authority); enforces `MAX_PROPOSERS` (`processor/propose.rs`). Sets `claim_option =
+    CLAIM_OPTION_NONE`.
+
+    **Accounts:** `0` oracle (writable) · `1` proposer PDA (writable, uninit;
+    `[b"proposer", oracle, authority]`) · `2` authority (signer, writable) · `3` authority KASS
+    (writable, bond source) · `4` stake vault (writable; == `oracle.stake_vault`) · `5` token program
+    · `6` system program.
+
+    **Payload (9 bytes):** `option: u8` ++ `bond: u64 LE`.
+
+    **Errors:** `bond == 0` → `ZeroStake`; wrong phase → `WrongPhase`; `now < deadline` →
+    `DeadlineNotReached`; closed window with proposers → `ProposalWindowClosed`; over cap →
+    `TooManyProposers`; `option >= options_count` → `InvalidOptionsCount`; duplicate → `DuplicateProposer`.
+  </Accordion>
+
+  <Accordion title="Ix 12 · FinalizeProposals — close the proposal window" icon="flag-checkered">
+    One-shot close of the proposal window (`processor/finalize_proposals.rs`): if all proposers agree
+    → `Resolved` with `resolved_option`; if ≥2 distinct options → open a dispute (set
+    `dispute_bond_total = total_oracle_stake`, advance to `FactProposal`, fresh window). No token CPI.
+
+    **Accounts:** `0` oracle (writable, only account mutated) · `1..N` the **full** proposer set
+    (exactly `proposer_count`, read-only, program-owned, tagged Proposer, `.oracle == oracle`,
+    distinct).
+
+    **Payload:** empty.
+
+    **Errors:** wrong phase → `WrongPhase`; window not elapsed → `WindowNotElapsed`;
+    `proposer_count == 0` → `NoProposals`; wrong tail length / over cap → `InvalidAccount`.
+  </Accordion>
+
+  <Accordion title="Ix 7 · AdvancePhase — permissionless freeze" icon="forward">
+    Permissionless, time-gated `FactProposal → FactVoting` freeze once the fact-proposal window
+    elapsed (`processor/advance_phase.rs`). **No signer required.** Handles only this one edge.
+
+    **Accounts:** `0` oracle (writable). **Payload:** empty.
+
+    **Errors:** wrong phase → `WrongPhase`; window not elapsed → `WindowNotElapsed`.
+  </Accordion>
+</AccordionGroup>
+
+## Fact phase
+
+<AccordionGroup>
+  <Accordion title="Ix 0 · SubmitFact — propose a supporting fact" icon="file-lines">
+    Proposes a supporting `Fact` during the `FactProposal` window; escrows submitter KASS stake into
+    the stake vault (`processor/submit_fact.rs`).
+
+    **Accounts:** `0` oracle (writable) · `1` fact PDA (writable, uninit;
+    `[b"fact", oracle, content_hash]`) · `2` submitter (signer, writable) · `3` submitter KASS
+    (writable, stake source; mint == `oracle.kass_mint`) · `4` stake vault (writable;
+    == `oracle.stake_vault`) · `5` token program · `6` system program.
+
+    **Payload (variable, min 42 bytes):** `content_hash: [u8;32]` ++ `stake: u64 LE` ++
+    `uri_len: u16 LE` ++ `uri: [u8; uri_len]`. `uri_len <= 200`; no trailing bytes.
+
+    **Errors:** wrong phase → `WrongPhase`; window closed → `WindowClosed`; `stake == 0` → `ZeroStake`;
+    duplicate → `DuplicateFact`.
+  </Accordion>
+
+  <Accordion title="Ix 1 · VoteFact — vote on a fact" icon="check-to-slot">
+    Stake-weighted approve/duplicate vote on a fact during `FactVoting`; one vote per (fact, voter)
+    (`processor/vote_fact.rs`).
+
+    **Accounts:** `0` oracle (writable) · `1` fact (writable; `fact.oracle == oracle`) · `2`
+    fact_vote PDA (writable, uninit; `[b"vote", fact, voter]`) · `3` voter (signer, writable) · `4`
+    voter KASS (writable, stake source) · `5` stake vault (writable; == `oracle.stake_vault`) · `6`
+    token program · `7` system program.
+
+    **Payload (exactly 9 bytes):** `kind: u8` (`VOTE_APPROVE=0` / `VOTE_DUPLICATE=1`) ++ `stake: u64 LE`.
+
+    **Errors:** wrong phase → `WrongPhase`; window closed → `WindowClosed`; `stake == 0` → `ZeroStake`;
+    duplicate → `DuplicateVote`; bad `kind` → `InvalidInstructionData`.
+  </Accordion>
+
+  <Accordion title="Ix 2 · FinalizeFacts — settle the fact round" icon="scale-balanced">
+    Incrementally settles the fact-voting round after its window (`processor/finalize_facts.rs`):
+    classifies each fact (agreed/duplicate/rejected), accumulating `bond_pool` and
+    `total_approved_fact_stake`, advancing to `AiClaim` when all facts are settled; OR the no-facts
+    dead-end that slashes proposers and terminates in `InvalidDeadend` (burning `bond_pool +
+    reward_emission`). Agreed test: `approve_stake > duplicate_stake && approve_stake·threshold_den >=
+    dispute_bond_total·threshold_num` (u128).
+
+    **Accounts:** `0` oracle (writable, signs the dead-end burn) · `1` kass_mint (writable;
+    == `oracle.kass_mint`) · `2` stake_vault (writable; == `oracle.stake_vault`) · `3` token program ·
+    `4..N` a non-empty tail — a subset of the oracle's facts (fact path) OR proposers (no-facts path),
+    each writable, program-owned, `.oracle == oracle`, distinct.
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE` (re-derives the oracle PDA for the burn
+    signer).
+
+    **Errors:** wrong phase → `WrongPhase`; window not elapsed → `WindowNotElapsed`;
+    `dispute_bond_total == 0` → `NoDisputeBond`; empty tail → `IncompleteFactSet`; already-settled →
+    `AlreadySettled`.
+  </Accordion>
+</AccordionGroup>
+
+## AI claim
+
+<AccordionGroup>
+  <Accordion title="Ix 3 · SubmitAiClaim — submit a categorical claim" icon="robot">
+    A locked-in proposer submits a categorical AI claim + reproducibility metadata; records
+    `claim_option` on the proposer (marking `flipped` if it differs from `original_option`). No token
+    CPI (`processor/submit_ai_claim.rs`).
+
+    **Accounts:** `0` oracle (writable) · `1` proposer PDA (writable, the submitter's) · `2` ai_claim
+    PDA (writable, uninit; `[b"claim", oracle, proposer]`) · `3` authority (signer, writable; ==
+    `proposer.authority`) · `4` system program.
+
+    **Payload (exactly 97 bytes):** `model_id: [u8;32]` ++ `params_hash: [u8;32]` ++ `io_hash: [u8;32]`
+    ++ `option: u8`. See [AI runner](/architecture/runner).
+
+    **Errors:** wrong phase → `WrongPhase`; window closed → `WindowClosed`;
+    `proposer.oracle != oracle` → `InvalidAccount`; wrong/disqualified authority → `Unauthorized`;
+    `option >= options_count` → `InvalidOption`; duplicate → `DuplicateClaim`.
+  </Accordion>
+
+  <Accordion title="Ix 8 · FinalizeAiClaims — settle the AI-claim round" icon="list-check">
+    Incrementally settles the AI-claim round after its window (`processor/finalize_ai_claims.rs`):
+    no-show (`claim_option == CLAIM_OPTION_NONE`) → full slash + disqualify + `surviving_count -= 1`;
+    flipped → partial slash `bond·flip_slash_num/flip_slash_den` (stays surviving); submitted &
+    not-flipped → no slash. Advances to `Challenge` when `ai_finalized_count == proposer_count`. No
+    token CPI.
+
+    **Accounts:** `0` oracle (writable) · `1..N` a non-empty subset of proposers (each writable,
+    program-owned, `.oracle == oracle`, distinct).
+
+    **Payload:** empty.
+
+    **Errors:** wrong phase → `WrongPhase`; window not elapsed → `WindowNotElapsed`; empty tail →
+    `IncompleteFactSet`; already ai-finalized → `AlreadySettled`.
+  </Accordion>
+</AccordionGroup>
+
+## Challenge
+
+<AccordionGroup>
+  <Accordion title="Ix 4 · OpenChallenge — open a decision market" icon="gavel">
+    Opens a MetaDAO binary decision market against an `AiClaim` during `Challenge`
+    (`processor/open_challenge.rs`). Verifies that the MetaDAO question/vaults/AMMs bind to this
+    oracle, records a `Market` PDA, program-signed-splits the proposer bond into pass/fail conditional
+    KASS, sizes and funds a challenger USDC escrow via `kass_price`, sets `ai_claim.challenged = 1`,
+    and increments `open_challenge_count`. Escrow sizing: `required_usdc = bond · twap /
+    KASS_PRICE_SCALE` where `twap = kass_price(protocol, kass_dao)`.
+
+    **Accounts (25):** `0` oracle (writable, split authority) · `1` ai_claim (writable) · `2`
+    proposer (writable, bond source) · `3` market PDA (writable, uninit; `[b"market", ai_claim]`) ·
+    `4` challenger (signer, writable) · `5` question (MetaDAO, resolver == oracle, `num_outcomes==2`) ·
+    `6` kass_vault (writable) · `7` usdc_vault · `8` pass_amm · `9` fail_amm · `10` stake_vault
+    (writable) · `11` kass_vault_underlying_ata (writable) · `12` pass_kass_mint (writable) · `13`
+    fail_kass_mint (writable) · `14` oracle_pass_kass (writable) · `15` oracle_fail_kass (writable) ·
+    `16` conditional_vault program · `17` token program · `18` system program · `19` cv_event_authority
+    · `20` protocol · `21` kass_dao (== `protocol.kass_dao`) · `22` usdc_mint (== `oracle.usdc_mint`) ·
+    `23` challenger_usdc_src (writable) · `24` challenger_usdc_vault (writable, uninit;
+    `[b"challenge_usdc", market]`, authority = oracle PDA).
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** wrong phase → `WrongPhase`; window closed → `WindowClosed`; already challenged →
+    `AlreadyChallenged`; disqualified proposer → `Unauthorized`; MetaDAO binding failures →
+    `InvalidAccount`; `required_usdc == 0` → `ZeroStake`. See [Composing a market](/challenge/composing).
+  </Accordion>
+
+  <Accordion title="Ix 5 · SettleChallenge — settle one market" icon="scale-unbalanced">
+    Settles ONE challenged claim's market after its TWAP window
+    (`processor/settle_challenge.rs`). Hard-binds both AMMs to this market's conditional mint pair,
+    reads slot-weighted TWAPs, applies the slash trigger, resolves the MetaDAO question, physically
+    redeems the bond KASS back to `stake_vault`, and routes directional fees. Phase stays `Challenge`;
+    decrements `open_challenge_count`.
+
+    **Slash trigger:** disqualify iff `pass_twap != 0 && fail_twap·market_threshold_den >
+    pass_twap·(market_threshold_den + market_threshold_num)` (u128). A `pass_twap == 0` always
+    survives. See [Settle verdict](/challenge/settle).
+
+    **Accounts (21):** `0` oracle (writable) · `1` market (writable) · `2` ai_claim · `3` proposer
+    (writable) · `4` question (writable) · `5` pass_amm · `6` fail_amm · `7` conditional_vault program
+    · `8` cv_event_authority · `9` token program · `10` stake_vault (writable) · `11` kass_vault
+    (writable) · `12` kass_vault_underlying (writable) · `13` pass_kass_mint (writable) · `14`
+    fail_kass_mint (writable) · `15` oracle_pass_kass (writable) · `16` oracle_fail_kass (writable) ·
+    `17` challenger_usdc_vault (writable) · `18` proposer_usdc (writable) · `19` challenger_usdc_dest
+    (writable) · `20` challenger_kass (writable).
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** wrong phase → `WrongPhase`; already settled → `AlreadySettled`;
+    `now < market.twap_end` → `TwapWindowOpen`; `pass_amm == fail_amm` → `InvalidAccount`.
+  </Accordion>
+</AccordionGroup>
+
+## Resolution
+
+<AccordionGroup>
+  <Accordion title="Ix 6 · FinalizeOracle — final plurality recompute" icon="trophy">
+    One-shot final plurality recompute over surviving proposers, driving the oracle terminal
+    (`processor/finalize_oracle.rs`). `Winner(opt)` → `Resolved`, stamping
+    `total_correct_proposer_stake` and `reward_pool = bond_pool + reward_emission`; `Tie` /
+    `NoSurvivors` → `InvalidDeadend`, `resolved_option = CLAIM_OPTION_NONE`, burning
+    `reward_emission + bond_pool`.
+
+    **Accounts:** `0` oracle (writable, signs burn) · `1` kass_mint (writable; == `oracle.kass_mint`)
+    · `2` stake_vault (writable; == `oracle.stake_vault`) · `3` token program · `4..N` the **full**
+    proposer set (exactly `proposer_count`, read-only, program-owned, tagged Proposer,
+    `.oracle == oracle`, distinct).
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** wrong phase → `WrongPhase`; window not elapsed → `WindowNotElapsed`;
+    `open_challenge_count != 0` → `ChallengesOutstanding`; bad tail length / over cap / surviving
+    proposer with `CLAIM_OPTION_NONE` / miscounted survivors → `InvalidAccount`.
+  </Accordion>
+
+  <Accordion title="Ix 15 · ResolveDeadend — stamp a dead-end resolution" icon="rotate-right">
+    DAO-gated stamping of a final `resolved_option` on a dead-ended oracle, advancing `InvalidDeadend
+    → Resolved` (`processor/resolve_deadend.rs`). No token movement (dead-end funds were already
+    burned at finalize).
+
+    **Accounts:** `0` protocol PDA (reads dao_authority) · `1` oracle (writable) · `2` dao_authority
+    (signer; == `protocol.dao_authority`).
+
+    **Payload (exactly 1 byte):** `option: u8`.
+
+    **Errors:** wrong signer → `Unauthorized`; not `InvalidDeadend` → `WrongPhase`;
+    `option >= options_count` → `InvalidOptionsCount`.
+  </Accordion>
+</AccordionGroup>
+
+## Claim, close & sweep
+
+<AccordionGroup>
+  <Accordion title="Ix 17 · ClaimProposer — pull a proposer payout" icon="coins">
+    Permissionless per-proposer pull-claim after the oracle is terminal; pays the KASS entitlement
+    from `stake_vault` and CLOSES the `Proposer` (rent → authority) (`processor/claims.rs`). Idempotent
+    by closure. Entitlement: `base = is_disqualified ? 0 : bond − slashed_amount`, plus
+    `proposer_reward` only when Resolved + surviving + `claim_option == resolved_option`.
+
+    **Accounts:** `0` oracle · `1` proposer (writable, CLOSED) · `2` dest_kass (writable;
+    owner == `proposer.authority`) · `3` stake_vault (writable; == `oracle.stake_vault`) · `4`
+    rent_recipient (writable; == `proposer.authority`) · `5` token program.
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** not terminal → `WrongPhase`; bad oracle PDA / bad dest / rent recipient → `InvalidAccount`.
+  </Accordion>
+
+  <Accordion title="Ix 18 · ClaimFact — pull a fact-submitter payout" icon="coins">
+    Permissionless per-fact-submitter pull-claim; CLOSES the `Fact` (rent → `fact.proposer`). Must run
+    LAST, after all voters (`processor/claims.rs`). Entitlement: agreed → `stake + fact_reward`
+    (reward on Resolved only); duplicate → `stake`; rejected → `0`.
+
+    **Accounts:** `0` oracle · `1` fact (writable, CLOSED) · `2` dest_kass (writable;
+    owner == `fact.proposer`) · `3` stake_vault (writable) · `4` rent_recipient (writable;
+    == `fact.proposer`) · `5` token program.
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** not terminal → `WrongPhase`; `approve_stake != 0 || duplicate_stake != 0` →
+    `VotersOutstanding`.
+  </Accordion>
+
+  <Accordion title="Ix 19 · ClaimFactVote — pull a voter payout" icon="coins">
+    Permissionless per-vote pull-claim; decrements the Fact's running voter-stake total, pays KASS,
+    and CLOSES the `FactVote` (rent → voter). The Fact is loaded to read disposition but NOT closed
+    (`processor/claims.rs`). Entitlement: duplicate vote → `stake`; approve on agreed →
+    `stake + fact_reward` (Resolved only); approve on duplicate-fact → `stake`; approve on rejected →
+    `stake − ceil(stake·fact_vote_slash_num/fact_vote_slash_den)`.
+
+    **Accounts:** `0` oracle · `1` fact_vote (writable, CLOSED) · `2` fact (writable, total
+    decremented) · `3` dest_kass (writable; owner == `vote.voter`) · `4` stake_vault (writable) · `5`
+    rent_recipient (writable; == `vote.voter`) · `6` token program.
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** not terminal → `WrongPhase`.
+  </Accordion>
+
+  <Accordion title="Ix 20 · CloseAiClaim — reclaim claim rent" icon="box-archive">
+    Permissionless rent-reclaim close for one `AiClaim` after terminal; drains rent to
+    `ai_claim.authority`; no token movement; order-independent (`processor/close_ai_claim.rs`).
+
+    **Accounts:** `0` oracle (terminal) · `1` ai_claim (writable, CLOSED) · `2` rent_recipient
+    (writable; == `ai_claim.authority`).
+
+    **Payload:** none (non-empty → `InvalidInstructionData`).
+
+    **Errors:** not terminal → `WrongPhase`; `ai_claim.oracle != oracle` → `InvalidAccount`.
+  </Accordion>
+
+  <Accordion title="Ix 21 · CloseMarket — reclaim market rent" icon="box-archive">
+    Permissionless rent-reclaim close for one settled `Market` + its USDC escrow after terminal; SPL
+    `CloseAccount` on the escrow (oracle-PDA signed) + Market PDA close; both rents → `market.challenger`
+    (`processor/close_market.rs`).
+
+    **Accounts:** `0` oracle (terminal, escrow authority) · `1` market (writable, CLOSED; settled) ·
+    `2` challenger_usdc_vault (writable, CLOSED; amount 0) · `3` rent_recipient (writable;
+    == `market.challenger`) · `4` token program.
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** not terminal → `WrongPhase`; `!market.settled` → `MarketNotSettled`; escrow
+    `amount != 0` → `EscrowNotEmpty`; `market.oracle != oracle` → `InvalidAccount`.
+  </Accordion>
+
+  <Accordion title="Ix 22 · SweepOracle — dust sweep + close" icon="broom">
+    Permissionless grace-gated dust sweep + terminal `Oracle` / `stake_vault` closure
+    (`processor/sweep_oracle.rs`). Transfers the entire residual vault KASS to the DAO treasury (the
+    KASS ATA of `dao_authority`), then closes the vault and Oracle (rents → `oracle.creator`).
+    Requires governance to be set.
+
+    **Accounts:** `0` oracle (writable, CLOSED; vault authority) · `1` stake_vault (writable, swept +
+    CLOSED; == `oracle.stake_vault`) · `2` protocol · `3` dao_treasury (writable; ==
+    `ATA(dao_authority, kass_mint)`) · `4` creator (writable; == `oracle.creator`) · `5` token program.
+
+    **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
+
+    **Errors:** not terminal → `WrongPhase`; `now < phase_ends_at + SWEEP_GRACE` →
+    `SweepGraceNotElapsed`; `!governance_set` → `GovernanceNotSet`; bad treasury ATA → `InvalidTreasury`.
+  </Accordion>
+</AccordionGroup>
+
+## Full discriminant table
+
+| Ix | Name | Group | Payload |
+| --- | --- | --- | --- |
+| 0 | `SubmitFact` | Fact | variable (≥42) |
+| 1 | `VoteFact` | Fact | 9 |
+| 2 | `FinalizeFacts` | Fact | 8 |
+| 3 | `SubmitAiClaim` | AI claim | 97 |
+| 4 | `OpenChallenge` | Challenge | 8 |
+| 5 | `SettleChallenge` | Challenge | 8 |
+| 6 | `FinalizeOracle` | Resolution | 8 |
+| 7 | `AdvancePhase` | Lifecycle | 0 |
+| 8 | `FinalizeAiClaims` | AI claim | 0 |
+| 9 | `InitProtocol` | Init | 0 |
+| 10 | `CreateOracle` | Init | 57 |
+| 11 | `Propose` | Lifecycle | 9 |
+| 12 | `FinalizeProposals` | Lifecycle | 0 |
+| 13 | `SetGovernance` | Governance | ≥64 |
+| 14 | `SetConfig` | Governance | 176 |
+| 15 | `ResolveDeadend` | Resolution | 1 |
+| 16 | `KassPrice` | Governance | 0 |
+| 17 | `ClaimProposer` | Claim | 8 |
+| 18 | `ClaimFact` | Claim | 8 |
+| 19 | `ClaimFactVote` | Claim | 8 |
+| 20 | `CloseAiClaim` | Close | 0 |
+| 21 | `CloseMarket` | Close | 8 |
+| 22 | `SweepOracle` | Sweep | 8 |

@@ -1,0 +1,142 @@
+---
+title: "Facts"
+description: "The fact phase — a disjoint proposal window (no voting, anti-grief) then stake-weighted approve/duplicate voting, with the agreed-set quorum measured against the fixed dispute bond total."
+---
+
+When a dispute opens, the first thing to settle is **which evidence is real and relevant**.
+That is the fact phase. It is deliberately split into two disjoint windows — a submission
+window with no voting, then a voting window with a frozen fact set — and the agreed set is
+decided by a stake-weighted quorum measured against a fixed denominator.
+
+## Facts are curated evidence — never interpretation
+
+A **fact** is a piece of curated evidence: a URL, quoted text, a data point. It is *not* an
+interpretation rule — those were fixed at oracle creation and are never facts (design §4).
+Each fact is a `Fact` account (`state.rs`, LEN = 336) recording:
+
+| Field | Meaning |
+|---|---|
+| `content_hash` | `[u8;32]` hash committing the evidence bytes (the runner verifies fetched content against this) |
+| `uri` | up to 200 bytes pointing at the evidence off-chain (`uri_len`) |
+| `stake` | the submitter's KASS stake |
+| `approve_stake` / `duplicate_stake` | running tallies of approve and duplicate votes |
+| `agreed` / `duplicate` / `settled` | set at finalize: accepted, duplicate-dominant, and settled flags |
+
+## Window 1 — fact proposal (disjoint, no voting)
+
+Anyone posts candidate facts with `submit_fact` (`Ix::SubmitFact = 0`) during
+`Phase::FactProposal`, escrowing a KASS `stake` into the vault. The payload is a
+`content_hash`, a `stake`, and a length-prefixed `uri` (`uri_len <= 200`; `submit_fact.rs`).
+A duplicate `content_hash` fails with `DuplicateFact`; a zero stake fails with `ZeroStake`.
+
+<Warning>
+  **No voting is possible in this window.** This disjointness is the anti-grief rule: if
+  approvals and submissions overlapped, a whale could watch which facts are getting approved
+  and then drop a near-duplicate to split the vote and slash early honest stakers. Freezing
+  the set before any vote is cast removes that vector (design §4).
+</Warning>
+
+The permissionless `advance_phase` (`Ix=7`, no signer) freezes `FactProposal → FactVoting`
+once the window elapses.
+
+## Window 2 — fact voting (set frozen)
+
+With the fact set frozen, participants stake-vote per fact with `vote_fact`
+(`Ix::VoteFact = 1`), one vote per `(fact, voter)` (`vote_fact.rs`; 9-byte payload
+`kind: u8` plus `stake: u64`). A vote is either:
+
+- **approve** (`VOTE_APPROVE = 0`) — this fact belongs in the agreed set;
+- **duplicate** (`VOTE_DUPLICATE = 1`) — this fact is redundant with another.
+
+Voting is **non-exclusive**: a staker's stake is not split across facts. One staker may
+approve every fact, and their full stake counts toward each one. Any external KASS holder
+may participate, which deepens the honest pool and makes it harder for a biased bloc to
+dominate (design §4).
+
+## The agreed-set quorum
+
+After the window, `finalize_facts` (`Ix::FinalizeFacts = 2`) classifies each fact. A fact
+joins the **agreed set** iff (`finalize_facts.rs`, `is_agreed`, computed in `u128`):
+
+```
+approve_stake > duplicate_stake
+  AND  approve_stake * threshold_den >= dispute_bond_total * threshold_num
+```
+
+That is, approvals must beat duplicates **and** reach a supermajority of the **fixed dispute
+bond total** (default `threshold = 2/3`; `THRESHOLD_NUM = 2`, `THRESHOLD_DEN = 3`).
+
+<Info>
+  The quorum denominator is `dispute_bond_total` — the sum of proposer bonds, frozen when
+  the dispute started — **not** `total_oracle_stake`. That matters: `total_oracle_stake`
+  grows with every escrowed fact and vote stake, so under non-exclusive voting it would
+  dilute every fact below threshold and hand a risk-free griefing vector to large
+  `duplicate` votes. The fixed bond weight is stable and vote-independent — it means
+  "approval comparable to the disputed stake" (design §4, invariant 6).
+</Info>
+
+## Settlement: rewards and slashes
+
+`finalize_facts` classifies each fact and moves the appropriate amount into the `bond_pool`
+*counter* (actual KASS stays escrowed until per-staker claims):
+
+<CardGroup cols={2}>
+  <Card title="Agreed fact" icon="circle-check">
+    Accepted into the agreed set. The submitter and approve-voters are entitled to their
+    stake back plus a share of rewards (on `Resolved`). Their stake accumulates into
+    `total_approved_fact_stake`, the reward denominator for the fact cohort.
+  </Card>
+  <Card title="Duplicate-dominant fact" icon="clone">
+    Duplicate votes dominate → the fact is **ignored**, but its stakers are **not slashed**.
+    There is no penalty for honest redundancy — you get your stake back.
+  </Card>
+  <Card title="Rejected fact" icon="circle-xmark">
+    Not agreed and not duplicate. The **submitter forfeits their fact-submission stake** to
+    the bond pool (plus a slash on rejected-fact approve-voters). This is the penalty that
+    enforces "submit only the smallest necessary set" — staking on marginal facts is costly.
+  </Card>
+</CardGroup>
+
+The rejected-fact slash adds `fact.stake` plus
+`floor(approve_stake * fact_vote_slash_num / fact_vote_slash_den)` to `bond_pool`
+(`finalize_facts.rs`; default `fact_vote_slash = 1/2`). Approve-voters on a rejected fact
+later claim `stake − ceil(stake * fact_vote_slash_num / fact_vote_slash_den)` via
+`claim_fact_vote`; voters on agreed or duplicate facts get their full stake (plus reward for
+approve-on-agreed, on `Resolved`).
+
+## Incremental finalization
+
+`finalize_facts` is **incremental**. It settles facts in batches — each call takes a
+non-empty subset of the oracle's facts and advances `settled_count`. The phase advances to
+`AiClaim` only once `settled_count == fact_count`, so an arbitrarily large fact set can
+never wedge the oracle in one oversized transaction (design §4). An already-settled fact in
+a batch fails with `AlreadySettled`.
+
+<Warning>
+  **The empty agreed set is impossible unless there were no facts at all.** If no proposer
+  submitted any fact, `finalize_facts` takes the **no-facts dead-end**: every proposer is
+  slashed, `bond_pool + reward_emission` is burned, and the oracle terminates in
+  `InvalidDeadend` (design §4; see [Dead-end settlement](/concepts/dead-end-settlement)).
+</Warning>
+
+## A known, mitigated attack surface
+
+Approval voting is a Schelling / keynesian-beauty-contest game: a coordinated stake bloc
+could approve a biased subset of facts. This is documented, not eliminated. The mitigations
+stack: the **fixed interpretation** limits what a biased fact set can achieve, the **open
+external approver pool** dilutes a bloc, and the downstream **decision market** can override
+the AI claim that a biased fact set produces (design §4).
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="AI claims" icon="robot" href="/concepts/ai-claims">
+    Applying the fixed interpretation to the agreed fact set.
+  </Card>
+  <Card title="Economics" icon="coins" href="/concepts/economics">
+    The bond pool, reward buckets, and pro-rata claims.
+  </Card>
+  <Card title="The Fact account" icon="table-cells" href="/protocol/accounts">
+    The full `Fact` and `FactVote` layouts.
+  </Card>
+</CardGroup>

@@ -1,0 +1,116 @@
+---
+title: "Oracles and questions"
+description: "What an oracle is in Kassandra — a fixed prompt, immutable interpretation rules, categorical options, a deadline, bonding params, and a burned KASS creation fee."
+---
+
+An **oracle** in Kassandra is a single on-chain question with everything needed to resolve
+it fixed at creation. It is represented by one `Oracle` account (`state.rs`, LEN = 392) and
+created by the `create_oracle` instruction (`Ix::CreateOracle = 10`). Once created, its
+configuration is immutable — the whole trust model rests on that.
+
+## What a creator fixes at creation
+
+`create_oracle` stands up a new oracle in `Phase::Proposal` with a future deadline, a
+program-controlled KASS stake vault, a burned creation fee, and an immutable configuration.
+The creator supplies (payload is exactly 57 bytes; `create_oracle.rs`):
+
+<ParamField path="prompt_hash" type="[u8;32]">
+  A 32-byte hash committing the **fixed prompt and interpretation rules**. The
+  interpretation text lives off-chain; the runner asserts `sha256(prompt_file) ==
+  oracle.prompt_hash` before it will resolve. This is the immutable rule for how evidence
+  maps to an answer — the single most important field on the account.
+</ParamField>
+
+<ParamField path="options_count" type="u8">
+  The number of allowed **categorical options**. Must be at least 2, or creation fails with
+  `InvalidOptionsCount`. Options are referenced by index (`0..options_count`).
+</ParamField>
+
+<ParamField path="deadline" type="i64">
+  A unix timestamp that gates proposals: proposals are rejected before it
+  (`DeadlineNotReached`), and it must be in the future at creation (`InvalidDeadline`). The
+  proposal window opens at the deadline and runs for `proposal_window` seconds.
+</ParamField>
+
+<ParamField path="twap_window" type="i64">
+  The per-oracle TWAP duration (seconds) used by challenge markets: a market's settle is
+  allowed only after `market.twap_end = open_time + oracle.twap_window`. Must be positive.
+</ParamField>
+
+<ParamField path="kass_mint / usdc_mint" type="Pubkey">
+  The KASS mint (must match the Protocol's canonical KASS) used for all bonds/stakes, and
+  the USDC mint used as challenge-market collateral.
+</ParamField>
+
+Everything else — the bonding and slashing behavior, phase windows, fact-quorum threshold,
+challenge-market thresholds and fees, and reward weights — is **snapshotted** from the
+global `Protocol` account onto the `Oracle` at creation.
+
+<Note>
+  The snapshot is a deliberate anti-governance-attack measure. Downstream processors read
+  these params **from the Oracle**, not from the live `Protocol`, so a mid-dispute
+  governance change to `Protocol` cannot move the goalposts on an oracle already in flight
+  (`create_oracle.rs`; the frozen fields include `threshold_*`, `market_threshold_*`,
+  `flip_slash_*`, `phase_window`, `proposal_window`, reward weights, and challenge fees).
+</Note>
+
+## The burned KASS creation fee
+
+Creating an oracle costs a **dynamic KASS fee that is burned**, not paid to anyone. The fee
+tracks an exponential moving average of recent creation activity (`fee.rs`):
+
+```
+fee = fee_for_ema(decay_fee_ema(fee_ema, last_creation_unix, now))
+```
+
+At genesis the EMA is zero, so **creation is free** — you can bootstrap into the system and
+earn KASS via emissions without having to acquire it first. As creations pile up the EMA
+rises (each creation bumps it by `FEE_EMA_INCREMENT`), and it decays with a one-day
+half-life (`FEE_EMA_HALFLIFE_SECS = 86_400`) as activity relaxes. The burn is the
+deflationary counterweight to work-to-earn emissions; there is **no USDC floor**. See
+[Economics](/concepts/economics) for the exact EMA math.
+
+## Binary and categorical questions
+
+Kassandra answers **binary and categorical** questions only — a finite set of discrete
+options. It does not do continuous/numeric resolution. The categorical analogue of a median
+is the **mode / plurality**: after a dispute, each *surviving* proposer casts exactly one
+vote for their value, and the option with the strictly-highest count wins (`plurality.rs`,
+returning `Winner(u8)`, `Tie`, or `NoSurvivors`).
+
+<Info>
+  Plurality is **one proposer, one vote** — not stake-weighted. Option index 0 is a valid
+  winning option and is distinct from "no votes." A tie between two or more options yields
+  no winner and sends the oracle to an [Invalid dead-end](/concepts/dead-end-settlement).
+</Info>
+
+## The `Oracle` account at a glance
+
+The account carries the fixed config, the current `phase`, live counters, and the
+resolution stamps written at the end. A few fields worth knowing early:
+
+| Field | Meaning |
+|---|---|
+| `phase` | current `Phase` as a `u8` — the oracle's position in the [lifecycle](/concepts/lifecycle) |
+| `stake_vault` | PDA token account (`[b"vault", oracle]`) holding all KASS bonds and stakes |
+| `deadline` / `phase_ends_at` | proposal deadline and the end of the current window |
+| `options_count` / `resolved_option` | number of options; the final winner (valid only when `Resolved`; `0xFF` on `InvalidDeadend`) |
+| `proposer_count` / `surviving_count` | total proposers, and those not yet disqualified |
+| `dispute_bond_total` | sum of proposer bonds, fixed at dispute start — the fact-quorum denominator |
+| `bond_pool` | accumulated slashed KASS that funds rewards on resolution |
+
+The full field-by-field layout, PDA seeds, and byte offsets are in the protocol reference.
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="The lifecycle" icon="diagram-project" href="/concepts/lifecycle">
+    Every phase the oracle moves through and which instruction advances each.
+  </Card>
+  <Card title="Proposals" icon="hand" href="/concepts/proposals">
+    The proposal window, bonds, agreement, and how a dispute opens.
+  </Card>
+  <Card title="The Oracle account" icon="table-cells" href="/protocol/accounts">
+    The full field-by-field reference with offsets and sizes.
+  </Card>
+</CardGroup>

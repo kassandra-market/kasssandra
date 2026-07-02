@@ -1,0 +1,143 @@
+---
+title: "Running the runner"
+description: "Run the kassandra-runner AI resolver — the run and verify subcommands, config modes, the pinned model, keeper mode, and the 97-byte payload."
+---
+
+`kassandra-runner` is the open-source, reproducible off-chain AI runner for Kassandra oracle resolution (`runner/README.md`). It is a Rust binary (crate `kassandra-runner`, bin `kassandra-runner`) — **not** a pnpm workspace member. Given an oracle's interpretation, agreed facts, and categorical options, it fetches and verifies each fact, assembles a byte-deterministic prompt, completes it with a pinned model, hashes the result into claim metadata, and emits the chosen option plus the exact 97-byte `submit_ai_claim` payload.
+
+## Build & run
+
+```sh
+cargo build -p kassandra-runner
+cargo test  -p kassandra-runner   # fully offline + keyless (mock provider/fetcher)
+```
+
+The default test suite uses a mock provider and fetcher (no API key, no network). The single live Anthropic test is opt-in (`runner/README.md`):
+
+```sh
+ANTHROPIC_API_KEY=sk-... cargo test -p kassandra-runner --lib \
+  -- --ignored live_anthropic_completion --nocapture
+```
+
+## Configuration: two mutually-exclusive modes
+
+The runner builds its config either from an explicit **JSON config** or by **fetching on-chain** (`runner/src/cli.rs`):
+
+<Tabs>
+  <Tab title="JSON config">
+    Pass `--config <path>` (or pipe the JSON via stdin). The shape is
+    `interpretation`, `options_count`, optional `option_labels`, `facts`
+    (`content_hash` + `uri`), and optional `oracle`/`proposer` echoed as the
+    AiClaim PDA seeds `[b"claim", oracle, proposer]` (`runner/README.md`).
+
+    ```sh
+    kassandra-runner run --config oracle.json --mock   # offline, no key
+    export ANTHROPIC_API_KEY=sk-...
+    kassandra-runner run --config oracle.json           # real Claude
+    ```
+  </Tab>
+  <Tab title="On-chain fetch">
+    Pass `--oracle <pubkey> --rpc-url <url> --prompt-file <path>`. The runner
+    `getAccountInfo`s the oracle (verifying the Kassandra-program owner + `Oracle`
+    tag), `getProgramAccounts` its `Fact`s and keeps the `agreed` ones, and reads
+    the interpretation text from `--prompt-file` — asserting
+    `sha256(prompt_file_bytes) == oracle.prompt_hash` (a mismatch is rejected).
+
+    ```sh
+    kassandra-runner run \
+      --oracle <ORACLE_PUBKEY_BASE58> \
+      --rpc-url https://api.mainnet-beta.solana.com \
+      --prompt-file interpretation.txt \
+      --mock
+    ```
+  </Tab>
+</Tabs>
+
+`--oracle` requires both `--rpc-url` and `--prompt-file`, and is mutually exclusive with `--config`.
+
+## Subcommands
+
+### `run` — resolve and emit the claim
+
+Prints JSON: `option_index`, the three hashes (hex), the `submit_ai_claim_payload_hex`, the `resolved_model_id`, and (when `oracle`/`proposer` are present) the AiClaim PDA seeds. The payload hex is what you hand to the SDK/CLI that submits the transaction — unless you use `--submit`.
+
+### `verify` — should I challenge?
+
+Re-runs the pipeline and compares its produced option (and, when provided, the submitted hashes) to a submitted claim, advising `"matches (no challenge)"` vs `"differs (consider challenging)"`:
+
+```sh
+kassandra-runner verify --config oracle.json --option 1 \
+  [--submitted-model-id <hex>] [--submitted-params-hash <hex>] [--submitted-io-hash <hex>] [--mock]
+```
+
+## Flags
+
+Shared flags (`runner/README.md`, `runner/src/cli.rs`):
+
+| Flag | Meaning |
+| --- | --- |
+| `--config <path>` | Config JSON path; omit to read stdin. Mutually exclusive with `--oracle`. |
+| `--oracle <pubkey>` | Build config from an on-chain oracle. Requires `--rpc-url` + `--prompt-file`. |
+| `--rpc-url <url>` | Solana JSON-RPC url (used with `--oracle`; required for `--submit`). |
+| `--prompt-file <path>` | Interpretation text; its `sha256` must equal on-chain `prompt_hash`. |
+| `--mock` | Deterministic `MockProvider` (offline, no key). Also enabled by `KASSANDRA_RUNNER_MOCK=1`. |
+| `--model <str>` | Override the pinned model (default `claude-opus-4-8`). |
+| `--max-tokens <n>` | Override `max_tokens` (default `4096`). |
+| `--submit` | (`run`) Keeper mode: sign + send + confirm the tx. Requires `--keypair` + `--rpc-url` + an oracle. |
+| `--keypair <path>` | (`run --submit`) Solana CLI keypair JSON. MUST be the proposer's `authority`. |
+| `--option <n>` | (`verify`) the submitted claim's option to compare. |
+| `--submitted-{model-id,params-hash,io-hash} <hex>` | (`verify`) optional submitted hashes to compare. |
+
+## The pinned model
+
+The default model is **`claude-opus-4-8`** and the default `max_tokens` is **`4096`** (`runner/src/anthropic.rs`). The `AnthropicProvider` is a thin `reqwest` client posting to `https://api.anthropic.com/v1/messages` with headers `x-api-key` and `anthropic-version: 2023-06-01`, using adaptive thinking and forcing the categorical answer via an `output_config.format` json_schema.
+
+<Warning>
+The runner **never sends `temperature` / `top_p` / `top_k` / `budget_tokens`** —
+Opus 4.8 rejects them with a 400. `ANTHROPIC_API_KEY` is read from the environment,
+never hardcoded and never logged.
+</Warning>
+
+## Keeper mode (`run --submit`)
+
+By default `run` only emits the payload. With `--submit` the runner becomes a self-contained keeper: after producing the claim it builds, signs, sends, and confirms the `submit_ai_claim` transaction, then reports the confirmed signature (`runner/src/submit.rs`):
+
+```sh
+export ANTHROPIC_API_KEY=sk-...
+kassandra-runner run --submit \
+  --oracle <ORACLE_PUBKEY_BASE58> \
+  --rpc-url https://api.mainnet-beta.solana.com \
+  --keypair ~/.config/solana/id.json \
+  --prompt-file interpretation.txt
+```
+
+The `--keypair` MUST be the proposer's registered `authority` — the Proposer PDA is derived as `[b"proposer", oracle, authority]` from the keypair's pubkey. The submitted tx carries the runner's **own** 97-byte payload verbatim, never recomputed. A second submit for the same `(oracle, proposer)` fails: the AiClaim PDA `[b"claim", oracle, proposer]` already exists (`DuplicateClaim`). Confirmation polls `getSignatureStatuses` to `confirmed` (~30s budget).
+
+## The 97-byte payload and determinism
+
+The on-chain program stores three opaque 32-byte commitments plus a 1-byte option; the payload is (`runner/src/hashing.rs`, `HASHING.md`):
+
+```
+model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option[1]   = 97 bytes
+```
+
+- `model_id = sha256(model_id_string)` (default `sha256("claude-opus-4-8")`).
+- `params_hash = sha256(canonical_params_bytes)` — provider, thinking mode, `max_tokens`, prompt-assembly version, output-schema id/version.
+- `io_hash = sha256(str(system) ++ str(user) ++ raw_response)` — a commitment to the exact input and raw model output.
+
+<Note>
+No frontier model API is bit-reproducible. `model_id` and `params_hash` are pure
+functions of the declared config and reproduce byte-for-byte; the assembled prompt
+is fully deterministic; but `io_hash` is a **commitment, not a reproducibility
+oracle**. A challenger reproduces the *categorical option* (and confirms `model_id`
+/ `params_hash` match), not bit-identical model text (`runner/README.md`).
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Runner architecture" icon="diagram-project" href="/architecture/runner">
+    The provider trait, fetcher, prompt assembly, and hashing internals.
+  </Card>
+  <Card title="AI claims" icon="robot" href="/concepts/ai-claims">
+    How an AI claim commits to its inputs on-chain.
+  </Card>
+</CardGroup>

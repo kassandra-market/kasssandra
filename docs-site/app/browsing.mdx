@@ -1,0 +1,56 @@
+---
+title: "Browsing oracles"
+description: "The Landing and Oracles pages — browse the oracle dashboard and read on-chain oracle state and phase."
+---
+
+The dApp's read surface works fully disconnected — no wallet needed. Two routes cover browsing: the marketing **Landing** page and the **Oracles** dashboard, which lists every oracle decoded from the chain.
+
+## Landing (`/`)
+
+The route `/` renders `app/src/pages/Landing.tsx` — a read-only marketing page (Hero constellation, HowItWorks, and related sections). Use it as the entry point; the dApp itself lives under `/oracles`.
+
+## Oracles dashboard (`/oracles`)
+
+The route `/oracles` renders `app/src/pages/Oracles.tsx`, the oracle browser and dashboard. It reads the chain through the connection wired to the selected cluster (see [Clusters & RPC](/ops/clusters-and-rpc)): the data layer `app/src/data/oracles.ts` enumerates and decodes oracle accounts via `getProgramAccounts`, wrapped by the `app/src/hooks/useOracles.ts` hook (loading / error / refetch, and a re-fetch when the cluster or connection changes).
+
+### Dashboard stats
+
+Above the grid, a stats strip (`DashboardStats`) is computed by the pure `app/src/lib/oracleStats.ts` `deriveStats` — client-side over the already-fetched list, with **no extra RPC**. It shows the by-phase-group counts, the total bonds/stake at risk across active oracles (raw base units, unscaled), and the resolved count.
+
+### Grid, search, filter, sort
+
+Below the stats is a responsive grid of Delphi cards, one per decoded on-chain oracle. Each card shows the phase chip, a relative deadline, proposer/fact/option counts, and (when resolved) the resolved option.
+
+A toolbar composes three client-side operations over the fetched list — search, then filter, then sort:
+
+- **Text search** across oracle fields.
+- **Phase-filter chips** — All / Proposal / In dispute / AI claim / Challenged / Resolved (accessible `aria-pressed` toggle buttons).
+- **Sort** — by deadline or by bonds at risk.
+
+Everything applies client-side, so filtering and sorting never trigger new RPC calls.
+
+## Oracle detail (`/oracles/:pubkey`)
+
+Opening a card navigates to `/oracles/:pubkey` (`app/src/pages/OracleDetail.tsx`), an editorial layout of one oracle plus its facts, proposers, AI claims, and challenge market, with copy-on-click truncated pubkeys/hashes. The read layout carries:
+
+- **A verdict banner** — Resolved · Option N, dead-ended, or the in-flight phase and what happens next.
+- **A phase timeline** — `app/src/components/oracles/PhaseTimeline.tsx` over the pure `app/src/lib/phaseTimeline.ts` model, highlighting the current phase and its deadline, with a distinct dead-end terminal.
+- **An economic panel** — `app/src/components/oracles/EconomicPanel.tsx`, flat bars of bond pool vs dispute bonds vs total stake, plus the proposer bond-by-option split.
+- **A live challenge-market visualization** — `app/src/components/oracles/ChallengeMarketPanel.tsx` (covered in [Challenge the AI claim](/app/challenge)).
+
+The wallet-signed write forms on this page are additive on top of the read layout; each is covered in [Participate](/app/participate), [Finalize & crank](/app/finalize-and-crank), and [Claim & close](/app/claim-and-close).
+
+### Reading oracle state and phase
+
+The oracle account decodes via the SDK's `decodeOracle` (`sdk/src/accounts/`). Its `phase` field maps to the `Phase` enum — `Created`, `Proposal`, `FactProposal`, `FactVoting`, `AiClaim`, `Challenge`, `FinalRecompute`, `Resolved`, `InvalidDeadend`. The dashboard's phase-filter chips group these into the browsing categories above. Presentation helpers (phase-to-label, relative deadline, digit grouping, hash previews) live in `app/src/lib/oracleView.ts`.
+
+For the full state machine, see the lifecycle concept page.
+
+<CardGroup cols={2}>
+  <Card title="Oracle lifecycle" icon="timeline" href="/concepts/lifecycle">
+    The phase state machine each oracle moves through.
+  </Card>
+  <Card title="Create an oracle" icon="plus" href="/app/create-oracle">
+    The CreateOracle form and the instruction it builds.
+  </Card>
+</CardGroup>

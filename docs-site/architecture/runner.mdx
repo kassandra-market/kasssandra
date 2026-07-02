@@ -1,0 +1,115 @@
+---
+title: "AI runner"
+description: "kassandra-runner — the reproducible off-chain resolver, its run/verify subcommands, determinism model, and keeper mode."
+---
+
+The runner is Kassandra's open-source, reproducible off-chain AI resolver. It is a **Rust binary**
+(crate `kassandra-runner`, library `kassandra_runner`, binary at `runner/src/main.rs`) — not a pnpm
+workspace member. Anyone can run it to **propose** a claim or to **verify** an existing claim before
+deciding whether to challenge.
+
+Given an oracle's fixed interpretation (`prompt_hash`), its agreed facts (`content_hash` + `uri`), and
+its categorical options, the runner: (1) fetches and verifies each fact against its `content_hash`,
+(2) assembles a byte-deterministic prompt, (3) completes it with a pinned model behind a generic
+`AiProvider` trait, (4) hashes the run into claim metadata, and (5) emits the chosen `option` plus the
+exact **97-byte** `submit_ai_claim` payload (`runner/README.md`).
+
+## Subcommands
+
+The CLI (`runner/src/cli.rs`, `Command` enum: `Run`, `Verify`) builds its config one of two mutually
+exclusive ways: an explicit **JSON config** (`--config <path>` or stdin), or an **on-chain fetch**
+(`--oracle <pubkey> --rpc-url <url> --prompt-file <path>`).
+
+<Tabs>
+  <Tab title="run">
+    Resolves the oracle and emits the claim.
+
+    ```sh
+    kassandra-runner run --config oracle.json --mock   # offline, no API key
+    export ANTHROPIC_API_KEY=sk-...
+    kassandra-runner run --config oracle.json          # real model
+    ```
+
+    Output is JSON: `option_index`, the three metadata hashes (hex), the
+    `submit_ai_claim_payload_hex`, `resolved_model_id`, and — when an oracle/proposer are present —
+    the AiClaim PDA seeds.
+  </Tab>
+  <Tab title="verify">
+    Re-runs resolution and advises whether a submitted claim should be challenged.
+
+    ```sh
+    kassandra-runner verify --config oracle.json --option 1 \
+      [--submitted-model-id <hex>] [--submitted-params-hash <hex>] [--submitted-io-hash <hex>] [--mock]
+    ```
+
+    It reports `"matches (no challenge)"` versus `"differs (consider challenging)"`.
+  </Tab>
+</Tabs>
+
+## Module layout
+
+```text
+runner/src/
+├── main.rs        binary entrypoint
+├── cli.rs         run / verify subcommands + flags
+├── provider.rs    AiProvider trait + deterministic MockProvider
+├── anthropic.rs   AnthropicProvider (default, pinned model)
+├── prompt.rs      deterministic prompt assembly (spec: PROMPT.md)
+├── fetch.rs       FactFetcher / HttpFactFetcher / MockFactFetcher
+├── hashing.rs     model_id / params_hash / io_hash (spec: HASHING.md)
+├── rpc.rs         on-chain oracle + fact fetch (plain JSON-RPC)
+├── submit.rs      keeper sign / send / confirm
+└── constants.rs   re-exports the on-chain layout (via kassandra_program)
+```
+
+The runner reuses the on-chain program crate with the `no-entrypoint` feature
+(`runner/Cargo.toml`), so its layout constants come directly from `kassandra_program::state`.
+
+## Determinism model
+
+No frontier-model API is bit-reproducible, and the runner is explicit about what it does and does not
+guarantee (`runner/README.md`):
+
+- **`model_id`** = `sha256(model_id_string)` (default `sha256("claude-opus-4-8")`) — a pure function
+  of the declared config, reproducible byte-for-byte.
+- **`params_hash`** = `sha256(canonical_params_bytes)` — includes provider, thinking mode,
+  `max_tokens`, `PROMPT_ASSEMBLY_VERSION = 1`, `OUTPUT_SCHEMA_ID = "kassandra.categorical_option_index"`,
+  and `OUTPUT_SCHEMA_VERSION = 1`. Also reproducible.
+- **`io_hash`** = `sha256(str(system) ++ str(user) ++ raw_response)` — a **commitment** to the exact
+  inputs and raw output, **not** a reproducibility oracle.
+
+A challenger reproduces the **categorical option** (and confirms `model_id` / `params_hash` match) —
+not bit-identical text. The pinned default model is **`claude-opus-4-8`** with **`max_tokens = 4096`**
+(`anthropic.rs`); the provider never sends `temperature` / `top_p` / `top_k` / `budget_tokens`. The
+`ANTHROPIC_API_KEY` is read from the environment, never hardcoded and never logged.
+
+<Info>
+The metadata payload is `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option[1]` = **97 bytes**
+(`constants.rs::SUBMIT_AI_CLAIM_PAYLOAD_LEN`, compile-time asserted `== 97` and tied to the
+on-chain `AiClaim` field offsets). See [AI claims](/concepts/ai-claims).
+</Info>
+
+## Keeper mode (`run --submit`)
+
+With `--submit`, the runner does not just emit the claim — it **builds, signs, sends, and confirms**
+the `submit_ai_claim` transaction itself (`submit.rs`). Requirements:
+
+- `--keypair <path>` MUST be the proposer's registered `authority` (Solana CLI 64-byte array).
+- `--rpc-url` and an oracle are required.
+
+The Proposer PDA is derived as `[b"proposer", oracle, authority]`, and the transaction carries the
+runner's **own** 97-byte payload verbatim. The confirmed result is appended to the JSON under
+`submission` (signature, confirmation status, oracle, derived proposer, authority). A second submit
+for the same `(oracle, proposer)` fails with `DuplicateClaim` because the claim PDA
+`[b"claim", oracle, proposer]` already exists.
+
+## Operating the runner
+
+<CardGroup cols={2}>
+  <Card title="Ops · Runner" icon="gear" href="/ops/runner">
+    Building, running, keeper deployment, and the documented v1 limitations.
+  </Card>
+  <Card title="AI claims concept" icon="robot" href="/concepts/ai-claims">
+    Where the claim fits in the oracle lifecycle and how the hashes are used.
+  </Card>
+</CardGroup>

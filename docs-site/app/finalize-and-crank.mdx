@@ -1,0 +1,46 @@
+---
+title: "Finalizing & cranking"
+description: "The permissionless crank progression that advances an oracle through its phases, plus the TWAP crank during challenges."
+---
+
+Between phases, an oracle needs a **crank** — a permissionless transaction that finalizes the current phase's accounts and advances the state machine. The dApp exposes this on the oracle detail page as a permissionless "crank / finalize" surface, wrapping the action layer at `app/src/data/actions/finalize.ts`.
+
+Anyone can crank; no wallet ownership of the oracle is required. The forms still need a connected wallet to sign and pay fees.
+
+## The finalize progression
+
+Cranking walks the oracle toward `Resolved`, one phase at a time:
+
+1. **Finalize proposals** — `finalizeProposals` (`sdk/src/instructions/lifecycle.ts`, Ix = 12). Oracle writable plus the full proposer set as a read-only tail; empty payload.
+2. **Advance phase** — `advancePhase` (Ix = 7), the permissionless FactProposal → FactVoting tick; empty payload.
+3. **Finalize facts** — `finalizeFacts` (`sdk/src/instructions/dispute.ts`, Ix = 2). Payload: `oracle_nonce u64`; writable tail of facts (or proposers in the no-facts dead-end).
+4. **Finalize AI claims** — `finalizeAiClaims` (Ix = 8), a writable proposer subset tail; empty payload.
+5. **Finalize oracle** — `finalizeOracle` (Ix = 6). Payload: `oracle_nonce u64`; full proposer set as a read-only tail.
+
+Several of these instructions need the oracle **nonce**, which is not stored on-chain. The app recalls it from the per-browser store persisted at create time (`app/src/lib/nonceStore.ts`), falling back to a bounded PDA scan.
+
+<Note>
+Near-cap proposer sets (past roughly 24) exceed the legacy-transaction account
+limit. The UI shows a v0 / Address-Lookup-Table note instead of a legacy-tx button;
+the SDK provides the v0/ALT path (`sdk/src/v0.ts` `sendFinalizeViaAlt`) for
+live-cluster/surfpool use.
+</Note>
+
+## Cranking the TWAP during a challenge
+
+Cranking has a second meaning during a challenge market: folding the current AMM price into the pool's slot-weighted TWAP oracle. This is what keeps the TWAP fresh over the challenge window so settlement reads a manipulation-resistant average.
+
+- **UI action:** the challenge trade controls expose a permissionless **crank** button.
+- **Action layer:** `buildCrankTwapIxs` (`app/src/data/actions/challengeTrade.ts`) → the SDK `ammV04.crankThatTwap` (`sdk/src/amm-v04/instructions.ts`).
+- **Rate limit:** `crank_that_twap` folds the price at most once per `CRANK_MIN_SLOTS = 150n` slots (`ONE_MINUTE_IN_SLOTS`); the app's `crankRateLimited` mirrors this. Multiple cranks 150+ slots apart accumulate the aggregator.
+
+Swaps also fold the price, so a busy market self-cranks; the standalone crank keeps a quiet market's TWAP current. Full mechanics live in the challenge reference.
+
+<CardGroup cols={2}>
+  <Card title="Phases" icon="timeline" href="/protocol/phases">
+    The oracle phase state machine and the crank that advances it.
+  </Card>
+  <Card title="Cranking the TWAP" icon="gauge" href="/challenge/cranking">
+    How the TWAP aggregator accumulates and why the rate limit exists.
+  </Card>
+</CardGroup>

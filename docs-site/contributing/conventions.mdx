@@ -1,0 +1,41 @@
+---
+title: "Conventions"
+description: "The conventions that shape the Kassandra codebase — Pinocchio, a hand-written SDK, commit style, and design-doc-driven plans."
+---
+
+A few conventions run through the whole repo. They are inferred from observable facts in the code and git history, not from a written style bible — treat them as descriptive, not prescriptive.
+
+## Pinocchio, no Anchor
+
+The on-chain program (`programs/kassandra`) is built on **Pinocchio** — there is no Anchor and no IDL. Instructions are dispatched by a single leading discriminator byte (the `Ix` enum, 0..=22), and accounts are laid out and validated by hand.
+
+Because Kassandra drives the Anchor-based MetaDAO programs by CPI, it hand-reconstructs their wire format — the 8-byte `sha256("global:<name>")[..8]` sighash discriminator, ordered account metas, and Borsh args — in `programs/kassandra/src/cpi/metadao.rs` (v0.4 challenge stack) and `metadao_v06.rs` (v0.6 governance stack).
+
+## A hand-written SDK mirroring the layouts
+
+The TypeScript SDK (`@kassandra/sdk`) is **hand-written**: no IDL, no codegen. Its instruction payloads and account decoders mirror the Rust program's byte layouts directly (`data = [disc_byte, ...payload_LE]`; decoders validate the account-type tag and exact size). This mirroring is guarded by `sdk/test/parity.test.ts`, which keeps the SDK and program in lockstep.
+
+## Commit style
+
+Commits follow a conventional `type(scope): summary` form. Recent history shows the pattern:
+
+```
+fix(app): exact settle-verdict boundary — bigint willDisqualify (strict >), not float >=1
+feat(app): one-click settle — derive the settle account set from the Market (no JSON paste)
+docs(test): clarify challengeTrade.e2e scope (settle proven in RF4 challenge.e2e)
+```
+
+Common types include `feat`, `fix`, and `docs`; the scope names the affected area (`app`, `test`, …).
+
+## Design-doc-driven plans
+
+Substantial changes are planned first as dated design docs under `docs/plans/` (with longer-lived design under `docs/design/`). For example, the challenge-market economics and the settle E2E each have their own plan (`docs/plans/2026-06-29-kassandra-challenge-rework.md`, `docs/plans/2026-07-01-kassandra-challenge-settle-e2e.md`), and the runner has a design doc plus submission/integration follow-ons. The plans are the source of truth for intent; the code and this documentation follow them.
+
+<CardGroup cols={2}>
+  <Card title="Repo layout" icon="folder-tree" href="/contributing/repo-layout">
+    Where each part of the monorepo lives.
+  </Card>
+  <Card title="Glossary" icon="book" href="/contributing/glossary">
+    Every Kassandra term, one entry each.
+  </Card>
+</CardGroup>

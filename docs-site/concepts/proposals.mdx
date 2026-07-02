@@ -1,0 +1,112 @@
+---
+title: "Proposals"
+description: "The proposal window — categorical values plus KASS bonds, no proofs; all-agree resolves, conflict opens a dispute, and plurality is over proposers, not stake."
+---
+
+The **proposal window** is where an oracle's answer is first put forward. It is the entire
+happy path: if everyone who proposes agrees on one value, the oracle resolves here and now,
+with no facts, no AI, and no markets. Only a genuine conflict escalates into a dispute.
+
+## Registering a proposal
+
+After the oracle's `deadline`, a participant registers a proposal with `propose`
+(`Ix::Propose = 11`). The payload is exactly 9 bytes: `option: u8` plus `bond: u64 LE`
+(`propose.rs`). The processor:
+
+- escrows the KASS `bond` into the oracle's `stake_vault`, and
+- creates one `Proposer` PDA per `(oracle, authority)` at seeds
+  `[b"proposer", oracle, authority]`, recording `original_option = option` and
+  `claim_option = CLAIM_OPTION_NONE` (0xFF, "no AI claim yet").
+
+<ParamField path="option" type="u8">
+  The categorical value being proposed, an index in `0..options_count`. Out of range fails
+  with `InvalidOptionsCount`. **No proofs or evidence are attached** — the bond is the only
+  thing backing the claim.
+</ParamField>
+
+<ParamField path="bond" type="u64">
+  The KASS bond (raw base units) escrowed into the stake vault. Must be positive
+  (`ZeroStake`). It is what the proposer risks: it becomes conditional collateral in a
+  challenge market and can be slashed.
+</ParamField>
+
+The key gates (`propose.rs`):
+
+- **Phase must be `Proposal`** and `now >= deadline` (else `DeadlineNotReached`).
+- **The window must be open.** Once it has closed with existing proposers, further
+  proposals fail with `ProposalWindowClosed`.
+- **One authority, one proposal.** A second proposal from the same authority fails with
+  `DuplicateProposer` (the PDA already exists).
+- **A hard cap of `MAX_PROPOSERS = 60`.** Exceeding it fails with `TooManyProposers`. The
+  cap keeps the full proposer set finalizable within a single transaction's account budget.
+
+<Note>
+  **One proposer ↔ one value.** A proposer stakes a single option; they cannot hedge across
+  options with one identity. Multiple opinions require multiple funded authorities — each
+  putting real bond at risk.
+</Note>
+
+## The empty-window rule
+
+If the proposal window would close with **zero proposals**, the oracle does not fail. The
+first proposal instead *seeds* the value and (re)opens a normal bounded window — the
+empty-window branch of `propose` extends `phase_ends_at` (`propose.rs`). There is no
+"Unresolved from emptiness" terminal state; the oracle simply waits for its first real
+proposer.
+
+## Closing the window: agree or conflict
+
+After the window elapses, anyone calls `finalize_proposals` (`Ix::FinalizeProposals = 12`),
+passing the **full** proposer set (exactly `proposer_count` accounts). It is a one-shot
+close with two outcomes (`finalize_proposals.rs`):
+
+<CardGroup cols={2}>
+  <Card title="All agree → Resolved" icon="circle-check">
+    Every proposer registered the same option. The oracle jumps straight to `Resolved` and
+    stamps `resolved_option`. Bonds are returned and — on the happy path — no slashing
+    occurs. No AI, no markets. This is the case Kassandra is optimized for.
+  </Card>
+  <Card title="Conflict → dispute" icon="scale-balanced">
+    Two or more distinct options were proposed. The oracle opens a dispute: it fixes
+    `dispute_bond_total = total_oracle_stake` (the sum of proposer bonds), advances to
+    `FactProposal`, and opens a fresh window. Proposers are now **locked in**.
+  </Card>
+</CardGroup>
+
+If `proposer_count == 0` at finalize, the call fails with `NoProposals` — the empty-window
+rule means a real oracle should always have at least one proposer before it can close.
+
+<Warning>
+  **Lock-in is irreversible.** The moment a conflict opens the dispute, proposer bonds are
+  committed — they cannot be withdrawn (design invariant 4). A proposer who then abandons
+  the dispute (never submits an AI claim) is **fully slashed**; abandoning mid-dispute is
+  treated as likely responsible for the costly disagreement in the first place.
+</Warning>
+
+## Plurality is over proposers, not stake
+
+`dispute_bond_total` — the sum of bonds — is used as a stable **denominator** for the
+[fact quorum](/concepts/facts), not as voting weight. The final answer is decided by
+**plurality over surviving proposers**: each surviving proposer contributes exactly one vote
+for their (possibly updated) value, and the option with the strictly-highest count wins
+(`plurality.rs`, evaluated at `finalize_oracle`).
+
+<Info>
+  Plurality is **one proposer, one vote** — deliberately *not* stake-weighted. A wealthy
+  proposer risks more KASS, but does not get a louder vote. A tie between options has no
+  winner and sends the oracle to an [Invalid dead-end](/concepts/dead-end-settlement).
+</Info>
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Facts" icon="list-check" href="/concepts/facts">
+    The next phase on the dispute path: agreeing on the evidence set.
+  </Card>
+  <Card title="The lifecycle" icon="diagram-project" href="/concepts/lifecycle">
+    Where proposals sit in the full phase machine.
+  </Card>
+  <Card title="Economics" icon="coins" href="/concepts/economics">
+    Bonds, slashing, the bond pool, and rewards.
+  </Card>
+</CardGroup>

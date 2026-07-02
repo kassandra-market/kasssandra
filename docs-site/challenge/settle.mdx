@@ -1,0 +1,195 @@
+---
+title: "Settle"
+description: "settle_challenge (Ix=5) — the exact verdict formula, the pass_twap==0 guard, the app willDisqualify mirror, resolution, redemption, and directional fees."
+---
+
+`settle_challenge` (Ix=5) is where the market's verdict becomes protocol truth. It reads
+the accumulated TWAP from each pool, applies an exact integer threshold to decide
+**disqualify** vs **survive**, resolves the MetaDAO question accordingly, physically
+redeems the bond, and routes directional fees. It settles **one** `Market` per call and
+does **not** crank — it consumes the stored aggregator.
+
+Source: `programs/kassandra/src/processor/settle_challenge.rs:220`. SDK:
+`buildSettleChallengeIxs` (`sdk/src/instructions/challenge.ts:202`). App:
+`buildSettleFromMarketIxs` (`app/src/data/actions/challengeSettle.ts:136`), which derives
+the full account set from the decoded `Market` + `Oracle` (one-click settle, no JSON
+paste). Payload is `oracle_nonce: u64 LE`.
+
+## Gates
+
+- `now ≥ market.twap_end`, else `TwapWindowOpen` (`settle_challenge.rs:266-270`).
+- Not already settled, else `AlreadySettled` (`:262-264`).
+
+## Hard AMM binding + TWAP read
+
+Before reading, settle **hard-binds** each pool to this market's conditional mint pair —
+the check that `open_challenge` deferred. In `verify_and_read_twap`
+(`settle_challenge.rs:182-218, 283-290`) each AMM must:
+
+- be owned by `AMM_ID` and carry the `Amm` account discriminator
+  (`8f f5 c8 11 4a d6 c4 87`);
+- match this market's mints — `pass_amm.{base, quote} ==
+  conditional_token_mint_pda(kass_vault, 0)` / `(usdc_vault, 0)`; `fail_amm` is the same
+  at index 1; and `pass_amm != fail_amm`.
+
+It then reads the stored TWAP with **no crank** (`:23-34`):
+
+```text
+twap = aggregator / (last_updated_slot − (created_at_slot + start_delay_slots))
+```
+
+See [Cranking the TWAP](/challenge/cranking) for why settle deliberately avoids cranking.
+
+## The verdict formula (exact)
+
+The proposer is **disqualified** if and only if:
+
+```text
+fail_twap * DEN > pass_twap * (DEN + NUM)      // strict >, computed in u128
+```
+
+with a `pass_twap == 0` → **always-survive** guard. `NUM / DEN` is the oracle's
+snapshotted relative margin (`oracle.market_threshold_num / den`, default
+`MARKET_THRESHOLD = 1/10`) — fail must beat pass by **more than 10%** to disqualify.
+
+The exact on-chain code (`programs/kassandra/src/processor/settle_challenge.rs:346-358`):
+
+```rust
+let market_threshold_num = oracle.market_threshold_num as u128;
+let market_threshold_den = oracle.market_threshold_den as u128;
+let disqualify = if pass_twap == 0 {
+    false
+} else {
+    let lhs = fail_twap
+        .checked_mul(market_threshold_den)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    let rhs = pass_twap
+        .checked_mul(market_threshold_den + market_threshold_num)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    lhs > rhs
+};
+// PASS-side [1,0] survives, FAIL-side [0,1] disqualifies.
+let numerators: [u32; 2] = if disqualify { [0, 1] } else { [1, 0] };
+```
+
+### What DEN and NUM are
+
+`NUM` and `DEN` are the numerator and denominator of the **margin** the fail side must
+clear. With the default `NUM/DEN = 1/10`, the condition `fail_twap * 10 > pass_twap * 11`
+means fail must exceed pass by more than `NUM/DEN = 10%`. Rewriting shows the same thing
+(the equivalent form documented at `app/src/data/ammV04.ts:174-181`):
+
+```text
+(fail_twap − pass_twap) * DEN > pass_twap * NUM
+```
+
+The margin is a **governable per-oracle snapshot** (`oracle.market_threshold_num/den`,
+set from `Protocol` at oracle creation), so different oracles can require different
+levels of market conviction.
+
+### The `pass_twap == 0` guard
+
+A zero pass TWAP means **no counter-trading occurred on the pass side**, so the design
+treats the claim as surviving (`settle_challenge.rs:337-345`). Without this guard a
+challenger could crank only the fail pool and cheaply make `fail_twap * DEN > 0` true —
+disqualifying an honest proposer for free. The guard forces a genuine two-sided market:
+if nobody defends pass, the claim is **not** auto-condemned; it survives.
+
+<Warning>
+  **The boundary is strict.** At *exact* integer equality — `fail_twap * DEN ==
+  pass_twap * (DEN + NUM)` — the comparison `lhs > rhs` is **false**, so the proposer
+  **survives**. Disqualification requires strictly exceeding the threshold. This is the
+  subtlety commit `cac6b86` fixed on the app side (below): a float preview that
+  thresholded `marginProgress >= 1` would report "would DISQUALIFY" at the exact
+  boundary, disagreeing with the program, which survives there.
+</Warning>
+
+## The app / SDK mirror — `willDisqualify`
+
+The app reproduces the on-chain bigint compare **exactly** so the UI's verdict preview
+matches the program:
+
+```ts title="app/src/data/ammV04.ts:211-220"
+export function willDisqualify(failTwap, passTwap, marginNum, marginDen): boolean {
+  if (failTwap === null || passTwap === null) return false;
+  if (passTwap <= 0n) return false; // zero pass price always survives (settle guard)
+  return failTwap * marginDen > passTwap * (marginDen + marginNum);
+}
+```
+
+Commit **`cac6b86`** ("fix(app): exact settle-verdict boundary — bigint `willDisqualify`
+(strict `>`), not float `>=1`") introduced this. The prior preview thresholded the float
+`marginProgress >= 1`, which misreads the exact integer boundary: at exact equality the
+program **survives** (strict `>`) but the float preview said "would DISQUALIFY".
+`willDisqualify` is now the source of truth for the verdict
+(`ChallengeTradeControls.tsx:390`); `marginProgress` (`ammV04.ts:187`) stays a `0..1+`
+float used only for the progress-bar fill, never for the decision.
+
+## After the verdict: resolve, redeem, route fees
+
+Once `disqualify` is decided, settle applies the outcome
+(`settle_challenge.rs:434-531`):
+
+<Steps>
+  <Step title="resolve_question">
+    A program-signed CPI sets the payout numerators: `[1, 0]` to survive, `[0, 1]` to
+    disqualify (`settle_challenge.rs:427`).
+  </Step>
+  <Step title="redeem_tokens">
+    A program-signed CPI redeems the bond's **idle** conditional KASS from the
+    oracle-PDA-owned holders. The winning side redeems 1:1, the losing side → 0, so the
+    **full bond KASS** lands back in `oracle.stake_vault` regardless of outcome
+    (`:471`).
+  </Step>
+  <Step title="Route directional fees + update oracle state">
+    Fees route per outcome (below), `market.settled = 1`, and
+    `oracle.open_challenge_count` is decremented — one market settled, incrementally.
+  </Step>
+</Steps>
+
+### Disqualify (fail-win, challenge SUCCEEDED)
+
+- `kass_fee = bond × challenge_success_kass_fee_num/den` (default `1/100`) → the
+  **challenger's** KASS (paid from `stake_vault`).
+- The **full** `challenger_usdc` escrow → returned to the challenger.
+- `bond − kass_fee` is the proposer's `bond_pool` contribution (== `slashed_amount`);
+  `surviving_count -= 1`; `proposer.disqualified = slashed = 1`.
+
+### Survive (pass-win, challenge FAILED)
+
+- `usdc_fee = challenger_usdc × challenge_fail_usdc_fee_num/den` (default `1/100`) → the
+  **proposer's** USDC.
+- The remainder `challenger_usdc − usdc_fee` → returned to the challenger.
+- The bond stays the proposer's (redeemed clean into `stake_vault`; `bond_pool`
+  unchanged).
+
+These flows, their conservation identities, and the game theory are detailed on the
+[Economics](/challenge/economics) page.
+
+## Incremental oracle-state update
+
+Settlement is **incremental**: each call settles one `Market`, sets its `settled = 1`,
+and decrements `oracle.open_challenge_count`. The phase stays `Challenge` until every
+open market is settled — only then does the final plurality recompute over surviving
+proposers run (a later `finalize_oracle` step). This bounds termination: markets are
+finite, each has a fixed window, and each settles exactly once.
+
+## Settle account graph
+
+The SDK derives most accounts; the caller supplies the market-specific ones. The
+processor pins `stake_vault`, `kass_vault`, the escrow, and the conditional holders to
+the recorded `Oracle` / `Market`, and binds the three payout token accounts by mint +
+owner (`proposer_usdc ↔ proposer.authority`, `challenger_usdc/kass ↔ market.challenger`),
+so a settle cranker **cannot redirect funds**
+(`docs/plans/2026-06-29-kassandra-challenge-rework.md`, C2 delta).
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Economics" icon="coins" href="/challenge/economics">
+    The bond, escrow, slash, fees, and game theory behind the two outcomes.
+  </Card>
+  <Card title="Conditional vaults" icon="vault" href="/challenge/conditional-vaults">
+    How `resolve_question` and `redeem_tokens` move the bond.
+  </Card>
+</CardGroup>

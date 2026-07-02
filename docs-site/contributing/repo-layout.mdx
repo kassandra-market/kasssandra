@@ -1,0 +1,48 @@
+---
+title: "Repository layout"
+description: "A tour of the Kassandra monorepo — the Rust Cargo workspace, the pnpm workspace, docs, and scripts."
+---
+
+Kassandra is a monorepo spanning two build systems: a **Rust Cargo workspace** (the on-chain program + the AI runner) and a **pnpm workspace** (the TypeScript SDK + the web app). Documentation and fixture scripts round it out.
+
+## Top-level directories
+
+| Path | What it is | Build system |
+| --- | --- | --- |
+| `programs/kassandra` | The on-chain program (`kassandra-program`), a Pinocchio-based Solana program. | Cargo (`cargo build-sbf`) |
+| `runner` | The AI runner (`kassandra-runner`), a Rust binary/lib crate. | Cargo |
+| `sdk` | The hand-written TypeScript SDK (`@kassandra/sdk`). | pnpm |
+| `app` | The Vite + React web dApp. | pnpm |
+| `docs/` | Design docs (`docs/design/`) and dated implementation plans (`docs/plans/`). | — |
+| `docs-site/` | This Mintlify documentation site (config `docs.json`, MDX content). | Mintlify / npm |
+| `scripts/` | Bash fixture fetchers that dump MetaDAO program binaries for hermetic LiteSVM CPI tests. | — |
+
+## The two workspaces
+
+The Cargo workspace (`Cargo.toml`) uses `resolver = "2"` with members `programs/kassandra` and `runner`. The runner reuses the program crate with the `no-entrypoint` feature so it can never drift from the on-chain layout.
+
+The pnpm workspace (`pnpm-workspace.yaml`) contains exactly two packages:
+
+```yaml
+packages:
+  - "sdk"
+  - "app"
+```
+
+The app consumes the SDK via `workspace:*` and needs `sdk/dist/` built first (`pnpm --filter @kassandra/sdk build` or `pnpm -r build`). The `runner` and `programs/kassandra` are **not** JS/TS workspace members — they are Rust.
+
+## Fixture scripts
+
+The two scripts in `scripts/` fetch external MetaDAO program binaries so the CPI tests are hermetic:
+
+- `scripts/fetch-metadao.sh` — dumps the MetaDAO **v0.4** stack used by the challenge markets: the conditional-vault program `VLTX1ishMBbcX3rdBWGssxawAo1Q2X2qxYFYqiGodVg` and the AMM program `AMMyu265tkBpRW21iGQxKGLaves3gKm2JcMUqfXNSpqD`.
+- `scripts/fetch-metadao-v06.sh` — additively dumps the **v0.6** futarchy governance stack plus **Meteora DAMM v2** (the `kass_price` governance stack, not the challenge market): futarchy `FUTARELBfJfQ8RDGhg1wdhddq1odMAJUePHFuBYfUxKq`, the same reused conditional-vault, Meteora `cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG`, and Squads v4 `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf`.
+
+<CardGroup cols={2}>
+  <Card title="Architecture overview" icon="sitemap" href="/architecture/overview">
+    How the program, SDK, runner, and dApp fit together.
+  </Card>
+  <Card title="Build & test" icon="hammer" href="/contributing/build-and-test">
+    Building and testing every part of the repo.
+  </Card>
+</CardGroup>

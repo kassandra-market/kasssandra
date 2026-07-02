@@ -1,0 +1,172 @@
+---
+title: "Conditional Vaults"
+description: "MetaDAO v0.4 conditional vaults — splitting KASS and USDC into pass/fail conditional tokens, and redeeming them once the question resolves."
+---
+
+A challenge market prices the proposer's stake **conditional** on two mutually
+exclusive futures: the claim survives (**pass**) or the claim is disqualified
+(**fail**). MetaDAO's **conditional vault** program is what makes those conditional
+tokens. It takes an underlying token (KASS or USDC), locks it, and mints a matched set
+of conditional tokens — one per outcome — that redeem back to the underlying only
+after a binary **question** resolves.
+
+All the wire code Kassandra uses to drive this program by hand lives in
+`programs/kassandra/src/cpi/metadao.rs`.
+
+## Program id
+
+The challenge stack uses the **v0.4.0** conditional vault:
+
+```text
+conditional_vault (v0.4.0): VLTX1ishMBbcX3rdBWGssxawAo1Q2X2qxYFYqiGodVg
+```
+
+Defined as `CONDITIONAL_VAULT_ID` in `programs/kassandra/src/cpi/metadao.rs:56-59`,
+and mirrored in the SDK as `EXTERNAL_PROGRAM_IDS.conditionalVault`
+(`sdk/src/constants.ts`).
+
+## The two vaults, four conditional tokens
+
+A single challenge market creates **two** conditional vaults sharing **one** binary
+question:
+
+| Vault | Underlying | Outcome 0 (pass) | Outcome 1 (fail) |
+| --- | --- | --- | --- |
+| KASS vault | `oracle.kass_mint` | **pass-KASS** | **fail-KASS** |
+| USDC vault | `oracle.usdc_mint` | **pass-USDC** | **fail-USDC** |
+
+Outcome index **0 is always pass, 1 is always fail** (fixed by the composition
+order). Each conditional-token mint is a PDA derived under the vault program at
+`[b"conditional_token", vault, index]` (idx `0` = pass, `1` = fail).
+
+<Info>
+  Splitting is 1:1 across all outcomes. Splitting `N` underlying gives you `N` of the
+  pass token **and** `N` of the fail token. You only get the underlying back by
+  redeeming after resolution — and only the winning outcome's token pays out.
+</Info>
+
+## The key CPI instructions
+
+Discriminators are `sha256("global:<snake_case_name>")[..8]`, listed in
+`programs/kassandra/src/cpi/metadao.rs:66-94`.
+
+| Instruction | Discriminator (hex) | Role |
+| --- | --- | --- |
+| `initialize_question` | `f5 97 6a bc 58 2c 41 d4` | Create the binary question; sets the resolver and outcome count. |
+| `initialize_conditional_vault` | `25 58 fa d4 36 da e3 af` | Create a vault over one underlying mint; mints the conditional-token mints. |
+| `split_tokens` | `4f c3 74 00 8c b0 49 b3` | Lock `amount` underlying, mint `amount` of every outcome's conditional token. |
+| `merge_tokens` | `e2 59 fb 79 e1 82 b4 0e` | The inverse of split (burn a full set, reclaim underlying) — pre-resolution. |
+| `redeem_tokens` | `f6 62 86 29 98 21 78 45` | After resolution, burn conditional tokens, pay out underlying by the payout ratio. |
+| `resolve_question` | `34 20 e0 b3 b4 08 00 f6` | Set the payout numerators — which outcome won. |
+
+### initialize_question
+
+Creates the binary question with `num_outcomes = 2` and a **resolver**. Kassandra
+requires the resolver to be the oracle PDA itself, so only the Kassandra program (via
+`settle_challenge`) can ever resolve it. The question PDA is
+`[b"question", question_id, oracle, [num_outcomes]]` under the vault program.
+
+### initialize_conditional_vault
+
+Creates a vault bound to one `question` and one `underlying_mint`, at PDA
+`[b"conditional_vault", question, underlying_mint]`, and initializes the per-outcome
+conditional-token mints. Called twice per market — once for KASS, once for USDC.
+
+### split_tokens
+
+`split_tokens { amount: u64 }` moves `amount` underlying into the vault and mints
+`amount` of **each** outcome's conditional token to the caller's holder accounts. It
+is used in two distinct ways in a challenge:
+
+<AccordionGroup>
+  <Accordion title="Client-side: seeding the pools (the challenger's capital)">
+    During [composition](/challenge/composing), the challenger splits their **own**
+    KASS into pass-KASS + fail-KASS and their **own** USDC into pass-USDC + fail-USDC,
+    then uses those to `add_liquidity` to the two AMMs. This is the challenger's capital
+    (and impermanent-loss exposure), never the bond's.
+  </Accordion>
+  <Accordion title="On-chain: splitting the bond (program-signed)">
+    `open_challenge` performs a **program-signed** `split_tokens` of `proposer.bond`
+    KASS out of `oracle.stake_vault` (authority = the oracle PDA, seeds
+    `[b"oracle", nonce_le, [bump]]`) into the KASS vault, minting pass-KASS + fail-KASS
+    to two **oracle-PDA-owned** holders, `market.oracle_pass_kass` and
+    `oracle_fail_kass` (`programs/kassandra/src/processor/open_challenge.rs:283-335`).
+    The bond's conditional tokens then sit **idle** — never traded, never LP'd — so the
+    bond carries no impermanent loss. `total_oracle_stake` is intentionally **not**
+    decremented (`open_challenge.rs:286-288`).
+  </Accordion>
+</AccordionGroup>
+
+### redeem_tokens
+
+`redeem_tokens` takes **no args**. It is gated by `question.is_resolved()`, burns the
+holder's **full** balance of **every** outcome's conditional token, and transfers
+`Σ_i balance_i × payout_numerators[i] / payout_denominator` of the underlying out. For
+a binary pass-win `[1, 0]`: pass redeems 1:1 and fail pays 0; for a fail-win `[0, 1]`
+it is symmetric.
+
+Because the bond was split into **both** legs at open and never traded, the redeem is
+clean: the **full bond KASS** lands back in `oracle.stake_vault` regardless of the
+outcome (`settle_challenge.rs:434-531`). What differs by outcome is where the bond then
+goes — see [Settlement](/challenge/settle).
+
+<Note>
+  `redeem_tokens` uses the **same** account struct as `split_tokens`
+  (`InteractWithVault`), verified against the deployed v0.4 `conditional_vault` source.
+  The winning side's holder redeems 1:1; the losing side's holder redeems to 0.
+</Note>
+
+### resolve_question
+
+Called by `settle_challenge` as a program-signed CPI, with the payout numerators the
+verdict produced: `[1, 0]` to survive (pass wins) or `[0, 1]` to disqualify (fail
+wins). Its Borsh arg is a `Vec<u32>` — encoded as `len:u32 LE (== 2)` followed by the
+two numerators (`metadao.rs:78-90`).
+
+## Which of these Kassandra CPIs on-chain
+
+Kassandra only invokes **two** of these vault instructions as on-chain CPIs, both
+program-signed by the oracle PDA:
+
+- `open_challenge` → `split_tokens` (the bond split; `open_challenge.rs:330`).
+- `settle_challenge` → `resolve_question` then `redeem_tokens`
+  (`settle_challenge.rs:427, 471`).
+
+`initialize_question` and `initialize_conditional_vault` are invoked **client-side** by
+the SDK/app during composition, never as an on-chain CPI.
+
+<Tip>
+  Every vault instruction is `#[event_cpi]`: each appends two trailing accounts — the
+  `event_authority` PDA (`[b"__event_authority"]`, derived under the vault program) and
+  the vault program id itself (`metadao.rs:29-36`).
+</Tip>
+
+## SDK
+
+The TypeScript builders for these instructions live under `sdk/src/futarchy/` and are
+exposed on the `futarchy.*` namespace:
+
+```ts title="sdk/src/futarchy/instructions.ts"
+futarchy.initializeQuestion({ questionId, oracle, numOutcomes, payer });
+futarchy.initializeConditionalVault({ question, underlyingMint, payer });
+futarchy.splitTokens({ question, vault, vaultUnderlying, authority,
+                       userUnderlying, conditionalMints, userConditionalAccounts, amount });
+futarchy.mergeTokens(/* ... & { amount } */);
+futarchy.redeemTokens(/* InteractWithVaultArgs */);
+futarchy.resolveQuestion({ question, oracle, payoutNumerators: [1, 0] });
+```
+
+PDA derivers are on `futarchy.pda.*`: `question(questionId, oracle, numOutcomes)`,
+`conditionalVault(question, underlyingMint)`, `conditionalTokenMint(vault, index)`, and
+`vaultEventAuthority()`. See the [SDK futarchy reference](/sdk/futarchy).
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="AMMs and the TWAP" icon="chart-line" href="/challenge/amms-and-twap">
+    How the conditional tokens are priced in the two pools.
+  </Card>
+  <Card title="Composing a market" icon="layer-group" href="/challenge/composing">
+    The full 7-step sequence, including both vault initializations and the split.
+  </Card>
+</CardGroup>

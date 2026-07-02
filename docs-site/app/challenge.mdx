@@ -1,0 +1,88 @@
+---
+title: "Challenging an AI claim"
+description: "The challenge UI end to end — compose + open in one action, trade the pass/fail pools, and settle in one click."
+---
+
+When you disagree with a submitted AI claim, you open a **challenge market** — a MetaDAO v0.4 binary decision market on the proposer's KASS bond. The dApp drives the entire flow from the challenge-market section of the oracle detail page (`app/src/components/oracles/actions/ChallengeControl.tsx` and `ChallengeTradeControls.tsx`), with **no runner JSON and no JSON paste anywhere** in the challenge UI.
+
+The read side — live pool prices, TWAP, the disqualify-margin bar, the window countdown, and the challenger's escrowed USDC — is covered in [Browsing](/app/browsing) (`ChallengeMarketPanel.tsx`). This page covers the three write actions.
+
+## 1. Compose + open (one action)
+
+Opening a challenge composes an entire MetaDAO v0.4 market client-side, then opens the challenge — orchestrated as one form (`app/src/components/oracles/actions/ChallengeComposeForm.tsx`) over `buildComposeAndOpenChallengeIxs` (`app/src/data/actions/challengeCompose.ts`) and the staging hook `app/src/hooks/useComposeSequence.ts`.
+
+Because the choreography far exceeds one transaction, it runs as an **ordered, staged sequence** of wallet-signed txs with per-step progress and **retry-from-the-failed-step** (idempotent ATA creates + deterministic PDAs make a resume safe):
+
+<Steps>
+  <Step title="Create question">
+    A binary conditional-vault question (`numOutcomes = 2`) whose resolver is the Kassandra oracle PDA. Outcome index 0 = pass, 1 = fail. SDK: `futarchy.initializeQuestion`.
+  </Step>
+  <Step title="Create KASS vault">
+    `initialize_conditional_vault` with underlying = `oracle.kassMint`, minting pass-KASS (idx 0) and fail-KASS (idx 1). SDK: `futarchy.initializeConditionalVault`.
+  </Step>
+  <Step title="Create USDC vault">
+    Same, underlying = `oracle.usdcMint` → pass-USDC / fail-USDC.
+  </Step>
+  <Step title="Fund + split">
+    The challenger creates the needed ATAs (including the oracle-PDA-owned pass/fail-KASS holders the bond will be minted to) and `split_tokens` its own KASS and USDC into equal pass/fail conditional tokens to seed the pools. SDK: `futarchy.splitTokens`.
+  </Step>
+  <Step title="Seed pass pool">
+    `create_amm(base = pass-KASS, quote = pass-USDC)` + `add_liquidity`. SDK: `ammV04.createAmm` / `ammV04.addLiquidity`.
+  </Step>
+  <Step title="Seed fail pool">
+    `create_amm(base = fail-KASS, quote = fail-USDC)` + `add_liquidity`.
+  </Step>
+  <Step title="Open challenge">
+    The Kassandra `open_challenge` instruction — `buildOpenChallengeIxs` (`sdk/src/instructions/challenge.ts`, Ix = 4), payload `oracle_nonce u64`. It verifies and records the MetaDAO accounts, program-signs the bond `split_tokens`, escrows the challenger's USDC, and flips the claim to challenged.
+  </Step>
+</Steps>
+
+The seed/TWAP math mirrors the proven E2E recipe (`app/src/data/actions/challengeCompose.ts`): `twap_initial_observation = quote·1e12/base`, `twap_max_observation_change_per_update = (2^64−1)·1e12`, and `twap_start_delay_slots = 0`. Defaults seed 100 KASS (9dp) against 100 USDC (6dp), i.e. a starting price of 1.0.
+
+## 2. Trade (swap)
+
+Once open, traders move the pools. The trade controls wrap `buildSwapIxs` (`app/src/data/actions/challengeTrade.ts`) → the SDK `ammV04.swap` (`sdk/src/amm-v04/instructions.ts`).
+
+- `swap_type` 0 = **Buy** (quote → base, USDC → conditional-KASS, pushes that pool's KASS price up); 1 = **Sell**.
+- Trading a pool folds the new price into that pool's TWAP oracle.
+- To argue the claim is fraudulent, buy the **fail** pool (raising fail-KASS) while leaving pass neutral; to defend it, support the pass pool.
+
+The controls also expose the permissionless TWAP crank (`buildCrankTwapIxs`) — see [Finalize & crank](/app/finalize-and-crank).
+
+## 3. Settle (one click)
+
+After the TWAP window closes, settlement is a single permissionless button — **no JSON paste**. The full 15-account settle set is derived client-side from the decoded `Market` + `Oracle` by `buildSettleFromMarketIxs` (`app/src/data/actions/challengeSettle.ts`), which feeds the SDK `buildSettleChallengeIxs` (`sdk/src/instructions/challenge.ts`, Ix = 5, payload `oracle_nonce u64`).
+
+Of the 15 accounts, 8 are read straight off the `Market` (aiClaim, proposer, question, pass/fail AMM, kassVault, and the two oracle-owned pass/fail-KASS holders) and 7 are derived (the pass/fail conditional-KASS mints, the KASS-vault underlying ATA, the conditional-vault event authority, and the three payout ATAs). The challenger-USDC **destination** is the challenger's own USDC ATA — `ATA(market.challenger, usdc_mint)` — distinct from the Market's SDK-derived USDC escrow. The three payout ATAs are created idempotently before settle so an absent destination never fails the crank.
+
+<Info>
+This derive-from-Market settle is the recent one-click settle work (commits
+`9307b98` "one-click settle — derive the settle account set from the Market",
+`ba5ad4d`, and `cac6b86`). Before it, settle required pasting a JSON account set;
+now the challenge UI has no JSON paste anywhere.
+</Info>
+
+### The verdict preview
+
+The controls preview the outcome with `willDisqualify` (`app/src/data/ammV04.ts`), which reproduces the on-chain verdict **exactly** in bigint:
+
+```ts
+export function willDisqualify(failTwap, passTwap, marginNum, marginDen): boolean {
+  if (failTwap === null || passTwap === null) return false;
+  if (passTwap <= 0n) return false; // zero pass price always survives (settle guard)
+  return failTwap * marginDen > passTwap * (marginDen + marginNum);
+}
+```
+
+The proposer is disqualified only when `fail_twap * DEN > pass_twap * (DEN + NUM)` (strict `>`), where `NUM/DEN` is the oracle's snapshotted margin (default `1/10`). At exact equality the claim **survives**. Commit `cac6b86` switched the preview from a float `marginProgress >= 1` heuristic to this exact bigint compare so the preview matches the program at the boundary; `marginProgress` (`app/src/data/ammV04.ts`) is now only the `0..1+` bar-fill float.
+
+<CardGroup cols={2}>
+  <Card title="Challenge markets" icon="scale-balanced" href="/challenge/overview">
+    The full conditional-vault + AMM + settle mechanism.
+  </Card>
+  <Card title="Settle" icon="gavel" href="/challenge/settle">
+    The verdict formula, token movements, and directional fees.
+  </Card>
+</CardGroup>
+
+After settle, the market can be closed and rewards claimed — see [Claim & close](/app/claim-and-close).

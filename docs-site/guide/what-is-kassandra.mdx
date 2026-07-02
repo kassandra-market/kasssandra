@@ -1,0 +1,140 @@
+---
+title: "What is Kassandra?"
+description: "A decentralized, AI-assisted optimistic oracle on Solana that resolves binary and categorical questions — cheap on the happy path, decisive on dispute."
+---
+
+Kassandra is a decentralized, **AI-assisted optimistic oracle** on Solana. It answers
+**binary and categorical** questions — "did event X happen?", "which of these outcomes
+occurred?" — and it is designed so that the common case is *cheap*: an uncontested
+proposal settles with no AI inference and no markets. The expensive machinery — fact
+agreement, AI claims, and decision markets — only fires when proposers disagree.
+
+The program is written in **Pinocchio** (not Anchor), lives at `programs/kassandra/`, and
+is deployed under program ID `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY` (`lib.rs:25`).
+Around it sit an open-source AI **runner**, a hand-written TypeScript **SDK**, and a
+**dApp** — together they let anyone create an oracle, propose an answer, curate evidence,
+run the AI, and trade the markets that arbitrate a disagreement.
+
+## The optimistic-oracle model
+
+An *optimistic* oracle assumes the answer people put forward is correct unless someone
+disputes it. This is the same insight behind optimistic rollups: do the cheap thing by
+default, and only pay for the expensive verification path when there is a real
+disagreement worth resolving.
+
+In Kassandra that shape is explicit and encoded as a phase machine:
+
+<Steps>
+  <Step title="Someone proposes an answer, backed by a bond">
+    A proposer posts a categorical value plus a KASS **bond** — no proofs, no evidence.
+    The bond is what makes the claim credible: it can be slashed.
+  </Step>
+  <Step title="If nobody disagrees, that answer stands">
+    When the proposal window closes and every proposer agrees on one value, the oracle
+    **resolves** to that value immediately. No AI is run, no market is opened, and the
+    bonds are returned. This is the path the protocol is optimized for.
+  </Step>
+  <Step title="Only a real conflict triggers the expensive path">
+    Two or more distinct proposed values open a **dispute**: proposers are locked in, an
+    evidence set is agreed, an AI applies the fixed interpretation, and — if the AI's
+    answer is itself contested — a decision market settles it.
+  </Step>
+</Steps>
+
+The dispute path is genuinely costly (it takes time, KASS, and USDC), and that cost is
+the point: it deters frivolous disagreement while guaranteeing that a real one gets an
+objective, adversarial resolution. See
+[Why optimistic oracles](/guide/why-optimistic-oracles) for the full rationale.
+
+## The key insight: interpretation is fixed at creation
+
+Most oracles that resolve "soft" questions eventually collide with the same problem: two
+honest people read the same evidence and disagree about **what it means**. That
+subjectivity is where oracles get gamed, because there is no objective answer to appeal to.
+
+Kassandra's central design decision removes that ambiguity up front. When an oracle is
+**created**, the creator fixes:
+
+- the **prompt** — the question being asked,
+- the **interpretation rules** — exactly how evidence maps to an answer, and
+- the **categorical options** — the finite set of allowed outcomes.
+
+All of this is immutable after creation. On-chain, the fixed prompt-plus-interpretation is
+committed as a 32-byte `prompt_hash` on the `Oracle` account (`state.rs`); the
+interpretation *text* itself lives off-chain, paired to that hash — the runner refuses to
+proceed unless `sha256(prompt_file) == oracle.prompt_hash` (`runner/src/rpc.rs`).
+
+<Info>
+  Because the interpretation is fixed, a dispute can no longer be about *what the evidence
+  means* (subjective). It can only be about *which evidence is real and relevant*
+  (objective). That is a question with a defensible answer — exactly the kind an
+  adversarial process can settle.
+</Info>
+
+This reframing is what makes the rest of the system tractable:
+
+- The **fact phase** decides, by stake-weighted vote, which pieces of evidence enter the
+  *agreed set* — an objective evidence question. See [Facts](/concepts/facts).
+- The **AI** does not decide the *policy*; it mechanically *applies* the already-fixed
+  interpretation to the agreed set and returns one of the allowed options. See
+  [AI-assisted claims](/guide/ai-assisted-claims).
+- The **decision market** is the final arbiter over a faulty AI claim — traders who can
+  reproduce the runner put capital behind "this claim is wrong." See
+  [Challenge markets](/concepts/challenge-markets).
+
+## The trust model: economic and market-based
+
+Kassandra deliberately uses **no zkTLS and no TEEs**. There is no cryptographic proof that
+the AI ran a particular model, and no trusted enclave attesting to inference. Honesty is
+enforced by two mechanisms working together:
+
+<CardGroup cols={2}>
+  <Card title="Economic — KASS staking and slashing" icon="coins">
+    Every claim is backed by a bond or stake. Bad facts, abandoned disputes, and
+    disqualified claims are **slashed** into a bond pool that rewards honest participants,
+    so dishonesty is engineered to be net-negative. See [Economics](/concepts/economics).
+  </Card>
+  <Card title="Market — MetaDAO decision markets" icon="scale-balanced">
+    A contested AI claim is settled by a binary pass/fail **decision market**. A
+    fail-vs-pass TWAP, read after a window, is the ultimate arbiter — it can override an AI
+    claim the market believes is wrong. See [Challenge markets](/concepts/challenge-markets).
+  </Card>
+</CardGroup>
+
+Nothing about the AI's raw output is trusted or verified on-chain. Only the **categorical
+claim** and a bundle of reproducibility **metadata** — model id, parameters hash, and a
+hash of the exact input and output — go on-chain in an `AiClaim` account. A challenger
+reproduces the result by running the *declared* model over the *agreed* facts; if the
+categorical answer differs, they open a market. Fabrication is caught economically, not
+proven cryptographically.
+
+## Scope: binary and categorical only
+
+Kassandra resolves **binary and categorical** questions — a finite set of discrete options
+(`options_count`, minimum 2, enforced at creation via `InvalidOptionsCount`). It does not
+resolve continuous or numeric questions. Where a classic oracle might take a *median* of
+numeric reports, Kassandra takes the **mode / plurality** over discrete options: each
+surviving proposer casts exactly one vote for their value, and the option with the
+strictly-highest count wins (`plurality.rs`). A tie has no winner and sends the oracle to
+an [Invalid dead-end](/concepts/dead-end-settlement) rather than guessing.
+
+<Note>
+  "One proposer, one vote" — plurality is **not** stake-weighted. A proposer's KASS bond
+  is what they risk, not the weight of their vote. This keeps the final resolution robust
+  to a single well-capitalized actor buying the outcome.
+</Note>
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/guide/quickstart">
+    Clone the repo, build the program and SDK, run the dApp, and follow an oracle end to
+    end.
+  </Card>
+  <Card title="The lifecycle" icon="diagram-project" href="/concepts/lifecycle">
+    The full phase state machine, from `Proposal` to `Resolved` or `InvalidDeadend`.
+  </Card>
+  <Card title="Architecture" icon="cubes" href="/architecture/overview">
+    How the program, SDK, runner, and dApp fit together.
+  </Card>
+</CardGroup>

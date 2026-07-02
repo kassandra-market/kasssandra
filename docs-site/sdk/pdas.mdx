@@ -1,0 +1,77 @@
+---
+title: "PDA derivers"
+description: "The 11 Kassandra PDA helpers — exact signatures, the address each derives, and its seed components."
+---
+
+The SDK derives every program-derived address for you. The helpers live in
+`sdk/src/pda.ts` and are exported both **flat** (`oracle(1n)`) and under the `pda`
+namespace (`pda.oracle(1n)`).
+
+Two conventions apply to all of them:
+
+- They are **async** and return `Promise<Pda>` where `Pda = { address: Address; bump: number }`.
+  (web3.js v3's `Address.findProgramAddress` is async — WebCrypto.)
+- Each accepts an optional trailing `programId?: Address` that defaults to
+  `KASSANDRA_PROGRAM_ID` — **except `associatedTokenAccount`**, which derives under the SPL
+  Associated Token Account program and takes no `programId` override.
+
+Address arguments accept an `AddressInput = Address | string`. For the on-chain seed
+definitions these mirror, see [Program PDAs](/protocol/pdas).
+
+## The eleven helpers
+
+| Helper | Signature | Derives | Seeds |
+| --- | --- | --- | --- |
+| `protocol` | `(programId?)` | Protocol singleton | `[b"protocol"]` |
+| `mintAuthority` | `(programId?)` | KASS mint-authority PDA | `[b"mint_authority"]` |
+| `oracle` | `(nonce: bigint \| number, programId?)` | Oracle | `[b"oracle", nonce_u64_le]` |
+| `stakeVault` | `(oracleAddr, programId?)` | Oracle KASS stake vault | `[b"vault", oracle]` |
+| `proposer` | `(oracleAddr, authority, programId?)` | Proposer | `[b"proposer", oracle, authority]` |
+| `fact` | `(oracleAddr, contentHash: Uint8Array, programId?)` | Fact | `[b"fact", oracle, content_hash]` |
+| `factVote` | `(factAddr, voter, programId?)` | FactVote | `[b"vote", fact, voter]` |
+| `aiClaim` | `(oracleAddr, proposerAddr, programId?)` | AiClaim | `[b"claim", oracle, proposer]` |
+| `market` | `(aiClaimAddr, programId?)` | Market | `[b"market", ai_claim]` |
+| `challengeUsdcVault` | `(marketAddr, programId?)` | USDC escrow SPL account | `[b"challenge_usdc", market]` |
+| `associatedTokenAccount` | `(owner, mint)` | Owner's ATA (SPL) | `[owner, TOKEN_PROGRAM, mint]` under `ATA_PROGRAM_ID` |
+
+<Note>
+`stakeVault` derives the oracle's KASS token account (holding all bonds + stakes).
+`challengeUsdcVault` derives the market-owned USDC escrow SPL account holding a challenger's
+staked USDC. `associatedTokenAccount` has **no** `programId` override — it is fixed under
+`ATA_PROGRAM_ID`; `sweep_oracle` uses it to derive the DAO treasury ATA
+(`associatedTokenAccount(dao_authority, kass_mint)`).
+</Note>
+
+The `type AddressInput` and `interface Pda` are also exported from this module.
+
+## Content-hash and nonce seeds
+
+Two helpers take non-address seed inputs:
+
+- `oracle(nonce, ...)` seeds on the **u64 little-endian** encoding of `nonce`, so the same
+  nonce always maps to the same oracle address.
+- `fact(oracle, contentHash, ...)` seeds on the 32-byte `content_hash`, so a fact's address
+  is a deterministic function of its content.
+
+## Example
+
+```ts
+import { pda } from "@kassandra/sdk";
+
+const protocolPda = await pda.protocol();          // { address, bump }
+const mintAuth = await pda.mintAuthority();
+
+const oraclePda = await pda.oracle(1n);            // u64-LE nonce seed
+const stakeVault = await pda.stakeVault(oraclePda.address);
+const proposerPda = await pda.proposer(oraclePda.address, authority);
+
+const claimPda = await pda.aiClaim(oraclePda.address, proposerPda.address);
+const marketPda = await pda.market(claimPda.address);
+const usdcEscrow = await pda.challengeUsdcVault(marketPda.address);
+```
+
+<Tip>
+Instruction builders derive most of these PDAs internally, so you rarely need to pass them —
+but the same helpers let you compute an account address up front to **fetch and decode** it
+(see [Account decoders](/sdk/account-decoders)).
+</Tip>

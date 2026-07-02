@@ -1,0 +1,106 @@
+---
+title: "Dead-end settlement"
+description: "The InvalidDeadend terminal state — its causes, what happens to bonds, stakes, and emissions, and why only governance can stamp a final option."
+---
+
+Not every dispute has a valid answer. When all values are disqualified, the final plurality
+ties, or no proposer ever submitted a fact, the oracle reaches **`InvalidDeadend`** (Phase 8)
+— a terminal non-outcome. This page covers why a dead-end happens, exactly what settles, and
+how governance can (optionally) stamp a final option afterward. It is grounded in the
+dead-end settlement design (`docs/plans/2026-06-30-kassandra-deadend-settlement.md`).
+
+## What causes a dead-end
+
+There are three routes into `InvalidDeadend` (design §7):
+
+<CardGroup cols={2}>
+  <Card title="No facts at all" icon="folder-open">
+    No proposer submitted any fact during the dispute. `finalize_facts` takes the no-facts
+    dead-end: every proposer is slashed and the oracle terminates directly in
+    `InvalidDeadend` (`FactVoting → InvalidDeadend`).
+  </Card>
+  <Card title="All values disqualified" icon="ban">
+    Every surviving proposer was disqualified (by an AI-claim no-show or a lost challenge
+    market), leaving `NoSurvivors`. `finalize_oracle` terminates in `InvalidDeadend`.
+  </Card>
+  <Card title="Final plurality tie" icon="scale-unbalanced">
+    Two or more options tie for the highest count among surviving proposers
+    (`plurality.rs` returns `Tie`). Kassandra **does not guess** — `finalize_oracle` sends
+    the oracle to `InvalidDeadend` (design §7, invariant 7).
+  </Card>
+</CardGroup>
+
+On a dead-end, `Oracle.resolved_option` is stamped with the `CLAIM_OPTION_NONE` sentinel
+(`0xFF`), and `reward_pool` is `0`.
+
+## What happens to the money
+
+A dead-end is a **non-outcome: no rewards, no distribution.** The settlement rule (a locked
+user decision in the design) is:
+
+- **Non-slashed principal is returned** to each staker via the normal `claim_*` pulls.
+- **Slashed amounts (`bond_pool`) are BURNED.** A misbehavior slash has no recipient when
+  there is no winner, so it is burned like the creator fee — including the **no-facts case,
+  where every disputing proposer's bond is burned** (a deterrent against
+  propose-conflict-then-abandon).
+- **The `reward_emission` is burned** too (there is nothing to reward).
+- **The creator fee stays burned**, as always.
+
+Concretely, the burns happen at the finalize sites (`finalize_oracle` and
+`finalize_no_facts`): the `InvalidDeadend` branches burn `reward_emission + bond_pool` from
+the `stake_vault`, oracle-PDA-signed. After the burns, the vault holds exactly the
+returnable principal, and the per-staker claims drain it to dust:
+
+`Σ returned principal + dust + (bond_pool burned) + (emission burned) == Σ stakes + emission`.
+
+<Info>
+  Because `reward_pool == 0` on a dead-end, every reward term in the claim formulas is
+  automatically zero — the existing `claim_*` path already pays **non-slashed principal
+  only** on `InvalidDeadend`. Disposition matters, though: a rejected-fact submitter and a
+  slashed approve-voter get their slashed portion **withheld** (their KASS was in the
+  now-burned `bond_pool`), while agreed/duplicate stakers get their full stake back. A
+  disqualified proposer gets `0` (their bond was burned); a survivor gets
+  `bond − slashed_amount`.
+</Info>
+
+## Governance-only resolution
+
+A dead-ended oracle can be given a final answer, but **only by governance**. The DAO calls
+`resolve_deadend` (`Ix::ResolveDeadend = 15`), which requires `assert_dao_authority`, the
+oracle to be in `InvalidDeadend`, and `option < options_count` (`resolve_deadend.rs`). It
+advances `InvalidDeadend → Resolved` and records the governance-chosen `resolved_option`
+for downstream consumers.
+
+<Warning>
+  `resolve_deadend` moves **no tokens.** The dead-end funds were already burned at finalize,
+  and a governance-resolved oracle pays **identically** to a plain `InvalidDeadend` (both
+  fully drain to non-slashed principal) precisely because `reward_pool == 0` zeroes every
+  reward term on both phases. The governance option is recorded for consumers but does
+  **not** drive any reward or slash.
+</Warning>
+
+Governance is ideally itself run via MetaDAO futarchy (design §8). The `dao_authority` is a
+Squads v4 multisig vault PDA, established once through the admin→DAO handoff in
+`set_governance` (`Ix=13`).
+
+## Cleanup after a dead-end
+
+Like any terminal oracle, a dead-ended oracle is cleaned up permissionlessly: `claim_*`
+drains the returnable principal to each staker (closing their accounts), `close_ai_claim`
+and `close_market` reclaim metadata/market rent, and after a 30-day grace
+(`SWEEP_GRACE = 2_592_000`) `sweep_oracle` transfers any residual vault KASS to the DAO
+treasury and closes the oracle and its vault.
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Economics" icon="coins" href="/concepts/economics">
+    The bond pool, emissions, and how burns balance mints.
+  </Card>
+  <Card title="The lifecycle" icon="diagram-project" href="/concepts/lifecycle">
+    Where the dead-end sits among the terminal states.
+  </Card>
+  <Card title="AI claims" icon="robot" href="/concepts/ai-claims">
+    No-shows and flips — one of the routes to no survivors.
+  </Card>
+</CardGroup>

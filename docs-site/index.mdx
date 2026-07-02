@@ -1,0 +1,98 @@
+---
+title: "Kassandra"
+description: "A decentralized, AI-assisted optimistic oracle on Solana that resolves binary and categorical questions."
+mode: "wide"
+---
+
+Kassandra is a decentralized, **AI-assisted optimistic oracle** on Solana. It answers
+**binary and categorical** questions. The common case is cheap: an uncontested proposal
+settles with no AI and no markets. The dispute machinery — fact agreement, AI claims, and
+decision markets — only fires when proposers disagree.
+
+The novel idea: **interpretation is fixed at oracle creation**, so disputes reduce to
+*which evidence is real and relevant* (objective) rather than *what the evidence means*
+(subjective). An AI applies that fixed interpretation to an agreed fact set, and a
+MetaDAO-style decision market is the ultimate arbiter that can override a faulty AI claim.
+
+No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashing) and by
+**markets** (the final arbiter of truth).
+
+<CardGroup cols={2}>
+  <Card title="What is Kassandra?" icon="book-open" href="/guide/what-is-kassandra">
+    The optimistic-oracle model, the AI-assisted claim, and the core ideas.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/guide/quickstart">
+    Clone, build the program, run the dApp, and follow an oracle end to end.
+  </Card>
+  <Card title="Concepts" icon="diagram-project" href="/concepts/lifecycle">
+    Lifecycle, proposals, facts, AI claims, economics, and dead-end settlement.
+  </Card>
+  <Card title="Architecture" icon="cubes" href="/architecture/overview">
+    How the program, SDK, runner, and dApp compose.
+  </Card>
+  <Card title="Protocol reference" icon="code" href="/protocol/overview">
+    Instructions, accounts, phases, PDAs, errors, and constants — grounded in the code.
+  </Card>
+  <Card title="Challenge markets" icon="scale-balanced" href="/challenge/overview">
+    MetaDAO conditional vaults, pass/fail AMMs, the TWAP, and the settle verdict.
+  </Card>
+</CardGroup>
+
+## How an oracle resolves
+
+<Steps>
+  <Step title="Create">
+    A creator posts a prompt, immutable interpretation rules, categorical options, and a
+    deadline, and pays a dynamic KASS creation fee (burned). Config is immutable after
+    creation.
+  </Step>
+  <Step title="Propose">
+    After the deadline, proposers submit a categorical value plus a KASS bond — no proofs.
+    If everyone agrees, the oracle **resolves** immediately: no AI, no markets.
+  </Step>
+  <Step title="Dispute (only on conflict)">
+    Two or more distinct values lock the proposers in and open the dispute: a **fact
+    proposal** window, then a disjoint **fact voting** window that freezes the agreed
+    evidence set.
+  </Step>
+  <Step title="AI claims">
+    Each locked-in proposer reruns the open-source runner over the agreed facts and
+    resubmits a value plus AI-claim metadata (model, params, hashes).
+  </Step>
+  <Step title="Challenge">
+    Every AI claim is challengeable in parallel. A challenge opens a MetaDAO decision
+    market; a fail-vs-pass TWAP decides whether the claim is disqualified.
+  </Step>
+  <Step title="Resolve or dead-end">
+    After the last market settles, the final plurality over surviving proposers is
+    computed. If nothing survives (or a tie), the oracle reaches an **Invalid dead-end**,
+    resolvable only by KASS governance.
+  </Step>
+</Steps>
+
+## The monorepo
+
+<CardGroup cols={2}>
+  <Card title="programs/kassandra" icon="microchip" href="/architecture/program">
+    The core Solana program, written in **Pinocchio** (not Anchor). Owns oracle state,
+    phases, facts, AI claims, plurality, staking, emissions, and the dynamic fee.
+  </Card>
+  <Card title="sdk" icon="js" href="/sdk/overview">
+    A hand-written TypeScript client — instruction builders, account decoders, and PDA
+    helpers. No IDL; layouts are shared with the program.
+  </Card>
+  <Card title="runner" icon="robot" href="/architecture/runner">
+    The open-source AI runner. Applies the fixed interpretation to the agreed facts and
+    produces a categorical answer plus verifiable metadata.
+  </Card>
+  <Card title="app" icon="browser" href="/architecture/dapp">
+    The frontend for creating oracles, proposing, fact voting, and trading challenge
+    markets.
+  </Card>
+</CardGroup>
+
+<Note>
+  Every reference page in these docs is grounded in the actual source — instruction names,
+  account layouts, error codes, and constants are cited from `programs/kassandra/src/`,
+  `sdk/src/`, and the design docs under `docs/plans/`.
+</Note>

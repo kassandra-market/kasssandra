@@ -1,0 +1,61 @@
+---
+title: "Participating"
+description: "Propose a value, submit and vote on facts, and submit an AI claim from the OracleDetail write surface."
+---
+
+The oracle detail page (`/oracles/:pubkey`, `app/src/pages/OracleDetail.tsx`) carries the wallet-signed write forms for the base lifecycle. Each form is gated on a connected wallet **and** the oracle's current phase, wraps a pure `build*Ixs` action layer, and sends via wallet-adapter's `sendTransaction`.
+
+Status is driven by `app/src/hooks/useWriteAction.ts` over `app/src/data/writeAction.ts`: **idle → building → signing → confirming → success/error**. Every staking form shows the connected wallet's KASS balance (`Your KASS: …`, raw base units, via `app/src/hooks/useKassBalance.ts`) and gates the submit when the amount exceeds the balance. Disconnected shows "Connect a wallet to participate."; the wrong phase shows a muted "Participation is closed" message.
+
+<Note>
+All staking amounts are **raw base units** and every staking action requires **KASS**.
+A missing KASS associated-token account is created idempotently on the first action.
+</Note>
+
+## Propose a value (Proposal phase)
+
+Pick an option and escrow a KASS bond. The action layer is `app/src/data/actions/create.ts`/`actions.ts`; it builds the SDK `propose` instruction (`sdk/src/instructions/lifecycle.ts`, Ix = 11).
+
+- **UI action:** select an option + enter a bond amount.
+- **Instruction:** `propose` — payload(9): `option u8 ++ bond u64`. The builder derives the proposer PDA and the oracle's stake vault.
+
+Proposing registers a `Proposer` account committing your bond to a chosen option.
+
+## Submit a fact (FactProposal phase)
+
+Submit evidence: a content hash plus an off-chain URI and a KASS stake.
+
+- **UI action:** paste text to hash (or paste a 32-byte hex hash) for the `content_hash`, an off-chain `uri` (≤200 bytes), and a stake amount.
+- **Instruction:** `submitFact` (`sdk/src/instructions/dispute.ts`, Ix = 0) — payload: `content_hash[32] ++ stake u64 ++ uri_len u16 ++ uri[]`.
+
+## Vote on facts (FactVoting phase)
+
+Per fact, flag it Approve or Duplicate and stake KASS.
+
+- **UI action:** for each fact, choose **Approve** or flag **Duplicate**, and enter a stake.
+- **Instruction:** `voteFact` (`sdk/src/instructions/dispute.ts`, Ix = 1) — payload: `kind u8 ++ stake u64`. The kind is `VoteKind.Approve` (0) or `VoteKind.Duplicate` (1) (`sdk/src/accounts/`, `sdk/src/constants.ts` sentinels `VOTE_APPROVE = 0`, `VOTE_DUPLICATE = 1`).
+
+Approved, non-duplicate facts form the agreed set the AI claim is resolved against.
+
+## Submit an AI claim (AiClaim phase)
+
+After the facts are settled, a proposer submits the resolved categorical answer plus its reproducibility metadata. The action layer is `app/src/data/actions/claims.ts`.
+
+- **UI action:** three 32-byte hashes (model / params / io) plus the chosen option — entered as hex fields **or** by pasting the runner's JSON output directly. The proposer PDA is derived from the connected wallet.
+- **Instruction:** `submitAiClaim` (`sdk/src/instructions/dispute.ts`, Ix = 3) — payload(97): `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option u8`.
+
+The three hashes and the 97-byte payload come from the AI runner. When you paste its JSON, the SDK's `submitAiClaimFromRunner` bridge byte-asserts that the SDK-built payload equals the runner's precomputed 97-byte payload (`sdk/src/runner-bridge.ts`), so the submitted claim can never diverge from the runner's metadata. See [Running the runner](/ops/runner).
+
+<CardGroup cols={3}>
+  <Card title="Proposals" icon="hand-point-up" href="/concepts/proposals">
+    How proposers bond an option.
+  </Card>
+  <Card title="Facts" icon="file-lines" href="/concepts/facts">
+    Fact submission, voting, and the agreed set.
+  </Card>
+  <Card title="AI claims" icon="robot" href="/concepts/ai-claims">
+    The AI-resolved answer and its commitments.
+  </Card>
+</CardGroup>
+
+Once submitted, an AI claim can be finalized (if uncontested) or challenged — see [Finalize & crank](/app/finalize-and-crank) and [Challenge the AI claim](/app/challenge).

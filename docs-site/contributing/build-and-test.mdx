@@ -1,0 +1,72 @@
+---
+title: "Building & testing"
+description: "Build and test every part of the Kassandra monorepo — the Rust program and runner, the TypeScript SDK, and the web app."
+---
+
+Kassandra spans a Rust Cargo workspace and a pnpm workspace. This page collects the build and test commands for each.
+
+## Rust: program + runner
+
+The `justfile` at the repo root wraps the program build and test:
+
+```bash
+just build   # cargo build-sbf --manifest-path programs/kassandra/Cargo.toml
+just test    # depends on build, then: cargo test -p kassandra-program
+```
+
+<Warning>
+The LiteSVM program tests `include_bytes!` the compiled `.so`, so you MUST rebuild
+before testing a program change. Use `just test` (which depends on `just build`) —
+never a bare `cargo test -p kassandra-program` on a stale `.so`. This is the single
+most common footgun when verifying a merged program change on the main checkout.
+</Warning>
+
+The runner is a separate crate and tests fully offline and keyless (mock provider + fetcher):
+
+```bash
+cargo build -p kassandra-runner
+cargo test  -p kassandra-runner
+```
+
+The single live Anthropic test is opt-in (`runner/README.md`):
+
+```bash
+ANTHROPIC_API_KEY=sk-... cargo test -p kassandra-runner --lib \
+  -- --ignored live_anthropic_completion --nocapture
+```
+
+## TypeScript: SDK
+
+Build the SDK before anything that consumes it (the app resolves its types from `sdk/dist/`, which is gitignored):
+
+```bash
+pnpm --filter @kassandra/sdk build   # or: pnpm -r build
+```
+
+The SDK's wire formats mirror the Rust program and are guarded by `sdk/test/parity.test.ts`.
+
+## TypeScript: app
+
+```bash
+pnpm --filter app typecheck   # tsc -b
+pnpm --filter app lint        # oxlint
+pnpm --filter app build       # tsc -b && vite build && verify-css guard
+pnpm --filter app test        # vitest run
+pnpm --filter app test:e2e    # KASSANDRA_E2E=1 vitest run (gated surfpool E2E)
+```
+
+The `build` script runs `app/scripts/verify-css.mjs` after `vite build` to assert the Tailwind v4 plugin actually compiled. The E2E suite (`test:e2e`) is gated behind `KASSANDRA_E2E=1` and needs a seeded surfpool on `127.0.0.1:8899` with the program deployed (`app/test/oracle-data.e2e.test.ts`), including a forked-mainnet challenge-settle over the real MetaDAO v0.4 AMM.
+
+## Toolchain
+
+- **Rust:** stable (`rust-toolchain.toml`: `channel = "stable"`); the program build additionally needs the Solana SBF toolchain (`cargo build-sbf`).
+- **Node/pnpm:** the pnpm workspace (`sdk`, `app`). See the app's `package.json` for pinned dev dependency versions (`vite`, `vitest`, `oxlint`, `typescript`).
+
+<CardGroup cols={2}>
+  <Card title="Deploy the program" icon="rocket" href="/ops/deploy-program">
+    Building the SBF artifact and deploying it.
+  </Card>
+  <Card title="Conventions" icon="pen-nib" href="/contributing/conventions">
+    Pinocchio, the hand-written SDK, and commit style.
+  </Card>
+</CardGroup>

@@ -1,0 +1,52 @@
+---
+title: "PDAs"
+description: "Every on-chain Kassandra PDA — its account, exact seed components, and deriving program."
+---
+
+Every Kassandra account is a Program Derived Address. All are derived with `find_program_address`
+under the program (`crate::ID = KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY`) unless noted. The
+matching TypeScript derivers are in [SDK · PDAs](/sdk/pdas).
+
+## Program-owned PDAs
+
+| Account | Seeds | Notes / derivation site |
+| --- | --- | --- |
+| Protocol (singleton) | `[b"protocol"]` | `guards.rs`, `init_protocol.rs` |
+| Oracle | `[b"oracle", nonce.to_le_bytes()]` | `create_oracle.rs`; `nonce: u64` LE |
+| Stake vault | `[b"vault", oracle_pubkey]` | `create_oracle.rs`; SPL token account, authority = oracle PDA |
+| Proposer | `[b"proposer", oracle_pubkey, authority_pubkey]` | `propose.rs` |
+| Fact | `[b"fact", oracle_pubkey, content_hash]` | `submit_fact.rs`; `content_hash: [u8;32]` |
+| FactVote | `[b"vote", fact_pubkey, voter_pubkey]` | `vote_fact.rs` |
+| AiClaim | `[b"claim", oracle_pubkey, proposer_pubkey]` | `submit_ai_claim.rs` |
+| Market | `[b"market", ai_claim_pubkey]` | `open_challenge.rs` |
+| Challenger USDC escrow | `[b"challenge_usdc", market_pubkey]` | `open_challenge.rs`; SPL token account, authority = oracle PDA |
+| Mint-authority | `[b"mint_authority"]` (`MINT_AUTHORITY_SEED`) | `create_oracle.rs`; KASS emission `MintTo` signer |
+
+<Note>
+The **Oracle** PDA is re-derived from `oracle_nonce` inside every instruction whose payload carries the
+nonce — `finalize_facts`, `finalize_oracle`, `open_challenge`, `settle_challenge`, the claim
+instructions, `close_market`, and `sweep_oracle` — so the program can sign token movements with the
+oracle seeds `[b"oracle", nonce_le, [bump]]`.
+</Note>
+
+## ATA-program-derived PDA
+
+| Account | Seeds | Program |
+| --- | --- | --- |
+| DAO treasury (KASS ATA of `dao_authority`) | `[dao_authority, TOKEN_PROGRAM_ID, kass_mint]` | ATA program `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` |
+
+The DAO treasury is derived and checked by `sweep_oracle` (`sweep_oracle.rs`) as
+`ATA(dao_authority, kass_mint)`; a mismatch returns `InvalidTreasury`.
+
+## External MetaDAO / Squads PDAs — out of scope
+
+The challenge market binds several PDAs derived under **other** programs (the MetaDAO
+conditional-vault, the v0.4 AMM, and Squads v4). These are **not** derived under `crate::ID` and their
+seed internals live in `programs/kassandra/src/cpi/metadao.rs` and `cpi/metadao_v06.rs`:
+
+- Conditional-token mint PDAs (`metadao::conditional_token_mint_pda(vault, idx)`).
+- The conditional-vault event-authority PDA (`metadao::event_authority_pda(...)`).
+- Squads multisig / vault PDAs (`squads_multisig_pda(kass_dao)` / `squads_vault_pda(multisig, 0)`).
+
+For these, see [Challenge markets](/challenge/overview) and
+[Conditional vaults](/challenge/conditional-vaults).

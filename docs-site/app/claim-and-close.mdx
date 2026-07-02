@@ -1,0 +1,46 @@
+---
+title: "Claiming & closing"
+description: "Claim rewards and refunds, close settled accounts to reclaim rent, and sweep residual dust to the DAO treasury."
+---
+
+Once an oracle reaches `Resolved` or `InvalidDeadend`, the dApp exposes the cleanup surface: per-participant **Claim**, permissionless **Close**, and a grace-gated **Sweep**. All three wrap the action layer at `app/src/data/actions/claims.ts` and are shown on the oracle detail page (`app/src/pages/OracleDetail.tsx`).
+
+## Claim rewards and refunds
+
+Each participant card shows a **Claim** control, but only to the owning wallet (`authority == connected`). Claiming pays the KASS reward or refund and closes the underlying account, returning its rent. The instruction depends on the account type (`sdk/src/instructions/settlement.ts`):
+
+| Claim | Builder | Ix | Closes |
+| --- | --- | --- | --- |
+| Proposer | `claimProposer` | 17 | Pull + close `Proposer`; payload `oracle_nonce u64`. |
+| Fact | `claimFact` | 18 | Pull + close `Fact`; payload `oracle_nonce u64`. |
+| Fact vote | `claimFactVote` | 19 | Pull + close `FactVote`; payload `oracle_nonce u64`. |
+
+## Close accounts (reclaim rent)
+
+Some accounts have no per-participant payout and are closed permissionlessly to reclaim rent (`sdk/src/instructions/settlement.ts`):
+
+- **AiClaim** — `closeAiClaim` (Ix = 20), empty payload. The AiClaim is closed on resolution.
+- **Market** — `closeMarket` (Ix = 21), payload `oracle_nonce u64`. Closes a **settled** Market plus its USDC escrow.
+
+## Sweep the dust
+
+After a grace period, the residual balances on a terminal oracle are swept to the DAO treasury and the oracle/vault accounts are closed. This is the SDK's `sweepOracle` (Ix = 22, `sdk/src/instructions/settlement.ts`):
+
+- **Permissionless** but **grace-gated** and **governance-checked**.
+- Routes the residual to the DAO treasury ATA — `ATA(dao_authority, kass_mint)` (`sdk/src/pda.ts` `associatedTokenAccount`) — and returns the oracle's rent to the **creator**.
+- Payload: `oracle_nonce u64`.
+
+<Note>
+Claim is owner-gated (`authority == connected`); Close and Sweep are permissionless.
+Sweep additionally requires the grace window to have elapsed and passes a governance
+check. All amounts are raw base units.
+</Note>
+
+<CardGroup cols={2}>
+  <Card title="Economics" icon="coins" href="/concepts/economics">
+    How rewards, slashing, the bond pool, and the dust sweep fit together.
+  </Card>
+  <Card title="Dead-end settlement" icon="ban" href="/concepts/dead-end-settlement">
+    What happens when an oracle resolves to `InvalidDeadend`.
+  </Card>
+</CardGroup>

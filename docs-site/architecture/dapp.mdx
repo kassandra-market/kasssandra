@@ -1,0 +1,89 @@
+---
+title: "dApp"
+description: "The Kassandra frontend — Vite + React 19 + Tailwind v4, its pages, the pure build*Ixs action layer, wallet-adapter, and cluster selection."
+---
+
+The dApp (`app/`) is the human-facing frontend for Kassandra: browse oracles, create them,
+participate in every lifecycle phase, compose and trade challenge markets, and claim or close
+accounts. It is a single-page app styled in the "Delphi" visual language.
+
+## Stack
+
+- **Vite + React 19 + TypeScript + Tailwind v4 SPA** (`app/package.json`, `app/README.md`).
+- Key dependencies: `react`/`react-dom` `^19.2.7`, `react-router-dom` `^7.18.1`,
+  `@solana/web3.js 3.0.0-rc.2`, the `@solana/wallet-adapter-*` packages, and `@kassandra/sdk`
+  (`workspace:*`). Fonts (Cormorant Garamond, Inter, Roboto Mono) are bundled locally via
+  `@fontsource`, so the build is fully offline.
+- Entry: `app/src/main.tsx` → `app/src/App.tsx`. Routing is `BrowserRouter` with route-level
+  code-splitting (`React.lazy` + `<Suspense>`).
+
+<Warning>
+The app resolves `@kassandra/sdk` types from `sdk/dist/`, which is gitignored — **build the SDK
+first**: `pnpm --filter @kassandra/sdk build` (or `pnpm -r build`). See
+[Run locally](/app/run-locally).
+</Warning>
+
+## Pages
+
+| Path | Component | Purpose |
+| --- | --- | --- |
+| `/` | `Landing.tsx` | Marketing landing (Hero constellation, HowItWorks). Read-only. |
+| `/oracles` | `Oracles.tsx` | Oracle browser / dashboard: a stats strip plus a grid of Delphi cards, one per decoded on-chain oracle, with search, phase-filter chips, and sort. Read-only. |
+| `/oracles/new` | `CreateOracle.tsx` | Create-oracle form (write). |
+| `/oracles/:pubkey` | `OracleDetail.tsx` | Oracle detail plus all lifecycle write forms — verdict banner, phase timeline, economic panel, and live challenge-market visualization. |
+| `/styleguide` | `StyleGuide.tsx` | Design-system reference page. |
+| `*` | — | Redirects to `/`. |
+
+The `Oracles` stats strip is computed by a pure `src/lib/oracleStats.ts::deriveStats` with no extra
+RPC; `OracleDetail` composes `components/oracles/PhaseTimeline.tsx`, `EconomicPanel.tsx`, and
+`ChallengeMarketPanel.tsx`.
+
+## The pure action layer
+
+Every write path wraps a **pure `build*Ixs` action layer** (`app/src/data/actions/*.ts` and
+`app/src/data/actions.ts`) that returns SDK instructions, and sends them through the wallet-adapter's
+`sendTransaction`. Transaction status flows through `app/src/hooks/useWriteAction.ts` and
+`app/src/data/writeAction.ts` (idle → building → signing → confirming → success/error). All staking
+amounts are raw base units; staking requires **KASS**, and a missing KASS ATA is created idempotently.
+Forms gate on both a connected wallet and the oracle's current phase.
+
+```text
+page/component  →  build*Ixs (pure)  →  @kassandra/sdk  →  wallet-adapter sendTransaction
+```
+
+The write surface, by phase:
+
+- **Create** (`data/actions/create.ts`) — question hashed to the on-chain `prompt_hash`, options,
+  deadline, mints; the oracle nonce is persisted per-browser (`app/src/lib/nonceStore.ts`).
+- **Participate** (detail page) — Propose (Proposal), Submit fact (FactProposal), Vote (FactVoting),
+  each with a live `Your KASS:` balance gate.
+- **Crank / finalize** (`data/actions/finalize.ts`) — permissionless: finalize proposals → advance →
+  finalize facts → finalize AI claims → finalize oracle; near-cap proposer sets get a v0/ALT note.
+- **Submit AI claim** (`data/actions/claims.ts`) — three 32-byte hashes + option, or paste the
+  runner's JSON output.
+- **Challenge** (`data/actions/challengeCompose.ts`, `challengeTrade.ts`, `challengeSettle.ts`) — the
+  full MetaDAO market surface: compose + open, trade/crank, and one-click settle derived from the
+  decoded Market + Oracle. See [Challenge markets](/challenge/overview).
+- **Claim / close / sweep** (`data/actions/claims.ts`) — per-card claim, permissionless close, and the
+  grace-gated, governance-checked sweep.
+
+## Data layer
+
+Reads enumerate and decode oracle accounts via `getProgramAccounts` (`app/src/data/oracles.ts`), with
+query hooks in `app/src/hooks/` (`useOracles`, `useMarketAmms`, `useKassBalance`). The MetaDAO v0.4
+`Amm` decode and TWAP/verdict math live in `app/src/data/ammV04.ts`.
+
+## Cluster selection
+
+Cluster and RPC configuration lives in `app/src/lib/cluster.ts`:
+
+- Clusters: `'localnet' | 'devnet' | 'mainnet-beta'`.
+- `localnet` → `VITE_RPC_URL` or the default `http://127.0.0.1:8899` (also the surfpool default);
+  `devnet` → `https://api.devnet.solana.com`; `mainnet-beta` → `https://api.mainnet-beta.solana.com`.
+- The NavBar cluster selector persists the choice in `localStorage` (`kassandra:cluster`, default
+  `localnet`), wired through `ClusterProvider.tsx`; the wallet-adapter `Connection` reflects the
+  selected endpoint.
+
+An offline preview / mock mode is available via `VITE_MOCK=1` or a `?mock` query, backed by
+`app/src/data/mockOracles.ts`. See [Clusters and RPC](/ops/clusters-and-rpc) and
+[Run locally](/app/run-locally).

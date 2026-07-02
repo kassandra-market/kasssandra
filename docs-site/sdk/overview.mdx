@@ -1,0 +1,132 @@
+---
+title: "SDK overview"
+description: "The @kassandra/sdk TypeScript package — build every instruction, derive every PDA, and decode every on-chain account with no IDL."
+---
+
+`@kassandra/sdk` is the hand-written TypeScript client for the Kassandra dispute-core
+program. It builds every instruction, derives every PDA, and decodes every on-chain
+account — with **no IDL**. The wire formats are mirrored directly from the Rust program
+(the source of truth) and guarded by a parity test (`sdk/test/parity.test.ts`), so the
+SDK stays byte-for-byte in lockstep with `programs/kassandra`.
+
+For the on-chain surface these builders and decoders map onto, see
+[Program instructions](/protocol/instructions), [Accounts](/protocol/accounts), and
+[PDAs](/protocol/pdas). For a runnable end-to-end walkthrough, jump to
+[Recipes](/sdk/recipes) or the [Quickstart](/guide/quickstart).
+
+## Package
+
+- **Name:** `@kassandra/sdk` (`sdk/package.json`). It is `"private": true` — **not published
+  to npm** — and consumed in-repo from its built `dist/`.
+- **Module system:** `"type": "module"` — ESM only, `"sideEffects": false`.
+- **Single entry point:** the `"."` export maps to `./dist/index.js` (plus `.d.ts`). Import
+  everything from the barrel (`sdk/src/index.ts`).
+- **Runtime dependencies:** `@solana/web3.js` `3.0.0-rc.2` and `@solana/kit` `^6.10.0`. Dev
+  tooling: `litesvm 1.2.0`, `vitest`, `typescript`.
+
+<Note>
+The SDK targets **web3.js v3** (the release-candidate line). Its `Address.findProgramAddress`
+and `Transaction.sign` are **async** (WebCrypto), which is why every PDA deriver and
+instruction builder returns a `Promise`.
+</Note>
+
+## Install & build
+
+The package lives inside the monorepo. Build it once with pnpm, then import from any
+in-repo workspace:
+
+```bash
+# from the repo root — compiles sdk/src → sdk/dist
+pnpm --filter sdk build
+```
+
+```ts title="using the SDK"
+import {
+  initProtocol,
+  createOracle,
+  propose,
+  decodeProtocol,
+  decodeOracle,
+  pda,
+  Phase,
+} from "@kassandra/sdk";
+```
+
+<Tip>
+To actually *run* an example against a local validator you also need the program artifact.
+From the repo root run `just build` to produce `target/deploy/kassandra_program.so`, then
+drive it through litesvm or surfpool. See [Recipes](/sdk/recipes).
+</Tip>
+
+## Design
+
+The SDK is deliberately thin and explicit — it does the byte-packing and the PDA math, and
+hands you plain web3.js objects. Three conventions run through the whole surface:
+
+<Steps>
+  <Step title="No IDL — payloads are packed by hand">
+    Each instruction's `data` is `[disc_byte, ...payload_LE]`, where `disc_byte` is the
+    `Ix` enum discriminant and the payload is little-endian. The low-level packers live in
+    `sdk/src/instructions/payload.ts` (`u8`, `u16LE`, `u64LE`, `i64LE`, `withDisc`, …).
+  </Step>
+  <Step title="PDA derivers are async and return { address, bump }">
+    Every helper in `sdk/src/pda.ts` returns `Promise<Pda>` where
+    `Pda = { address: Address; bump: number }`. They accept an
+    `AddressInput = Address | string` and an optional `programId?: Address` override
+    (defaulting to `KASSANDRA_PROGRAM_ID`).
+  </Step>
+  <Step title="Builders return classic web3.js instructions">
+    Each builder returns `Promise<TransactionInstruction>` (the classic web3.js instruction
+    type) and accepts an optional `programId?: Address` override. You add it to a
+    `Transaction`, sign, and send with your RPC of choice — or bridge into litesvm with
+    `toLiteSvmTransaction`.
+  </Step>
+</Steps>
+
+## Module map
+
+Everything is re-exported from the single barrel `sdk/src/index.ts`. Flat helpers sit at
+the top level; the external-protocol builders are namespaced.
+
+| Module | Import path / namespace | What it provides |
+| --- | --- | --- |
+| Constants | `sdk/src/constants.ts` | `KASSANDRA_PROGRAM_ID`, `Ix`, `AccountType`, `Phase`, `KassandraError` + `decodeError`, `EXTERNAL_PROGRAM_IDS`, `CONFIG`, `ACCOUNT_SIZES`, sentinels. See [Constants](/protocol/constants). |
+| Instruction builders | `sdk/src/instructions/` | The 23 core builders (Ix 0–22) + their `*Args` types + payload helpers. |
+| Account decoders | `sdk/src/accounts/` | The 7 `decodeX` functions + decoded types. |
+| PDAs | `sdk/src/pda.ts` (flat + `pda.*`) | The 11 PDA derivers, each `Promise<Pda>`. |
+| `ammV04.*` | `sdk/src/amm-v04/` | MetaDAO v0.4 standalone AMM builders + PDA derivers. |
+| `futarchy.*` | `sdk/src/futarchy/` | futarchy v0.6 + Squads v4 + conditional-vault builders + `bootstrapGovernance`. |
+| `meteora.*` | `sdk/src/meteora/` | Meteora DAMM v2 (cp-amm) spot builders + Pool/Position decoders. |
+| litesvm interop | `sdk/src/litesvm-interop.ts` | `toLiteSvmTransaction` — the web3.js v3 → litesvm bridge. |
+| runner bridge | `sdk/src/runner-bridge.ts` | `submitAiClaimFromRunner` + the runner-payload parity guard. |
+
+The barrel also re-exports the `v0` module (`sdk/src/v0.ts`) — a v0-transaction +
+Address Lookup Table path for near-cap `finalize` transactions on a live cluster (not
+litesvm). See [Recipes](/sdk/recipes).
+
+## Explore the reference
+
+<CardGroup cols={2}>
+  <Card title="Instruction builders" icon="scroll" href="/sdk/instruction-builders">
+    All 23 core builders (Ix 0–22) grouped by lifecycle, dispute, challenge, settlement,
+    and payload — with exact `*Args` fields.
+  </Card>
+  <Card title="Account decoders" icon="box-open" href="/sdk/account-decoders">
+    The 7 `decodeProtocol`…`decodeMarket` decoders — the account each reads, its size, and
+    returned fields.
+  </Card>
+  <Card title="PDAs" icon="fingerprint" href="/sdk/pdas">
+    The 11 async PDA derivers, their seeds, and the `{ address, bump }` they return.
+  </Card>
+  <Card title="AMM v0.4" icon="right-left" href="/sdk/amm-v04">
+    The `ammV04.*` submodule — create AMM, add liquidity, swap, crank the TWAP.
+  </Card>
+  <Card title="Futarchy & Squads" icon="landmark" href="/sdk/futarchy">
+    The `futarchy.*` submodule — conditional vaults, proposals, Squads, and
+    `bootstrapGovernance`.
+  </Card>
+  <Card title="Recipes" icon="flask" href="/sdk/recipes">
+    Runnable end-to-end snippets: init + decode, create an oracle, propose + finalize,
+    build a swap.
+  </Card>
+</CardGroup>

@@ -1,0 +1,149 @@
+---
+title: "Economics"
+description: "Bonds, stakes, slashing, the bond pool, work-to-earn emissions on a decaying curve, and the dynamic EMA-based KASS creation fee that is burned — with the real constants and formulas."
+---
+
+Kassandra's honesty guarantee is economic. Every claim is backed by KASS that can be
+slashed; slashed KASS is redistributed to honest actors; new KASS is minted to honest
+participants on a decaying curve; and a burned, demand-responsive creation fee is the
+deflationary counterweight. This page ties those pieces to the real constants and formulas
+in the code.
+
+## Bonds and stakes
+
+Everything staking uses **KASS**, escrowed into the oracle's `stake_vault` PDA:
+
+- A **proposer bond** (`Proposer.bond`) backs a proposed value. It becomes conditional
+  collateral in a challenge market and is what a proposer risks.
+- A **fact-submission stake** (`Fact.stake`) backs a submitted fact.
+- A **fact-vote stake** (`FactVote.stake`) is the weight a voter puts behind an approve or
+  duplicate vote.
+
+The oracle tracks a conservation accumulator, `total_oracle_stake`, which equals the vault
+balance until a challenge splits a bond into a conditional vault. Design invariant 3 is
+**conservation of KASS**: for any oracle,
+`Σ stakes_in = Σ returned + Σ to_bond_pool + Σ burned + Σ emitted` — no KASS is created or
+destroyed outside emissions (mint) and the fee/dead-end burns.
+
+## Slashing and the bond pool
+
+Slashed KASS flows into the `bond_pool` counter — an adversarial redistribution that makes
+dishonesty net-negative. The slash paths:
+
+| Path | Amount | Site |
+|---|---|---|
+| Rejected-fact submitter | full `fact.stake` (plus a slash on rejected-fact approve-voters) | `finalize_facts` |
+| AI-claim no-show | full `bond` + disqualified | `finalize_ai_claims` |
+| AI-claim flip | `bond * flip_slash_num / flip_slash_den` (default 1/2) | `finalize_ai_claims` |
+| Challenge disqualify | `bond − kass_fee` | `settle_challenge` |
+
+Each `Proposer` records its own `slashed_amount`, with the invariant that a proposer's
+contribution to `bond_pool` equals its `slashed_amount` on every slash path. Duplicate-
+dominant facts are **not** slashed — no penalty for honest redundancy.
+
+## Rewards: buckets and pro-rata claims
+
+On `Resolved` (only), the oracle stamps a distributable `reward_pool = bond_pool +
+reward_emission` and splits it into two cohort buckets by config weights (`reward.rs`):
+
+```
+proposer_bucket = reward_pool * PW / (PW + FW)
+fact_bucket     = reward_pool * FW / (PW + FW)
+```
+
+with default weights `PW = REWARD_PROPOSER_WEIGHT = 2` and `FW = REWARD_FACT_WEIGHT = 1`
+(all division in `u128`, floored; floor dust stays in the vault). Each bucket is distributed
+**pro-rata** within its cohort against a total stamped at resolution:
+
+- `proposer_reward(bond) = bond * proposer_bucket / total_correct_proposer_stake` — for
+  surviving proposers whose `claim_option == resolved_option`.
+- `fact_reward(stake) = stake * fact_bucket / total_approved_fact_stake` — for agreed-fact
+  submitters and approve-voters.
+
+An **empty cohort's bucket rolls into** the other (there is always ≥1 winner on `Resolved`).
+Claims are **per-participant pulls** after the oracle is terminal: `claim_proposer`,
+`claim_fact`, and `claim_fact_vote` each compute an entitlement, pay KASS from the vault, and
+close the account. No global iteration, no one-transaction cap.
+
+<Info>
+  On a dead-end there is **no reward** — `reward_pool == 0`, so every reward term is zero.
+  Stakers get only their non-slashed principal back; slashed amounts and the emission are
+  burned. See [Dead-end settlement](/concepts/dead-end-settlement).
+</Info>
+
+## Emissions: work-to-earn on a decaying curve
+
+KASS is fair-launched: **no presale**, all supply enters via participation emissions. The
+emission for an oracle is computed at **creation**, from the remaining reservoir
+(`create_oracle.rs`):
+
+```
+reward_emission = (total_supply_cap − supply) * emission_num / emission_den   (u128 floor)
+```
+
+It is minted immediately into the oracle's `stake_vault` (signed by the `[b"mint_authority"]`
+PDA), then folded into `reward_pool` on `Resolved` or **burned back** on `InvalidDeadend`.
+Because the emission is a fixed fraction of the *remaining* reservoir, it is a **decaying
+curve** — early honest participation is rewarded more and supply asymptotes toward
+`total_supply_cap`. Recommended defaults are `EMISSION_NUM = 1`, `EMISSION_DEN = 1_000_000`
+(1/1e6 of the reservoir per creation) and `TOTAL_SUPPLY_CAP = 1e18` (1e9 KASS at 9 decimals).
+
+<Warning>
+  Emissions are **disabled at genesis.** `init_protocol` sets `emission_num = 0`,
+  `emission_den = 1`, and `total_supply_cap = 0` — it does **not** default to the
+  `EMISSION_*`/`TOTAL_SUPPLY_CAP` consts. Emission is turned on later by governance via
+  `set_config` (`init_protocol.rs`; program-instructions reference).
+</Warning>
+
+## The dynamic creation fee (KASS, burned)
+
+Creating an oracle burns a **dynamic KASS fee** proportional to an EMA of recent creation
+activity. The EMA (`Protocol.fee_ema`) is a fixed-point accumulator scaled by
+`FEE_EMA_SCALE = 1e9` (so `fee_ema == 1e9` means 1.0 creation unit). Per creation the flow
+is: **decay → charge → bump → stamp** (`fee.rs`, `create_oracle.rs`):
+
+<Steps>
+  <Step title="Decay by elapsed time">
+    `decay_fee_ema(fee_ema, last_creation_unix, now)` halves the EMA once per
+    `FEE_EMA_HALFLIFE_SECS = 86_400` (one day) with linear interpolation inside a half-life.
+    It is monotonic non-increasing and never exceeds the stored value.
+  </Step>
+  <Step title="Charge the fee">
+    `fee_for_ema(decayed) = FEE_PER_EMA_UNIT * decayed / FEE_EMA_SCALE` KASS
+    (`FEE_PER_EMA_UNIT = 1e9`, i.e. 1 KASS per 1.0 EMA unit at 9 decimals). This KASS is
+    **burned** — paid to no one.
+  </Step>
+  <Step title="Bump and stamp">
+    `fee_ema = bumped_fee_ema(decayed) = decayed + FEE_EMA_INCREMENT` (one creation unit,
+    `1e9`), and `last_creation_unix = now`.
+  </Step>
+</Steps>
+
+The consequences: the fee is **0 at genesis** (`fee_ema` starts at 0, so early oracles are
+free — you bootstrap in and earn KASS via emissions without acquiring it first); it **rises
+with demand** as creations stack up; and it **relaxes as demand falls** through the daily
+half-life decay. The burn balances emissions with no USDC floor. Fee monotonicity — the fee
+moves only as a function of the creation-rate EMA and is never negative — is design
+invariant 5.
+
+## Governance
+
+KASS governs protocol config. The behavioral and monetary params live on the `Protocol`
+singleton and are updated wholesale by the DAO via `set_config` (`Ix=14`, bounds-checked).
+They do **not** touch oracles already in flight, which read from their creation-time snapshot.
+KASS governance (ideally via MetaDAO futarchy) is also the only authority that can resolve an
+[Invalid dead-end](/concepts/dead-end-settlement) oracle.
+
+## Where to go next
+
+<CardGroup cols={3}>
+  <Card title="Tokens" icon="coins" href="/concepts/tokens">
+    KASS and USDC — roles, demand drivers, and the burn-vs-mint balance.
+  </Card>
+  <Card title="Dead-end settlement" icon="ban" href="/concepts/dead-end-settlement">
+    What happens to bonds, stakes, and emissions when there is no valid resolution.
+  </Card>
+  <Card title="Constants" icon="ruler" href="/protocol/constants">
+    Every config constant with its value and meaning.
+  </Card>
+</CardGroup>

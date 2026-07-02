@@ -1,0 +1,84 @@
+---
+title: "Protocol reference"
+description: "Orientation to the Kassandra on-chain program — program ID, account model, instruction set, and how to read this reference."
+---
+
+This is the authoritative on-chain reference for the Kassandra program. Every claim here is drawn
+directly from `programs/kassandra/src/`. If you are looking for conceptual explanation, start with
+[Concepts](/concepts/lifecycle); if you want the client API, see the [SDK reference](/sdk/overview).
+
+## Program ID
+
+```text
+KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY
+```
+
+Declared in `programs/kassandra/src/lib.rs`. The program is built with **Pinocchio** (not Anchor);
+see [On-chain program](/architecture/program) for the framework rationale.
+
+## The account model
+
+Kassandra stores everything in **7 zero-copy account types**. Each is `#[repr(C)]`, `Pod + Zeroable`,
+and begins with an 8-byte header whose first byte is an `AccountType` tag (rejecting type-confusion).
+
+| Account | Tag | Role |
+| --- | --- | --- |
+| `Protocol` | 7 | Global singleton — canonical mints, fee EMA, governable params. |
+| `Oracle` | 1 | A single dispute/question, its phase, and a frozen snapshot of governable params. |
+| `Proposer` | 2 | One participant's option + KASS bond within an oracle. |
+| `Fact` | 3 | A submitted supporting fact and its vote tallies. |
+| `FactVote` | 4 | One stake-weighted vote on a fact. |
+| `AiClaim` | 5 | A proposer's pinned-model AI claim + reproducibility metadata. |
+| `Market` | 6 | A challenge decision-market binding for one `AiClaim`. |
+
+See [Accounts](/protocol/accounts) for the full field tables.
+
+## The instruction set at a glance
+
+The program exposes **23 instructions** (`Ix` = 0–22). The first byte of `instruction_data` selects
+the variant; the rest is a per-instruction payload.
+
+| Group | Instructions |
+| --- | --- |
+| Init / config / governance | `InitProtocol` (9), `CreateOracle` (10), `SetGovernance` (13), `SetConfig` (14), `KassPrice` (16) |
+| Proposal lifecycle | `Propose` (11), `FinalizeProposals` (12), `AdvancePhase` (7) |
+| Fact phase | `SubmitFact` (0), `VoteFact` (1), `FinalizeFacts` (2) |
+| AI claim | `SubmitAiClaim` (3), `FinalizeAiClaims` (8) |
+| Challenge | `OpenChallenge` (4), `SettleChallenge` (5) |
+| Resolution | `FinalizeOracle` (6), `ResolveDeadend` (15) |
+| Claim / close / sweep | `ClaimProposer` (17), `ClaimFact` (18), `ClaimFactVote` (19), `CloseAiClaim` (20), `CloseMarket` (21), `SweepOracle` (22) |
+
+See [Instructions](/protocol/instructions) for the complete per-instruction reference.
+
+## How to read this reference
+
+<Note>
+Discriminant bytes and error codes are a **stable public contract** — never renumbered, only appended
+(`instruction.rs`, `error.rs`). **Signer** flags are enforced on-chain (`assert_signer`); the
+**writable** flag is enforced by the Solana runtime, so the account tables list the *intended* metas
+inferred from each processor. Byte offsets and sizes are pinned by
+`programs/kassandra/tests/state_layout.rs`.
+</Note>
+
+## Reference pages
+
+<CardGroup cols={2}>
+  <Card title="Instructions" icon="list-check" href="/protocol/instructions">
+    All 23 instructions: accounts, payloads, phase gates, and errors.
+  </Card>
+  <Card title="Accounts" icon="database" href="/protocol/accounts">
+    The 7 account structs with full field tables + byte sizes.
+  </Card>
+  <Card title="Phases" icon="diagram-project" href="/protocol/phases">
+    The `Phase` enum and the full transition map.
+  </Card>
+  <Card title="PDAs" icon="key" href="/protocol/pdas">
+    Every on-chain PDA and its exact seed bytes.
+  </Card>
+  <Card title="Errors" icon="triangle-exclamation" href="/protocol/errors">
+    All 36 `KassandraError` codes.
+  </Card>
+  <Card title="Constants" icon="sliders" href="/protocol/constants">
+    Every config constant and governable field.
+  </Card>
+</CardGroup>
