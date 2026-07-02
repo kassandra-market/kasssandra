@@ -6,7 +6,9 @@ import { useWriteAction } from '../../../hooks/useWriteAction'
 import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
 import { WriteStatusRegion } from './WriteStatusRegion'
-import { parseAmount } from './amount'
+import { parseAmount, balanceGateError } from './amount'
+import { useKassBalance } from '../../../hooks/useKassBalance'
+import { KassBalanceLine } from './kassBalance'
 
 const enc = new TextEncoder()
 
@@ -36,7 +38,13 @@ export function SubmitFactForm({
   oracle: Oracle
   refetch: () => void
 }) {
-  const action = useWriteAction(refetch)
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(
+    String(oracle.kassMint),
+  )
+  const action = useWriteAction(() => {
+    refetch()
+    refetchBalance()
+  })
   const [mode, setMode] = useState<HashMode>('text')
   const [text, setText] = useState('')
   const [hex, setHex] = useState('')
@@ -45,6 +53,7 @@ export function SubmitFactForm({
   const [errors, setErrors] = useState<{ hash?: string; uri?: string; stake?: string }>({})
 
   const uriBytes = enc.encode(uri).length
+  const balanceError = balanceGateError(parseAmount(stake).value, balance, 'stake')
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -162,7 +171,7 @@ export function SubmitFactForm({
             )}
           </Field>
 
-          <Field label="Stake (KASS base units)" error={errors.stake}>
+          <Field label="Stake (KASS base units)" error={errors.stake ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
@@ -173,9 +182,10 @@ export function SubmitFactForm({
               />
             )}
           </Field>
+          <KassBalanceLine balance={balance} loading={balanceLoading} />
 
           <div>
-            <SubmitButton verb="Submit fact" status={action.status} />
+            <SubmitButton verb="Submit fact" status={action.status} disabled={Boolean(balanceError)} />
           </div>
           <WriteStatusRegion status={action.status} successVerb="Submitted" />
         </form>

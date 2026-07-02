@@ -6,7 +6,9 @@ import { useWriteAction } from '../../../hooks/useWriteAction'
 import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
 import { WriteStatusRegion } from './WriteStatusRegion'
-import { parseAmount } from './amount'
+import { parseAmount, balanceGateError } from './amount'
+import { useKassBalance } from '../../../hooks/useKassBalance'
+import { KassBalanceLine } from './kassBalance'
 
 /**
  * Per-fact voting control (FactVoting phase only): Approve or flag Duplicate +
@@ -24,10 +26,17 @@ export function VoteControl({
   factPubkey: string
   refetch: () => void
 }) {
-  const action = useWriteAction(refetch)
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(
+    String(kassMint),
+  )
+  const action = useWriteAction(() => {
+    refetch()
+    refetchBalance()
+  })
   const [kind, setKind] = useState<number>(VOTE_APPROVE)
   const [stake, setStake] = useState('')
   const [stakeError, setStakeError] = useState<string | undefined>()
+  const balanceError = balanceGateError(parseAmount(stake).value, balance, 'stake')
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -79,7 +88,7 @@ export function VoteControl({
               Duplicate
             </button>
           </div>
-          <Field label="Stake (KASS base units)" error={stakeError}>
+          <Field label="Stake (KASS base units)" error={stakeError ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
@@ -90,8 +99,9 @@ export function VoteControl({
               />
             )}
           </Field>
+          <KassBalanceLine balance={balance} loading={balanceLoading} />
           <div>
-            <SubmitButton verb="Cast vote" status={action.status} />
+            <SubmitButton verb="Cast vote" status={action.status} disabled={Boolean(balanceError)} />
           </div>
           <WriteStatusRegion status={action.status} successVerb="Voted" />
         </form>

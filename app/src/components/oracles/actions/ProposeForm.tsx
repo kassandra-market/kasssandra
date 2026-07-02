@@ -6,7 +6,9 @@ import { useWriteAction } from '../../../hooks/useWriteAction'
 import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
 import { WriteStatusRegion } from './WriteStatusRegion'
-import { parseAmount } from './amount'
+import { parseAmount, balanceGateError } from './amount'
+import { useKassBalance } from '../../../hooks/useKassBalance'
+import { KassBalanceLine } from './kassBalance'
 
 /**
  * Propose a categorical option + escrow a KASS bond (Proposal phase only).
@@ -21,10 +23,17 @@ export function ProposeForm({
   oracle: Oracle
   refetch: () => void
 }) {
-  const action = useWriteAction(refetch)
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(
+    String(oracle.kassMint),
+  )
+  const action = useWriteAction(() => {
+    refetch()
+    refetchBalance()
+  })
   const [option, setOption] = useState(0)
   const [bond, setBond] = useState('')
   const [bondError, setBondError] = useState<string | undefined>()
+  const balanceError = balanceGateError(parseAmount(bond).value, balance, 'bond')
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -77,7 +86,7 @@ export function ProposeForm({
           <Field
             label="Bond (KASS base units)"
             hint="Raw, unscaled — as shown in the bond pool above."
-            error={bondError}
+            error={bondError ?? balanceError}
           >
             {(ids) => (
               <TextInput
@@ -89,8 +98,9 @@ export function ProposeForm({
               />
             )}
           </Field>
+          <KassBalanceLine balance={balance} loading={balanceLoading} />
           <div className="flex items-center gap-3">
-            <SubmitButton verb="Propose" status={action.status} />
+            <SubmitButton verb="Propose" status={action.status} disabled={Boolean(balanceError)} />
           </div>
           <WriteStatusRegion status={action.status} successVerb="Proposed" />
         </form>

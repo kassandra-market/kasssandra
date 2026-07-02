@@ -78,6 +78,13 @@ oracle; navigates to its detail on success.
   hash) + an off-chain URI (≤200 bytes) + a KASS stake.
 - **Vote** (FactVoting phase): Approve or flag Duplicate on each fact + a KASS stake.
 
+Each of these three staking forms shows the connected wallet's **KASS balance** (`Your KASS: …`,
+raw base units) below the bond/stake input and **gates the submit** when the entered amount exceeds
+that balance (or the wallet holds no KASS) — an inline message instead of a doomed on-chain tx.
+The check is additive to the existing client-side validation and never hard-blocks on a still-loading
+balance (the tx remains the ultimate guard); the balance refetches after a successful bond/stake
+(`src/hooks/useKassBalance.ts` over `src/data/balance.ts`).
+
 **Crank / finalize** (permissionless, one per pre-Resolved phase): finalize proposals → advance →
 finalize facts → finalize AI claims → finalize oracle, advancing the oracle toward Resolved.
 Near-cap proposer sets (past ~24) show a v0/ALT note instead of a legacy-tx button. The oracle
@@ -161,7 +168,6 @@ payouts. Every write wraps the pure action layer (`src/data/actions/*.ts` `build
 Read-only browsing still works fully disconnected.
 
 **Next / deferred:** a standing devnet deployment (the app points at a configurable cluster; the
-E2Es use surfpool); a KASS-balance affordance on the staking forms (the tx error surfaces cleanly
-without it); and a richer
+E2Es use surfpool); and a richer
 challenge-market trading UI (the current open/settle surface is intentionally thin). The app only
 ever consumes the built `@kassandra/sdk`; programs/runner/SDK-src are untouched.
