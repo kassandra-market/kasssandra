@@ -1,6 +1,8 @@
+import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Button, Card, SectionHeader } from '../components/ui'
 import { PhaseChip } from '../components/oracles/PhaseChip'
+import { DashboardStats, OracleFilters } from '../components/oracles/DashboardStats'
 import { useOracles } from '../hooks/useOracles'
 import type { OracleSummary } from '../data/oracles'
 import { CLUSTER_LABELS, useCluster } from '../lib/cluster'
@@ -10,6 +12,13 @@ import {
   phaseView,
   relativeDeadline,
 } from '../lib/oracleView'
+import {
+  deriveStats,
+  filterByPhaseGroup,
+  sortOracles,
+  type PhaseFilter,
+  type SortBy,
+} from '../lib/oracleStats'
 import { Phase } from '@kassandra/sdk'
 
 const focusRing =
@@ -83,7 +92,40 @@ function SkeletonCard() {
   )
 }
 
-const gridClass = 'mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'
+/** A quiet skeleton for the stats strip (loading state). */
+function SkeletonStats() {
+  return (
+    <div
+      className="mt-10 animate-pulse rounded-card border border-pebble bg-pure-card px-6 py-5"
+      aria-hidden="true"
+    >
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <div className="h-3 w-32 rounded-sm bg-soft-cream" />
+          <div className="h-8 w-40 rounded-sm bg-soft-cream" />
+        </div>
+        <div className="flex flex-wrap gap-6">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="flex flex-col gap-1">
+              <div className="h-6 w-8 rounded-sm bg-soft-cream" />
+              <div className="h-3 w-16 rounded-sm bg-soft-cream" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Case-insensitive text match against an oracle's phase label + address. */
+function matchesQuery(summary: OracleSummary, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (q === '') return true
+  const haystack = `${phaseView(summary.oracle.phase).label} ${summary.pubkey}`.toLowerCase()
+  return haystack.includes(q)
+}
+
+const gridClass = 'mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'
 
 /**
  * The oracle browser at `/oracles` — a `SectionHeader` intro over a responsive
@@ -94,6 +136,20 @@ export default function Oracles() {
   const { cluster } = useCluster()
   const { search } = useLocation()
   const { data, loading, error, refetch } = useOracles()
+
+  // Client-side view state — search + phase filter + sort, all composed over the
+  // already-fetched list (no re-fetch). `search` (URL query) is unrelated: it
+  // preserves `?mock` through the card links.
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<PhaseFilter>('all')
+  const [sort, setSort] = useState<SortBy>('deadline')
+
+  const stats = useMemo(() => deriveStats(data ?? []), [data])
+  const visible = useMemo(() => {
+    if (!data) return []
+    const searched = data.filter((s) => matchesQuery(s, query))
+    return sortOracles(filterByPhaseGroup(searched, filter), sort)
+  }, [data, query, filter, sort])
 
   return (
     <main className="mx-auto max-w-[1200px] px-6 py-16 md:py-20">
@@ -117,7 +173,8 @@ export default function Oracles() {
 
       {loading ? (
         <>
-          <p className="mt-12 text-center font-inter text-[15px] text-bronze" role="status">
+          <SkeletonStats />
+          <p className="mt-8 text-center font-inter text-[15px] text-bronze" role="status">
             Reading the chain…
           </p>
           <div className={gridClass} aria-hidden="true">
@@ -153,11 +210,33 @@ export default function Oracles() {
           </Card>
         </div>
       ) : (
-        <div className={gridClass}>
-          {data.map((summary) => (
-            <OracleCard key={summary.pubkey} summary={summary} search={search} />
-          ))}
-        </div>
+        <>
+          <DashboardStats stats={stats} />
+          <OracleFilters
+            search={query}
+            onSearch={setQuery}
+            filter={filter}
+            onFilter={setFilter}
+            sort={sort}
+            onSort={setSort}
+            shown={visible.length}
+          />
+          {visible.length === 0 ? (
+            <div className="mx-auto mt-12 max-w-[560px] text-center">
+              <Card>
+                <p className="font-inter text-[15px] text-bronze">
+                  No oracles match the current search and filters.
+                </p>
+              </Card>
+            </div>
+          ) : (
+            <div className={gridClass}>
+              {visible.map((summary) => (
+                <OracleCard key={summary.pubkey} summary={summary} search={search} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </main>
   )

@@ -40,9 +40,15 @@ separate cacheable chunks (`solana` = wallet-adapter + web3.js + deps, `sdk` =
 ## Routes
 
 - `/` — the Kassandra landing page (`src/pages/Landing.tsx`).
-- `/oracles` — the oracle browser (`src/pages/Oracles.tsx`): a responsive grid of Delphi
-  cards, one per decoded on-chain oracle (phase chip, relative deadline, proposer/fact/option
-  counts, resolved option). Read-only.
+- `/oracles` — the oracle browser (`src/pages/Oracles.tsx`): a **dashboard stats strip** over a
+  responsive grid of Delphi cards, one per decoded on-chain oracle (phase chip, relative
+  deadline, proposer/fact/option counts, resolved option). The stats strip (`DashboardStats`,
+  computed by the pure `src/lib/oracleStats.ts` `deriveStats` — client-side over the already
+  fetched list, no extra RPC) shows the by-phase-group counts, the total bonds/stake at risk
+  across active oracles (raw base units, unscaled), and the resolved count. A toolbar composes
+  a **text search** + accessible **phase-filter chips** (All / Proposal / In dispute / AI claim /
+  Challenged / Resolved — `aria-pressed` toggle buttons) + a **sort** (deadline / bonds at risk):
+  search → filter → sort all apply to the grid client-side. Read-only.
 - `/oracles/:pubkey` — the oracle detail view (`src/pages/OracleDetail.tsx`): an editorial
   layout of one oracle + its facts, proposers, AI claims, and challenge market, with
   copy-on-click truncated pubkeys/hashes. Read-only browsing works fully disconnected; the
