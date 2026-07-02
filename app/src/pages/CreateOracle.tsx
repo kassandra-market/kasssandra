@@ -8,6 +8,7 @@ import { Field, SubmitButton, TextInput } from '../components/oracles/actions/fo
 import { WriteStatusRegion } from '../components/oracles/actions/WriteStatusRegion'
 import { useWriteAction } from '../hooks/useWriteAction'
 import { hashHex } from '../lib/oracleView'
+import { rememberNonce } from '../lib/nonceStore'
 import { isMockMode } from '../data/mockOracles'
 import {
   buildCreateOracleIxs,
@@ -65,7 +66,12 @@ export default function CreateOracle() {
 
   const action = useWriteAction(() => {
     const built = builtRef.current
-    if (built) navigate(`/oracles/${built.oracle.toString()}`)
+    if (built) {
+      // Remember the (random) nonce so the finalize UI can crank this oracle
+      // later — the nonce isn't stored on-chain and is beyond the PDA scan.
+      rememberNonce(built.oracle.toString(), built.nonce)
+      navigate(`/oracles/${built.oracle.toString()}`)
+    }
   })
 
   // A stable, freshly-random nonce per page session (the Oracle PDA seed).

@@ -1,6 +1,7 @@
 import { Phase, type Oracle } from '@kassandra/sdk'
 import { Card } from '../../ui'
 import { phaseView } from '../../../lib/oracleView'
+import { recallNonce } from '../../../lib/nonceStore'
 import {
   MAX_LEGACY_TAIL,
   buildAdvancePhaseIxs,
@@ -98,7 +99,12 @@ export function OracleActions({
               successVerb="Finalized"
               refetch={refetch}
               build={() =>
-                buildFinalizeFactsIxs({ oracle: pubkey, kassMint, facts: factsTail })
+                buildFinalizeFactsIxs({
+                  oracle: pubkey,
+                  kassMint,
+                  facts: factsTail,
+                  oracleNonce: recallNonce(pubkey) ?? undefined,
+                })
               }
             />
           </>
@@ -119,7 +125,14 @@ export function OracleActions({
             successVerb="Finalized"
             nearCap={proposersNearCap}
             refetch={refetch}
-            build={() => buildFinalizeOracleIxs({ oracle: pubkey, kassMint, proposers })}
+            build={() =>
+              buildFinalizeOracleIxs({
+                oracle: pubkey,
+                kassMint,
+                proposers,
+                oracleNonce: recallNonce(pubkey) ?? undefined,
+              })
+            }
           />
         ) : (
           <Note>Participation is closed — this oracle is in the {phaseLabel} phase.</Note>
