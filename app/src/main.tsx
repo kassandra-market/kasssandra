@@ -12,14 +12,16 @@ import '@fontsource/inter/500.css'
 import '@fontsource/roboto-mono/400.css'
 
 import './index.css'
+import Landing from './pages/Landing.tsx'
 import StyleGuide from './pages/StyleGuide.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="/styleguide" element={<StyleGuide />} />
-        <Route path="*" element={<Navigate to="/styleguide" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

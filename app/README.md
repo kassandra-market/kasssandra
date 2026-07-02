@@ -1,32 +1,55 @@
-# React + TypeScript + Vite
+# Kassandra UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The web UI for **Kassandra** — a decentralized, AI-assisted **optimistic oracle** on Solana.
+Vite + React 19 + TypeScript + Tailwind v4 SPA, styled in the **Delphi** visual language
+("warm parchment editorial with ember sparks").
 
-Currently, two official plugins are available:
+## Run / build
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+pnpm --filter app dev        # dev server (HMR)
+pnpm --filter app typecheck  # tsc -b
+pnpm --filter app lint       # oxlint
+pnpm --filter app build      # tsc -b && vite build && verify-css guard
+pnpm --filter app preview    # serve the production build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`build` runs `scripts/verify-css.mjs` after `vite build`: it asserts the Tailwind v4
+`@tailwindcss/vite` plugin actually compiled (real utilities + lowered `@theme` vars in the
+emitted CSS, no literal `@theme{}`/`@tailwind` leaks). If it fails, the app would ship unstyled.
+
+Fonts are bundled locally via `@fontsource` (Cormorant Garamond 300/400, Inter 400/500,
+Roboto Mono 400) — the build is fully offline (no hotlinked CDNs or images).
+
+## Routes
+
+- `/` — the Kassandra landing page (`src/pages/Landing.tsx`).
+- `/styleguide` — the living design-system gallery (all tokens + primitives).
+
+## The Delphi design system
+
+- **Tokens** live in `src/index.css` as a Tailwind v4 CSS-first `@theme` block: the color
+  palette (parchment canvas, chestnut the only button fill, ember/saffron accents…), the type
+  scale, the radii vocabulary `{4,8,12,16,70}px`, the three font families, and the peach
+  `--shadow-bloom`.
+- **Primitives** in `src/components/ui/` (barrel `index.ts`): `Button`
+  (PrimaryChestnut / GhostOutline / NavPill), `Card`, `EyebrowTag`, `SectionHeader`,
+  `AvatarBubble` (+ `VerifiedDot`), `TriggerPreviewCard`.
+- **Landing sections** in `src/components/landing/`: `NavBar`, `Hero` (the signature
+  constellation of scattered question cards), `HowItWorks`, `WhyKassandra`, `TrustPanel`
+  (the centered portrait panel — the one place a gradient is allowed), `SiteFooter`.
+
+Design rules (from `docs/design/delphi-style-guide.md`): parchment everywhere (pure-card only
+for lifted cards); chestnut is the ONLY button fill; flat surfaces + hairline pebble borders
+(no heavy drop shadows — only the peach button bloom + the portrait-panel gradient); serif only
+for display ≥20px, Inter for all body; ≤2 text colors per block; ember/saffron as 1–2
+punctuation moments per viewport.
+
+## Slice 1 (done) vs the next milestone
+
+**Slice 1 (this UI):** the design-system foundation + the landing page — static, composed
+from the primitives. Wallet-adapter and `@kassandra/sdk` deps are present and linked
+(`workspace:*`), but **not wired**: the nav "Connect wallet" pill is a placeholder.
+
+**Next milestone:** the functional dApp — wallet connect + real RPC reads/writes via
+`@kassandra/sdk` (browse oracles/disputes, propose/challenge/vote/settle).
