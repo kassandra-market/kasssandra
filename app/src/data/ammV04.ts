@@ -199,6 +199,26 @@ export function marginProgress(
   return Number(diverge) / Number(need);
 }
 
+/**
+ * The settle verdict, mirroring `settle_challenge.rs` EXACTLY: disqualify iff
+ * `fail_twap * DEN > pass_twap * (DEN + NUM)` (strict `>`). Prefer this over
+ * thresholding the float {@link marginProgress} at `>= 1` — the bigint compare
+ * matches the on-chain boundary precisely, so at exact equality (measure-zero on
+ * PRICE_SCALE integers) the proposer SURVIVES, as the program decides. Returns
+ * `false` when a TWAP is unavailable or the PASS price is zero (the settle guard
+ * — a market with no pass signal always survives).
+ */
+export function willDisqualify(
+  failTwap: bigint | null,
+  passTwap: bigint | null,
+  marginNum: bigint,
+  marginDen: bigint,
+): boolean {
+  if (failTwap === null || passTwap === null) return false;
+  if (passTwap <= 0n) return false; // zero pass price always survives (settle guard)
+  return failTwap * marginDen > passTwap * (marginDen + marginNum);
+}
+
 /** The decoded pass/fail pools of one {@link Market} (`null` when absent). */
 export interface MarketAmms {
   pass: AmmV04 | null;

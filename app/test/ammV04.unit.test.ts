@@ -29,6 +29,7 @@ import {
   instantaneousPrice,
   marginProgress,
   twapPrice,
+  willDisqualify,
   type AmmV04,
 } from '../src/data/ammV04'
 
@@ -193,5 +194,47 @@ describe('marginProgress', () => {
 
   it('returns 0 when pass TWAP is zero (always survives)', () => {
     expect(marginProgress(PRICE_SCALE, 0n, NUM, DEN)).toBe(0)
+  })
+})
+
+describe('willDisqualify (exact on-chain boundary: fail*DEN > pass*(DEN+NUM))', () => {
+  const NUM = 1n
+  const DEN = 10n
+
+  it('SURVIVES at exact equality (fail == pass*1.1) — strict `>`, measure-zero boundary', () => {
+    const pass = PRICE_SCALE // 1.0
+    const fail = (PRICE_SCALE * 11n) / 10n // exactly pass*(DEN+NUM)/DEN == 1.1x
+    // marginProgress reads ~1 here, but the on-chain strict `>` does NOT disqualify.
+    expect(marginProgress(fail, pass, NUM, DEN)).toBeCloseTo(1, 6)
+    expect(willDisqualify(fail, pass, NUM, DEN)).toBe(false)
+  })
+
+  it('DISQUALIFIES one tick past the boundary', () => {
+    const pass = PRICE_SCALE
+    const fail = (PRICE_SCALE * 11n) / 10n + 1n // exactly one PRICE_SCALE unit over
+    expect(willDisqualify(fail, pass, NUM, DEN)).toBe(true)
+  })
+
+  it('SURVIVES one tick below the boundary', () => {
+    const pass = PRICE_SCALE
+    const fail = (PRICE_SCALE * 11n) / 10n - 1n
+    expect(willDisqualify(fail, pass, NUM, DEN)).toBe(false)
+  })
+
+  it('SURVIVES a near-margin fail (1.09 vs 1.0)', () => {
+    const pass = PRICE_SCALE
+    const fail = (PRICE_SCALE * 109n) / 100n // 1.09 < 1.10 margin
+    expect(willDisqualify(fail, pass, NUM, DEN)).toBe(false)
+  })
+
+  it('SURVIVES with no divergence / below-pass fail', () => {
+    expect(willDisqualify(PRICE_SCALE, PRICE_SCALE, NUM, DEN)).toBe(false)
+    expect(willDisqualify(PRICE_SCALE / 2n, PRICE_SCALE, NUM, DEN)).toBe(false)
+  })
+
+  it('SURVIVES on a null TWAP or zero pass price (settle guard)', () => {
+    expect(willDisqualify(null, PRICE_SCALE, NUM, DEN)).toBe(false)
+    expect(willDisqualify(PRICE_SCALE, null, NUM, DEN)).toBe(false)
+    expect(willDisqualify(PRICE_SCALE * 2n, 0n, NUM, DEN)).toBe(false)
   })
 })

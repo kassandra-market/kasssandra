@@ -4,6 +4,7 @@ import {
   PRICE_SCALE,
   marginProgress,
   twapPrice,
+  willDisqualify,
   type AmmV04,
 } from '../../../data/ammV04'
 import {
@@ -382,7 +383,16 @@ export function ChallengeTradeControls({
     oracle.marketThresholdDen,
   )
   const twapReady = passTwap !== null && failTwap !== null
-  const wouldDisqualify = twapReady && progress >= 1
+  // The verdict uses the exact bigint on-chain boundary (strict `>`), not the
+  // float `progress >= 1` — at exact equality the proposer survives on-chain.
+  const wouldDisqualify =
+    twapReady &&
+    willDisqualify(
+      failTwap,
+      passTwap,
+      oracle.marketThresholdNum,
+      oracle.marketThresholdDen,
+    )
   const near = twapReady && progress >= NEAR_MARGIN
 
   const nowUnix = BigInt(Math.floor(Date.now() / 1000))
