@@ -6,7 +6,7 @@
  *
  * Grouping mirrors the on-chain {@link Phase} lifecycle
  * (`sdk/src/constants.ts`): Proposal → FactProposal → FactVoting → AiClaim →
- * FinalRecompute → Challenge → Resolved / InvalidDeadend. The mid-flight phases
+ * Challenge → FinalRecompute → Resolved / InvalidDeadend. The mid-flight phases
  * collapse into a handful of human-sensible groups; the two terminal phases
  * (Resolved, InvalidDeadend) are "settled" and excluded from the active
  * bonds-at-risk figure.

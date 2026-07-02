@@ -56,7 +56,8 @@ export function DashboardStats({ stats }: { stats: OracleStats }) {
             {groupDigits(stats.bondsAtRisk)}
           </span>
           <span className="font-inter text-[12px] text-bronze">
-            raw base units (unscaled) · across {stats.counts.total - stats.resolvedCount} active
+            raw base units (unscaled) · across{' '}
+            {stats.counts.total - stats.resolvedCount - stats.counts.invalidDeadend} active
           </span>
         </div>
 
