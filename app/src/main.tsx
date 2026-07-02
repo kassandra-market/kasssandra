@@ -17,6 +17,7 @@ import Layout from './components/layout/Layout.tsx'
 import Landing from './pages/Landing.tsx'
 import StyleGuide from './pages/StyleGuide.tsx'
 import Oracles from './pages/Oracles.tsx'
+import CreateOracle from './pages/CreateOracle.tsx'
 import OracleDetail from './pages/OracleDetail.tsx'
 
 createRoot(document.getElementById('root')!).render(
@@ -27,6 +28,7 @@ createRoot(document.getElementById('root')!).render(
           <Route element={<Layout />}>
             <Route path="/" element={<Landing />} />
             <Route path="/oracles" element={<Oracles />} />
+            <Route path="/oracles/new" element={<CreateOracle />} />
             <Route path="/oracles/:pubkey" element={<OracleDetail />} />
             <Route path="/styleguide" element={<StyleGuide />} />
             <Route path="*" element={<Navigate to="/" replace />} />
