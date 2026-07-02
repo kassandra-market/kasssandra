@@ -8,6 +8,7 @@ import { Chip } from '../components/oracles/Chip'
 import { PhaseChip } from '../components/oracles/PhaseChip'
 import { PhaseTimeline } from '../components/oracles/PhaseTimeline'
 import { EconomicPanel } from '../components/oracles/EconomicPanel'
+import { ChallengeMarketPanel } from '../components/oracles/ChallengeMarketPanel'
 import { Truncated } from '../components/oracles/Truncated'
 import { verdictFor } from '../lib/phaseTimeline'
 import { ClaimControl, CloseControl, OracleActions, VoteControl } from '../components/oracles/actions'
@@ -633,10 +634,14 @@ function OracleBody({
         )}
       </Section>
 
-      {/* Market */}
+      {/* Market — the existing card (accounts + close control) plus the CU1
+          live visualization panel (prices / TWAP / margin / countdown), additive. */}
       <Section title="Challenge market">
         {market ? (
-          <MarketCard pubkey={market.pubkey} market={market.market} settle={settle} />
+          <>
+            <MarketCard pubkey={market.pubkey} market={market.market} settle={settle} />
+            <ChallengeMarketPanel market={market.market} oracle={oracle} />
+          </>
         ) : (
           emptyNote('No challenge market opened for this oracle.')
         )}

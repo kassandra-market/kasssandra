@@ -61,6 +61,19 @@ separate cacheable chunks (`solana` = wallet-adapter + web3.js + deps, `sdk` =
   chart lib). Read-only browsing works fully disconnected; the wallet-signed **write forms**
   (below) are additive on top.
 
+  The **challenge-market** section now shows a **live visualization** on top of the existing
+  market card (`components/oracles/ChallengeMarketPanel.tsx` over the CU1 read layer): the pass
+  vs fail pools' **instantaneous (spot) price** + slot-weighted **TWAP** (decimals-aware; a
+  pre-start-delay pool reads "TWAP forming…"), a flat Delphi **TWAP → disqualify-margin bar**
+  (how close the FAIL TWAP is to exceeding PASS by the market margin `num/den`; the single ember
+  accent lights when it nears/clears the margin — settling would disqualify the proposer), a
+  **countdown** to the TWAP window close, the **challenger's escrowed USDC**, and each pool's raw
+  **reserves**. The v0.4 MetaDAO `Amm` accounts are decoded in `src/data/ammV04.ts`
+  (`decodeAmmV04` + the `instantaneousPrice` / `twapPrice` / `marginProgress` helpers, mirroring
+  the on-chain `get_twap()` / `settle_challenge` math + the `cpi/metadao.rs` offsets), fetched by
+  the `src/hooks/useMarketAmms.ts` hook (guarded, light polling, no websocket). Chart-lib-free
+  (divs + tokens); read-only; degrades gracefully (no market, pre-start-delay, or settled).
+
 ### RPC / cluster config
 
 The browse views read the chain through the connection wired in FA1: the NavBar cluster
