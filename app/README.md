@@ -51,8 +51,15 @@ separate cacheable chunks (`solana` = wallet-adapter + web3.js + deps, `sdk` =
   search → filter → sort all apply to the grid client-side. Read-only.
 - `/oracles/:pubkey` — the oracle detail view (`src/pages/OracleDetail.tsx`): an editorial
   layout of one oracle + its facts, proposers, AI claims, and challenge market, with
-  copy-on-click truncated pubkeys/hashes. Read-only browsing works fully disconnected; the
-  wallet-signed **write forms** (below) are additive on top.
+  copy-on-click truncated pubkeys/hashes. Under the title it carries an at-a-glance **verdict
+  banner** (Resolved · Option N / dead-ended / the in-flight phase + what's next), a flat
+  **phase timeline** (`components/oracles/PhaseTimeline.tsx` over the pure
+  `lib/phaseTimeline.ts` model — Proposal → … → Resolved with the current phase highlighted +
+  its deadline and a distinct dead-end terminal), and an **economic picture**
+  (`components/oracles/EconomicPanel.tsx` — flat div/token bars of bond pool vs dispute bonds
+  vs total stake, plus the proposer bond-by-option split with the leading option accented; no
+  chart lib). Read-only browsing works fully disconnected; the wallet-signed **write forms**
+  (below) are additive on top.
 
 ### RPC / cluster config
 

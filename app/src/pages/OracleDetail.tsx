@@ -1,12 +1,15 @@
 import type { ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CLAIM_OPTION_NONE, Phase, pda } from '@kassandra/sdk'
-import type { AiClaim, Fact, Market, Proposer } from '@kassandra/sdk'
+import type { AiClaim, Fact, Market, Oracle, Proposer } from '@kassandra/sdk'
 import type { Address } from '@solana/web3.js'
 import { AvatarBubble, Button, Card, EyebrowTag } from '../components/ui'
 import { Chip } from '../components/oracles/Chip'
 import { PhaseChip } from '../components/oracles/PhaseChip'
+import { PhaseTimeline } from '../components/oracles/PhaseTimeline'
+import { EconomicPanel } from '../components/oracles/EconomicPanel'
 import { Truncated } from '../components/oracles/Truncated'
+import { verdictFor } from '../lib/phaseTimeline'
 import { ClaimControl, CloseControl, OracleActions, VoteControl } from '../components/oracles/actions'
 import { useOracleDetail } from '../hooks/useOracles'
 import { OracleNotFoundError } from '../data/oracles'
@@ -46,6 +49,34 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
     <div className="rounded-card border border-pebble bg-pure-card p-4">
       <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">{label}</div>
       <div className="mt-1 font-serif text-subheading font-light text-sepia">{value}</div>
+    </div>
+  )
+}
+
+/**
+ * The at-a-glance verdict banner — a calm h2 under the title (NOT a second h1).
+ * Resolved reads a confirmed chestnut "Resolved · Option N"; a dead-end reads
+ * muted stone; in-flight shows the current phase + a one-line "what's next".
+ */
+function VerdictBanner({ oracle }: { oracle: Oracle }) {
+  const v = verdictFor(oracle)
+  // In-flight stays a quiet bronze stripe — the header PhaseChip already carries
+  // the single ember "Challenged" spark, so the banner never doubles it up.
+  const accent =
+    v.kind === 'resolved'
+      ? 'border-l-chestnut'
+      : v.kind === 'deadend'
+        ? 'border-l-stone'
+        : 'border-l-bronze'
+  const titleClass =
+    v.kind === 'resolved' ? 'text-chestnut' : v.kind === 'deadend' ? 'text-stone' : 'text-sepia'
+  return (
+    <div
+      role="status"
+      className={`mt-6 rounded-card border border-pebble border-l-4 ${accent} bg-pure-card py-4 pl-5 pr-4`}
+    >
+      <h2 className={`font-serif text-subheading font-light ${titleClass}`}>{v.title}</h2>
+      <p className="mt-1 font-inter text-[13px] text-bronze">{v.detail}</p>
     </div>
   )
 }
@@ -491,6 +522,10 @@ function OracleBody({
         ) : null}
       </header>
 
+      {/* At-a-glance verdict (h2 banner) + lifecycle timeline — additive header. */}
+      <VerdictBanner oracle={oracle} />
+      <PhaseTimeline oracle={oracle} />
+
       {/* Stats */}
       <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Options" value={oracle.optionsCount} />
@@ -515,6 +550,9 @@ function OracleBody({
           </p>
         </Card>
       </div>
+
+      {/* Economic picture — flat proportion viz over the decoded economics. */}
+      <EconomicPanel oracle={oracle} proposers={proposers.map((p) => p.proposer)} />
 
       {/* Participate — the wallet-signed write forms + permissionless finalize
           cranks, phase-gated (WF2/RF1). The finalize tails are the proposer /
