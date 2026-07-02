@@ -32,3 +32,31 @@
 
 ## Execution note
 Pure build optimization. Build the SDK first. The deliverable is a smaller entry chunk (well under 500 kB) via route `lazy()` + vendor `manualChunks`, with EVERY route still rendering identically (verify) + the offline suite + `verify-css` green + NO behavior/core change. Report the before→after chunk sizes. Append a CS1 delta.
+
+## CS1 delta — DONE (2026-07-02)
+
+**Result: entry chunk 752.00 kB → 21.13 kB (gzip 222.68 kB → ~7 kB). 500 kB warning gone; largest chunk is `solana` at 298 kB.**
+
+### Chunk list (after `pnpm --filter app build`)
+| chunk | raw | notes |
+|---|---|---|
+| `index-*.js` (**entry**) | **21.13 kB** (gzip ~7 kB) | was the 752 kB single chunk |
+| `solana-*.js` | 298.65 kB (gzip 84.6 kB) | wallet-adapter + web3.js + ox/@noble/@wallet-standard/jayson/rpc-websockets — loads eagerly (wallet providers wrap the app), caches independently |
+| `react-vendor-*.js` | 231.75 kB (gzip 74.2 kB) | react + react-dom + react-router(-dom) + scheduler |
+| `sdk-*.js` | 116.09 kB (gzip 39.5 kB) | `@kassandra/sdk` (workspace `sdk/dist`) |
+| `OracleDetail-*.js` | 47.08 kB | lazy page |
+| `esm-*.js` | 30.41 kB | shared vendor (auto-split) |
+| `index-*.css` | 42.35 kB (gzip 8.2 kB) | Tailwind (verify-css OK) |
+| `Landing / CreateOracle / StyleGuide / Oracles-*.js` | 9.7 / 8.4 / 6.4 / 4.9 kB | lazy pages |
+| `nonceStore / useOracles / oracleView / rolldown-runtime-*.js` | 7.9 / 1.5 / 1.4 / 0.7 kB | shared split-outs |
+
+No chunk exceeds the 500 kB warning; no warning emitted.
+
+### Changes
+- **Lazy routes** (`app/src/App.tsx`, new): extracted the router out of `main.tsx`; the 5 pages (Landing/Oracles/CreateOracle/OracleDetail/StyleGuide) are `React.lazy(() => import(...))`, each wrapped in `<Suspense fallback={<RouteFallback/>}>`. `main.tsx` now only mounts `<App/>` (kept lint clean — the entry file no longer defines components). The `<Suspense>` sits inside `Layout`'s `<Outlet>`, so `NavBar`/`SiteFooter` render **outside** the lazy boundary (nav stays instant).
+- **Suspense fallback** (`RouteFallback` in `App.tsx`): a quiet Delphi parchment placeholder — `role="status" aria-busy` "Consulting the oracle…" (matches the "Reading the chain…" tone), replaced by the page on load.
+- **Vendor `manualChunks`** (`app/vite.config.ts`, `build.rollupOptions.output.manualChunks(id)`): `sdk` (`@kassandra/sdk` OR `/sdk/dist/` — the workspace path), `solana` (`@solana/*` + ox/@noble/@wallet-standard/@solana-mobile/jayson/rpc-websockets), `react-vendor` (react/react-dom/react-router(-dom)/scheduler).
+
+### Verification
+- `pnpm --filter app typecheck` clean; `pnpm --filter app test` 72/72 green; `pnpm --filter app lint` clean (0 warnings); `pnpm --filter app build` OK + `verify-css OK`.
+- Headless render (playwright chromium, 1280px, `vite preview`) of `/`, `/oracles?mock`, `/oracles/:pubkey?mock`, `/oracles/new?mock`, `/styleguide`: **all 5 PASS** — each requests its own lazy page chunk (HTTP 200), `nav` present immediately, exactly one `<h1>`/page, **0 console errors**. No behavior change.

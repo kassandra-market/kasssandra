@@ -29,6 +29,14 @@ emitted CSS, no literal `@theme{}`/`@tailwind` leaks). If it fails, the app woul
 Fonts are bundled locally via `@fontsource` (Cormorant Garamond 300/400, Inter 400/500,
 Roboto Mono 400) — the build is fully offline (no hotlinked CDNs or images).
 
+The build is **route-code-split + vendor-chunked**: `src/App.tsx` wraps each page in
+`React.lazy` + `<Suspense>` (nav/shell outside the boundary, so it stays instant), and
+`vite.config.ts` `build.rollupOptions.output.manualChunks` groups the heavy libs into
+separate cacheable chunks (`solana` = wallet-adapter + web3.js + deps, `sdk` =
+`@kassandra/sdk`, `react-vendor` = React + router). The entry chunk is ~21 kB (from a prior
+752 kB single chunk); each page ships as its own lazily-loaded chunk. No chunk exceeds the
+500 kB warning.
+
 ## Routes
 
 - `/` — the Kassandra landing page (`src/pages/Landing.tsx`).
@@ -154,6 +162,6 @@ Read-only browsing still works fully disconnected.
 
 **Next / deferred:** a standing devnet deployment (the app points at a configurable cluster; the
 E2Es use surfpool); a KASS-balance affordance on the staking forms (the tx error surfaces cleanly
-without it); route-level code-splitting (the main chunk is over the 500 kB warning); and a richer
+without it); and a richer
 challenge-market trading UI (the current open/settle surface is intentionally thin). The app only
 ever consumes the built `@kassandra/sdk`; programs/runner/SDK-src are untouched.
