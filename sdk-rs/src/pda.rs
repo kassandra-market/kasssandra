@@ -46,7 +46,10 @@ pub fn proposer(program_id: &Pubkey, oracle: &Pubkey, authority: &Pubkey) -> (Pu
 
 /// Fact PDA — seeds `[b"fact", oracle, content_hash]`.
 pub fn fact(program_id: &Pubkey, oracle: &Pubkey, content_hash: &[u8; 32]) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[b"fact", oracle.as_ref(), content_hash.as_ref()], program_id)
+    Pubkey::find_program_address(
+        &[b"fact", oracle.as_ref(), content_hash.as_ref()],
+        program_id,
+    )
 }
 
 /// FactVote PDA — seeds `[b"vote", fact, voter]`.
@@ -56,17 +59,18 @@ pub fn vote(program_id: &Pubkey, fact: &Pubkey, voter: &Pubkey) -> (Pubkey, u8) 
 
 /// AiClaim PDA — seeds `[b"claim", oracle, proposer]`.
 pub fn ai_claim(program_id: &Pubkey, oracle: &Pubkey, proposer: &Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(
-        &[b"claim", oracle.as_ref(), proposer.as_ref()],
-        program_id,
-    )
+    Pubkey::find_program_address(&[b"claim", oracle.as_ref(), proposer.as_ref()], program_id)
 }
 
 /// The canonical KASS associated-token-account of `owner` — where the DAO
 /// treasury lives. Derived under the ATA program from `[owner, token_program, mint]`.
 pub fn kass_ata(owner: &Pubkey, kass_mint: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(
-        &[owner.as_ref(), TOKEN_PROGRAM_ID.as_ref(), kass_mint.as_ref()],
+        &[
+            owner.as_ref(),
+            TOKEN_PROGRAM_ID.as_ref(),
+            kass_mint.as_ref(),
+        ],
         &ATA_PROGRAM_ID,
     )
     .0

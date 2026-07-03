@@ -326,7 +326,13 @@ impl TestCtx {
         dao_authority: Pubkey,
         kass_dao: Pubkey,
     ) -> Instruction {
-        kassandra_sdk::ix::set_governance(&self.program_id, protocol, authority, dao_authority, kass_dao)
+        kassandra_sdk::ix::set_governance(
+            &self.program_id,
+            protocol,
+            authority,
+            dao_authority,
+            kass_dao,
+        )
     }
 
     /// Derive the Squads v4 multisig **vault** PDA (the DAO execution authority)

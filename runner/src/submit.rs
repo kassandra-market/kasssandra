@@ -437,10 +437,10 @@ mod tests {
         // EXACT processor account order + roles.
         let ai_claim = derive_ai_claim_pda(&oracle, &proposer);
         let expected = [
-            (oracle, false, true),             // oracle (w)
-            (proposer, false, true),           // proposer PDA (w)
-            (ai_claim, false, true),           // ai_claim PDA (w)
-            (authority, true, true),           // authority (signer, w)
+            (oracle, false, true),                            // oracle (w)
+            (proposer, false, true),                          // proposer PDA (w)
+            (ai_claim, false, true),                          // ai_claim PDA (w)
+            (authority, true, true),                          // authority (signer, w)
             (kassandra_sdk::SYSTEM_PROGRAM_ID, false, false), // system (ro)
         ];
         assert_eq!(ix.accounts.len(), expected.len());

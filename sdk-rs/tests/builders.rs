@@ -21,10 +21,10 @@ fn create_oracle_payload_is_57_plus_disc_in_field_order() {
     let prompt = [7u8; 32];
     let ix = ix::create_oracle(
         &PROGRAM_ID,
-        42,          // nonce
-        3,           // options_count
-        1_234,       // deadline
-        600,         // twap_window
+        42,    // nonce
+        3,     // options_count
+        1_234, // deadline
+        600,   // twap_window
         &prompt,
         pk(1),
         pk(2),

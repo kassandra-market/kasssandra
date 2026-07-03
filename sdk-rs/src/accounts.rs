@@ -34,7 +34,11 @@ macro_rules! decoder {
     };
 }
 
-decoder!(decode_protocol, Protocol, "Decode a `Protocol` singleton account.");
+decoder!(
+    decode_protocol,
+    Protocol,
+    "Decode a `Protocol` singleton account."
+);
 decoder!(decode_oracle, Oracle, "Decode an `Oracle` account.");
 decoder!(decode_proposer, Proposer, "Decode a `Proposer` account.");
 decoder!(decode_fact, Fact, "Decode a `Fact` account.");

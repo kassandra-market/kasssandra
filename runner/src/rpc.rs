@@ -397,10 +397,11 @@ pub async fn fetch_agreed_facts(
         })?;
         let raw = parse_account("getProgramAccounts", account)?;
         let bytes = validate(&pubkey, &raw, AccountType::Fact, "Fact", Fact::LEN)?;
-        let fact = kassandra_sdk::accounts::read::<Fact>(bytes).map_err(|e| RpcError::Malformed {
-            method: "getProgramAccounts".to_string(),
-            detail: format!("Fact decode failed: {e}"),
-        })?;
+        let fact =
+            kassandra_sdk::accounts::read::<Fact>(bytes).map_err(|e| RpcError::Malformed {
+                method: "getProgramAccounts".to_string(),
+                detail: format!("Fact decode failed: {e}"),
+            })?;
 
         if !fact.is_agreed() {
             continue;
