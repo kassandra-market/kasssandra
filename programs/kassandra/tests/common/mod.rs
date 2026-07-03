@@ -1270,6 +1270,11 @@ impl TestCtx {
         &self.seeded(oracle).proposers
     }
 
+    /// The `nonce` an oracle was created with (its PDA seed).
+    pub fn oracle_nonce(&self, oracle: Pubkey) -> u64 {
+        self.seeded(oracle).nonce
+    }
+
     // ----- accessors ---------------------------------------------------------
 
     /// Read and decode an `Oracle` account.

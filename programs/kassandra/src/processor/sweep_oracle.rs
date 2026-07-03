@@ -71,7 +71,7 @@ use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
     program_error::ProgramError,
-    pubkey::{find_program_address, Pubkey},
+    pubkey::{create_program_address, find_program_address, Pubkey},
     ProgramResult,
 };
 use pinocchio_pubkey::pubkey;
@@ -118,10 +118,13 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
         _ => return Err(KassandraError::WrongPhase.into()),
     }
 
-    // Re-derive the oracle PDA (the vault's token authority) from the nonce, then
-    // bind the vault + rent recipient to the oracle's stored references.
-    let (derived, bump) = find_program_address(&[b"oracle", &nonce.to_le_bytes()], program_id);
-    if &derived != oracle_ai.key() || bump != oracle.bump {
+    // Re-derive the oracle PDA (the vault's token authority) from the nonce using
+    // the oracle's OWN stored bump — one create_program_address instead of a
+    // looping find_program_address — then bind the vault + rent recipient.
+    let nonce_le = nonce.to_le_bytes();
+    let derived = create_program_address(&[b"oracle", &nonce_le, &[oracle.bump]], program_id)
+        .map_err(|_| KassandraError::InvalidAccount)?;
+    if &derived != oracle_ai.key() {
         return Err(KassandraError::InvalidAccount.into());
     }
     assert_key(stake_vault_ai, &oracle.stake_vault)?;

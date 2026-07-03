@@ -87,7 +87,7 @@ use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
     program_error::ProgramError,
-    pubkey::{find_program_address, Pubkey},
+    pubkey::{create_program_address, Pubkey},
     ProgramResult,
 };
 use pinocchio_token::instructions::Transfer;
@@ -173,8 +173,12 @@ fn verify_oracle_pda(
     oracle: &Oracle,
     nonce: u64,
 ) -> ProgramResult {
-    let (derived, bump) = find_program_address(&[b"oracle", &nonce.to_le_bytes()], program_id);
-    if &derived != oracle_ai.key() || bump != oracle.bump {
+    // Validate via the oracle's OWN stored bump (canonical, written at creation)
+    // — one create_program_address instead of a looping find_program_address.
+    let nonce_le = nonce.to_le_bytes();
+    let derived = create_program_address(&[b"oracle", &nonce_le, &[oracle.bump]], program_id)
+        .map_err(|_| KassandraError::InvalidAccount)?;
+    if &derived != oracle_ai.key() {
         return Err(KassandraError::InvalidAccount.into());
     }
     Ok(())

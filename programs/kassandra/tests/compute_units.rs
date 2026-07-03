@@ -189,6 +189,7 @@ const BUDGETS: &[Budget] = &[
     Budget { ix: "submit_ai_claim", max_cu: 6_500 },    // measured 5_621
     Budget { ix: "finalize_ai_claims", max_cu: 1_800 }, // measured 1_431
     Budget { ix: "finalize_oracle", max_cu: 7_000 },    // measured 6_015
+    Budget { ix: "claim_proposer", max_cu: 10_000 },    // measured 9_019
 ];
 
 /// Guards the hardcoded `guards::PROTOCOL_PDA` (which `load_protocol` uses to skip
@@ -293,6 +294,13 @@ fn cu_metering_full_lifecycle_under_budget() {
     ctx.send(ctx.finalize_oracle_ix(oracle, &proposer_pdas), &[])
         .expect("finalize_oracle");
     assert_eq!(ctx.oracle(oracle).phase, Phase::Resolved.as_u8());
+
+    // 8) claim_proposer — the option-0 proposer is correct → bond + reward. Uses
+    //    the shared verify_oracle_pda (create_program_address w/ the stored bump).
+    let nonce = ctx.oracle_nonce(oracle);
+    let dest0 = ctx.fund_kass(&authorities[0], 0);
+    let claim = ctx.claim_proposer_ix(oracle, nonce, p0, dest0, vault, authorities[0].pubkey());
+    ctx.send(claim, &[]).expect("claim_proposer");
 
     // --- report + guard ------------------------------------------------------
     print!("{}", ctx.cu_report());
