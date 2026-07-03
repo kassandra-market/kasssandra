@@ -33,30 +33,6 @@ fn custom_code(res: &litesvm::types::TransactionResult) -> Option<u32> {
 fn futarchy_owner() -> Pubkey {
     Pubkey::new_from_array(md6::FUTARCHY_ID)
 }
-
-/// Hand-build a futarchy `Dao` account blob with a `PoolState::Spot` embedded
-/// spot `Pool` whose `TwapOracle` carries the given fields at the F0-documented
-/// fixed offsets.
-fn build_dao_blob(
-    aggregator: u128,
-    last_updated: i64,
-    created_at: i64,
-    start_delay: u32,
-) -> Vec<u8> {
-    let mut data = vec![0u8; md6::DAO_SPOT_TWAP_MIN_LEN];
-    data[0..8].copy_from_slice(&md6::DAO_ACCOUNT_DISCRIMINATOR);
-    data[md6::DAO_POOLSTATE_TAG_OFFSET] = 0; // PoolState::Spot
-    data[md6::DAO_SPOT_AGGREGATOR_OFFSET..md6::DAO_SPOT_AGGREGATOR_OFFSET + 16]
-        .copy_from_slice(&aggregator.to_le_bytes());
-    data[md6::DAO_SPOT_LAST_UPDATED_TS_OFFSET..md6::DAO_SPOT_LAST_UPDATED_TS_OFFSET + 8]
-        .copy_from_slice(&last_updated.to_le_bytes());
-    data[md6::DAO_SPOT_CREATED_AT_TS_OFFSET..md6::DAO_SPOT_CREATED_AT_TS_OFFSET + 8]
-        .copy_from_slice(&created_at.to_le_bytes());
-    data[md6::DAO_SPOT_START_DELAY_SECONDS_OFFSET..md6::DAO_SPOT_START_DELAY_SECONDS_OFFSET + 4]
-        .copy_from_slice(&start_delay.to_le_bytes());
-    data
-}
-
 /// `get_twap` reference math (independent of the program): the expected value a
 /// correct read must return.
 fn expected_twap(aggregator: u128, last_updated: i64, created_at: i64, start_delay: u32) -> u128 {
