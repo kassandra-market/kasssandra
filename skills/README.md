@@ -27,6 +27,17 @@ npx skills add Dodecahedr0x/kassandra --list
 
 ## Skills
 
+**Integrating with Kassandra** (small, specific reference skills for building against the
+protocol):
+
+| Skill | What it's for |
+| --- | --- |
+| [`kassandra-ts-client`](./kassandra-ts-client/SKILL.md) | Build a Kassandra instruction, decode an account, or derive a PDA from **TypeScript / a dApp** via `@kassandra/sdk`. |
+| [`kassandra-rust-client`](./kassandra-rust-client/SKILL.md) | Same from **Rust** (a test harness, keeper/bot, or service) via the `kassandra-sdk` crate. |
+| [`kassandra-ai-runner`](./kassandra-ai-runner/SKILL.md) | Produce, submit, or verify a Kassandra **AI claim** with the `kassandra-runner` (`run` / `verify` / keeper `--submit`). |
+
+**General technique:**
+
 | Skill | What it's for |
 | --- | --- |
 | [`wire-format-single-source-of-truth`](./wire-format-single-source-of-truth/SKILL.md) | When a second consumer (tests, an off-chain keeper/bot, a frontend) needs to build the same on-chain instruction / protocol message / wire payload — define the encoding once in a client library derived from the schema and route every consumer through it, instead of hand-rolling account metas + discriminants + serialization in each place. |
