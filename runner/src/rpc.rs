@@ -4,7 +4,7 @@
 //! The runner can build its config from an oracle pubkey instead of an explicit
 //! full config: it reads the `Oracle` account (and its agreed `Fact` accounts)
 //! straight off chain and decodes them through the SHARED
-//! [`kassandra_program::state`] `Pod` structs — zero new decode code. The
+//! `kassandra_sdk::accounts` `Pod` structs — zero new decode code. The
 //! interpretation TEXT is NOT on chain (only its `prompt_hash` commitment is),
 //! so it comes from an off-chain prompt file whose `sha256` MUST equal the
 //! on-chain `oracle.prompt_hash` (see [`verify_prompt_hash`]).
@@ -19,7 +19,7 @@
 //! # Account validation before decode
 //!
 //! Every fetched account is validated before it is `bytemuck`-decoded:
-//! - the account MUST be owned by the Kassandra program ([`kassandra_program::ID`]);
+//! - the account MUST be owned by the Kassandra program (`kassandra_sdk::PROGRAM_ID`);
 //! - its first byte (the [`AccountType`] tag) MUST match the expected type;
 //! - its length MUST be at least the struct's `LEN`.
 //!
@@ -40,7 +40,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
-use kassandra_program::state::{AccountType, Fact, Oracle};
+use kassandra_sdk::accounts::{AccountType, Fact, Oracle};
 
 /// Byte offset of the `oracle` field inside a `Fact` account — the
 /// `getProgramAccounts` `memcmp` anchor used to enumerate an oracle's facts.
@@ -280,11 +280,11 @@ fn validate<'a>(
     type_name: &'static str,
     needed: usize,
 ) -> Result<&'a [u8], RpcError> {
-    if raw.owner != kassandra_program::ID {
+    if raw.owner != kassandra_sdk::PROGRAM_ID.to_bytes() {
         return Err(RpcError::WrongOwner {
             pubkey: pubkey.to_string(),
             owner: bs58::encode(raw.owner).into_string(),
-            expected: bs58::encode(kassandra_program::ID).into_string(),
+            expected: kassandra_sdk::PROGRAM_ID.to_string(),
         });
     }
     if raw.data.len() < needed {
@@ -311,7 +311,7 @@ fn validate<'a>(
 ///
 /// Verifies the account is owned by the Kassandra program and carries the
 /// [`AccountType::Oracle`] tag before decoding through the shared
-/// [`kassandra_program::state::Oracle`] struct.
+/// `kassandra_sdk::accounts::Oracle` struct.
 pub async fn fetch_oracle(rpc: &dyn JsonRpc, oracle_pubkey: &str) -> Result<Oracle, RpcError> {
     let params = json!([
         oracle_pubkey,
@@ -335,8 +335,11 @@ pub async fn fetch_oracle(rpc: &dyn JsonRpc, oracle_pubkey: &str) -> Result<Orac
         "Oracle",
         Oracle::LEN,
     )?;
-    // `pod_read_unaligned` copies, so the (possibly unaligned) Vec<u8> is fine.
-    Ok(bytemuck::pod_read_unaligned::<Oracle>(bytes))
+    // The SDK's `read` copies (unaligned-safe), so the RPC `Vec<u8>` is fine.
+    kassandra_sdk::accounts::read::<Oracle>(bytes).map_err(|e| RpcError::Malformed {
+        method: "getAccountInfo".to_string(),
+        detail: format!("Oracle decode failed: {e}"),
+    })
 }
 
 /// An agreed fact read from chain: the on-chain `content_hash` commitment plus
@@ -355,7 +358,7 @@ pub struct FetchedFact {
 /// Filters to accounts of `dataSize == Fact::LEN` whose `Fact.oracle` field (at
 /// [`FACT_ORACLE_OFFSET`]) equals `oracle_pubkey` (the `memcmp` `bytes` are
 /// base58, the RPC default), decodes each through the shared
-/// [`kassandra_program::state::Fact`] struct, and keeps the ones with the
+/// `kassandra_sdk::accounts::Fact` struct, and keeps the ones with the
 /// `agreed` flag set. Facts are returned sorted by `content_hash` so the result
 /// is deterministic regardless of RPC ordering (prompt assembly re-sorts too,
 /// but a stable order keeps logs/tests predictable).
@@ -363,7 +366,7 @@ pub async fn fetch_agreed_facts(
     rpc: &dyn JsonRpc,
     oracle_pubkey: &str,
 ) -> Result<Vec<FetchedFact>, RpcError> {
-    let program_id = bs58::encode(kassandra_program::ID).into_string();
+    let program_id = kassandra_sdk::PROGRAM_ID.to_string();
     let params = json!([
         program_id,
         {
@@ -394,7 +397,10 @@ pub async fn fetch_agreed_facts(
         })?;
         let raw = parse_account("getProgramAccounts", account)?;
         let bytes = validate(&pubkey, &raw, AccountType::Fact, "Fact", Fact::LEN)?;
-        let fact = bytemuck::pod_read_unaligned::<Fact>(bytes);
+        let fact = kassandra_sdk::accounts::read::<Fact>(bytes).map_err(|e| RpcError::Malformed {
+            method: "getProgramAccounts".to_string(),
+            detail: format!("Fact decode failed: {e}"),
+        })?;
 
         if !fact.is_agreed() {
             continue;
@@ -504,7 +510,7 @@ impl MockRpc {
 
     /// The Kassandra program id as base58 (the canned account `owner`).
     pub fn program_owner() -> String {
-        bs58::encode(kassandra_program::ID).into_string()
+        kassandra_sdk::PROGRAM_ID.to_string()
     }
 }
 

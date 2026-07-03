@@ -897,7 +897,7 @@ mod tests {
     async fn build_config_from_chain_assembles_and_runs() {
         use crate::rpc::MockRpc;
         use bytemuck::Zeroable;
-        use kassandra_program::state::{AccountType, Fact, Oracle};
+        use kassandra_sdk::accounts::{AccountType, Fact, Oracle};
         use serde_json::json;
 
         let oracle_pk = "So11111111111111111111111111111111111111112";
@@ -979,7 +979,7 @@ mod tests {
     async fn build_config_from_chain_rejects_prompt_mismatch() {
         use crate::rpc::MockRpc;
         use bytemuck::Zeroable;
-        use kassandra_program::state::{AccountType, Oracle};
+        use kassandra_sdk::accounts::{AccountType, Oracle};
         use serde_json::json;
 
         let oracle_pk = "So11111111111111111111111111111111111111112";

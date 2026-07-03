@@ -50,10 +50,9 @@ use crate::rpc::{JsonRpc, RpcError};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 
 /// The `submit_ai_claim` instruction discriminant (first `data` byte), tied to
-/// the on-chain [`kassandra_program::instruction::Ix::SubmitAiClaim`] variant so
-/// a renumber in the program breaks this build.
-pub const SUBMIT_AI_CLAIM_DISCRIMINANT: u8 =
-    kassandra_program::instruction::Ix::SubmitAiClaim as u8;
+/// the SDK's [`kassandra_sdk::Ix::SubmitAiClaim`] variant (re-exported from the
+/// program) so a renumber in the program breaks this build.
+pub const SUBMIT_AI_CLAIM_DISCRIMINANT: u8 = kassandra_sdk::Ix::SubmitAiClaim as u8;
 
 /// Anything that can go wrong building/sending/confirming the claim tx.
 #[derive(Debug, thiserror::Error)]
@@ -433,7 +432,7 @@ mod tests {
 
         // Program id is the kassandra id (pinocchio [u8;32] → Pubkey).
         assert_eq!(ix.program_id, program_id());
-        assert_eq!(ix.program_id.to_bytes(), kassandra_program::ID);
+        assert_eq!(ix.program_id, kassandra_sdk::PROGRAM_ID);
 
         // EXACT processor account order + roles.
         let ai_claim = derive_ai_claim_pda(&oracle, &proposer);

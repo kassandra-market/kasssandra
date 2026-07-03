@@ -12,13 +12,11 @@ name = "kassandra-runner"
 path = "src/main.rs"
 
 [dependencies]
-# Reuse the on-chain program's constants + account layouts (CLAIM_OPTION_NONE,
-# the AiClaim field widths) so there is no cross-language drift. The
-# `no-entrypoint` feature gates off pinocchio's program entrypoint (global
-# allocator + panic handler) so the crate is usable as a plain host library.
-kassandra-program = { path = "../programs/kassandra", features = ["no-entrypoint"] }
-# The Rust client SDK — PDA derivations + the submit_ai_claim instruction builder,
-# so the keeper does not re-declare the program's seeds/account order/payload.
+# The Rust client SDK is the runner's ONLY interface to the on-chain program:
+# it re-exports the account layouts + constants (via `kassandra_sdk::accounts`),
+# the `Ix` discriminants, `PROGRAM_ID`, the PDA derivations, and the instruction
+# builders. The program crate is pulled in transitively (with `no-entrypoint`) by
+# the SDK, so there is no cross-crate drift and the runner never names it directly.
 kassandra-sdk = { path = "../sdk-rs" }
 
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }

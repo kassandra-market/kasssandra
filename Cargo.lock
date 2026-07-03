@@ -1788,7 +1788,6 @@ dependencies = [
  "bs58",
  "bytemuck",
  "clap",
- "kassandra-program",
  "kassandra-sdk",
  "reqwest 0.12.28",
  "serde",
