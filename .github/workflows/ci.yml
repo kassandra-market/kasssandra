@@ -1,20 +1,28 @@
 # Kassandra CI — run the full test suite on every pull request (and on master).
 #
-# Three lanes, all triggered on PRs:
-#   rust — build the SBF program (.so) then `cargo test` the whole workspace
-#          (program LiteSVM tests + runner + sdk-rs). The program tests
-#          `include_bytes!` the freshly built .so, so the build MUST precede them.
-#   js   — build the SDK, then typecheck + lint + run every vitest suite (sdk & app).
-#          The surfpool-gated integration tests self-skip when no local validator
-#          is present (`describe.skipIf`), so this lane is deterministic.
-#   e2e  — boot a local surfpool validator and drive the real dApp in a headless
-#          browser (the non-forked Playwright suite). This exercises the write /
-#          crank / claim / settle / admin flows end to end against the program.
+# Lanes (all triggered on PRs):
+#   build      — compile the SBF program (.so) ONCE and share it as an artifact.
+#                Every downstream lane's tests load this exact .so
+#                (`target/deploy/kassandra_program.so`): the Rust program tests
+#                `include_bytes!` it at compile time; the SDK litesvm + surfpool
+#                harnesses load it at runtime.
+#   rust       — `cargo test --workspace` (program LiteSVM tests + runner + sdk-rs).
+#   js         — build the SDK (the app consumes its dist/), then typecheck + lint
+#                + every vitest suite for sdk & app. The sdk litesvm suites need the
+#                shared .so; surfpool-gated suites self-skip (`describe.skipIf`).
+#   runner-e2e — build the REAL `kassandra-runner` binary and drive its full
+#                provider pipeline against a LOCAL MOCK Anthropic server (no API
+#                key, no network): the mock's chosen option flows through the real
+#                HTTP+parse path and the runner emits a genuine 97-byte AI-claim
+#                payload (plus a refusal arm). Deterministic and offline.
+#   e2e        — boot a local surfpool validator + run the non-forked Playwright
+#                browser suite (write/crank/claim/settle/admin flows against the
+#                real program).
 #
-# The mainnet-FORKED challenge-market Playwright project (playwright.fork.config.ts)
-# and the network-dependent SDK surfpool suites are intentionally NOT run here —
-# they need live mainnet RPC access and are flaky on hosted runners; run them
-# locally via scripts/e2e-playwright-fork.sh / `pnpm --filter sdk test:e2e`.
+# The mainnet-FORKED Playwright project (playwright.fork.config.ts) and the
+# network-dependent SDK surfpool suites are intentionally NOT run here — they need
+# live mainnet RPC and are flaky on hosted runners; run them locally via
+# scripts/e2e-playwright-fork.sh / `pnpm --filter sdk test:e2e`.
 
 name: CI
 
@@ -31,13 +39,13 @@ permissions:
   contents: read
 
 env:
-  # Pin the Anza (Agave) toolchain that builds the SBF program locally, for
+  # Pin the Anza (Agave) toolchain that builds the SBF program locally, for a
   # reproducible `cargo build-sbf`.
   SOLANA_VERSION: v3.1.7
 
 jobs:
-  rust:
-    name: Rust · program + runner + sdk-rs
+  build:
+    name: Build · SBF program (.so)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,11 +72,41 @@ jobs:
       - name: Build SBF program (.so)
         run: cargo build-sbf --manifest-path programs/kassandra/Cargo.toml
 
+      - name: Upload program artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy/kassandra_program.so
+          if-no-files-found: error
+          retention-days: 1
+
+  rust:
+    name: Rust · program + runner + sdk-rs
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo + target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Download program artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy
+
+      # The program's LiteSVM tests `include_bytes!` the .so at COMPILE time, so it
+      # must exist at target/deploy/ before `cargo test` builds the test binaries.
       - name: Run workspace tests
         run: cargo test --workspace
 
   js:
     name: TS · build · typecheck · lint · unit
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +122,12 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Download program artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -92,7 +136,7 @@ jobs:
       - name: Build SDK
         run: pnpm --filter sdk build
 
-      - name: SDK unit tests
+      - name: SDK tests (litesvm + decoders)
         run: pnpm --filter sdk test
 
       - name: SDK typecheck
@@ -107,8 +151,8 @@ jobs:
       - name: App unit tests
         run: pnpm --filter app test
 
-  e2e:
-    name: E2E · surfpool + Playwright (browser)
+  runner-e2e:
+    name: E2E · real runner + mock Anthropic (offline)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,18 +174,38 @@ jobs:
           node-version: 20
           cache: pnpm
 
-      - name: Cache Solana toolchain
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/solana
-            ~/.cache/solana
-          key: solana-${{ env.SOLANA_VERSION }}-${{ runner.os }}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Install Solana (Anza) toolchain
-        run: |
-          sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_VERSION}/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      # The debug binary the test spawns (`kassandra-runner run --config …`).
+      - name: Build runner binary
+        run: cargo build -p kassandra-runner
+
+      # Drives the REAL AnthropicProvider HTTP+parse path against a local mock
+      # server — no ANTHROPIC_API_KEY, no network. Asserts the mock's option flows
+      # through to a genuine 97-byte claim payload, plus the refusal arm.
+      - name: Run real-runner e2e (mock provider)
+        run: pnpm --filter sdk exec vitest run test/surfpool/runner-mock-anthropic.test.ts
+        env:
+          KASSANDRA_E2E: "1"
+
+  e2e:
+    name: E2E · surfpool + Playwright (browser)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
 
       # surfpool (the local Solana simnet the e2e harness boots) — published to the
       # snap store by txtx. If the channel changes, swap this for the installer at
@@ -152,11 +216,14 @@ jobs:
           sudo snap install surfpool || sudo snap install surfpool --classic
           surfpool --version
 
+      - name: Download program artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build SBF program (.so)
-        run: cargo build-sbf --manifest-path programs/kassandra/Cargo.toml
 
       - name: Build SDK
         run: pnpm --filter sdk build
