@@ -38,6 +38,7 @@ import {
   keepWindowOpen,
   openProposals,
   proposeAs,
+  runnerClaim,
   seedDeadendOracle,
   sendIx,
   submitOneFact,
@@ -103,7 +104,15 @@ async function globalSetup(): Promise<() => Promise<void>> {
     await approveVote(ctx, o, fact)
     await advanceToAiClaim(ctx, o, 4n, fact)
     await keepWindowOpen(ctx, o)
-    oracles.aiClaim = { nonce: '4', address: o.toString(), proposer: proposers[0].toString() }
+    // Produce a REAL runner payload (mock Anthropic) for the browser test to paste
+    // via the form's "Paste runner output" mode — no fabricated hashes.
+    const claim = await runnerClaim(0)
+    oracles.aiClaim = {
+      nonce: '4',
+      address: o.toString(),
+      proposer: proposers[0].toString(),
+      runner: JSON.stringify(claim.formPayload),
+    }
   }
 
   // 5) Proposal, window ELAPSED — wallet cranks finalize_proposals.

@@ -20,7 +20,10 @@ const wallet = JSON.parse(
 ) as {
   secretKey: number[]
   publicKey: string
-  oracles: Record<string, { nonce: string; address: string; fact?: string; proposer?: string }>
+  oracles: Record<
+    string,
+    { nonce: string; address: string; fact?: string; proposer?: string; runner?: string }
+  >
 }
 
 test.beforeEach(async ({ page }) => {
@@ -34,8 +37,6 @@ async function openOracle(page: Page, address: string): Promise<void> {
   await page.goto(`/oracles/${address}`)
   await expect(page.getByRole('button', { name: /^Connected:/ })).toBeVisible()
 }
-
-const HEX64 = '11'.repeat(32)
 
 test('propose: submit a categorical option + KASS bond', async ({ page }) => {
   const o = wallet.oracles.proposal
@@ -70,12 +71,10 @@ test('voteFact: approve a fact with a stake', async ({ page }) => {
 test('submitAiClaim: a locked-in proposer stamps its AI claim', async ({ page }) => {
   const o = wallet.oracles.aiClaim
   await openOracle(page, o.address)
-  await page.getByRole('radio').first().click() // manual-hex input mode
-  const hexInputs = page.getByPlaceholder('64 hex characters')
-  await hexInputs.nth(0).fill(HEX64)
-  await hexInputs.nth(1).fill(HEX64)
-  await hexInputs.nth(2).fill(HEX64)
-  await page.getByPlaceholder('e.g. 0').fill('0')
+  // Paste the payload produced by the REAL runner (mock Anthropic) in globalSetup —
+  // not fabricated hashes — through the form's "Paste runner output" mode.
+  await page.getByRole('radio', { name: 'Paste runner output' }).click()
+  await page.getByPlaceholder(/"model_id".*"io_hash"/s).fill(o.runner!)
   await page.getByRole('button', { name: 'Submit AI claim' }).click()
   // On-chain: the wallet's Proposer now carries a claim option (was 0xFF = none).
   await poll(() => proposerAt(o.proposer!), (x) => x.claimOption !== 0xff)

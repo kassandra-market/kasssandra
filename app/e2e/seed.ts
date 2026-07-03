@@ -27,6 +27,13 @@ import {
 } from '@kassandra/sdk'
 
 import { SurfpoolHarness, mintBytes, toHex, tokenAccountBytes } from '../../sdk/test/surfpool/harness.ts'
+import { MockAnthropic } from '../../sdk/test/surfpool/mock-anthropic.ts'
+import {
+  runRunner,
+  runnerAvailable,
+  writeRunnerConfig,
+  type RunOutput,
+} from '../../sdk/test/surfpool/run-runner.ts'
 
 export interface SeedCtx {
   harness: SurfpoolHarness
@@ -37,6 +44,70 @@ export interface SeedCtx {
 
 async function sha256(s: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))
+}
+
+/** 64-char hex → the 32-byte array the SDK builders expect. */
+function hex32(h: string): Uint8Array {
+  const b = new Uint8Array(32)
+  for (let i = 0; i < 32; i++) b[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16)
+  return b
+}
+
+/** The AI-claim hashes the app's "Paste runner output" form accepts. */
+export interface RunnerClaim {
+  modelId: Uint8Array
+  paramsHash: Uint8Array
+  ioHash: Uint8Array
+  option: number
+  /** JSON the app's SubmitAiClaimForm paste-mode consumes verbatim. */
+  formPayload: { model_id: string; params_hash: string; io_hash: string; option: number }
+}
+
+/**
+ * Run the REAL `kassandra-runner` binary — its genuine AnthropicProvider
+ * HTTP+parse path — against a LOCAL MOCK Anthropic server (no API key, no
+ * network) to produce a real AI-claim payload for `option`. The e2e uses THIS
+ * instead of fabricated hashes so the runner is actually exercised end to end.
+ *
+ * Uses zero facts (the runner accepts an empty fact set), so nothing is fetched
+ * over the network; the mock supplies the model's verdict.
+ */
+export async function runnerClaim(option: number, optionsCount = 2): Promise<RunnerClaim> {
+  if (!runnerAvailable()) {
+    throw new Error(
+      'kassandra-runner binary missing — build it first: `cargo build -p kassandra-runner`',
+    )
+  }
+  const mock = await MockAnthropic.start()
+  try {
+    mock.setOption(option, 'claude-opus-4-8')
+    const configPath = writeRunnerConfig({
+      interpretation: 'E2E: resolve the disputed oracle to the AI-selected option.',
+      options_count: optionsCount,
+      option_labels: Array.from({ length: optionsCount }, (_, i) => ({
+        index: i,
+        label: `Option ${i}`,
+      })),
+      facts: [],
+    })
+    const { code, stdout, stderr } = await runRunner(configPath, mock.baseUrl)
+    if (code !== 0) throw new Error(`kassandra-runner exited ${code}: ${stderr}`)
+    const out = JSON.parse(stdout) as RunOutput
+    return {
+      modelId: hex32(out.model_id_hex),
+      paramsHash: hex32(out.params_hash_hex),
+      ioHash: hex32(out.io_hash_hex),
+      option: out.option_index,
+      formPayload: {
+        model_id: out.model_id_hex,
+        params_hash: out.params_hash_hex,
+        io_hash: out.io_hash_hex,
+        option: out.option_index,
+      },
+    }
+  } finally {
+    await mock.stop()
+  }
 }
 
 /** Boot surfpool, deploy the program, mint KASS/USDC, and init the protocol. */
@@ -543,25 +614,32 @@ export async function driveToResolvedFull(
   return { proposer: walletProposer, fact, factVote, aiClaim }
 }
 
-/** Submit a (fabricated-metadata) AI claim as `authority` for its `proposer`. */
+/**
+ * Submit an AI claim as `authority` for its `proposer`, using hashes produced by
+ * the REAL runner (mock Anthropic — see {@link runnerClaim}), not fabricated ones.
+ * Returns the runner claim so callers can reuse its payload (e.g. the browser
+ * paste-mode test).
+ */
 export async function submitAiClaimAs(
   ctx: SeedCtx,
   oracle: Address,
   proposer: Address,
   authority: Keypair,
   option: number,
-): Promise<void> {
+): Promise<RunnerClaim> {
+  const claim = await runnerClaim(option)
   await sendIx(
     ctx,
     await submitAiClaim({
       oracle: oracle.toString(),
       proposer: proposer.toString(),
       authority: authority.publicKey.toString(),
-      modelId: new Uint8Array(32).fill(0x11),
-      paramsHash: new Uint8Array(32).fill(0x22),
-      ioHash: new Uint8Array(32).fill(0x33),
-      option,
+      modelId: claim.modelId,
+      paramsHash: claim.paramsHash,
+      ioHash: claim.ioHash,
+      option: claim.option,
     }),
     [authority],
   )
+  return claim
 }
