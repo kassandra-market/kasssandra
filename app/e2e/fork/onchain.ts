@@ -6,53 +6,12 @@
  * `Market.twap_end` so the settle gate opens without waiting the TWAP window).
  */
 import { decodeMarket } from '@kassandra/sdk'
+
 import { tokenAccountAmount, tokenAccountBytes } from '../../../sdk/test/surfpool/harness.ts'
+import { KASSANDRA_PROGRAM as PROGRAM, TOKEN_PROGRAM, poll, surfpoolRpc } from '../rpc'
 
-const RPC = 'http://127.0.0.1:8940'
-const PROGRAM = 'KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY'
-const TOKEN_PROGRAM = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA'
-
-async function rpc<T>(method: string, params: unknown[]): Promise<T> {
-  const res = await fetch(RPC, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  })
-  return ((await res.json()) as { result: T }).result
-}
-
-export async function getAccountData(address: string): Promise<Uint8Array | null> {
-  const json = await rpc<{ value?: { data?: [string, string] } | null }>('getAccountInfo', [
-    address,
-    { encoding: 'base64', commitment: 'confirmed' },
-  ])
-  const value = json?.value
-  if (!value || !value.data) return null
-  return Uint8Array.from(Buffer.from(value.data[0], 'base64'))
-}
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-export async function poll<T>(
-  read: () => Promise<T>,
-  pred: (v: T) => boolean,
-  timeoutMs = 30_000,
-): Promise<T> {
-  const deadline = Date.now() + timeoutMs
-  let last: T | undefined
-  while (Date.now() < deadline) {
-    try {
-      last = await read()
-      if (pred(last)) return last
-    } catch {
-      // The account may not exist yet (a compose step still in flight) — keep polling.
-    }
-    await sleep(300)
-  }
-  throw new Error(
-    `on-chain poll timed out; last = ${JSON.stringify(last, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`,
-  )
-}
+const { getAccountData, setAccountRaw } = surfpoolRpc('http://127.0.0.1:8940')
+export { getAccountData, poll }
 
 export async function marketAt(address: string): Promise<ReturnType<typeof decodeMarket>> {
   const data = await getAccountData(address)
@@ -64,13 +23,6 @@ export async function tokenBalance(address: string): Promise<bigint> {
   const data = await getAccountData(address)
   if (!data) return 0n
   return tokenAccountAmount(data)
-}
-
-async function setAccountRaw(address: string, data: Uint8Array, owner: string): Promise<void> {
-  await rpc('surfnet_setAccount', [
-    address,
-    { lamports: 5_000_000, owner, executable: false, data: Buffer.from(data).toString('hex') },
-  ])
 }
 
 /** Fabricate a token account at `address` holding `amount` of `mint` for `owner`. */
