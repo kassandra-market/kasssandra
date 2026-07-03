@@ -185,7 +185,7 @@ const BUDGETS: &[Budget] = &[
     Budget { ix: "submit_fact", max_cu: 13_000 },       // measured 11_518
     Budget { ix: "advance_phase", max_cu: 800 },        // measured 577
     Budget { ix: "vote_fact", max_cu: 11_500 },         // measured 10_203
-    Budget { ix: "finalize_facts", max_cu: 5_000 },     // measured 4_205
+    Budget { ix: "finalize_facts", max_cu: 3_200 },     // measured 2_733
     Budget { ix: "submit_ai_claim", max_cu: 6_500 },    // measured 5_621
     Budget { ix: "finalize_ai_claims", max_cu: 1_800 }, // measured 1_431
     Budget { ix: "finalize_oracle", max_cu: 7_000 },    // measured 6_015
