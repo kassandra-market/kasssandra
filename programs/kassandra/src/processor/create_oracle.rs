@@ -170,7 +170,11 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     // --- create the stake vault (program-signed) ---------------------------
     // Create the bare SPL token account at the vault PDA, then initialize it on
     // the KASS mint with the oracle PDA as its token authority.
-    let vault_rent = Rent::get()?.minimum_balance(SPL_TOKEN_ACCOUNT_LEN);
+    // Fetch the Rent sysvar ONCE and reuse it for both accounts created below
+    // (the vault + the Oracle) — the rent parameters are constant within a tx, so
+    // a second `Rent::get()` syscall would be pure overhead.
+    let rent = Rent::get()?;
+    let vault_rent = rent.minimum_balance(SPL_TOKEN_ACCOUNT_LEN);
     let vault_bump_seed = [vault_bump];
     let vault_seeds = [
         Seed::from(b"vault".as_ref()),
@@ -227,7 +231,7 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
     }
 
     // --- create + initialize the Oracle (program-signed) -------------------
-    let oracle_rent = Rent::get()?.minimum_balance(Oracle::LEN);
+    let oracle_rent = rent.minimum_balance(Oracle::LEN);
     let oracle_bump_seed = [oracle_bump];
     let oracle_seeds = [
         Seed::from(b"oracle".as_ref()),

@@ -6,7 +6,7 @@ use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
     program_error::ProgramError,
-    pubkey::{find_program_address, Pubkey},
+    pubkey::Pubkey,
     ProgramResult,
 };
 use pinocchio_system::instructions::CreateAccount;
@@ -15,6 +15,14 @@ use crate::{
     error::KassandraError,
     state::{AccountType, AiClaim, Fact, Oracle, Proposer, Protocol},
 };
+
+/// The canonical `[b"protocol"]` singleton PDA (bump 255) for this program id.
+/// Hardcoded so [`load_protocol`] validates the singleton with a cheap key
+/// comparison instead of a ~1476-CU `find_program_address` on the hot path
+/// (`create_oracle` et al.). Guarded against drift by the `protocol_pda_const`
+/// integration test, which re-derives it.
+pub const PROTOCOL_PDA: Pubkey =
+    pinocchio_pubkey::pubkey!("DUpkpXThaPjDS7TtwwdMJHam7Ki6a8Fg9bmvNf5ggMn6");
 
 /// Require that `account` is owned by `program_id`, else
 /// [`KassandraError::InvalidAccount`].
@@ -142,8 +150,9 @@ pub fn load_ai_claim(account: &AccountInfo, program_id: &Pubkey) -> Result<AiCla
 /// one — every caller (H1 `create_oracle`, H2) gets that defense for free.
 /// Returns an owned, alignment-safe copy.
 pub fn load_protocol(account: &AccountInfo, program_id: &Pubkey) -> Result<Protocol, ProgramError> {
-    let (expected, _) = find_program_address(&[b"protocol"], program_id);
-    assert_key(account, &expected)?;
+    // Compare against the precomputed singleton address — the `[b"protocol"]` PDA
+    // is fixed for this program id, so we skip the `find_program_address` syscall.
+    assert_key(account, &PROTOCOL_PDA)?;
     assert_owned_by_program(account, program_id)?;
     if account.data_len() < Protocol::LEN {
         return Err(KassandraError::InvalidAccount.into());

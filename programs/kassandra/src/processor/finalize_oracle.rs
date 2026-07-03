@@ -106,7 +106,7 @@ use pinocchio::{
     account_info::AccountInfo,
     instruction::{Seed, Signer},
     program_error::ProgramError,
-    pubkey::{find_program_address, Pubkey},
+    pubkey::{create_program_address, Pubkey},
     ProgramResult,
 };
 use pinocchio_token::instructions::Burn;
@@ -166,8 +166,14 @@ pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], payload: &[u8]) ->
         return Err(ProgramError::InvalidInstructionData);
     }
     let nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
-    let (derived, bump) = find_program_address(&[b"oracle", &nonce.to_le_bytes()], program_id);
-    if &derived != oracle_ai.key() || bump != oracle.bump {
+    // Validate the oracle account is the canonical PDA using its OWN stored bump
+    // (written at create_oracle time) — one `create_program_address` instead of a
+    // looping `find_program_address`. The account is program-owned + type-checked
+    // by `load_oracle`, so `oracle.bump` is the canonical bump.
+    let nonce_le = nonce.to_le_bytes();
+    let derived = create_program_address(&[b"oracle", &nonce_le, &[oracle.bump]], program_id)
+        .map_err(|_| KassandraError::InvalidAccount)?;
+    if &derived != oracle_ai.key() {
         return Err(KassandraError::InvalidAccount.into());
     }
 

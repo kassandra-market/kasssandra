@@ -18,7 +18,7 @@ mod common;
 use common::*;
 
 use kassandra_program::{
-    config::PHASE_WINDOW,
+    config::{PHASE_WINDOW, PROPOSAL_WINDOW},
     instruction::Ix,
     state::{Phase, VOTE_APPROVE},
 };
@@ -26,9 +26,18 @@ use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{Keypair, Signer},
+    signer::keypair::keypair_from_seed,
     system_program,
 };
 use spl_token::ID as TOKEN_PROGRAM_ID;
+
+/// A DETERMINISTIC keypair from a fixed 32-byte seed. Using fixed keys makes the
+/// derived PDAs (proposer / fact-vote / ai-claim) — and therefore the
+/// `find_program_address` cost that dominates the account-creating instructions —
+/// stable run-to-run, so the CU numbers and budgets below are reproducible.
+fn kp(seed: u8) -> Keypair {
+    keypair_from_seed(&[seed; 32]).expect("keypair_from_seed")
+}
 
 // ----- dispute-core instruction builders (mirror lifecycle_e2e.rs) -----------
 
@@ -166,43 +175,62 @@ struct Budget {
     max_cu: u64,
 }
 
-// Ceilings = the measured max CU (see the report this test prints) + ~25% headroom.
+// Ceilings = the measured (deterministic) max CU + ~12% headroom. The test is
+// deterministic (fixed keypairs), so these are stable regression guards.
 const BUDGETS: &[Budget] = &[
-    Budget { ix: "init_protocol", max_cu: 8_000 },      // measured 6_079
-    Budget { ix: "create_oracle", max_cu: 22_000 },     // measured 17_735
-    Budget { ix: "propose", max_cu: 20_000 },           // measured 16_023
-    Budget { ix: "finalize_proposals", max_cu: 2_000 }, // measured 1_092
-    Budget { ix: "submit_fact", max_cu: 15_000 },       // measured 11_518
-    Budget { ix: "advance_phase", max_cu: 1_500 },      // measured 577
-    Budget { ix: "vote_fact", max_cu: 20_000 },         // measured 16_203
-    Budget { ix: "finalize_facts", max_cu: 6_000 },     // measured 4_205
-    Budget { ix: "submit_ai_claim", max_cu: 6_000 },    // measured 4_121
-    Budget { ix: "finalize_ai_claims", max_cu: 2_500 }, // measured 1_431
-    Budget { ix: "finalize_oracle", max_cu: 10_000 },   // measured 7_487
+    Budget { ix: "init_protocol", max_cu: 7_000 },      // measured 6_079
+    Budget { ix: "create_oracle", max_cu: 18_000 },     // measured 16_073
+    Budget { ix: "propose", max_cu: 13_000 },           // measured 11_523
+    Budget { ix: "finalize_proposals", max_cu: 1_400 }, // measured 1_092
+    Budget { ix: "submit_fact", max_cu: 13_000 },       // measured 11_518
+    Budget { ix: "advance_phase", max_cu: 800 },        // measured 577
+    Budget { ix: "vote_fact", max_cu: 11_500 },         // measured 10_203
+    Budget { ix: "finalize_facts", max_cu: 5_000 },     // measured 4_205
+    Budget { ix: "submit_ai_claim", max_cu: 6_500 },    // measured 5_621
+    Budget { ix: "finalize_ai_claims", max_cu: 1_800 }, // measured 1_431
+    Budget { ix: "finalize_oracle", max_cu: 7_000 },    // measured 6_015
 ];
+
+/// Guards the hardcoded `guards::PROTOCOL_PDA` (which `load_protocol` uses to skip
+/// a `find_program_address`) against program-id drift: re-derive it and compare.
+#[test]
+fn protocol_pda_const_matches_derivation() {
+    let pid = Pubkey::new_from_array(kassandra_program::ID);
+    let (derived, bump) = Pubkey::find_program_address(&[b"protocol"], &pid);
+    assert_eq!(
+        derived.to_bytes(),
+        kassandra_program::processor::guards::PROTOCOL_PDA,
+        "PROTOCOL_PDA const is stale — re-derive it (did the program id change?)",
+    );
+    assert_eq!(bump, 255, "protocol PDA bump changed");
+}
 
 #[test]
 fn cu_metering_full_lifecycle_under_budget() {
     let mut ctx = TestCtx::new();
     let bond = 1_000u64;
 
-    // create_oracle → propose×2 (DISTINCT options) → finalize_proposals =>
-    // FactProposal. `dispute_via_real_flow` sends init_protocol + create_oracle +
-    // propose×2 + finalize_proposals through `ctx.send` (all metered).
-    let oracle = ctx.dispute_via_real_flow(&[
-        ProposerSpec { option: 0, bond },
-        ProposerSpec { option: 1, bond },
-    ]);
+    // init_protocol + create_oracle → propose×2 (DISTINCT options) →
+    // finalize_proposals => FactProposal — driven with FIXED keypairs (via the
+    // low-level `ctx.propose`, not the random `propose_real`) so every metered
+    // instruction is deterministic.
+    let oracle = ctx.create_real_oracle(2, 600);
     let (vault, _) = TestCtx::stake_vault_pda(&ctx.program_id, &oracle);
-    let proposer_pdas: Vec<Pubkey> = ctx.proposers(oracle).iter().map(|p| p.pda).collect();
-    let authorities: Vec<Keypair> = ctx
-        .proposers(oracle)
-        .iter()
-        .map(|p| p.authority.insecure_clone())
-        .collect();
+    let auth0 = kp(1);
+    let auth1 = kp(2);
+    let (p0, r0) = ctx.propose(oracle, &auth0, 0, bond);
+    r0.expect("propose option 0");
+    let (p1, r1) = ctx.propose(oracle, &auth1, 1, bond);
+    r1.expect("propose option 1");
+    ctx.warp(PROPOSAL_WINDOW + 1);
+    let fin = ctx.finalize_proposals_ix(oracle, &[p0, p1]);
+    ctx.send(fin, &[]).expect("finalize_proposals");
+    assert_eq!(ctx.oracle(oracle).phase, Phase::FactProposal.as_u8());
+    let proposer_pdas = vec![p0, p1];
+    let authorities = vec![auth0, auth1];
 
     // 1) submit_fact.
-    let submitter = Keypair::new();
+    let submitter = kp(10);
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
     let submitter_kass = ctx.fund_kass(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
@@ -224,7 +252,7 @@ fn cu_metering_full_lifecycle_under_budget() {
     ctx.send(ix, &[]).expect("advance_phase");
 
     // 3) vote_fact (approve, clears the 2/3 quorum of dispute_bond_total = 2000).
-    let voter = Keypair::new();
+    let voter = kp(20);
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
     let voter_kass = ctx.fund_kass(&voter, 10_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
