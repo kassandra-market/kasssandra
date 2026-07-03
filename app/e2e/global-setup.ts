@@ -123,6 +123,33 @@ async function globalSetup(): Promise<() => Promise<void>> {
     oracles.resolved = { nonce: '6', address: o.toString(), proposer: walletProposer }
   }
 
+  // 7) FactProposal, window will elapse — wallet cranks advance_phase.
+  {
+    const o = await createOracleReal(ctx, 7n, 2, 'E2E advancePhase crank')
+    await driveToFactProposal(ctx, o)
+    oracles.factProposalCrank = { nonce: '7', address: o.toString() }
+  }
+
+  // 8) FactVoting (1 fact), window will elapse — wallet cranks finalize_facts.
+  {
+    const o = await createOracleReal(ctx, 8n, 2, 'E2E finalizeFacts crank')
+    await driveToFactProposal(ctx, o)
+    const fact = await submitOneFact(ctx, o)
+    await advanceToFactVoting(ctx, o)
+    oracles.factVotingCrank = { nonce: '8', address: o.toString(), fact: fact.toString() }
+  }
+
+  // 9) AiClaim, window will elapse — wallet cranks finalize_ai_claims.
+  {
+    const o = await createOracleReal(ctx, 9n, 2, 'E2E finalizeAiClaims crank')
+    await driveToFactProposal(ctx, o)
+    const fact = await submitOneFact(ctx, o)
+    await advanceToFactVoting(ctx, o)
+    await approveVote(ctx, o, fact)
+    await advanceToAiClaim(ctx, o, 9n, fact)
+    oracles.aiClaimCrank = { nonce: '9', address: o.toString() }
+  }
+
   writeFileSync(
     WALLET_FILE,
     JSON.stringify(
