@@ -18,7 +18,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { Keypair } from '@solana/web3.js'
-import { TOKEN_PROGRAM_ID, associatedTokenAccount, finalizeProposals } from '@kassandra/sdk'
+import { TOKEN_PROGRAM_ID, associatedTokenAccount, finalizeProposals, pda } from '@kassandra/sdk'
 
 import { toHex, tokenAccountBytes } from '../../sdk/test/surfpool/harness.ts'
 import {
@@ -34,9 +34,11 @@ import {
   driveToResolvedFull,
   driveToResolvedUncontested,
   fabricateGovernance,
+  fabricateKassDao,
   keepWindowOpen,
   openProposals,
   proposeAs,
+  seedDeadendOracle,
   sendIx,
   submitOneFact,
 } from './seed.ts'
@@ -188,6 +190,15 @@ async function globalSetup(): Promise<() => Promise<void>> {
     oracles.sweepReady = { nonce: '12', address: o.toString() }
   }
 
+  // 13) Admin / DAO fixtures — the /admin page drives set_governance, set_config,
+  //     resolve_deadend, kass_price. Fabricate a futarchy-owned kass_dao (carries a
+  //     spot TWAP for kass_price) and a dead-end oracle (InvalidDeadend) to resolve.
+  //     Each spec patches the Protocol governance fields it needs per-test.
+  const kassDao = await fabricateKassDao(ctx)
+  const deadend = await seedDeadendOracle(ctx, 13n)
+  oracles.deadend = { nonce: '13', address: deadend.toString() }
+  const protocol = (await pda.protocol()).address.toString()
+
   writeFileSync(
     WALLET_FILE,
     JSON.stringify(
@@ -197,6 +208,8 @@ async function globalSetup(): Promise<() => Promise<void>> {
         rpcUrl,
         kassMint: ctx.kassMint.publicKey.toString(),
         usdcMint: ctx.usdcMint.publicKey.toString(),
+        protocol,
+        kassDao,
         oracles,
       },
       null,

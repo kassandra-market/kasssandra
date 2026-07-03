@@ -219,6 +219,73 @@ export async function backdateForSweep(ctx: SeedCtx, oracle: Address): Promise<v
   })
 }
 
+const FUTARCHY_DAO_DISC = Uint8Array.from([0xa3, 0x09, 0x2f, 0x1f, 0x34, 0x55, 0xc5, 0x31])
+
+/** Build a minimal futarchy `Dao` account blob with an embedded spot TWAP. */
+function buildDaoBlob(aggregator: bigint, lastUpdated: bigint, createdAt: bigint): Uint8Array {
+  const data = new Uint8Array(141)
+  data.set(FUTARCHY_DAO_DISC, 0)
+  data[8] = 0 // PoolState::Spot
+  const dv = new DataView(data.buffer)
+  dv.setBigUint64(9, aggregator & 0xffffffffffffffffn, true)
+  dv.setBigUint64(17, aggregator >> 64n, true)
+  dv.setBigInt64(25, lastUpdated, true)
+  dv.setBigInt64(33, createdAt, true)
+  return data
+}
+
+/** Patch the Protocol singleton bytes in place (for governance fabrication). */
+async function patchProtocolBytes(ctx: SeedCtx, mutate: (d: Uint8Array) => void): Promise<void> {
+  const { KASSANDRA_PROGRAM_ID } = await import('@kassandra/sdk')
+  const p = (await pda.protocol()).address
+  const info = await ctx.harness.connection.getAccountInfo(p)
+  if (!info) throw new Error('protocol not found')
+  const data = Uint8Array.from(info.data as Uint8Array)
+  mutate(data)
+  await ctx.harness.setAccount(p.toString(), {
+    lamports: Number((info as { lamports?: bigint | number }).lamports ?? 5_000_000),
+    owner: KASSANDRA_PROGRAM_ID.toString(),
+    executable: false,
+    data: toHex(data),
+  })
+}
+
+/**
+ * Fabricate a futarchy-owned `Dao` account carrying a spot TWAP and record it as
+ * `Protocol.kass_dao` (offset 160) — the account `kass_price` reads and the
+ * linkage `set_governance` needs. Returns the DAO address.
+ */
+export async function fabricateKassDao(ctx: SeedCtx): Promise<string> {
+  const { EXTERNAL_PROGRAM_IDS } = await import('@kassandra/sdk')
+  const dao = await Keypair.generate()
+  await ctx.harness.setAccount(dao.publicKey.toString(), {
+    lamports: 5_000_000,
+    owner: EXTERNAL_PROGRAM_IDS.futarchyV06.toString(),
+    executable: false,
+    data: toHex(buildDaoBlob(500_000_000n * 1_000_000n, 1_000_000n, 0n)),
+  })
+  await patchProtocolBytes(ctx, (d) => d.set(dao.publicKey.toBytes(), 160))
+  return dao.publicKey.toString()
+}
+
+/** Seed an oracle stuck in InvalidDeadend (phaseRaw byte 161 = 8) for resolve_deadend. */
+export async function seedDeadendOracle(ctx: SeedCtx, nonce: bigint): Promise<Address> {
+  const { KASSANDRA_PROGRAM_ID } = await import('@kassandra/sdk')
+  const o = await createOracleReal(ctx, nonce, 2, 'E2E dead-end')
+  await driveToResolvedUncontested(ctx, o, 0)
+  const info = await ctx.harness.connection.getAccountInfo(o)
+  if (!info) throw new Error('deadend oracle not found')
+  const data = Uint8Array.from(info.data as Uint8Array)
+  data[161] = 8 // Phase::InvalidDeadend
+  await ctx.harness.setAccount(o.toString(), {
+    lamports: Number((info as { lamports?: bigint | number }).lamports ?? 5_000_000),
+    owner: KASSANDRA_PROGRAM_ID.toString(),
+    executable: false,
+    data: toHex(data),
+  })
+  return o
+}
+
 /** Resolve an oracle uncontested (all proposers agree) → Resolved(option). */
 export async function driveToResolvedUncontested(
   ctx: SeedCtx,

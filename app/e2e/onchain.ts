@@ -3,9 +3,11 @@
  * so a browser write can be asserted by its PERSISTENT on-chain effect (the UI
  * success line is transient — it is cleared by the post-write refetch).
  */
-import { decodeFact, decodeOracle, decodeProposer } from '@kassandra/sdk'
+import { Address } from '@solana/web3.js'
+import { decodeFact, decodeOracle, decodeProposer, decodeProtocol } from '@kassandra/sdk'
 
 const RPC = 'http://127.0.0.1:8899'
+const PROGRAM = 'KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY'
 
 async function rpc<T>(method: string, params: unknown[]): Promise<T> {
   const res = await fetch(RPC, {
@@ -91,4 +93,38 @@ export async function proposerAt(address: string): Promise<ReturnType<typeof dec
   const data = await getAccountData(address)
   if (!data) throw new Error(`proposer ${address} not found`)
   return decodeProposer(data)
+}
+
+export async function protocolAt(address: string): Promise<ReturnType<typeof decodeProtocol>> {
+  const data = await getAccountData(address)
+  if (!data) throw new Error(`protocol ${address} not found`)
+  return decodeProtocol(data)
+}
+
+/** Overwrite an account's data via surfnet_setAccount (owner defaults to the program). */
+export async function setAccountRaw(address: string, data: Uint8Array, owner = PROGRAM): Promise<void> {
+  await rpc('surfnet_setAccount', [
+    address,
+    { lamports: 5_000_000, owner, executable: false, data: Buffer.from(data).toString('hex') },
+  ])
+}
+
+/**
+ * Fabricate governance fields on the Protocol singleton (admin @8, governance_set
+ * @121, dao_authority @128, kass_dao @160) so the connected wallet can drive each
+ * DAO-gated op — the real set_governance requires a Squads vault PDA no keypair
+ * can sign, so admin/DAO tests fabricate the linkage directly (per claims.e2e).
+ */
+export async function patchProtocol(
+  protocol: string,
+  fields: { admin?: string; daoAuthority?: string; governanceSet?: boolean; kassDao?: string },
+): Promise<void> {
+  const cur = await getAccountData(protocol)
+  if (!cur) throw new Error('protocol not found')
+  const d = Uint8Array.from(cur)
+  if (fields.admin) d.set(new Address(fields.admin).toBytes(), 8)
+  if (fields.governanceSet !== undefined) d[121] = fields.governanceSet ? 1 : 0
+  if (fields.daoAuthority) d.set(new Address(fields.daoAuthority).toBytes(), 128)
+  if (fields.kassDao) d.set(new Address(fields.kassDao).toBytes(), 160)
+  await setAccountRaw(protocol, d)
 }

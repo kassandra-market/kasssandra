@@ -12,6 +12,7 @@ const Oracles = lazy(() => import('./pages/Oracles.tsx'))
 const CreateOracle = lazy(() => import('./pages/CreateOracle.tsx'))
 const OracleDetail = lazy(() => import('./pages/OracleDetail.tsx'))
 const StyleGuide = lazy(() => import('./pages/StyleGuide.tsx'))
+const Admin = lazy(() => import('./pages/Admin.tsx'))
 
 /**
  * Quiet Delphi placeholder shown while a route chunk streams in. On-brand
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/oracles/new" element={lazyRoute(<CreateOracle />)} />
             <Route path="/oracles/:pubkey" element={lazyRoute(<OracleDetail />)} />
             <Route path="/styleguide" element={lazyRoute(<StyleGuide />)} />
+            <Route path="/admin" element={lazyRoute(<Admin />)} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
