@@ -68,6 +68,12 @@ services:
       # set it to your own RPC URL to point "Localnet" at a custom validator.
       - key: VITE_RPC_URL
         sync: false
+      # The indexer's public URL — the app renders an on-chain activity feed from
+      # it when set (absent → the feature is simply not shown). Vite inlines this
+      # at BUILD time, so a change requires a rebuild. Point it at the
+      # kassandra-indexer service's URL (e.g. https://kassandra-indexer.onrender.com).
+      - key: VITE_INDEXER_URL
+        sync: false
 
   # ---- Indexer: Carbon RPC-crawler → Postgres, with a read API ----
   - type: web

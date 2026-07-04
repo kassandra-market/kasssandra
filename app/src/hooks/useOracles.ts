@@ -30,7 +30,7 @@ export interface AsyncState<T> {
  * (cluster switched, component unmounted) are dropped instead of clobbering
  * state. `refetch` bumps an internal nonce to force a re-run.
  */
-function useAsync<T>(task: () => Promise<T>, deps: readonly unknown[]): AsyncState<T> {
+export function useAsync<T>(task: () => Promise<T>, deps: readonly unknown[]): AsyncState<T> {
   const [data, setData] = useState<T | undefined>(undefined)
   const [error, setError] = useState<Error | undefined>(undefined)
   const [loading, setLoading] = useState(true)

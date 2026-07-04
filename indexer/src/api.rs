@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::Deserialize;
 use tokio_postgres::Client;
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::db;
 
@@ -31,11 +32,15 @@ pub struct EventsQuery {
 }
 
 pub fn router(state: ApiState) -> Router {
+    // The read API is public + cross-origin (the dApp on another origin reads it),
+    // so allow any origin for GETs. No credentials/cookies are involved.
+    let cors = CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any);
     Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/status", get(status))
         .route("/events", get(events))
         .route("/accounts/{pubkey}/events", get(account_events))
+        .layer(cors)
         .with_state(state)
 }
 

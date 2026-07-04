@@ -11,8 +11,10 @@ import { EconomicPanel } from '../components/oracles/EconomicPanel'
 import { ChallengeMarketPanel } from '../components/oracles/ChallengeMarketPanel'
 import { ChallengeTradeControls } from '../components/oracles/actions/ChallengeTradeControls'
 import { Truncated } from '../components/oracles/Truncated'
+import { ActivityFeed } from '../components/oracles/ActivityFeed'
 import { verdictFor } from '../lib/phaseTimeline'
 import { ClaimControl, CloseControl, OracleActions, VoteControl } from '../components/oracles/actions'
+import { isIndexerConfigured } from '../data/indexer'
 import { useOracleDetail } from '../hooks/useOracles'
 import { OracleNotFoundError } from '../data/oracles'
 import { recallNonce } from '../lib/nonceStore'
@@ -658,6 +660,14 @@ function OracleBody({
           emptyNote('No challenge market opened for this oracle.')
         )}
       </Section>
+
+      {/* On-chain activity — indexed event history (renders only when the
+          indexer backend is configured; otherwise absent). */}
+      {isIndexerConfigured() ? (
+        <Section title="Activity">
+          <ActivityFeed oracle={pubkey} />
+        </Section>
+      ) : null}
 
       {/* Accounts */}
       <Section title="Accounts">
