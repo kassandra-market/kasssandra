@@ -52,15 +52,19 @@ const MIME = {
   '.wasm': 'application/wasm',
 }
 
-/** Reverse-proxy a request to the private indexer, stripping the /indexer prefix. */
-function proxyToIndexer(req, res) {
+/**
+ * Reverse-proxy a request to the private indexer at `upstreamPath`. Both the
+ * oracle routes (reached under `/indexer/*`, prefix stripped → `/rpc`,`/events`…)
+ * and the market routes (reached under `/api/*`, passed through unchanged — the
+ * indexer serves them AT `/api/*`) hit the SAME single indexer.
+ */
+function proxyToIndexer(req, res, upstreamPath) {
   if (!INDEXER_URL) {
     res.writeHead(503, { 'content-type': 'application/json' })
     res.end(JSON.stringify({ error: 'indexer not configured' }))
     return
   }
   const target = new URL(INDEXER_URL)
-  const upstreamPath = req.url.slice(PROXY_PREFIX.length) || '/'
   const upstream = httpRequest(
     {
       protocol: target.protocol,
@@ -102,9 +106,15 @@ async function serveFile(res, file, { immutable = false } = {}) {
 const server = createServer((req, res) => {
   const url = req.url ?? '/'
 
-  // 1) Proxy the indexer API over the private network.
+  // 1) Proxy the indexer API over the private network. Oracle routes live under
+  //    `/indexer/*` (prefix stripped); market routes live under `/api/*` (passed
+  //    through as-is). Both target the same single indexer.
   if (url === PROXY_PREFIX || url.startsWith(`${PROXY_PREFIX}/`)) {
-    proxyToIndexer(req, res)
+    proxyToIndexer(req, res, url.slice(PROXY_PREFIX.length) || '/')
+    return
+  }
+  if (url === '/api' || url.startsWith('/api/')) {
+    proxyToIndexer(req, res, url)
     return
   }
 

@@ -17,6 +17,9 @@ importers:
       '@fontsource/roboto-mono':
         specifier: ^5.2.9
         version: 5.2.9
+      '@kassandra-market/sdk':
+        specifier: workspace:*
+        version: link:../sdk-market
       '@kassandra/sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -106,6 +109,31 @@ importers:
       litesvm:
         specifier: 1.2.0
         version: 1.2.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.0)(lightningcss@1.32.0)(terser@5.48.0)
+
+  sdk-market:
+    dependencies:
+      '@solana/kit':
+        specifier: ^6.10.0
+        version: 6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      '@solana/web3.js':
+        specifier: 3.0.0-rc.2
+        version: 3.0.0-rc.2(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.0
+      litesvm:
+        specifier: 1.2.1
+        version: 1.2.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.0
       typescript:
         specifier: ^5.7.0
         version: 5.9.3
@@ -3811,8 +3839,20 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
+  litesvm-darwin-arm64@1.2.1:
+    resolution: {integrity: sha512-Ws6xkcKOOu5qY67dFG/bUm9HvPe2YoP7/or/FWESeU0hUj7756Z7+Y02zeGmGitGMm+A7rBPNfuPROnUz/+CQg==}
+    engines: {node: '>= 20'}
+    cpu: [arm64]
+    os: [darwin]
+
   litesvm-darwin-x64@1.2.0:
     resolution: {integrity: sha512-XeIgtWLKM4TKk/1uNU8BnTd9XiQBVkZMz10Jg183wrgaC2a/iiFBmg9Kt3CQfHdr8XY4Q+cpvrT47olftL6wjA==}
+    engines: {node: '>= 20'}
+    cpu: [x64]
+    os: [darwin]
+
+  litesvm-darwin-x64@1.2.1:
+    resolution: {integrity: sha512-V/rBwLnUdIXEGIBbjyVm5WjcVQTQdB0V08mUyOBl6in4PHj8d81nWK2L4DE58dulEkV40oNmXkeuX3lBTaVilQ==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [darwin]
@@ -3823,8 +3863,20 @@ packages:
     cpu: [arm64]
     os: [linux]
 
+  litesvm-linux-arm64-gnu@1.2.1:
+    resolution: {integrity: sha512-RxSjDrseyVmWrNqu44b8xb3V7cVV1PCUarRGS3WaEawt1YduDVuyk8T/G12N8c7XptSjoxSjH+Xdhm7bbbLgNw==}
+    engines: {node: '>= 20'}
+    cpu: [arm64]
+    os: [linux]
+
   litesvm-linux-arm64-musl@1.2.0:
     resolution: {integrity: sha512-2v+OdqT1qm1S+n1NBagR7zWcnWOsyR8ZpNdD0vXO/91Uc/2VN0JT25wPdri5bmhtUrv2ad7LaNkdRMlXhHxOjQ==}
+    engines: {node: '>= 20'}
+    cpu: [arm64]
+    os: [linux]
+
+  litesvm-linux-arm64-musl@1.2.1:
+    resolution: {integrity: sha512-HM/Q8D52fLzhaXYoaRWZK/KlhMOgR/hVpM+UgurnD8cVwNB8a6xw+2ucESXsWNSJFidBWySi3Kh6nrUR+ICHCw==}
     engines: {node: '>= 20'}
     cpu: [arm64]
     os: [linux]
@@ -3835,14 +3887,30 @@ packages:
     cpu: [x64]
     os: [linux]
 
+  litesvm-linux-x64-gnu@1.2.1:
+    resolution: {integrity: sha512-ZkmdoGRhhPvNSAOQ1gzHshjf30Iq68g81Am1YTbbQyu8mGt054OtZBJKkH7fLUXZlNz8L9azUVG3LAjp3XIixw==}
+    engines: {node: '>= 20'}
+    cpu: [x64]
+    os: [linux]
+
   litesvm-linux-x64-musl@1.2.0:
     resolution: {integrity: sha512-Ysdi9IzhXAYkQtrqejGryt1nzIqzBXLGgv/sfyVXJLiDfRsaVW03Dn+FYHmm2kMSchNP2XAAwO1ymYN14xJPvg==}
     engines: {node: '>= 20'}
     cpu: [x64]
     os: [linux]
 
+  litesvm-linux-x64-musl@1.2.1:
+    resolution: {integrity: sha512-Sdtle1h+Ij1LDqs5Uz7m6ug1Jo3ViXYS4YTXacQE9mNxtr/3bbl+4gVYQls0LHvhiXQ0aQXva0cm17gMX1F9+w==}
+    engines: {node: '>= 20'}
+    cpu: [x64]
+    os: [linux]
+
   litesvm@1.2.0:
     resolution: {integrity: sha512-r/uGAeSGuCnIa/Aqb4skQDY3/+HXg8UdIHHzIt9u714t+FwL6tk6lj2I65WimQX3Qg3Hzua1ygK1bxkGtQFuwQ==}
+    engines: {node: '>= 20'}
+
+  litesvm@1.2.1:
+    resolution: {integrity: sha512-naz4Orq26cgYl39/FYhz2kCnNN/5BMtc3fdeaWo2Gc2ak5qKKrbD3nf62h+HIYZ3fQ0O2KO0hxAZBqXF4Ncz5w==}
     engines: {node: '>= 20'}
 
   locate-path@5.0.0:
@@ -10564,19 +10632,37 @@ snapshots:
   litesvm-darwin-arm64@1.2.0:
     optional: true
 
+  litesvm-darwin-arm64@1.2.1:
+    optional: true
+
   litesvm-darwin-x64@1.2.0:
+    optional: true
+
+  litesvm-darwin-x64@1.2.1:
     optional: true
 
   litesvm-linux-arm64-gnu@1.2.0:
     optional: true
 
+  litesvm-linux-arm64-gnu@1.2.1:
+    optional: true
+
   litesvm-linux-arm64-musl@1.2.0:
+    optional: true
+
+  litesvm-linux-arm64-musl@1.2.1:
     optional: true
 
   litesvm-linux-x64-gnu@1.2.0:
     optional: true
 
+  litesvm-linux-x64-gnu@1.2.1:
+    optional: true
+
   litesvm-linux-x64-musl@1.2.0:
+    optional: true
+
+  litesvm-linux-x64-musl@1.2.1:
     optional: true
 
   litesvm@1.2.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6):
@@ -10591,6 +10677,24 @@ snapshots:
       litesvm-linux-arm64-musl: 1.2.0
       litesvm-linux-x64-gnu: 1.2.0
       litesvm-linux-x64-musl: 1.2.0
+    transitivePeerDependencies:
+      - bufferutil
+      - fastestsmallesttextencoderdecoder
+      - typescript
+      - utf-8-validate
+
+  litesvm@1.2.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6):
+    dependencies:
+      '@solana-program/system': 0.12.2(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
+      '@solana-program/token': 0.14.0(@solana/kit@6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
+      '@solana/kit': 6.10.0(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
+    optionalDependencies:
+      litesvm-darwin-arm64: 1.2.1
+      litesvm-darwin-x64: 1.2.1
+      litesvm-linux-arm64-gnu: 1.2.1
+      litesvm-linux-arm64-musl: 1.2.1
+      litesvm-linux-x64-gnu: 1.2.1
+      litesvm-linux-x64-musl: 1.2.1
     transitivePeerDependencies:
       - bufferutil
       - fastestsmallesttextencoderdecoder

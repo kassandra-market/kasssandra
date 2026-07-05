@@ -9,6 +9,7 @@ import { useCluster, CLUSTER_LABELS, isGatewayMode, type Cluster } from '../../l
 // section anchors (they resolve on the landing page).
 const NAV_LINKS: { label: string; href: string; route?: boolean }[] = [
   { label: 'Oracles', href: '/oracles', route: true },
+  { label: 'Markets', href: '/markets', route: true },
   { label: 'How it works', href: '/#how-it-works' },
   { label: 'Governance', href: '/#why-kassandra' },
   { label: 'Docs', href: '#' },

@@ -225,6 +225,11 @@ async function main(): Promise<void> {
       COMMITMENT: 'confirmed',
       POLL_INTERVAL_MS: '1000',
       PROMOTE_INTERVAL_MS: '2000',
+      // The single indexer also runs the market account pipeline. surfpool has no
+      // ws `programSubscribe`, so drive the market side via the getProgramAccounts
+      // reconcile loop (harmless if the market program isn't deployed locally: gpa
+      // just returns no accounts). MARKET_PROGRAM_ID defaults to the known id.
+      INDEXER_RECONCILE_MS: '1000',
       RUST_LOG: 'info',
     },
     stdio: ['ignore', indexerLog, indexerLog],
