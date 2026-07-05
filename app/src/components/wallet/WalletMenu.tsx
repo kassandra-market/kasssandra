@@ -5,9 +5,25 @@
  * {@link StandardWalletProvider}. Rendered once, near the app root; visibility is
  * driven by `useWalletMenu().open`.
  */
+import { useMemo } from 'react'
 import { useConnect, type UiWallet, type UiWalletAccount } from '@wallet-standard/react'
 
 import { useWalletMenu } from '../../lib/standardWallet'
+
+/** The registry can list a wallet more than once and can include entries that
+ *  don't support `standard:connect` (calling `useConnect` on those throws). Keep
+ *  the first connectable entry per name. */
+function connectableWallets(wallets: readonly UiWallet[]): UiWallet[] {
+  const seen = new Set<string>()
+  const out: UiWallet[] = []
+  for (const w of wallets) {
+    if (seen.has(w.name)) continue
+    if (!(w.features as readonly string[]).includes('standard:connect')) continue
+    seen.add(w.name)
+    out.push(w)
+  }
+  return out
+}
 
 function WalletRow({
   wallet,
@@ -36,6 +52,7 @@ function WalletRow({
 
 export function WalletMenu() {
   const { wallets, open, setOpen, adopt } = useWalletMenu()
+  const connectable = useMemo(() => connectableWallets(wallets), [wallets])
   if (!open) return null
   return (
     <div
@@ -51,13 +68,13 @@ export function WalletMenu() {
       >
         <h2 className="font-serif text-heading-sm font-light text-platinum">Connect a wallet</h2>
         <div className="mt-4 flex flex-col gap-2">
-          {wallets.length === 0 ? (
+          {connectable.length === 0 ? (
             <p className="font-inter text-[14px] text-driftwood">
               No wallets detected. Install Phantom or Solflare (and, for this local chain, add a
               custom RPC pointing at 127.0.0.1:8899).
             </p>
           ) : (
-            wallets.map((w) => (
+            connectable.map((w) => (
               <WalletRow
                 key={w.name}
                 wallet={w}
