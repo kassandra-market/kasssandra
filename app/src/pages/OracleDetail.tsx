@@ -494,11 +494,8 @@ function OracleBody({
   refetch: () => void
 }) {
   const { pubkey, oracle, facts, proposers, aiClaims, market } = detail
-  // Verified plaintext subject + option labels (from the indexer memo capture).
-  const metaItems = useMemo(
-    () => [{ pubkey, promptHash: oracle.promptHash }],
-    [pubkey, oracle.promptHash],
-  )
+  // On-chain plaintext subject + option labels (indexed from oracle_meta).
+  const metaItems = useMemo(() => [pubkey], [pubkey])
   const meta = useOracleMeta(metaItems).get(pubkey)
   const options = meta?.options ?? []
   const resolved = oracle.phase === Phase.Resolved
@@ -539,10 +536,22 @@ function OracleBody({
           <span>{relativeDeadline(oracle.deadline)}</span>
           <Truncated value={pubkey} copyable label="oracle address" />
         </div>
-        <div className="mt-3 flex items-baseline gap-2 font-inter text-[13px] text-driftwood">
-          <span>Prompt hash</span>
-          <Truncated value={hashHex(oracle.promptHash)} head={8} tail={6} copyable label="prompt hash" />
-        </div>
+        {meta?.uri && (
+          <div className="mt-3 flex items-baseline gap-2 font-inter text-[13px] text-driftwood">
+            <span>Metadata</span>
+            <a
+              href={meta.uri}
+              target="_blank"
+              rel="noreferrer"
+              className="text-chestnut underline decoration-dotted underline-offset-2"
+            >
+              extended JSON
+            </a>
+            <span className="text-driftwood/70" title="sha256 committed on-chain">
+              (hash-verified)
+            </span>
+          </div>
+        )}
         {resolved ? (
           <p className="mt-3 font-inter text-[14px] text-chestnut">
             {hasResolvedOption

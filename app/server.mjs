@@ -113,6 +113,14 @@ const server = createServer((req, res) => {
     proxyToIndexer(req, res, url.slice(PROXY_PREFIX.length) || '/')
     return
   }
+  // Public oracle-metadata JSON host: the on-chain `uri` points here. Map it to
+  // the indexer's private `/oracles/{pk}/meta-json` route (GET serves it gated by
+  // uri_hash; POST stores the app-supplied JSON). Must precede the generic /api/*.
+  const metaMatch = url.match(/^\/api\/oracle\/([^/?]+)\/metadata\.json(?:\?.*)?$/)
+  if (metaMatch) {
+    proxyToIndexer(req, res, `/oracles/${metaMatch[1]}/meta-json`)
+    return
+  }
   if (url === '/api' || url.startsWith('/api/')) {
     proxyToIndexer(req, res, url)
     return

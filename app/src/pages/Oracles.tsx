@@ -7,12 +7,7 @@ import { useOracles } from '../hooks/useOracles'
 import { useOracleMeta, type OracleMetaView } from '../hooks/useOracleMeta'
 import type { OracleSummary } from '../data/oracles'
 import { CLUSTER_LABELS, useCluster } from '../lib/cluster'
-import {
-  RESOLVED_OPTION_NONE,
-  hashPreview,
-  phaseView,
-  relativeDeadline,
-} from '../lib/oracleView'
+import { RESOLVED_OPTION_NONE, phaseView, relativeDeadline } from '../lib/oracleView'
 import {
   deriveStats,
   filterByPhaseGroup,
@@ -56,12 +51,12 @@ function OracleCard({
           </span>
         </div>
 
-        {/* Subject (the question) near the top — the verified plaintext when we
-            have it, else the phase label + the raw prompt hash. */}
+        {/* Subject (the question) near the top — the on-chain plaintext when the
+            metadata has loaded, else the phase label. */}
         <h3 className="font-serif text-subheading font-light text-sepia">
           {meta?.subject ?? label}
         </h3>
-        {options.length > 0 ? (
+        {options.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {options.slice(0, SHOWN).map((opt, i) => (
               <span
@@ -77,10 +72,6 @@ function OracleCard({
               </span>
             )}
           </div>
-        ) : (
-          <p className="font-mono text-[12px] text-bronze" title="Prompt hash">
-            {hashPreview(oracle.promptHash)}
-          </p>
         )}
 
         <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 font-inter text-[13px] text-bronze">
@@ -186,10 +177,7 @@ export default function Oracles() {
 
   // Verified plaintext subject + option labels (from the indexer), fetched once
   // for the whole loaded set so filtering/sorting doesn't refetch.
-  const metaItems = useMemo(
-    () => (data ?? []).map((s) => ({ pubkey: s.pubkey, promptHash: s.oracle.promptHash })),
-    [data],
-  )
+  const metaItems = useMemo(() => (data ?? []).map((s) => s.pubkey), [data])
   const meta = useOracleMeta(metaItems)
 
   return (

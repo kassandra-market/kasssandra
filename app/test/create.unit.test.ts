@@ -40,10 +40,6 @@ function keyShape(ix: TransactionInstruction) {
   }));
 }
 
-async function sha256(s: string): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)));
-}
-
 async function fixture() {
   const creator = (await Keypair.generate()).publicKey;
   const kassMint = (await Keypair.generate()).publicKey;
@@ -71,15 +67,13 @@ describe("buildCreateOracleIxs", () => {
     });
 
     expect(built.ixs.length).toBe(1);
-    // promptHash == sha256(question)
-    expect(Array.from(built.promptHash)).toEqual(Array.from(await sha256(question)));
-    // returned Oracle PDA == pda.oracle(nonce)
+    // No `options` → no metadata written; returned Oracle PDA == pda.oracle(nonce).
+    expect(built.metadata).toBeUndefined();
     expect(built.oracle.toString()).toBe((await pda.oracle(nonce)).address.toString());
     expect(built.nonce).toBe(nonce);
 
     const expected = await createOracle({
       nonce,
-      promptHash: await sha256(question),
       optionsCount: 3,
       deadline: FUTURE,
       twapWindow: 3600n,
@@ -93,7 +87,7 @@ describe("buildCreateOracleIxs", () => {
     expect(keyShape(built.ixs[0])).toEqual(keyShape(expected));
   });
 
-  it("appends the subject+options memo and derives options_count from the labels", async () => {
+  it("appends the writeOracleMeta ix and derives options_count from the labels", async () => {
     const { creator, kassMint, usdcMint } = await fixture();
     const question = "Which team wins?";
     const options = ["Red", "Blue", "Draw"];
@@ -106,21 +100,29 @@ describe("buildCreateOracleIxs", () => {
       creator,
       kassMint,
       usdcMint,
+      appOrigin: "https://app.test",
     });
 
-    // createOracle ix + the memo ix (ATA already present).
+    // createOracle ix + the writeOracleMeta ix (ATA already present).
     expect(built.ixs.length).toBe(2);
-    const memo = built.ixs[1];
-    expect(memo.programId.toString()).toBe("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
-    expect(memo.keys.length).toBe(0);
-    expect(new TextDecoder().decode(memo.data)).toBe(
-      JSON.stringify({ v: 1, subject: question, options }),
+    const meta = built.ixs[1];
+    // WriteOracleMeta discriminant (23); accounts: creator(signer), oracle, meta, system.
+    expect(meta.data[0]).toBe(23);
+    expect(meta.keys.length).toBe(4);
+    expect(meta.keys[0].isSigner).toBe(true);
+
+    // The extended JSON returned for hosting carries the subject/options + a uri
+    // pointing at the app origin, bound by a 32-byte uri_hash.
+    expect(built.metadata?.json.subject).toBe(question);
+    expect(built.metadata?.json.options).toEqual(options);
+    expect(built.metadata?.uri).toBe(
+      `https://app.test/api/oracle/${built.oracle.toString()}/metadata.json`,
     );
+    expect(built.metadata?.uriHash.length).toBe(32);
 
     // options_count on the createOracle payload is derived from labels.length (3).
     const expected = await createOracle({
       nonce: 9n,
-      promptHash: await sha256(question),
       optionsCount: options.length,
       deadline: FUTURE,
       twapWindow: 3600n,
@@ -157,7 +159,6 @@ describe("buildCreateOracleIxs", () => {
 
     const expected = await createOracle({
       nonce: 7n,
-      promptHash: await sha256("Q?"),
       optionsCount: 2,
       deadline: FUTURE,
       twapWindow: 3600n,

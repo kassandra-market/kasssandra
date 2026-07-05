@@ -1,74 +1,60 @@
 /**
- * Fetch + verify off-chain oracle metadata (the plaintext SUBJECT + option
- * LABELS captured from the CreateOracle memo, served by the indexer). The
- * `subject` is trusted ONLY when its SHA-256 matches the on-chain `prompt_hash`
- * (the same hash the chain commits to), so a lying indexer can't fake a question.
- * Option labels are advisory (not part of the hash). Best-effort: no indexer, or
- * a fetch failure, just yields an empty map and the UI falls back to the hash.
+ * Fetch oracle metadata (the plaintext SUBJECT + option LABELS, plus the extended
+ * JSON `uri`/`uriHash`) indexed from the on-chain `oracle_meta` account. Unlike
+ * the old memo path, the subject + labels are now ON CHAIN (authoritative) — the
+ * indexer is just a queryable mirror, so no client-side re-hash is needed. The
+ * extended JSON (behind `uri`) is fetched separately by the detail view and
+ * verified against `uriHash`. Best-effort: no indexer / a fetch failure yields an
+ * empty map.
  */
 import { useEffect, useState } from 'react'
 
 import { fetchOracleMeta } from '../data/indexer'
 
-/** A verified metadata view for one oracle. */
+/** An indexed metadata view for one oracle. */
 export interface OracleMetaView {
-  /** The plaintext question — present ONLY when it hash-matches `prompt_hash`. */
+  /** The plaintext question (on-chain, authoritative). */
   subject?: string
-  /** The option labels (advisory; not hashed). */
+  /** The option labels (on-chain, authoritative). */
   options?: string[]
-}
-
-async function sha256(s: string): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))
-}
-
-function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false
-  return true
+  /** URL of the extended off-chain metadata JSON (may be empty). */
+  uri?: string
+  /** Hex sha256 binding the extended JSON. */
+  uriHash?: string
 }
 
 /**
- * Load verified metadata for a set of oracles. Refetches only when the pubkey set
- * changes (not on every render). Each entry's `subject` is included only if it
- * verifies against that oracle's `promptHash`.
+ * Load metadata for a set of oracle PDAs. Refetches only when the pubkey set
+ * changes (not on every render).
  */
-export function useOracleMeta(
-  items: { pubkey: string; promptHash: Uint8Array }[],
-): Map<string, OracleMetaView> {
+export function useOracleMeta(pubkeys: string[]): Map<string, OracleMetaView> {
   const [map, setMap] = useState<Map<string, OracleMetaView>>(new Map())
-  const key = items.map((i) => i.pubkey).join(',')
+  const key = pubkeys.join(',')
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (pubkeys.length === 0) {
       setMap(new Map())
       return
     }
     const ac = new AbortController()
     void (async () => {
-      const raw = await fetchOracleMeta(
-        items.map((i) => i.pubkey),
-        ac.signal,
-      )
+      const raw = await fetchOracleMeta(pubkeys, ac.signal)
       if (ac.signal.aborted) return
       const out = new Map<string, OracleMetaView>()
-      for (const it of items) {
-        const m = raw.get(it.pubkey)
+      for (const pubkey of pubkeys) {
+        const m = raw.get(pubkey)
         if (!m) continue
-        const view: OracleMetaView = {
+        out.set(pubkey, {
+          subject: m.subject,
           options: Array.isArray(m.options) ? m.options : undefined,
-        }
-        try {
-          if (bytesEqual(await sha256(m.subject), it.promptHash)) view.subject = m.subject
-        } catch {
-          // Leave the subject unverified (fall back to the hash in the UI).
-        }
-        out.set(it.pubkey, view)
+          uri: m.uri,
+          uriHash: m.uriHash,
+        })
       }
       if (!ac.signal.aborted) setMap(out)
     })()
     return () => ac.abort()
-    // Refetch keyed on the pubkey SET; `items` identity changes every render.
+    // Refetch keyed on the pubkey SET; `pubkeys` identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
 
