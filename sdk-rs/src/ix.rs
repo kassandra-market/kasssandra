@@ -683,22 +683,25 @@ pub fn sweep_oracle(
     protocol: Pubkey,
     dao_treasury: Pubkey,
     creator: Pubkey,
+    // The companion oracle_meta PDA, closed alongside the oracle (rent → creator).
+    // `None` for an oracle that has no metadata (the close is skipped).
+    oracle_meta: Option<Pubkey>,
 ) -> Instruction {
     let mut data = Vec::with_capacity(1 + 8);
     data.push(Ix::SweepOracle as u8);
     data.extend_from_slice(&nonce.to_le_bytes());
-    build(
-        program_id,
-        vec![
-            AccountMeta::new(oracle, false),
-            AccountMeta::new(stake_vault, false),
-            AccountMeta::new_readonly(protocol, false),
-            AccountMeta::new(dao_treasury, false),
-            AccountMeta::new(creator, false),
-            AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
-        ],
-        data,
-    )
+    let mut accounts = vec![
+        AccountMeta::new(oracle, false),
+        AccountMeta::new(stake_vault, false),
+        AccountMeta::new_readonly(protocol, false),
+        AccountMeta::new(dao_treasury, false),
+        AccountMeta::new(creator, false),
+        AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
+    ];
+    if let Some(meta) = oracle_meta {
+        accounts.push(AccountMeta::new(meta, false));
+    }
+    build(program_id, accounts, data)
 }
 
 // ===================================================================== Ix 23

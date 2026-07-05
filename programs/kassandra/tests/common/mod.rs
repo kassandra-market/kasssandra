@@ -2247,6 +2247,7 @@ impl TestCtx {
     /// [4] creator(w) [5] token program`. Payload = `oracle_nonce` LE. Exposes
     /// every account so tests can pass a wrong treasury / creator / vault.
     #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub fn sweep_oracle_ix(
         &self,
         oracle: Pubkey,
@@ -2255,6 +2256,7 @@ impl TestCtx {
         protocol: Pubkey,
         dao_treasury: Pubkey,
         creator: Pubkey,
+        oracle_meta: Option<Pubkey>,
     ) -> Instruction {
         kassandra_sdk::ix::sweep_oracle(
             &self.program_id,
@@ -2264,6 +2266,7 @@ impl TestCtx {
             protocol,
             dao_treasury,
             creator,
+            oracle_meta,
         )
     }
 }
