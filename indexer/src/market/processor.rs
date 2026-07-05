@@ -39,7 +39,13 @@ impl Processor<AccountProcessorInputType<'_, KassandraAccount>> for KassandraAcc
 /// Slot-gated upsert of one decoded account + its raw bytes into `market_accounts`.
 /// Shared by the live pipeline (above) and the reconcile loop (`main`). Errors are
 /// logged, not propagated, so one bad row never kills the pipeline.
-pub async fn persist(client: &Client, pubkey: &str, decoded: &KassandraAccount, data: &[u8], slot: i64) {
+pub async fn persist(
+    client: &Client,
+    pubkey: &str,
+    decoded: &KassandraAccount,
+    data: &[u8],
+    slot: i64,
+) {
     let (account_type, market_ref) = match decoded {
         KassandraAccount::Config(_) => (db::TYPE_CONFIG, None),
         KassandraAccount::Market(_) => (db::TYPE_MARKET, None),
@@ -48,8 +54,15 @@ pub async fn persist(client: &Client, pubkey: &str, decoded: &KassandraAccount, 
             Some(bs58::encode(c.market).into_string()),
         ),
     };
-    if let Err(e) =
-        db::upsert_account(client, pubkey, account_type, market_ref.as_deref(), slot, data).await
+    if let Err(e) = db::upsert_account(
+        client,
+        pubkey,
+        account_type,
+        market_ref.as_deref(),
+        slot,
+        data,
+    )
+    .await
     {
         log::warn!("[market] upsert {pubkey} failed: {e}");
     }

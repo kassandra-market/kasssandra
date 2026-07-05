@@ -32,16 +32,28 @@ CREATE TABLE IF NOT EXISTS indexer_cursor (
   CONSTRAINT cursor_singleton CHECK (id = 1)
 );
 
--- Off-chain oracle metadata (the plaintext SUBJECT + option labels) captured from
--- an SPL Memo instruction in the CreateOracle transaction. The chain stores only a
--- prompt HASH + options_count, so the human-readable question/options live here;
--- the client re-hashes `subject` against the on-chain prompt_hash to verify it.
+-- Oracle metadata INDEXED from the on-chain `oracle_meta` account (via the
+-- `write_oracle_meta` instruction): the plaintext subject + option labels are
+-- on-chain (authoritative), plus a `uri`/`uri_hash` referencing the extended
+-- off-chain JSON. This table is a queryable mirror of chain — clients can also
+-- read the account directly.
 CREATE TABLE IF NOT EXISTS oracle_metadata (
   oracle    TEXT   PRIMARY KEY,
   subject   TEXT   NOT NULL,
   options   JSONB  NOT NULL,      -- array of option-label strings
+  uri       TEXT   NOT NULL,      -- extended-metadata JSON URL (may be empty)
+  uri_hash  TEXT   NOT NULL,      -- hex sha256 binding the off-chain JSON
   slot      BIGINT NOT NULL,
   signature TEXT   NOT NULL
+);
+
+-- The extended off-chain metadata JSON, hosted for app-created oracles (the app
+-- POSTs it at creation; the public app server proxies GET/POST here). Served only
+-- when its sha256 matches the on-chain `uri_hash` in `oracle_metadata`.
+CREATE TABLE IF NOT EXISTS oracle_meta_json (
+  oracle TEXT PRIMARY KEY,
+  json   TEXT NOT NULL,
+  sha256 TEXT NOT NULL            -- hex sha256 of `json`
 );
 "#;
 
@@ -184,22 +196,27 @@ pub async fn query_events(
         .collect())
 }
 
-/// Insert oracle metadata captured from a CreateOracle memo. Idempotent: an oracle
-/// PDA is created once, so a re-processed CreateOracle keeps the first row.
+/// Index oracle metadata from a `write_oracle_meta` instruction. The account is
+/// write-once on-chain, so keep the first row (idempotent re-processing).
+#[allow(clippy::too_many_arguments)]
 pub async fn insert_oracle_meta(
     client: &Client,
     oracle: &str,
     subject: &str,
     options: &serde_json::Value,
+    uri: &str,
+    uri_hash: &str,
     slot: i64,
     signature: &str,
 ) -> Result<()> {
     client
         .execute(
-            "INSERT INTO oracle_metadata (oracle, subject, options, slot, signature)
-             VALUES ($1,$2,$3,$4,$5)
+            "INSERT INTO oracle_metadata (oracle, subject, options, uri, uri_hash, slot, signature)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)
              ON CONFLICT (oracle) DO NOTHING",
-            &[&oracle, &subject, options, &slot, &signature],
+            &[
+                &oracle, &subject, options, &uri, &uri_hash, &slot, &signature,
+            ],
         )
         .await?;
     Ok(())
@@ -210,44 +227,80 @@ fn meta_json(r: &tokio_postgres::Row) -> serde_json::Value {
         "oracle": r.get::<_, String>(0),
         "subject": r.get::<_, String>(1),
         "options": r.get::<_, serde_json::Value>(2),
-        "slot": r.get::<_, i64>(3),
+        "uri": r.get::<_, String>(3),
+        "uriHash": r.get::<_, String>(4),
+        "slot": r.get::<_, i64>(5),
     })
 }
 
-/// Oracle metadata for a single oracle PDA, if captured.
+const META_COLS: &str = "oracle, subject, options, uri, uri_hash, slot";
+
+/// Oracle metadata for a single oracle PDA, if indexed.
 pub async fn get_oracle_meta(client: &Client, oracle: &str) -> Result<Option<serde_json::Value>> {
-    let rows = client
-        .query(
-            "SELECT oracle, subject, options, slot FROM oracle_metadata WHERE oracle = $1",
-            &[&oracle],
-        )
-        .await?;
+    let sql = format!("SELECT {META_COLS} FROM oracle_metadata WHERE oracle = $1");
+    let rows = client.query(&sql, &[&oracle]).await?;
     Ok(rows.first().map(meta_json))
 }
 
 /// Oracle metadata for a batch of oracle PDAs (browse view). Empty input → all
-/// captured metadata (capped), so the list page can prefetch in one call.
+/// indexed metadata (capped), so the list page can prefetch in one call.
 pub async fn list_oracle_meta(
     client: &Client,
     oracles: &[String],
     limit: i64,
 ) -> Result<Vec<serde_json::Value>> {
     let rows = if oracles.is_empty() {
-        client
-            .query(
-                "SELECT oracle, subject, options, slot FROM oracle_metadata
-                 ORDER BY slot DESC LIMIT $1",
-                &[&limit.min(1000)],
-            )
-            .await?
+        let sql = format!("SELECT {META_COLS} FROM oracle_metadata ORDER BY slot DESC LIMIT $1");
+        client.query(&sql, &[&limit.min(1000)]).await?
     } else {
-        client
-            .query(
-                "SELECT oracle, subject, options, slot FROM oracle_metadata
-                 WHERE oracle = ANY($1)",
-                &[&oracles],
-            )
-            .await?
+        let sql = format!("SELECT {META_COLS} FROM oracle_metadata WHERE oracle = ANY($1)");
+        client.query(&sql, &[&oracles]).await?
     };
     Ok(rows.iter().map(meta_json).collect())
+}
+
+/// The on-chain `uri_hash` (hex) indexed for an oracle — the gate the JSON host
+/// checks a POSTed/served JSON against.
+pub async fn get_oracle_uri_hash(client: &Client, oracle: &str) -> Result<Option<String>> {
+    let rows = client
+        .query(
+            "SELECT uri_hash FROM oracle_metadata WHERE oracle = $1",
+            &[&oracle],
+        )
+        .await?;
+    Ok(rows.first().map(|r| r.get::<_, String>(0)))
+}
+
+/// Store the hosted extended-metadata JSON for an oracle (app POST). Upsert:
+/// the latest POST wins (the serve path gates it against the on-chain uri_hash).
+pub async fn upsert_oracle_meta_json(
+    client: &Client,
+    oracle: &str,
+    json: &str,
+    sha256: &str,
+) -> Result<()> {
+    client
+        .execute(
+            "INSERT INTO oracle_meta_json (oracle, json, sha256) VALUES ($1,$2,$3)
+             ON CONFLICT (oracle) DO UPDATE SET json = EXCLUDED.json, sha256 = EXCLUDED.sha256",
+            &[&oracle, &json, &sha256],
+        )
+        .await?;
+    Ok(())
+}
+
+/// The hosted JSON + its sha256 for an oracle, if any was POSTed.
+pub async fn get_oracle_meta_json(
+    client: &Client,
+    oracle: &str,
+) -> Result<Option<(String, String)>> {
+    let rows = client
+        .query(
+            "SELECT json, sha256 FROM oracle_meta_json WHERE oracle = $1",
+            &[&oracle],
+        )
+        .await?;
+    Ok(rows
+        .first()
+        .map(|r| (r.get::<_, String>(0), r.get::<_, String>(1))))
 }

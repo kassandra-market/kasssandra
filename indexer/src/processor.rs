@@ -1,36 +1,54 @@
 //! The Carbon processor: persist one event per decoded Kassandra instruction and
 //! track the newest processed signature (for the durable-cursor promotion task).
 
-use std::str::FromStr;
 use std::sync::Arc;
 
 use base64::Engine as _;
 use carbon_core::error::{CarbonResult, Error};
 use carbon_core::instruction::InstructionProcessorInputType;
 use carbon_core::processor::Processor;
-use solana_message::VersionedMessage;
-use solana_pubkey::Pubkey;
 use tokio_postgres::Client;
 
 use crate::db::{self, Event};
 use crate::decoder::KassandraIx;
 use crate::state::SharedSession;
 
-/// The SPL Memo program — the CreateOracle tx carries the plaintext subject +
-/// option labels as a memo (the chain stores only the prompt hash).
-const MEMO_PROGRAM_ID: &str = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
+/// Parse a `write_oracle_meta` instruction's data (discriminant @0, then the
+/// length-prefixed body) → `(subject, options JSON array, uri, uri_hash hex)`.
+/// `None` on any malformed input.
+fn parse_write_oracle_meta(data: &[u8]) -> Option<(String, serde_json::Value, String, String)> {
+    let mut off = 1usize; // skip the discriminant
+    let read_u16 = |d: &[u8], off: &mut usize| -> Option<usize> {
+        let b = d.get(*off..*off + 2)?;
+        *off += 2;
+        Some(u16::from_le_bytes(b.try_into().unwrap()) as usize)
+    };
+    let read_str = |d: &[u8], off: &mut usize, len: usize| -> Option<String> {
+        let s = d.get(*off..*off + len)?;
+        *off += len;
+        String::from_utf8(s.to_vec()).ok()
+    };
 
-/// Find the first SPL Memo instruction's UTF-8 payload in a transaction message.
-fn extract_memo(message: &VersionedMessage, memo_program: &Pubkey) -> Option<String> {
-    let keys = message.static_account_keys();
-    for ci in message.instructions() {
-        if keys.get(ci.program_id_index as usize) == Some(memo_program) {
-            if let Ok(s) = String::from_utf8(ci.data.clone()) {
-                return Some(s);
-            }
-        }
+    let subject_len = read_u16(data, &mut off)?;
+    let subject = read_str(data, &mut off, subject_len)?;
+    let options_count = *data.get(off)?;
+    off += 1;
+    let mut options = Vec::with_capacity(options_count as usize);
+    for _ in 0..options_count {
+        let ol = read_u16(data, &mut off)?;
+        options.push(serde_json::Value::String(read_str(data, &mut off, ol)?));
     }
-    None
+    let uri_len = read_u16(data, &mut off)?;
+    let uri = read_str(data, &mut off, uri_len)?;
+    let uri_hash = data.get(off..off + 32)?;
+    let uri_hash_hex: String = uri_hash.iter().map(|b| format!("{b:02x}")).collect();
+
+    Some((
+        subject,
+        serde_json::Value::Array(options),
+        uri,
+        uri_hash_hex,
+    ))
 }
 
 pub struct KassandraProcessor {
@@ -64,33 +82,26 @@ impl<'a> Processor<InstructionProcessorInputType<'a, KassandraIx>> for Kassandra
             .await
             .map_err(|e| Error::Custom(format!("insert {signature}: {e}")))?;
 
-        // On CreateOracle, capture the plaintext SUBJECT + option labels from the
-        // tx's SPL Memo (the chain stores only the prompt hash). accounts[1] is the
-        // oracle PDA (see the SDK createOracle account order). Best-effort: a
-        // missing/garbled memo just leaves the oracle without indexed metadata.
-        if ix.name == "create_oracle" {
+        // Index oracle metadata from `write_oracle_meta` (the on-chain account is
+        // authoritative; this is a queryable mirror). accounts[1] is the oracle
+        // (see the write_oracle_meta account order). Best-effort: a garbled ix just
+        // leaves the oracle without indexed metadata.
+        if ix.name == "write_oracle_meta" {
             if let Some(oracle) = ix.accounts.get(1) {
-                let memo_program = Pubkey::from_str(MEMO_PROGRAM_ID).expect("valid memo id");
-                if let Some(memo) = extract_memo(&tx.message, &memo_program) {
-                    if let Ok(meta) = serde_json::from_str::<serde_json::Value>(&memo) {
-                        let subject = meta.get("subject").and_then(|v| v.as_str());
-                        let options = meta.get("options");
-                        if let (Some(subject), Some(options)) = (subject, options) {
-                            if !subject.is_empty() && options.is_array() {
-                                if let Err(e) = db::insert_oracle_meta(
-                                    &self.client,
-                                    oracle,
-                                    subject,
-                                    options,
-                                    slot,
-                                    &signature,
-                                )
-                                .await
-                                {
-                                    log::warn!("[indexer] oracle meta insert {oracle}: {e}");
-                                }
-                            }
-                        }
+                if let Some((subject, options, uri, uri_hash)) = parse_write_oracle_meta(&ix.data) {
+                    if let Err(e) = db::insert_oracle_meta(
+                        &self.client,
+                        oracle,
+                        &subject,
+                        &options,
+                        &uri,
+                        &uri_hash,
+                        slot,
+                        &signature,
+                    )
+                    .await
+                    {
+                        log::warn!("[indexer] oracle meta insert {oracle}: {e}");
                     }
                 }
             }
@@ -114,34 +125,36 @@ impl<'a> Processor<InstructionProcessorInputType<'a, KassandraIx>> for Kassandra
 #[cfg(test)]
 mod tests {
     use super::*;
-    use solana_instruction::Instruction;
-    use solana_message::{Message, VersionedMessage};
 
-    fn memo_pid() -> Pubkey {
-        Pubkey::from_str(MEMO_PROGRAM_ID).unwrap()
+    /// Hand-encode a `write_oracle_meta` ix data (disc + length-prefixed body).
+    fn encode(subject: &str, options: &[&str], uri: &str, uri_hash: [u8; 32]) -> Vec<u8> {
+        let mut d = vec![23u8]; // Ix::WriteOracleMeta
+        d.extend_from_slice(&(subject.len() as u16).to_le_bytes());
+        d.extend_from_slice(subject.as_bytes());
+        d.push(options.len() as u8);
+        for o in options {
+            d.extend_from_slice(&(o.len() as u16).to_le_bytes());
+            d.extend_from_slice(o.as_bytes());
+        }
+        d.extend_from_slice(&(uri.len() as u16).to_le_bytes());
+        d.extend_from_slice(uri.as_bytes());
+        d.extend_from_slice(&uri_hash);
+        d
     }
 
     #[test]
-    fn extract_memo_finds_the_payload() {
-        let payload = r#"{"v":1,"subject":"Q?","options":["A","B"]}"#;
-        let msg = Message::new(
-            &[
-                Instruction::new_with_bytes(Pubkey::new_unique(), &[1, 2, 3], vec![]),
-                Instruction::new_with_bytes(memo_pid(), payload.as_bytes(), vec![]),
-            ],
-            None,
-        );
-        let vmsg = VersionedMessage::Legacy(msg);
-        assert_eq!(extract_memo(&vmsg, &memo_pid()).as_deref(), Some(payload));
+    fn parse_write_oracle_meta_round_trips() {
+        let data = encode("Who wins?", &["Yes", "No"], "https://x/m.json", [0xab; 32]);
+        let (subject, options, uri, uri_hash) = parse_write_oracle_meta(&data).unwrap();
+        assert_eq!(subject, "Who wins?");
+        assert_eq!(options, serde_json::json!(["Yes", "No"]));
+        assert_eq!(uri, "https://x/m.json");
+        assert_eq!(uri_hash, "ab".repeat(32));
     }
 
     #[test]
-    fn extract_memo_none_when_absent() {
-        let msg = Message::new(
-            &[Instruction::new_with_bytes(Pubkey::new_unique(), &[1], vec![])],
-            None,
-        );
-        let vmsg = VersionedMessage::Legacy(msg);
-        assert!(extract_memo(&vmsg, &memo_pid()).is_none());
+    fn parse_write_oracle_meta_none_on_truncated() {
+        let data = encode("Q?", &["A", "B"], "u", [1u8; 32]);
+        assert!(parse_write_oracle_meta(&data[..10]).is_none());
     }
 }

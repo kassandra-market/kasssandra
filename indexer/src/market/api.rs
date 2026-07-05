@@ -129,12 +129,13 @@ async fn get_market_detail(
         .await
         .map_err(db_err)?
         .ok_or_else(|| error(StatusCode::NOT_FOUND, "market not indexed"))?;
-    let contributions: Vec<ContributionDto> = crate::market::db::contributions_for(&state.client, &pubkey)
-        .await
-        .map_err(db_err)?
-        .iter()
-        .map(ContributionDto::new)
-        .collect();
+    let contributions: Vec<ContributionDto> =
+        crate::market::db::contributions_for(&state.client, &pubkey)
+            .await
+            .map_err(db_err)?
+            .iter()
+            .map(ContributionDto::new)
+            .collect();
 
     let oracle_pk = Pubkey::new_from_array(m.oracle.to_bytes());
     let amm_pk = Pubkey::new_from_array(m.amm.to_bytes());
