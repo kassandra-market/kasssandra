@@ -407,11 +407,14 @@ pub async fn build_config_from_chain(
     prompt_text: String,
 ) -> anyhow::Result<RunnerConfig> {
     let oracle = crate::rpc::fetch_oracle(rpc, oracle_pubkey).await?;
-    // The interpretation TEXT is off-chain; assert it hashes to the on-chain
-    // prompt_hash commitment before it is ever used (mirrors the fact
-    // content_hash verification).
-    crate::rpc::verify_prompt_hash(&prompt_text, &oracle.prompt_hash)?;
-
+    // DEFERRED — interpretation verification (on-chain-metadata migration).
+    // `oracle.prompt_hash` was removed; the interpretation now lives in the
+    // `oracle_meta` uri JSON, bound by `uri_hash`. Re-anchor here: fetch
+    // `oracle_meta` → its `uri` → the JSON, verify `sha256(json) == uri_hash`
+    // (mirroring the fact content-hash fetch), and take the interpretation from
+    // it. UNTIL THEN the supplied `--prompt-file` text is UNVERIFIED against the
+    // oracle. See docs/plans/2026-07-05-onchain-oracle-metadata-design.md.
+    // TODO(oracle-meta): verify prompt against oracle_meta.uri_hash.
     let facts = crate::rpc::fetch_agreed_facts(rpc, oracle_pubkey).await?;
     let facts = facts
         .into_iter()
@@ -900,14 +903,13 @@ mod tests {
             .unwrap();
 
         let interpretation = "Resolve YES if BTC closed at or above $100,000; otherwise NO.";
-        let prompt_hash: [u8; 32] = Sha256::digest(interpretation.as_bytes()).into();
 
-        // Oracle (Pod bytes) with 2 options + the prompt_hash commitment.
+        // Oracle (Pod bytes) with 2 options. (prompt_hash was removed; the
+        // interpretation is supplied by the operator, unverified for now.)
         let mut oracle = Oracle::zeroed();
         oracle.account_type = AccountType::Oracle.as_u8();
         oracle.options_count = 2;
         oracle.deadline = 1_900_000_000;
-        oracle.prompt_hash = prompt_hash;
 
         // One agreed fact whose off-chain content the mock fetcher serves.
         let fact_content = b"BTC closed at $98,000.";
@@ -967,39 +969,16 @@ mod tests {
         assert_eq!(out.option_index, 0);
     }
 
-    #[tokio::test]
-    async fn build_config_from_chain_rejects_prompt_mismatch() {
-        use crate::rpc::MockRpc;
-        use bytemuck::Zeroable;
-        use kassandra_sdk::accounts::{AccountType, Oracle};
-        use serde_json::json;
-
-        let oracle_pk = "So11111111111111111111111111111111111111112";
+    #[test]
+    fn verify_prompt_hash_rejects_mismatch() {
+        // Unit coverage for the hash-compare helper. NOTE: `build_config_from_chain`
+        // no longer calls it — interpretation verification is DEFERRED pending
+        // re-anchoring to `oracle_meta.uri_hash` (see `build_config_from_chain`).
         let committed = "the real interpretation";
-        let prompt_hash: [u8; 32] = Sha256::digest(committed.as_bytes()).into();
-
-        let mut oracle = Oracle::zeroed();
-        oracle.account_type = AccountType::Oracle.as_u8();
-        oracle.options_count = 2;
-        oracle.prompt_hash = prompt_hash;
-
-        let rpc = MockRpc::new().with(
-            "getAccountInfo",
-            json!({
-                "context": { "slot": 1 },
-                "value": {
-                    "data": [MockRpc::base64(bytemuck::bytes_of(&oracle)), "base64"],
-                    "owner": MockRpc::program_owner(),
-                    "lamports": 1u64, "executable": false, "rentEpoch": 0u64,
-                    "space": Oracle::LEN,
-                }
-            }),
-        );
-
-        // A prompt file that does NOT match the on-chain prompt_hash → rejected.
-        let err = build_config_from_chain(&rpc, oracle_pk, "a tampered interpretation".to_string())
-            .await
-            .unwrap_err();
+        let expected: [u8; 32] = Sha256::digest(committed.as_bytes()).into();
+        assert!(crate::rpc::verify_prompt_hash(committed, &expected).is_ok());
+        let err =
+            crate::rpc::verify_prompt_hash("a tampered interpretation", &expected).unwrap_err();
         assert!(err.to_string().contains("prompt_hash mismatch"), "{err}");
     }
 

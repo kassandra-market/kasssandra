@@ -5,9 +5,11 @@
 //! full config: it reads the `Oracle` account (and its agreed `Fact` accounts)
 //! straight off chain and decodes them through the SHARED
 //! `kassandra_sdk::accounts` `Pod` structs — zero new decode code. The
-//! interpretation TEXT is NOT on chain (only its `prompt_hash` commitment is),
-//! so it comes from an off-chain prompt file whose `sha256` MUST equal the
-//! on-chain `oracle.prompt_hash` (see [`verify_prompt_hash`]).
+//! interpretation TEXT is NOT on chain; it comes from an off-chain prompt file.
+//! (`oracle.prompt_hash` was removed in the on-chain-metadata migration, so this
+//! prompt is currently UNVERIFIED — the verification is DEFERRED pending
+//! re-anchoring to `oracle_meta.uri_hash`; [`verify_prompt_hash`] is retained for
+//! that. See `build_config_from_chain`.)
 //!
 //! # Transport (no solana-client)
 //!
@@ -575,12 +577,11 @@ mod tests {
         )
     }
 
-    fn sample_oracle(prompt_hash: [u8; 32]) -> Oracle {
+    fn sample_oracle() -> Oracle {
         let mut o = Oracle::zeroed();
         o.account_type = AccountType::Oracle.as_u8();
         o.options_count = 3;
         o.deadline = 1_900_000_000;
-        o.prompt_hash = prompt_hash;
         o
     }
 
@@ -601,8 +602,7 @@ mod tests {
 
     #[tokio::test]
     async fn fetch_oracle_decodes_shared_pod_fields() {
-        let prompt_hash = sha256(b"Resolve YES iff BTC >= $100k.");
-        let oracle = sample_oracle(prompt_hash);
+        let oracle = sample_oracle();
         let rpc = MockRpc::new().with(
             "getAccountInfo",
             account_info_result(bytemuck::bytes_of(&oracle), &MockRpc::program_owner()),
@@ -611,12 +611,11 @@ mod tests {
         let got = fetch_oracle(&rpc, ORACLE_PK).await.unwrap();
         assert_eq!(got.options_count, 3);
         assert_eq!(got.deadline, 1_900_000_000);
-        assert_eq!(got.prompt_hash, prompt_hash);
     }
 
     #[tokio::test]
     async fn fetch_oracle_rejects_wrong_owner() {
-        let oracle = sample_oracle([0u8; 32]);
+        let oracle = sample_oracle();
         // Owned by some other program.
         let rpc = MockRpc::new().with(
             "getAccountInfo",
