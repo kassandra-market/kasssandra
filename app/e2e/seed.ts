@@ -25,9 +25,10 @@ import {
   submitAiClaim,
   submitFact,
   voteFact,
+  writeOracleMeta,
 } from '@kassandra/sdk'
 
-import { buildOracleMetaMemoIx } from '../src/data/actions/create.ts'
+import { buildOracleMetadataJson } from '../src/data/actions/create.ts'
 import { SurfpoolHarness, mintBytes, toHex, tokenAccountBytes } from '../../sdk/test/surfpool/harness.ts'
 import { MockAnthropic } from '../../sdk/test/surfpool/mock-anthropic.ts'
 import {
@@ -209,7 +210,6 @@ export async function createOracleReal(
   const now = await ctx.harness.clockUnixTimestamp()
   const createIx = await createOracle({
     nonce,
-    promptHash: await sha256(question),
     optionsCount,
     deadline: now + 1_000n + nonce * 100n,
     twapWindow: 600n,
@@ -218,11 +218,38 @@ export async function createOracleReal(
     kassMint: ctx.kassMint.publicKey.toString(),
     usdcMint: ctx.usdcMint.publicKey.toString(),
   })
-  // Publish the subject + option labels as a memo (same tx) so the single indexer
-  // captures them and the browse/detail views show them (the chain has only a hash).
+  // Write the on-chain metadata (subject + labels + uri/uri_hash) in the SAME tx,
+  // so the indexer mirrors it and the browse/detail views show it. `uri` points at
+  // the app's metadata host when APP_ORIGIN is set (best-effort POST below).
+  const oracle = (await pda.oracle(nonce)).address
   const options = Array.from({ length: optionsCount }, (_, i) => `Option ${i}`)
-  await sendIxs(ctx, [createIx, buildOracleMetaMemoIx(question, options)])
-  return (await pda.oracle(nonce)).address
+  const json = buildOracleMetadataJson({ subject: question, options })
+  const jsonString = JSON.stringify(json)
+  const uriHash = await sha256(jsonString)
+  const appOrigin = process.env.APP_ORIGIN?.replace(/\/$/, '') ?? ''
+  const uri = appOrigin ? `${appOrigin}/api/oracle/${oracle.toString()}/metadata.json` : ''
+  const metaIx = await writeOracleMeta({
+    oracle,
+    creator: ctx.payer.publicKey.toString(),
+    subject: question,
+    options,
+    uri,
+    uriHash,
+  })
+  await sendIxs(ctx, [createIx, metaIx])
+  if (appOrigin) {
+    // Best-effort: host the extended JSON so the on-chain `uri` resolves.
+    try {
+      await fetch(uri, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: jsonString,
+      })
+    } catch {
+      // Ignore — the on-chain subject/options still index + display.
+    }
+  }
+  return oracle
 }
 
 /**

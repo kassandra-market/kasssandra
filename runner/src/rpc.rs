@@ -527,6 +527,7 @@ impl JsonRpc for MockRpc {
 mod tests {
     use super::*;
     use bytemuck::Zeroable;
+    use sha2::{Digest, Sha256};
 
     fn sha256(bytes: &[u8]) -> [u8; 32] {
         Sha256::digest(bytes).into()
