@@ -184,25 +184,42 @@ export async function fetchOracleDetail(
     throw new OracleNotFoundError(oraclePubkey);
   }
 
-  // Every child stores its parent oracle at offset 8; memcmp scopes to this oracle.
-  const oracleMemcmp: GetProgramAccountsFilter[] = [
-    { memcmp: { offset: CHILD_ORACLE_OFFSET, bytes: oraclePubkey } },
-  ];
+  // Every child (Fact/Proposer/AiClaim/Market) stores its parent oracle at the SAME
+  // offset 8, so ONE getProgramAccounts scoped by that memcmp returns them all — then
+  // partition by the account_type tag byte. This collapses what used to be FOUR
+  // full-program `getProgramAccounts` scans (the expensive op) into a single scan.
+  const children = await connection.getProgramAccounts(KASSANDRA_PROGRAM_ID, {
+    filters: [{ memcmp: { offset: CHILD_ORACLE_OFFSET, bytes: oraclePubkey } }],
+  });
 
-  const [facts, proposers, aiClaims, markets] = await Promise.all([
-    enumerate(connection, AccountType.Fact, ACCOUNT_SIZES.Fact, decodeFact, oracleMemcmp),
-    enumerate(connection, AccountType.Proposer, ACCOUNT_SIZES.Proposer, decodeProposer, oracleMemcmp),
-    enumerate(connection, AccountType.AiClaim, ACCOUNT_SIZES.AiClaim, decodeAiClaim, oracleMemcmp),
-    enumerate(connection, AccountType.Market, ACCOUNT_SIZES.Market, decodeMarket, oracleMemcmp),
-  ]);
+  const facts: OracleDetail["facts"] = [];
+  const proposers: OracleDetail["proposers"] = [];
+  const aiClaims: OracleDetail["aiClaims"] = [];
+  let market: OracleDetail["market"];
+  for (const { pubkey, account } of children) {
+    const data = account.data;
+    const key = pubkey.toString();
+    try {
+      // Each decoder re-checks its own tag + size, so a partition slip can't
+      // mis-decode; a malformed/foreign child is skipped, keeping the rest.
+      switch (data[ACCOUNT_TYPE_OFFSET]) {
+        case AccountType.Fact:
+          facts.push({ pubkey: key, fact: decodeFact(data) });
+          break;
+        case AccountType.Proposer:
+          proposers.push({ pubkey: key, proposer: decodeProposer(data) });
+          break;
+        case AccountType.AiClaim:
+          aiClaims.push({ pubkey: key, aiClaim: decodeAiClaim(data) });
+          break;
+        case AccountType.Market:
+          if (!market) market = { pubkey: key, market: decodeMarket(data) };
+          break;
+      }
+    } catch {
+      // Malformed / type-confused child — skip it, keep the rest.
+    }
+  }
 
-  const firstMarket = markets[0];
-  return {
-    pubkey: oraclePubkey,
-    oracle,
-    facts: facts.map(({ pubkey, value }) => ({ pubkey, fact: value })),
-    proposers: proposers.map(({ pubkey, value }) => ({ pubkey, proposer: value })),
-    aiClaims: aiClaims.map(({ pubkey, value }) => ({ pubkey, aiClaim: value })),
-    market: firstMarket ? { pubkey: firstMarket.pubkey, market: firstMarket.value } : undefined,
-  };
+  return { pubkey: oraclePubkey, oracle, facts, proposers, aiClaims, market };
 }
