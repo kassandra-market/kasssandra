@@ -47,13 +47,15 @@ import { startEphemeralPg, type EphemeralPg } from './indexer/pg.ts'
 
 const SURFPOOL_PORT = 8899
 const INDEXER_PORT = 3111
-const PG_PORT = 5599
 const APP_PORT = 5173
 
 const APP_DIR = process.cwd() // `pnpm --filter app exec` runs here
 const ROOT = resolve(APP_DIR, '..')
 const LOGS = join(ROOT, 'logs')
-const INDEXER_BIN = join(ROOT, 'indexer', 'target', 'release', 'kassandra-indexer')
+// The indexer is a WORKSPACE member, so `cargo build --manifest-path
+// indexer/Cargo.toml` writes the binary to the workspace-root target/, NOT
+// indexer/target/ (which doesn't exist — the pre-merge per-crate path).
+const INDEXER_BIN = join(ROOT, 'target', 'release', 'kassandra-indexer')
 const RUNNER_CONFIG = join(LOGS, 'runner.config.json')
 const WALLET_FILE = join(APP_DIR, 'e2e', '.wallet.json')
 
@@ -227,7 +229,7 @@ async function main(): Promise<void> {
 
   // ── 2) ephemeral Postgres + the REAL indexer binary crawling surfpool ──────
   log('[dev] starting ephemeral Postgres + indexer…')
-  const pg: EphemeralPg = await startEphemeralPg(PG_PORT)
+  const pg: EphemeralPg = await startEphemeralPg() // fresh OS-assigned port each run
   teardowns.push(() => pg.stop())
   const indexerLog = openLog('indexer')
   const indexer: ChildProcess = spawn(INDEXER_BIN, [], {

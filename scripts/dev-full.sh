@@ -37,8 +37,20 @@ pnpm --filter ./sdk build >/dev/null
 pnpm --filter ./sdk-market build >/dev/null
 cargo build --release --locked --manifest-path indexer/Cargo.toml
 
-echo "==> [3/4] ensure logs/ exists"
+echo "==> [3/4] ensure logs/ exists + clear leftovers from a crashed run"
 mkdir -p logs
+# `make dev` OWNS the local stack, so a surfpool still listening on the fixed port
+# is a leftover from a previously HARD-killed run (a clean Ctrl-C tears it down).
+# Reusing it would make init_protocol fail with AlreadyInitialized, so clear it.
+# (The ephemeral Postgres picks a fresh port per run, so it needs no cleanup.)
+if command -v lsof >/dev/null 2>&1; then
+  leftover="$(lsof -tiTCP:8899 -sTCP:LISTEN 2>/dev/null || true)"
+  if [ -n "$leftover" ]; then
+    echo "    clearing a leftover process on :8899 (previous run): $leftover"
+    echo "$leftover" | xargs kill -9 2>/dev/null || true
+    sleep 1
+  fi
+fi
 
 echo "==> [4/4] launching the stack (Ctrl-C to stop everything)"
 exec pnpm --filter app exec tsx e2e/dev-full.ts
