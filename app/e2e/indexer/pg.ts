@@ -69,14 +69,32 @@ export async function startEphemeralPg(port?: number): Promise<EphemeralPg> {
   // 1) init the cluster (trust auth locally; no fsync for speed).
   run('initdb', ['-D', dataDir, '-U', 'postgres', '--auth=trust', '--no-sync'])
 
-  // 2) start it on a private TCP port bound to localhost only. If it exits early
-  //    (e.g. the port was taken between probe and bind), surface that instead of
-  //    silently waiting 30s / talking to whatever else is on the port.
+  // 2) start it on a private TCP port bound to localhost only. Put the unix socket
+  //    in the (writable) data dir — the system default (`/var/run/postgresql`) is
+  //    owned by the `postgres` user on CI runners and not writable by us, which
+  //    makes `postgres` exit code 1 at startup. Capture stderr so a real failure
+  //    surfaces its reason instead of a bare exit code. If it exits early (port
+  //    taken, socket dir, locale…), surface that instead of waiting 30s.
   const server = spawn(
     join(bin, 'postgres'),
-    ['-D', dataDir, '-p', String(pgPort), '-c', 'listen_addresses=127.0.0.1', '-c', 'fsync=off'],
-    { stdio: 'ignore', detached: false },
+    [
+      '-D',
+      dataDir,
+      '-p',
+      String(pgPort),
+      '-c',
+      'listen_addresses=127.0.0.1',
+      '-c',
+      `unix_socket_directories=${dataDir}`,
+      '-c',
+      'fsync=off',
+    ],
+    { stdio: ['ignore', 'ignore', 'pipe'], detached: false },
   )
+  let stderr = ''
+  server.stderr?.on('data', (d: Buffer) => {
+    stderr += d.toString()
+  })
   let serverExited: number | null = null
   server.once('exit', (code) => (serverExited = code ?? -1))
 
@@ -84,7 +102,9 @@ export async function startEphemeralPg(port?: number): Promise<EphemeralPg> {
   const deadline = Date.now() + 30_000
   for (;;) {
     if (serverExited !== null) {
-      throw new Error(`postgres exited early (code ${serverExited}) — port ${pgPort} may be in use`)
+      throw new Error(
+        `postgres exited early (code ${serverExited}) on port ${pgPort}:\n${stderr.trim() || '(no stderr)'}`,
+      )
     }
     const r = spawnSync(join(bin, 'pg_isready'), ['-h', '127.0.0.1', '-p', String(pgPort), '-U', 'postgres'])
     if (r.status === 0) break
