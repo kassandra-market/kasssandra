@@ -271,6 +271,84 @@ jobs:
         env:
           SURFPOOL_BIN: /usr/local/bin/surfpool
 
+  # The indexer (playwright.indexer.config.ts) and candle
+  # (playwright.candles.config.ts) browser suites need EXTRA infra the default
+  # `e2e` job lacks — an ephemeral Postgres + the real kassandra-indexer binary
+  # (and, for candles, surfpool's websocket) — so they run here as separate steps
+  # rather than being swept into (or excluded-and-forgotten by) the default run.
+  e2e-indexer:
+    name: E2E · indexer + candles (Postgres)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo + target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install surfpool
+        env:
+          SURFPOOL_VERSION: v1.4.0
+        run: |
+          curl -fsSL "https://github.com/txtx/surfpool/releases/download/${SURFPOOL_VERSION}/surfpool-linux-x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin surfpool
+          sudo chmod +x /usr/local/bin/surfpool
+          surfpool --version
+
+      # The e2e harness stands up throwaway Postgres clusters via initdb/pg_ctl
+      # (app/e2e/indexer/pg.ts); ubuntu-latest ships the PostgreSQL 16 binaries but
+      # not on PATH — export their dir so pg.ts finds them.
+      - name: Locate PostgreSQL binaries
+        run: |
+          PG_BIN="$(dirname "$(ls /usr/lib/postgresql/*/bin/initdb | sort -V | tail -1)")"
+          echo "PG_BIN=$PG_BIN" >> "$GITHUB_ENV"
+          "$PG_BIN/initdb" --version
+
+      - name: Download program artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Both suites run the REAL indexer binary from the workspace target dir.
+      - name: Build indexer binary
+        run: cargo build --release --locked -p kassandra-indexer
+
+      - name: Build SDKs (oracle + market)
+        run: |
+          pnpm --filter ./sdk build
+          pnpm --filter ./sdk-market build
+
+      - name: Install Playwright Chromium
+        run: pnpm --filter ./app exec playwright install --with-deps chromium
+
+      - name: Run indexer E2E (surfpool + Postgres + indexer)
+        run: pnpm --filter ./app exec playwright test --config=playwright.indexer.config.ts
+        env:
+          SURFPOOL_BIN: /usr/local/bin/surfpool
+
+      - name: Run candle E2E (surfpool ws + Postgres + indexer + chart)
+        run: pnpm --filter ./app exec playwright test --config=playwright.candles.config.ts
+        env:
+          SURFPOOL_BIN: /usr/local/bin/surfpool
+
   db-it:
     name: Indexer · Postgres integration
     runs-on: ubuntu-latest
