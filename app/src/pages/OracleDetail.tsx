@@ -30,7 +30,8 @@ import {
 import { CLUSTER_LABELS, useCluster } from '../lib/cluster'
 import {
   RESOLVED_OPTION_NONE,
-  groupDigits,
+  formatKass,
+  formatUsdc,
   hashHex,
   relativeDeadline,
   windowLabel,
@@ -169,7 +170,7 @@ function FactCard({
         <div className="flex items-baseline justify-between gap-4">
           <dt className="text-driftwood">Approve / duplicate stake</dt>
           <dd className="text-sepia">
-            {groupDigits(fact.approveStake)} / {groupDigits(fact.duplicateStake)}
+            {formatKass(fact.approveStake)} / {formatKass(fact.duplicateStake)} KASS
           </dd>
         </div>
       </dl>
@@ -279,12 +280,12 @@ function ProposerCard({
           </div>
           <div className="flex items-baseline justify-between gap-4">
             <dt className="text-driftwood">Bond</dt>
-            <dd className="text-sepia">{groupDigits(proposer.bond)}</dd>
+            <dd className="text-sepia">{formatKass(proposer.bond)} KASS</dd>
           </div>
           {proposer.slashedAmount > 0n ? (
             <div className="flex items-baseline justify-between gap-4">
               <dt className="text-driftwood">Slashed</dt>
-              <dd className="text-sepia">{groupDigits(proposer.slashedAmount)}</dd>
+              <dd className="text-sepia">{formatKass(proposer.slashedAmount)} KASS</dd>
             </div>
           ) : null}
           <div className="flex items-baseline justify-between gap-4">
@@ -404,7 +405,7 @@ function MarketCard({
         <Row term="Challenger">
           <Truncated value={market.challenger.toString()} copyable label="challenger" />
         </Row>
-        <Row term="Challenger USDC (base units)">{groupDigits(market.challengerUsdc)}</Row>
+        <Row term="Challenger USDC">{formatUsdc(market.challengerUsdc)} USDC</Row>
         <Row term="TWAP window">{relativeDeadline(market.twapEnd)}</Row>
         <Row term="Question">
           <Truncated value={market.question.toString()} copyable label="question" />
@@ -575,17 +576,17 @@ function OracleBody({
         <Stat label="Open challenges" value={oracle.openChallengeCount} />
       </div>
 
-      {/* Bond pool (raw base units, annotated) */}
+      {/* Bond pool (scaled KASS) */}
       <div className="mt-4">
         <Card>
           <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
             Bond pool
           </div>
           <div className="mt-1 font-serif text-heading-sm font-light text-sepia">
-            {groupDigits(oracle.bondPool)}
+            {formatKass(oracle.bondPool)} KASS
           </div>
           <p className="mt-1 font-inter text-[12px] text-driftwood">
-            KASS base units (raw, unscaled) · dispute-bond total {groupDigits(oracle.disputeBondTotal)}
+            dispute-bond total {formatKass(oracle.disputeBondTotal)} KASS
           </p>
         </Card>
       </div>

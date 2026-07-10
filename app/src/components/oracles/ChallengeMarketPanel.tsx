@@ -7,7 +7,7 @@ import {
   type AmmV04,
 } from '../../data/ammV04'
 import { useMarketAmms } from '../../hooks/useMarketAmms'
-import { groupDigits, relativeDeadline } from '../../lib/oracleView'
+import { formatUnits, formatUsdc, relativeDeadline } from '../../lib/oracleView'
 import { Chip } from './Chip'
 
 /**
@@ -55,11 +55,15 @@ function PoolColumn({ label, amm }: { label: string; amm: AmmV04 | null }) {
           <div className="mt-3 border-t border-pebble pt-2 font-inter text-[12px]">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-driftwood">Base reserve</span>
-              <span className="tabular-nums text-bronze">{groupDigits(amm.baseAmount)}</span>
+              <span className="tabular-nums text-bronze">
+                {formatUnits(amm.baseAmount, amm.baseDecimals)}
+              </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between gap-3">
               <span className="text-driftwood">Quote reserve</span>
-              <span className="tabular-nums text-bronze">{groupDigits(amm.quoteAmount)}</span>
+              <span className="tabular-nums text-bronze">
+                {formatUnits(amm.quoteAmount, amm.quoteDecimals)}
+              </span>
             </div>
           </div>
         </>
@@ -76,8 +80,8 @@ function PoolColumn({ label, amm }: { label: string; amm: AmmV04 | null }) {
  * market card. Shows the pass vs fail spot price + TWAP, a flat Auros
  * TWAP→margin progress bar (how close FAIL is to clearing the disqualify margin
  * over PASS — the ONE ember accent lights when near/over), a countdown to the
- * TWAP window close, the challenger's escrowed USDC, and each pool's raw
- * reserves. Chart-lib-free (divs + tokens). Degrades gracefully: pre-start-delay
+ * TWAP window close, the challenger's escrowed USDC, and each pool's decimals-
+ * scaled reserves. Chart-lib-free (divs + tokens). Degrades gracefully: pre-start-delay
  * TWAP reads "forming…", a settled market shows a calm settled note, and a
  * disconnected/mock viewer still sees the read view.
  */
@@ -159,10 +163,10 @@ export function ChallengeMarketPanel({ market, oracle }: { market: Market; oracl
         </div>
         <div>
           <dt className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
-            Challenger USDC (base units)
+            Challenger USDC
           </dt>
           <dd className="mt-0.5 font-inter text-[14px] tabular-nums text-sepia">
-            {groupDigits(market.challengerUsdc)}
+            {formatUsdc(market.challengerUsdc)} USDC
           </dd>
         </div>
       </dl>

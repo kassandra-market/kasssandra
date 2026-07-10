@@ -84,24 +84,38 @@ export function groupDigits(n: bigint): string {
 /** KASS mint decimals (raw base units → human amount). Mirrors the market SDK. */
 export const KASS_DECIMALS = 9
 
+/** USDC decimals — the AMM quote side + the challenger's escrowed USDC. */
+export const USDC_DECIMALS = 6
+
 /**
- * Format a raw base-unit KASS amount ({@link KASS_DECIMALS} decimals) as a human,
- * SCALED figure with grouped whole digits and a trimmed fraction: `1_500_000_000n`
- * → `1.5`. KASS is ALWAYS shown scaled in the UI (never raw base units).
+ * Format a raw base-unit amount with `decimals` decimals as a human, SCALED
+ * figure with grouped whole digits and a trimmed fraction:
+ * `formatUnits(1_500_000_000n, 9)` → `1.5`. Token amounts are ALWAYS shown scaled
+ * in the UI (never raw base units).
  */
-export function formatKass(amount: bigint): string {
+export function formatUnits(amount: bigint, decimals: number): string {
   const neg = amount < 0n
   const abs = neg ? -amount : amount
-  const scale = 10n ** BigInt(KASS_DECIMALS)
+  const scale = 10n ** BigInt(decimals)
   const whole = abs / scale
   const frac = abs % scale
   const wholeStr = groupDigits(whole)
   let out = wholeStr
   if (frac > 0n) {
-    const fracStr = frac.toString().padStart(KASS_DECIMALS, '0').replace(/0+$/, '')
+    const fracStr = frac.toString().padStart(decimals, '0').replace(/0+$/, '')
     out = `${wholeStr}.${fracStr}`
   }
   return neg ? `-${out}` : out
+}
+
+/** Format a raw base-unit KASS amount ({@link KASS_DECIMALS}) as a scaled figure. */
+export function formatKass(amount: bigint): string {
+  return formatUnits(amount, KASS_DECIMALS)
+}
+
+/** Format a raw base-unit USDC amount ({@link USDC_DECIMALS}) as a scaled figure. */
+export function formatUsdc(amount: bigint): string {
+  return formatUnits(amount, USDC_DECIMALS)
 }
 
 /** A coarse duration label for a non-negative number of seconds: `3d` / `4h` / `12m` / `30s`. */

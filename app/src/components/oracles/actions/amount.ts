@@ -1,15 +1,28 @@
-import { groupDigits } from '../../../lib/oracleView'
+import { KASS_DECIMALS, formatKass } from '../../../lib/oracleView'
 
 /**
- * Parse a KASS amount typed as a whole number of base units (raw, unscaled —
- * matching how the detail view shows bond/stake). Returns the `bigint` value or
- * an inline error message for the form.
+ * Parse a human token amount (`"1.5"`, `"1000"`, `".25"`) into raw base units,
+ * scaling by `decimals` (default KASS's 9 — the bond/stake forms). USDC amounts
+ * (the challenge trade/compose forms) pass `decimals = 6`. Returns the `bigint`
+ * base-unit value or an inline error message for the form.
  */
-export function parseAmount(raw: string): { value?: bigint; error?: string } {
+export function parseAmount(
+  raw: string,
+  decimals: number = KASS_DECIMALS,
+): { value?: bigint; error?: string } {
   const t = raw.trim()
-  if (t === '') return { error: 'Enter a KASS amount.' }
-  if (!/^\d+$/.test(t)) return { error: 'Amount must be a whole number of KASS base units.' }
-  const value = BigInt(t)
+  if (t === '') return { error: 'Enter an amount.' }
+  const m = /^(\d*)(?:\.(\d*))?$/.exec(t)
+  if (!m || (m[1] === '' && (m[2] ?? '') === '')) {
+    return { error: 'Amount must be a number, e.g. 1.5.' }
+  }
+  const whole = m[1] === '' ? '0' : m[1]
+  const frac = m[2] ?? ''
+  if (frac.length > decimals) {
+    return { error: `At most ${decimals} decimal places.` }
+  }
+  const scale = 10n ** BigInt(decimals)
+  const value = BigInt(whole) * scale + BigInt(frac.padEnd(decimals, '0') || '0')
   if (value <= 0n) return { error: 'Amount must be greater than zero.' }
   return { value }
 }
@@ -31,7 +44,7 @@ export function balanceGateError(
   if (balance === null) return undefined
   if (balance === 0n) return `You have no KASS — you need KASS to ${verb}.`
   if (amount !== undefined && amount > balance) {
-    return `Amount exceeds your KASS balance (${groupDigits(balance)}).`
+    return `Amount exceeds your KASS balance (${formatKass(balance)}).`
   }
   return undefined
 }

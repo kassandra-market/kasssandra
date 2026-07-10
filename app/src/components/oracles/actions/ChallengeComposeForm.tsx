@@ -12,6 +12,8 @@ import {
 import { useComposeSequence, type StepStatus } from '../../../hooks/useComposeSequence'
 import { useConnection } from '../../../lib/cluster'
 import { isMockMode } from '../../../data/mockOracles'
+import { KASS_DECIMALS, USDC_DECIMALS, formatUnits } from '../../../lib/oracleView'
+import { parseAmount } from './amount'
 import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
 
@@ -21,14 +23,16 @@ function oracleNonce(oracle: string): Promise<bigint> {
   return recalled !== null ? Promise.resolve(recalled) : resolveOracleNonce(oracle)
 }
 
-/** Parse a positive whole-number raw-unit reserve; empty → the default. */
-function parseReserve(raw: string, fallback: bigint): { value: bigint; error?: string } {
-  const t = raw.trim()
-  if (t === '') return { value: fallback }
-  if (!/^\d+$/.test(t)) return { value: fallback, error: 'Enter a whole number of base units.' }
-  const v = BigInt(t)
-  if (v <= 0n) return { value: fallback, error: 'Must be greater than zero.' }
-  return { value: v }
+/** Parse a positive human reserve amount scaled by `decimals`; empty → the default. */
+function parseReserve(
+  raw: string,
+  fallback: bigint,
+  decimals: number,
+): { value: bigint; error?: string } {
+  if (raw.trim() === '') return { value: fallback }
+  const parsed = parseAmount(raw, decimals)
+  if (parsed.error !== undefined) return { value: fallback, error: parsed.error }
+  return { value: parsed.value! }
 }
 
 /** A KASS-DAO override (needed for the escrow's kass_price); empty is invalid. */
@@ -120,8 +124,8 @@ export function ChallengeComposeForm({
   const [steps, setSteps] = useState<ComposeStep[] | null>(null)
   const [buildError, setBuildError] = useState<string | undefined>()
 
-  const base = parseReserve(baseRaw, DEFAULT_BASE_RESERVE)
-  const quote = parseReserve(quoteRaw, DEFAULT_QUOTE_RESERVE)
+  const base = parseReserve(baseRaw, DEFAULT_BASE_RESERVE, KASS_DECIMALS)
+  const quote = parseReserve(quoteRaw, DEFAULT_QUOTE_RESERVE, USDC_DECIMALS)
   const dao = parseAddress(daoRaw)
   const proposer = parseProposer(proposerRaw)
   const inputInvalid =
@@ -220,14 +224,14 @@ export function ChallengeComposeForm({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
               label="Seed base (conditional-KASS)"
-              hint={`Raw base units per pool. Default ${DEFAULT_BASE_RESERVE.toString()}.`}
+              hint={`Per pool, in KASS. Default ${formatUnits(DEFAULT_BASE_RESERVE, KASS_DECIMALS)}.`}
               error={base.error}
             >
               {(ids) => (
                 <TextInput
                   ids={ids}
-                  inputMode="numeric"
-                  placeholder={DEFAULT_BASE_RESERVE.toString()}
+                  inputMode="decimal"
+                  placeholder={formatUnits(DEFAULT_BASE_RESERVE, KASS_DECIMALS)}
                   value={baseRaw}
                   onChange={(e) => setBaseRaw(e.target.value)}
                 />
@@ -235,14 +239,14 @@ export function ChallengeComposeForm({
             </Field>
             <Field
               label="Seed quote (conditional-USDC)"
-              hint={`Raw base units per pool. Default ${DEFAULT_QUOTE_RESERVE.toString()}.`}
+              hint={`Per pool, in USDC. Default ${formatUnits(DEFAULT_QUOTE_RESERVE, USDC_DECIMALS)}.`}
               error={quote.error}
             >
               {(ids) => (
                 <TextInput
                   ids={ids}
-                  inputMode="numeric"
-                  placeholder={DEFAULT_QUOTE_RESERVE.toString()}
+                  inputMode="decimal"
+                  placeholder={formatUnits(DEFAULT_QUOTE_RESERVE, USDC_DECIMALS)}
                   value={quoteRaw}
                   onChange={(e) => setQuoteRaw(e.target.value)}
                 />
