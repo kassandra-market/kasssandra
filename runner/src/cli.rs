@@ -281,10 +281,10 @@ pub async fn run_core(
 
     Ok(RunOutput {
         option_index: resp.option_index,
-        model_id_hex: to_hex(&meta.model_id),
-        params_hash_hex: to_hex(&meta.params_hash),
-        io_hash_hex: to_hex(&meta.io_hash),
-        submit_ai_claim_payload_hex: to_hex(&payload),
+        model_id_hex: hex::encode(&meta.model_id),
+        params_hash_hex: hex::encode(&meta.params_hash),
+        io_hash_hex: hex::encode(&meta.io_hash),
+        submit_ai_claim_payload_hex: hex::encode(&payload),
         resolved_model_id: resp.model_id,
         claim_pda_seeds,
         submission: None,
@@ -351,9 +351,6 @@ pub async fn verify_core(
 
 // --- helpers ----------------------------------------------------------------
 
-/// Lowercase hex of a byte slice.
-use crate::hashing::to_hex;
-
 /// Normalize a hex string for comparison (strip `0x`, lowercase).
 fn normalize_hex(s: &str) -> String {
     s.strip_prefix("0x").unwrap_or(s).to_ascii_lowercase()
@@ -362,18 +359,14 @@ fn normalize_hex(s: &str) -> String {
 /// Parse exactly 32 bytes from a 64-char hex string (optional `0x` prefix).
 fn parse_hex32(s: &str) -> anyhow::Result<[u8; 32]> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    if s.len() != 64 {
-        anyhow::bail!(
-            "content_hash must be 64 hex chars (32 bytes), got {} chars",
-            s.len()
-        );
-    }
-    let mut out = [0u8; 32];
-    for (i, byte) in out.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&s[2 * i..2 * i + 2], 16)
-            .map_err(|e| anyhow::anyhow!("invalid hex in content_hash: {e}"))?;
-    }
-    Ok(out)
+    let bytes =
+        hex::decode(s).map_err(|e| anyhow::anyhow!("invalid hex in content_hash: {e}"))?;
+    bytes.as_slice().try_into().map_err(|_| {
+        anyhow::anyhow!(
+            "content_hash must be 32 bytes (64 hex chars), got {} bytes",
+            bytes.len()
+        )
+    })
 }
 
 /// Load the config from `--config <path>` or, when `None`, stdin.
@@ -442,8 +435,8 @@ pub async fn build_config_from_chain(
             "oracle metadata JSON at `{}` hashes to sha256 {} but the on-chain uri_hash is {} \
              (the hosted JSON does not match what this oracle committed to)",
             meta.uri,
-            to_hex(&actual),
-            to_hex(&meta.uri_hash),
+            hex::encode(&actual),
+            hex::encode(&meta.uri_hash),
         );
     }
 
@@ -475,7 +468,7 @@ pub async fn build_config_from_chain(
     let facts = facts
         .into_iter()
         .map(|f| FactInput {
-            content_hash: to_hex(&f.content_hash),
+            content_hash: hex::encode(&f.content_hash),
             uri: f.uri,
         })
         .collect();
@@ -777,7 +770,7 @@ mod tests {
     fn sha256_hex(content: &[u8]) -> String {
         let mut h = Sha256::new();
         h.update(content);
-        to_hex(&h.finalize())
+        hex::encode(&h.finalize())
     }
 
     fn sample_config(uri: &str, content: &[u8]) -> RunnerConfig {
@@ -806,9 +799,9 @@ mod tests {
     #[test]
     fn parse_hex32_roundtrips() {
         let bytes = [0xabu8; 32];
-        let hex = to_hex(&bytes);
-        assert_eq!(parse_hex32(&hex).unwrap(), bytes);
-        assert_eq!(parse_hex32(&format!("0x{hex}")).unwrap(), bytes);
+        let encoded = hex::encode(bytes);
+        assert_eq!(parse_hex32(&encoded).unwrap(), bytes);
+        assert_eq!(parse_hex32(&format!("0x{encoded}")).unwrap(), bytes);
         assert!(parse_hex32("abcd").is_err());
         assert!(parse_hex32(&"zz".repeat(32)).is_err());
     }
@@ -833,9 +826,9 @@ mod tests {
         // io_hash[32] ++ option[1].
         let payload = parse_payload(&out.submit_ai_claim_payload_hex);
         assert_eq!(payload.len(), 97);
-        assert_eq!(to_hex(&payload[0..32]), out.model_id_hex);
-        assert_eq!(to_hex(&payload[32..64]), out.params_hash_hex);
-        assert_eq!(to_hex(&payload[64..96]), out.io_hash_hex);
+        assert_eq!(hex::encode(&payload[0..32]), out.model_id_hex);
+        assert_eq!(hex::encode(&payload[32..64]), out.params_hash_hex);
+        assert_eq!(hex::encode(&payload[64..96]), out.io_hash_hex);
         assert_eq!(payload[96], 1);
 
         // The resolved model id is the mock's.
@@ -945,7 +938,7 @@ mod tests {
         uri: &str,
         uri_hash: [u8; 32],
     ) -> Vec<u8> {
-        use kassandra_sdk::accounts::AccountType;
+        use kassandra_oracles_sdk::accounts::AccountType;
         let mut d = vec![AccountType::OracleMeta.as_u8(), 255];
         d.extend_from_slice(&oracle);
         d.extend_from_slice(&(subject.len() as u16).to_le_bytes());
@@ -966,7 +959,7 @@ mod tests {
         use crate::fetch::MockFactFetcher;
         use crate::rpc::MockRpc;
         use bytemuck::Zeroable;
-        use kassandra_sdk::accounts::{AccountType, Fact};
+        use kassandra_oracles_sdk::accounts::{AccountType, Fact};
         use serde_json::json;
 
         let oracle_pk = "So11111111111111111111111111111111111111112";

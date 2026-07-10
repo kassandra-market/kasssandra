@@ -1,7 +1,7 @@
 /**
  * Oracle READ data layer — pure, side-effect-free functions over a web3.js
  * {@link Connection} that enumerate + decode Kassandra on-chain accounts via
- * `@kassandra/sdk`. NO React, NO hooks — a UI layer (FA3) wraps these in query
+ * `@kassandra-market/oracles`. NO React, NO hooks — a UI layer (FA3) wraps these in query
  * hooks for loading/error/empty states.
  *
  * Enumeration strategy (there is no `getProgramAccounts` helper in the SDK — the
@@ -39,7 +39,9 @@ import {
   type Market,
   type Oracle,
   type Proposer,
-} from "@kassandra/sdk";
+} from "@kassandra-market/oracles";
+import bs58 from "bs58";
+
 import { fetchOracleAccounts, fetchOracleDetailAccounts } from "./indexer";
 import type { IndexedChildAccount } from "./indexer";
 
@@ -74,37 +76,13 @@ export class OracleNotFoundError extends Error {
   }
 }
 
-// --- base58 (single-byte tag encoding for the memcmp filter) ----------------
-// web3.js does not export a byte-array base58 encoder; the oracle-field memcmp
-// reuses an address's own base58 string, but the 1-byte account_type tag needs
-// its own encode. This is the standard Bitcoin base58 alphabet.
-const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-/** Base58-encode raw bytes (used for the single account_type tag byte). */
-export function base58Encode(bytes: Uint8Array): string {
-  let zeros = 0;
-  while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
-  const digits: number[] = [];
-  for (let i = zeros; i < bytes.length; i++) {
-    let carry = bytes[i];
-    for (let j = 0; j < digits.length; j++) {
-      carry += digits[j] << 8;
-      digits[j] = carry % 58;
-      carry = (carry / 58) | 0;
-    }
-    while (carry > 0) {
-      digits.push(carry % 58);
-      carry = (carry / 58) | 0;
-    }
-  }
-  let out = "1".repeat(zeros);
-  for (let i = digits.length - 1; i >= 0; i--) out += B58_ALPHABET[digits[i]];
-  return out.length > 0 ? out : "1";
-}
-
-/** The base58-encoded single-byte account_type tag for a given {@link AccountType}. */
+/**
+ * The base58-encoded single-byte account_type tag for a given {@link AccountType}.
+ * web3.js exposes no byte-array base58 encoder (an `Address` only stringifies
+ * itself), so the 1-byte tag goes through `bs58` directly.
+ */
 function tagBytes(type: AccountType): string {
-  return base58Encode(Uint8Array.of(type));
+  return bs58.encode(Uint8Array.of(type));
 }
 
 /** Filter selecting exactly one account type: its tag byte (primary) + pinned ABI size. */

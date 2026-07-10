@@ -9,6 +9,8 @@
 import { createContext, useContext } from "react";
 import { Address } from "@solana/web3.js";
 
+import { base64ToBytes } from "../../lib/base64";
+
 /** `GET /api/config` — the program `Config` singleton. */
 export interface ConfigDto {
   address: string;
@@ -119,14 +121,6 @@ export class IndexerTxError extends Error {
     this.name = "IndexerTxError";
     this.logs = logs;
   }
-}
-
-/** Decode standard base64 (indexer `AccountDto.data`) into raw bytes. */
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
 }
 
 async function jsonOrThrow<T>(res: Response, what: string): Promise<T> {

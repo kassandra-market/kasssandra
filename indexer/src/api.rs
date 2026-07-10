@@ -226,7 +226,6 @@ async fn post_oracle_meta_json(
     Path(pubkey): Path<String>,
     body: Bytes,
 ) -> impl IntoResponse {
-    use sha2::{Digest, Sha256};
     let json = match std::str::from_utf8(&body) {
         Ok(j) => j,
         Err(_) => {
@@ -237,10 +236,7 @@ async fn post_oracle_meta_json(
                 .into_response()
         }
     };
-    let sha256: String = Sha256::digest(json.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
+    let sha256 = crate::meta_fetch::sha256_hex(json.as_bytes());
     match db::upsert_oracle_meta_json(&s.client, &pubkey, json, &sha256).await {
         Ok(()) => Json(serde_json::json!({ "ok": true, "sha256": sha256 })).into_response(),
         Err(e) => err(e).into_response(),

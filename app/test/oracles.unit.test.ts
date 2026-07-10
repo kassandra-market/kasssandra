@@ -15,15 +15,12 @@
  */
 import type { Connection } from "@solana/web3.js";
 import { Address } from "@solana/web3.js";
-import { ACCOUNT_SIZES, AccountType, Phase } from "@kassandra/sdk";
+import { ACCOUNT_SIZES, AccountType, Phase } from "@kassandra-market/oracles";
 import { describe, expect, it } from "vitest";
 
-import {
-  base58Encode,
-  fetchOracleDetail,
-  fetchOracles,
-  OracleNotFoundError,
-} from "../src/data/oracles";
+import bs58 from "bs58";
+
+import { fetchOracleDetail, fetchOracles, OracleNotFoundError } from "../src/data/oracles";
 
 // --- real Pod byte-layout builders (tag @0, fields at their pinned offsets) --
 
@@ -82,35 +79,12 @@ interface StoredAccount {
 
 /** True if `data` satisfies a getProgramAccounts memcmp filter (base58 bytes at offset). */
 function matchesMemcmp(data: Uint8Array, offset: number, base58: string): boolean {
-  const expected = decodeBase58(base58);
+  const expected = bs58.decode(base58);
   if (offset + expected.length > data.length) return false;
   for (let i = 0; i < expected.length; i++) {
     if (data[offset + i] !== expected[i]) return false;
   }
   return true;
-}
-
-const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-function decodeBase58(s: string): Uint8Array {
-  const bytes: number[] = [];
-  for (const ch of s) {
-    let carry = B58_ALPHABET.indexOf(ch);
-    if (carry < 0) throw new Error(`bad base58 char ${ch}`);
-    for (let j = 0; j < bytes.length; j++) {
-      carry += bytes[j] * 58;
-      bytes[j] = carry & 0xff;
-      carry >>= 8;
-    }
-    while (carry > 0) {
-      bytes.push(carry & 0xff);
-      carry >>= 8;
-    }
-  }
-  for (const ch of s) {
-    if (ch === "1") bytes.push(0);
-    else break;
-  }
-  return Uint8Array.from(bytes.reverse());
 }
 
 /**
@@ -156,11 +130,12 @@ const CHILD_2 = new Address("Config1111111111111111111111111111111111111");
 const CHILD_3 = new Address("SysvarC1ock11111111111111111111111111111111");
 const CHILD_4 = new Address("SysvarRent111111111111111111111111111111111");
 
-describe("base58Encode", () => {
-  it("encodes the single account_type tag bytes to their canonical base58 chars", () => {
-    // Byte value n (< 58) → the n-th base58 alphabet char.
-    expect(base58Encode(Uint8Array.of(AccountType.Oracle))).toBe("2"); // 1
-    expect(base58Encode(Uint8Array.of(AccountType.Fact))).toBe("4"); // 3
+describe("account_type memcmp tag", () => {
+  it("encodes the single account_type tag byte to its canonical base58 char", () => {
+    // Byte value n (< 58) → the n-th base58 alphabet char. The getProgramAccounts
+    // memcmp filter matches on this bs58-encoded tag.
+    expect(bs58.encode(Uint8Array.of(AccountType.Oracle))).toBe("2"); // 1
+    expect(bs58.encode(Uint8Array.of(AccountType.Fact))).toBe("4"); // 3
   });
 });
 

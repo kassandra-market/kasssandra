@@ -32,10 +32,12 @@ import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { Keypair } from '@solana/web3.js'
-import { TOKEN_PROGRAM_ID, associatedTokenAccount } from '@kassandra/sdk'
+import { TOKEN_PROGRAM_ID, associatedTokenAccount } from '@kassandra-market/oracles'
 
-import { toHex, tokenAccountBytes } from '../../sdk/test/surfpool/harness.ts'
-import { MockAnthropic } from '../../sdk/test/surfpool/mock-anthropic.ts'
+import bs58 from 'bs58'
+
+import { toHex, tokenAccountBytes } from '../../sdks/oracles/ts/test/surfpool/harness.ts'
+import { MockAnthropic } from '../../sdks/oracles/ts/test/surfpool/mock-anthropic.ts'
 import {
   bootAndInit,
   createOracleReal,
@@ -63,31 +65,6 @@ const LOGS = join(ROOT, 'logs')
 const INDEXER_BIN = join(ROOT, 'target', 'release', 'kassandra-indexer')
 const RUNNER_CONFIG = join(LOGS, 'runner.config.json')
 const WALLET_FILE = join(APP_DIR, 'e2e', '.wallet.json')
-
-/** Minimal base58 (Bitcoin alphabet) encoder — for the Phantom-import secret. */
-function base58Encode(bytes: Uint8Array): string {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-  const digits = [0]
-  for (const byte of bytes) {
-    let carry = byte
-    for (let i = 0; i < digits.length; i++) {
-      carry += digits[i] << 8
-      digits[i] = carry % 58
-      carry = (carry / 58) | 0
-    }
-    while (carry > 0) {
-      digits.push(carry % 58)
-      carry = (carry / 58) | 0
-    }
-  }
-  let out = ''
-  for (const b of bytes) {
-    if (b === 0) out += ALPHABET[0]
-    else break
-  }
-  for (let i = digits.length - 1; i >= 0; i--) out += ALPHABET[digits[i]]
-  return out
-}
 
 /**
  * The dev wallet: by default the local Solana CLI keypair
@@ -196,6 +173,7 @@ async function seedActivePriceHistory(ctx: SeedCtx, seed: ActiveMarketSeed): Pro
     await new Promise((r) => setTimeout(r, 500))
   }
   // 2) Move the price both ways so the candle has a real range (down → up → down).
+  log('[dev]   · driving swaps on the active pool (down → up → down) to populate the price chart')
   await swapOnPool(ctx, seed, 'down', 2_000_000_000n)
   await new Promise((r) => setTimeout(r, 1_200))
   await swapOnPool(ctx, seed, 'up', 3_000_000_000n)
@@ -215,6 +193,10 @@ async function main(): Promise<void> {
   // (~/.config/solana/id.json), so you transact from the wallet you already hold —
   // just connect it in the browser (no import). Falls back to a generated keypair.
   const { wallet, fromFile: walletFromFile } = await loadDevWallet()
+  log(
+    `[dev] funding the dev wallet ${wallet.publicKey.toString()} ` +
+      `(${walletFromFile ? 'your local CLI keypair' : 'generated'}) — 50 SOL + 1,000,000 KASS`,
+  )
   await ctx.harness.airdrop(wallet.publicKey.toString(), 50_000_000_000)
   const walletKass = (
     await associatedTokenAccount(wallet.publicKey.toString(), ctx.kassMint.publicKey.toString())
@@ -231,18 +213,21 @@ async function main(): Promise<void> {
   log('[dev] seeding oracles across phases…')
   const oracles: Record<string, Record<string, string>> = {}
   {
+    log('[dev]   · oracle #1 "Dev: pick an option" (3 options) → creating + opening the proposal window')
     const o = await createOracleReal(ctx, 1n, 3, 'Dev: pick an option')
     await openProposals(ctx, o)
     await keepWindowOpen(ctx, o)
     oracles.proposal = { nonce: '1', address: o.toString() }
   }
   {
+    log('[dev]   · oracle #2 "Dev: disputed — submit a fact" → creating + driving to the fact-proposal phase')
     const o = await createOracleReal(ctx, 2n, 2, 'Dev: disputed — submit a fact')
     await driveToFactProposal(ctx, o)
     await keepWindowOpen(ctx, o)
     oracles.factProposal = { nonce: '2', address: o.toString() }
   }
   {
+    log('[dev]   · oracle #3 "Dev: disputed — vote on facts" → creating, proposing a fact, opening voting')
     const o = await createOracleReal(ctx, 3n, 2, 'Dev: disputed — vote on facts')
     await driveToFactProposal(ctx, o)
     const fact = await submitOneFact(ctx, o)
@@ -250,6 +235,7 @@ async function main(): Promise<void> {
     oracles.factVoting = { nonce: '3', address: o.toString(), fact: fact.toString() }
   }
   {
+    log('[dev]   · oracle #4 "Dev: resolved uncontested" → creating + resolving to option 1')
     const o = await createOracleReal(ctx, 4n, 2, 'Dev: resolved uncontested')
     await driveToResolvedUncontested(ctx, o, 1)
     oracles.resolved = { nonce: '4', address: o.toString() }
@@ -263,7 +249,7 @@ async function main(): Promise<void> {
   let markets: Record<string, unknown> | null = null
   let activeSeed: ActiveMarketSeed | null = null
   try {
-    const res = await seedMarkets(ctx, oracles)
+    const res = await seedMarkets(ctx, oracles, (m) => log(`[dev]   · ${m}`))
     markets = res.seeded
     activeSeed = res.active
   } catch (e) {
@@ -399,7 +385,7 @@ async function main(): Promise<void> {
       found, so import this generated, pre-funded dev keypair into
       Phantom/Solflare and point a custom network at ${rpcUrl}:
 
-        secret (base58):  ${base58Encode(wallet.secretKey as Uint8Array)}
+        secret (base58):  ${bs58.encode(wallet.secretKey as Uint8Array)}
         address:          ${wallet.publicKey.toString()}   (funded: SOL + KASS)`
   log(`
 [dev] ✅ production-like local stack is UP

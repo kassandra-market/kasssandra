@@ -2514,6 +2514,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
 
 [[package]]
+name = "hex"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
 name = "histogram"
 version = "0.6.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3079,7 +3085,7 @@ dependencies = [
 
 [[package]]
 name = "kassandra-indexer"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -3093,8 +3099,9 @@ dependencies = [
  "carbon-rpc-transaction-crawler-datasource",
  "env_logger 0.11.11",
  "futures-util",
+ "hex",
  "kassandra-market-program",
- "kassandra-sdk",
+ "kassandra-oracles-sdk",
  "log",
  "reqwest 0.12.28",
  "serde",
@@ -3123,7 +3130,7 @@ name = "kassandra-market-program"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "kassandra-market-sdk",
+ "kassandra-markets-sdk",
  "litesvm 0.6.1",
  "pinocchio",
  "pinocchio-system",
@@ -3134,7 +3141,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "kassandra-market-sdk"
+name = "kassandra-markets-sdk"
 version = "0.1.0"
 dependencies = [
  "solana-sdk",
@@ -3142,11 +3149,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "kassandra-oracles-sdk"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "kassandra-program",
+ "solana-instruction 3.2.0",
+ "solana-pubkey 3.0.0",
+]
+
+[[package]]
 name = "kassandra-program"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
- "kassandra-sdk",
+ "kassandra-oracles-sdk",
  "litesvm 0.13.1",
  "pinocchio",
  "pinocchio-system",
@@ -3180,7 +3197,8 @@ dependencies = [
  "bs58",
  "bytemuck",
  "clap",
- "kassandra-sdk",
+ "hex",
+ "kassandra-oracles-sdk",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -3194,16 +3212,6 @@ dependencies = [
  "solana-transaction 3.1.0",
  "thiserror 2.0.18",
  "tokio",
-]
-
-[[package]]
-name = "kassandra-sdk"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "kassandra-program",
- "solana-instruction 3.2.0",
- "solana-pubkey 3.0.0",
 ]
 
 [[package]]

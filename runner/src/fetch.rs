@@ -359,9 +359,6 @@ impl FactFetcher for MockFactFetcher {
     }
 }
 
-/// Lowercase hex of a byte slice (for error messages). Deterministic, no locale.
-use crate::hashing::to_hex;
-
 /// `sha256(bytes)` as 32 bytes — the `content_hash` derivation (plain SHA-256,
 /// no framing), matching the off-chain convention the program stores opaquely.
 fn sha256(bytes: &[u8]) -> [u8; 32] {
@@ -390,8 +387,8 @@ where
     if actual != fact_ref.content_hash {
         return Err(VerifyError::ContentHashMismatch {
             uri: fact_ref.uri.clone(),
-            expected: to_hex(&fact_ref.content_hash),
-            actual: to_hex(&actual),
+            expected: hex::encode(&fact_ref.content_hash),
+            actual: hex::encode(&actual),
         });
     }
 
@@ -477,8 +474,8 @@ mod tests {
                 actual,
             } => {
                 assert_eq!(u, uri);
-                assert_eq!(expected, to_hex(&ch(committed)));
-                assert_eq!(actual, to_hex(&ch(tampered)));
+                assert_eq!(expected, hex::encode(&ch(committed)));
+                assert_eq!(actual, hex::encode(&ch(tampered)));
                 assert_ne!(expected, actual);
             }
             other => panic!("expected ContentHashMismatch, got {other:?}"),

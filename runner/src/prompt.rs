@@ -103,10 +103,6 @@ pub struct AssembledPrompt {
     pub user: String,
 }
 
-/// Lowercase hex of a byte slice (used to render a fact's `content_hash`).
-/// Deterministic, allocation-light, no locale.
-use crate::hashing::to_hex;
-
 /// Look up the label for option index `i`, if any. Labels are matched by their
 /// explicit `index` field, independent of their position in the vec.
 fn label_for(options: &CategoricalOptions, i: u8) -> Option<&str> {
@@ -184,7 +180,7 @@ pub fn assemble(
                 format!(
                     "## Fact {} (sha256: {})\n{}",
                     i + 1,
-                    to_hex(&f.content_hash),
+                    hex::encode(&f.content_hash),
                     f.content
                 )
             })
