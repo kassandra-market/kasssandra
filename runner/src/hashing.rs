@@ -235,11 +235,6 @@ impl ClaimMetadata {
     }
 }
 
-/// Lowercase hex-encode bytes (no `0x` prefix) — the canonical string form for
-/// the runner's hashes and payloads. Shared by cli / fetch / prompt / rpc.
-pub fn to_hex(bytes: &[u8]) -> String {
-    hex::encode(bytes)
-}
 
 #[cfg(test)]
 mod tests {

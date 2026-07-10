@@ -34,7 +34,8 @@ import { join, resolve } from 'node:path'
 import { Keypair } from '@solana/web3.js'
 import { TOKEN_PROGRAM_ID, associatedTokenAccount } from '@kassandra-market/oracles'
 
-import { base58Encode } from '../src/lib/base58.ts'
+import bs58 from 'bs58'
+
 import { toHex, tokenAccountBytes } from '../../sdks/oracles/ts/test/surfpool/harness.ts'
 import { MockAnthropic } from '../../sdks/oracles/ts/test/surfpool/mock-anthropic.ts'
 import {
@@ -384,7 +385,7 @@ async function main(): Promise<void> {
       found, so import this generated, pre-funded dev keypair into
       Phantom/Solflare and point a custom network at ${rpcUrl}:
 
-        secret (base58):  ${base58Encode(wallet.secretKey as Uint8Array)}
+        secret (base58):  ${bs58.encode(wallet.secretKey as Uint8Array)}
         address:          ${wallet.publicKey.toString()}   (funded: SOL + KASS)`
   log(`
 [dev] ✅ production-like local stack is UP

@@ -40,7 +40,8 @@ import {
   type Oracle,
   type Proposer,
 } from "@kassandra-market/oracles";
-import { base58Encode } from "../lib/base58";
+import bs58 from "bs58";
+
 import { fetchOracleAccounts, fetchOracleDetailAccounts } from "./indexer";
 import type { IndexedChildAccount } from "./indexer";
 
@@ -75,15 +76,13 @@ export class OracleNotFoundError extends Error {
   }
 }
 
-// --- base58 (single-byte tag encoding for the memcmp filter) ----------------
-// web3.js exposes no byte-array base58 encoder; the oracle-field memcmp reuses an
-// address's own base58 string, but the 1-byte account_type tag needs its own
-// encode. Re-exported from the shared codec so callers can keep importing it here.
-export { base58Encode };
-
-/** The base58-encoded single-byte account_type tag for a given {@link AccountType}. */
+/**
+ * The base58-encoded single-byte account_type tag for a given {@link AccountType}.
+ * web3.js exposes no byte-array base58 encoder (an `Address` only stringifies
+ * itself), so the 1-byte tag goes through `bs58` directly.
+ */
 function tagBytes(type: AccountType): string {
-  return base58Encode(Uint8Array.of(type));
+  return bs58.encode(Uint8Array.of(type));
 }
 
 /** Filter selecting exactly one account type: its tag byte (primary) + pinned ABI size. */
