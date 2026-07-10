@@ -19,7 +19,8 @@ import { buildSettleFromMarketIxs } from '../../../data/actions/challengeSettle'
 import { useMarketAmms } from '../../../hooks/useMarketAmms'
 import { useWriteAction } from '../../../hooks/useWriteAction'
 import { isMockMode } from '../../../data/mockOracles'
-import { groupDigits, relativeDeadline } from '../../../lib/oracleView'
+import { KASS_DECIMALS, USDC_DECIMALS, formatUnits, relativeDeadline } from '../../../lib/oracleView'
+import { parseAmount } from './amount'
 import { recallNonce } from '../../../lib/nonceStore'
 import { resolveOracleNonce } from '../../../data/actions/finalize'
 import { Card } from '../../ui'
@@ -35,16 +36,6 @@ const NEAR_MARGIN = 0.85
 function oracleNonce(oracle: string): Promise<bigint> {
   const recalled = recallNonce(oracle)
   return recalled !== null ? Promise.resolve(recalled) : resolveOracleNonce(oracle)
-}
-
-/** Parse a positive whole-number raw-unit amount for a swap. */
-function parseRawAmount(raw: string): { value?: bigint; error?: string } {
-  const t = raw.trim()
-  if (t === '') return { error: 'Enter an amount (raw base units).' }
-  if (!/^\d+$/.test(t)) return { error: 'Amount must be a whole number of base units.' }
-  const value = BigInt(t)
-  if (value <= 0n) return { error: 'Amount must be greater than zero.' }
-  return { value }
 }
 
 /** Parse a slippage tolerance in percent (0..100) → basis points. */
@@ -80,7 +71,11 @@ function SwapForm({
   const [slipRaw, setSlipRaw] = useState('0.5')
 
   const amm = pool === 'pass' ? pools.pass : pools.fail
-  const parsed = parseRawAmount(amountRaw)
+  // buy = USDC(quote,6) → KASS(base,9); sell is the reverse. Scale entry by the
+  // IN mint's decimals and the preview by the OUT mint's.
+  const inDecimals = side === 'buy' ? USDC_DECIMALS : KASS_DECIMALS
+  const outDecimals = side === 'buy' ? KASS_DECIMALS : USDC_DECIMALS
+  const parsed = parseAmount(amountRaw, inDecimals)
   const slip = parseSlippageBps(slipRaw)
   const est = swapEstimate(amm, side, parsed.value ?? 0n)
   const inLabel = side === 'buy' ? 'USDC (quote)' : 'KASS (base)'
@@ -136,14 +131,14 @@ function SwapForm({
 
         <Field
           label={`Amount in — ${inLabel}`}
-          hint="Raw base units of the input mint."
+          hint={`In ${inLabel}, e.g. 1.5.`}
           error={amountRaw !== '' ? parsed.error : undefined}
         >
           {(ids) => (
             <TextInput
               ids={ids}
-              inputMode="numeric"
-              placeholder="e.g. 1000000"
+              inputMode="decimal"
+              placeholder="e.g. 1.5"
               value={amountRaw}
               onChange={(e) => setAmountRaw(e.target.value)}
             />
@@ -172,7 +167,9 @@ function SwapForm({
             <dl className="flex flex-col gap-1">
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-driftwood">Expected out — {outLabel}</dt>
-                <dd className="tabular-nums text-sepia">≈ {groupDigits(est.expectedOut)}</dd>
+                <dd className="tabular-nums text-sepia">
+                  ≈ {formatUnits(est.expectedOut, outDecimals)}
+                </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <dt className="text-driftwood">Price impact</dt>

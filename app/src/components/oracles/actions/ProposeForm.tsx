@@ -83,16 +83,12 @@ export function ProposeForm({
               </select>
             )}
           </Field>
-          <Field
-            label="Bond (KASS base units)"
-            hint="Raw, unscaled — as shown in the bond pool above."
-            error={bondError ?? balanceError}
-          >
+          <Field label="Bond (KASS)" hint="In KASS, e.g. 5 or 1.5." error={bondError ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
-                inputMode="numeric"
-                placeholder="e.g. 5000000000"
+                inputMode="decimal"
+                placeholder="e.g. 5"
                 value={bond}
                 onChange={(e) => setBond(e.target.value)}
               />

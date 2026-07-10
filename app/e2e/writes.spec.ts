@@ -41,7 +41,7 @@ async function openOracle(page: Page, address: string): Promise<void> {
 test('propose: submit a categorical option + KASS bond', async ({ page }) => {
   const o = wallet.oracles.proposal
   await openOracle(page, o.address)
-  await page.getByPlaceholder('e.g. 5000000000').fill('5000000000')
+  await page.getByPlaceholder('e.g. 5').fill('5')
   await page.getByRole('button', { name: 'Propose', exact: true }).click()
   // On-chain: a Proposer now exists on the oracle.
   await poll(() => oracleAt(o.address), (x) => x.proposerCount === 1)
@@ -53,7 +53,7 @@ test('submitFact: post a curated fact with a stake', async ({ page }) => {
   await page.getByRole('radio', { name: 'Hash text' }).click()
   await page.getByPlaceholder('The claim to record').fill('The event occurred at block 123')
   await page.getByPlaceholder(/ipfs/).fill('ipfs://e2e-fact-evidence')
-  await page.getByPlaceholder('e.g. 1000000000').fill('1000000000')
+  await page.getByPlaceholder('e.g. 1').fill('1')
   await page.getByRole('button', { name: 'Submit fact' }).click()
   await poll(() => oracleAt(o.address), (x) => x.factCount === 1)
 })
@@ -62,7 +62,7 @@ test('voteFact: approve a fact with a stake', async ({ page }) => {
   const o = wallet.oracles.factVoting
   await openOracle(page, o.address)
   await page.getByRole('radio', { name: 'Approve' }).click()
-  await page.getByPlaceholder('e.g. 1000000000').fill('1000000000')
+  await page.getByPlaceholder('e.g. 1').fill('1')
   await page.getByRole('button', { name: 'Cast vote' }).click()
   // On-chain: the fact's approve tally now reflects the wallet's 1e9 stake.
   await poll(() => factAt(o.fact!), (x) => x.approveStake >= 1_000_000_000n)

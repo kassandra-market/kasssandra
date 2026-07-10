@@ -43,7 +43,7 @@ const wallet = JSON.parse(readFileSync(join(process.cwd(), 'e2e', 'fork', '.wall
 }
 
 const QUESTION_ID = new Uint8Array(32).fill(0x07)
-const SWAP_IN = '90000000' // USDC buy on the fail pool — clears the disqualify margin
+const SWAP_IN = '90' // 90 USDC buy on the fail pool — clears the disqualify margin
 const FAIL_USDC_TOPUP = 200_000_000n
 
 /** Reload the oracle page and wait for the funded wallet to be connected. */
@@ -109,7 +109,7 @@ test('challenge cluster: compose → open → swap → crank → settle → clos
   await reload(page, url)
   await page.getByLabel('Pool').selectOption('fail')
   await page.getByLabel('Side').selectOption('buy')
-  await page.getByPlaceholder(/e\.g\. 1000000/).fill(SWAP_IN)
+  await page.getByPlaceholder(/e\.g\. 1\.5/).fill(SWAP_IN)
   await page.getByLabel(/Slippage %/i).fill('50')
   await page.getByRole('button', { name: /^Swap$/i }).click()
   // On-chain: the buy consumed fail-USDC from the challenger.

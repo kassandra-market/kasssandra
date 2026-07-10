@@ -171,12 +171,12 @@ export function SubmitFactForm({
             )}
           </Field>
 
-          <Field label="Stake (KASS base units)" error={errors.stake ?? balanceError}>
+          <Field label="Stake (KASS)" error={errors.stake ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
-                inputMode="numeric"
-                placeholder="e.g. 1000000000"
+                inputMode="decimal"
+                placeholder="e.g. 1"
                 value={stake}
                 onChange={(e) => setStake(e.target.value)}
               />
