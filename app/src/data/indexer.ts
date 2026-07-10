@@ -6,6 +6,7 @@
  * on-chain activity feed. It is OPTIONAL — when `VITE_INDEXER_URL` is unset the
  * feature is simply absent (the rest of the app reads chain directly).
  */
+import { base64ToBytes } from "../lib/base64"
 
 /** The indexer base URL, or `undefined` when the feature is not configured. */
 export function indexerBaseUrl(): string | undefined {
@@ -110,14 +111,6 @@ export async function fetchOracleMeta(
   } catch {
     return new Map()
   }
-}
-
-/** Decode base64 (the indexer serves raw Pod account bytes as base64) to bytes. */
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64)
-  const out = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i)
-  return out
 }
 
 /** One indexed account: its pubkey + raw Pod bytes (decoded by the caller with the SDK). */

@@ -8,6 +8,7 @@
  */
 import { Address } from "@solana/web3.js";
 
+import { u64LE as u64le } from "../bytes.js";
 import type { AddressInput, Pda } from "../pda.js";
 import {
   CONDITIONAL_VAULT_ID,
@@ -18,12 +19,6 @@ import {
 
 function bytes(a: AddressInput): Uint8Array {
   return (a instanceof Address ? a : new Address(a)).toBytes();
-}
-
-function u64le(value: bigint | number): Uint8Array {
-  const out = new Uint8Array(8);
-  new DataView(out.buffer).setBigUint64(0, BigInt(value), true);
-  return out;
 }
 
 async function derive(seeds: Array<Uint8Array>, programId: Address): Promise<Pda> {

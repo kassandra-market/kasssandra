@@ -15,9 +15,6 @@
  */
 import { Address, TransactionInstruction, type Connection } from "@solana/web3.js";
 import {
-  ATA_PROGRAM_ID,
-  SYSTEM_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
   VOTE_APPROVE,
   VOTE_DUPLICATE,
   associatedTokenAccount,
@@ -25,6 +22,7 @@ import {
   submitFact,
   voteFact,
 } from "@kassandra-market/oracles";
+import { flows } from "@kassandra-market/markets";
 
 /** Anything that names an account: a web3.js `Address` or a base58 string. */
 export type AddressInput = Address | string;
@@ -79,32 +77,6 @@ function requireVoteKind(kind: number): void {
 }
 
 /**
- * The idempotent `createAssociatedTokenAccountIdempotent` instruction (ATA
- * program discriminant `1`). Accounts (SPL ATA order): funding payer(w,signer),
- * ata(w), owner(ro), mint(ro), system program(ro), token program(ro). Built by
- * hand (no `@solana/spl-token` dep) — the layout is a stable public contract.
- */
-function createAtaIdempotentIx(
-  payer: Address,
-  ata: Address,
-  owner: Address,
-  mint: Address,
-): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: ATA_PROGRAM_ID,
-    keys: [
-      { pubkey: payer, isSigner: true, isWritable: true },
-      { pubkey: ata, isSigner: false, isWritable: true },
-      { pubkey: owner, isSigner: false, isWritable: false },
-      { pubkey: mint, isSigner: false, isWritable: false },
-      { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-    ],
-    data: Uint8Array.of(1),
-  });
-}
-
-/**
  * Derive `ATA(authority, kassMint)` and, if the account is absent
  * (`getAccountInfo` null), return an idempotent create-ATA ix to prepend
  * (payer == owner == authority). The ATA address is always returned so the
@@ -119,7 +91,7 @@ async function ensureKassAta(
   const info = await connection.getAccountInfo(ata);
   const createIx = info
     ? undefined
-    : createAtaIdempotentIx(authority, ata, authority, kassMint);
+    : flows.createAtaIdempotentInstruction(authority, ata, authority, kassMint);
   return { ata, createIx };
 }
 

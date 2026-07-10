@@ -29,21 +29,11 @@
  * (settle: the caller reuses RF4's `buildSettleChallengeIxs`.)
  */
 import { Address, TransactionInstruction, type Connection } from "@solana/web3.js";
-import {
-  ATA_PROGRAM_ID,
-  EXTERNAL_PROGRAM_IDS,
-  SYSTEM_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-  ammV04,
-  type Market,
-} from "@kassandra-market/oracles";
+import { ammV04, futarchy, type Market } from "@kassandra-market/oracles";
+import { flows } from "@kassandra-market/markets";
 
 import { ValidationError, type AddressInput } from "../actions";
 import type { AmmV04 } from "../ammV04";
-
-/** The MetaDAO conditional-vault program the conditional-token mints live under. */
-const CONDITIONAL_VAULT_ID = EXTERNAL_PROGRAM_IDS.conditionalVault;
-const CONDITIONAL_TOKEN_SEED = new TextEncoder().encode("conditional_token");
 
 /** Which pass/fail pool of the market to trade / crank. */
 export type Pool = "pass" | "fail";
@@ -93,11 +83,7 @@ export async function conditionalTokenMint(
   vault: AddressInput,
   index: number,
 ): Promise<Address> {
-  const [mint] = await Address.findProgramAddress(
-    [CONDITIONAL_TOKEN_SEED, addr("vault", vault).toBytes(), Uint8Array.of(index & 0xff)],
-    CONDITIONAL_VAULT_ID,
-  );
-  return mint;
+  return (await futarchy.pda.conditionalTokenMint(vault, index)).address;
 }
 
 /** The base (conditional-KASS) + quote (conditional-USDC) mints of a market pool. */
@@ -122,31 +108,6 @@ export async function poolMints(market: Market, pool: Pool): Promise<PoolMints> 
   return { base, quote };
 }
 
-/**
- * The idempotent `createAssociatedTokenAccountIdempotent` ix (ATA program
- * discriminant `1`) — same hand-built layout as the WF1 write layer (no
- * `@solana/spl-token` dep). Accounts: payer(w,signer), ata(w), owner(ro),
- * mint(ro), system program(ro), token program(ro).
- */
-function createAtaIdempotentIx(
-  payer: Address,
-  ata: Address,
-  owner: Address,
-  mint: Address,
-): TransactionInstruction {
-  return new TransactionInstruction({
-    programId: ATA_PROGRAM_ID,
-    keys: [
-      { pubkey: payer, isSigner: true, isWritable: true },
-      { pubkey: ata, isSigner: false, isWritable: true },
-      { pubkey: owner, isSigner: false, isWritable: false },
-      { pubkey: mint, isSigner: false, isWritable: false },
-      { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-    ],
-    data: Uint8Array.of(1),
-  });
-}
 
 /**
  * The constant-product output estimate for swapping `amountIn` of the INPUT
@@ -254,8 +215,8 @@ export async function buildSwapIxs(args: BuildSwapArgs): Promise<TransactionInst
     args.connection.getAccountInfo(userQuote),
   ]);
   const pre: TransactionInstruction[] = [];
-  if (!baseInfo) pre.push(createAtaIdempotentIx(user, userBase, user, base));
-  if (!quoteInfo) pre.push(createAtaIdempotentIx(user, userQuote, user, quote));
+  if (!baseInfo) pre.push(flows.createAtaIdempotentInstruction(user, userBase, user, base));
+  if (!quoteInfo) pre.push(flows.createAtaIdempotentInstruction(user, userQuote, user, quote));
 
   const minAmountOut =
     args.minAmountOut !== undefined

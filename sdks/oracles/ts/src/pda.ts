@@ -15,6 +15,7 @@
  */
 import { Address } from "@solana/web3.js";
 
+import { u64LE } from "./bytes.js";
 import { ATA_PROGRAM_ID, KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
 
 /** Anything that can name an account: a web3.js `Address`/`PublicKey` or a base58 string. */
@@ -31,13 +32,6 @@ const enc = new TextEncoder();
 /** 32 raw bytes of an address (the seed form of a pubkey). */
 function pubkeyBytes(a: AddressInput): Uint8Array {
   return (a instanceof Address ? a : new Address(a)).toBytes();
-}
-
-/** Encode a u64 as 8 little-endian bytes (the oracle-nonce seed encoding). */
-function u64le(value: bigint | number): Uint8Array {
-  const out = new Uint8Array(8);
-  new DataView(out.buffer).setBigUint64(0, BigInt(value), true /* little-endian */);
-  return out;
 }
 
 async function derive(seeds: Array<Uint8Array>, programId: Address = KASSANDRA_PROGRAM_ID): Promise<Pda> {
@@ -57,7 +51,7 @@ export function mintAuthority(programId?: Address): Promise<Pda> {
 
 /** Oracle PDA — seeds `[b"oracle", nonce_u64_le]`. */
 export function oracle(nonce: bigint | number, programId?: Address): Promise<Pda> {
-  return derive([enc.encode("oracle"), u64le(nonce)], programId);
+  return derive([enc.encode("oracle"), u64LE(nonce)], programId);
 }
 
 /** Oracle stake-vault PDA (KASS token account) — seeds `[b"vault", oracle]`. */

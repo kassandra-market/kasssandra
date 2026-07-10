@@ -40,6 +40,7 @@ import {
   type Oracle,
   type Proposer,
 } from "@kassandra-market/oracles";
+import { base58Encode } from "../lib/base58";
 import { fetchOracleAccounts, fetchOracleDetailAccounts } from "./indexer";
 import type { IndexedChildAccount } from "./indexer";
 
@@ -75,32 +76,10 @@ export class OracleNotFoundError extends Error {
 }
 
 // --- base58 (single-byte tag encoding for the memcmp filter) ----------------
-// web3.js does not export a byte-array base58 encoder; the oracle-field memcmp
-// reuses an address's own base58 string, but the 1-byte account_type tag needs
-// its own encode. This is the standard Bitcoin base58 alphabet.
-const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-
-/** Base58-encode raw bytes (used for the single account_type tag byte). */
-export function base58Encode(bytes: Uint8Array): string {
-  let zeros = 0;
-  while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
-  const digits: number[] = [];
-  for (let i = zeros; i < bytes.length; i++) {
-    let carry = bytes[i];
-    for (let j = 0; j < digits.length; j++) {
-      carry += digits[j] << 8;
-      digits[j] = carry % 58;
-      carry = (carry / 58) | 0;
-    }
-    while (carry > 0) {
-      digits.push(carry % 58);
-      carry = (carry / 58) | 0;
-    }
-  }
-  let out = "1".repeat(zeros);
-  for (let i = digits.length - 1; i >= 0; i--) out += B58_ALPHABET[digits[i]];
-  return out.length > 0 ? out : "1";
-}
+// web3.js exposes no byte-array base58 encoder; the oracle-field memcmp reuses an
+// address's own base58 string, but the 1-byte account_type tag needs its own
+// encode. Re-exported from the shared codec so callers can keep importing it here.
+export { base58Encode };
 
 /** The base58-encoded single-byte account_type tag for a given {@link AccountType}. */
 function tagBytes(type: AccountType): string {

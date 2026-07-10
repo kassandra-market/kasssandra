@@ -13,6 +13,15 @@
 import { Address, TransactionInstruction } from "@solana/web3.js";
 import type { AccountMeta } from "@solana/web3.js";
 
+import {
+  concatBytes as concat,
+  i16LE as i16le,
+  u128LE as u128le,
+  u16LE as u16le,
+  u32LE as u32le,
+  u64LE as u64le,
+  u8 as u8b,
+} from "../bytes.js";
 import { SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID } from "../constants.js";
 import * as mpda from "../meteora/pda.js";
 import type { AddressInput } from "../pda.js";
@@ -46,37 +55,6 @@ function ro(pubkey: AddressInput, isSigner = false): AccountMeta {
   return { pubkey: addr(pubkey), isSigner, isWritable: false };
 }
 
-function u8b(v: number): Uint8Array {
-  return Uint8Array.from([v & 0xff]);
-}
-function u16le(v: number): Uint8Array {
-  const o = new Uint8Array(2);
-  new DataView(o.buffer).setUint16(0, v, true);
-  return o;
-}
-function i16le(v: number): Uint8Array {
-  const o = new Uint8Array(2);
-  new DataView(o.buffer).setInt16(0, v, true);
-  return o;
-}
-function u32le(v: number): Uint8Array {
-  const o = new Uint8Array(4);
-  new DataView(o.buffer).setUint32(0, v, true);
-  return o;
-}
-function u64le(v: bigint | number): Uint8Array {
-  const o = new Uint8Array(8);
-  new DataView(o.buffer).setBigUint64(0, BigInt(v), true);
-  return o;
-}
-function u128le(v: bigint | number): Uint8Array {
-  const o = new Uint8Array(16);
-  const dv = new DataView(o.buffer);
-  const x = BigInt(v);
-  dv.setBigUint64(0, x & 0xffffffffffffffffn, true);
-  dv.setBigUint64(8, x >> 64n, true);
-  return o;
-}
 function boolb(v: boolean): Uint8Array {
   return Uint8Array.from([v ? 1 : 0]);
 }
@@ -89,16 +67,6 @@ function optString(s: string | null | undefined): Uint8Array {
   if (s === null || s === undefined) return Uint8Array.from([0]);
   const b = new TextEncoder().encode(s);
   return concat([Uint8Array.from([1]), u32le(b.length), b]);
-}
-function concat(parts: Array<Uint8Array>): Uint8Array {
-  const total = parts.reduce((n, p) => n + p.length, 0);
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const p of parts) {
-    out.set(p, off);
-    off += p.length;
-  }
-  return out;
 }
 
 /** Associated token account `[owner, TOKEN_PROGRAM, mint]` under the ATA program. */

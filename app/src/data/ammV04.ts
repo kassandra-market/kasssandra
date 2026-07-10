@@ -27,12 +27,13 @@
  */
 import type { Connection } from "@solana/web3.js";
 import { Address } from "@solana/web3.js";
-import type { Market } from "@kassandra-market/oracles";
+import { ammV04, type Market } from "@kassandra-market/oracles";
 
-/** Anchor account discriminator for `Amm` (`sha256("account:Amm")[..8]`). */
-export const AMM_ACCOUNT_DISCRIMINATOR = Uint8Array.of(
-  0x8f, 0xf5, 0xc8, 0x11, 0x4a, 0xd6, 0xc4, 0x87,
-);
+/**
+ * Anchor account discriminator for `Amm` (`sha256("account:Amm")[..8]`).
+ * Re-exported from the SDK so the value is single-sourced there.
+ */
+export const AMM_ACCOUNT_DISCRIMINATOR = ammV04.AMM_ACCOUNT_DISCRIMINATOR;
 
 /** `Amm.created_at_slot: u64` — byte offset. */
 export const AMM_CREATED_AT_SLOT_OFFSET = 9;

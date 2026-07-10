@@ -18,6 +18,7 @@ import { Address } from "@solana/web3.js";
 import { ACCOUNT_SIZES, AccountType, Phase } from "@kassandra-market/oracles";
 import { describe, expect, it } from "vitest";
 
+import { base58Decode as decodeBase58 } from "../src/lib/base58";
 import {
   base58Encode,
   fetchOracleDetail,
@@ -88,29 +89,6 @@ function matchesMemcmp(data: Uint8Array, offset: number, base58: string): boolea
     if (data[offset + i] !== expected[i]) return false;
   }
   return true;
-}
-
-const B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-function decodeBase58(s: string): Uint8Array {
-  const bytes: number[] = [];
-  for (const ch of s) {
-    let carry = B58_ALPHABET.indexOf(ch);
-    if (carry < 0) throw new Error(`bad base58 char ${ch}`);
-    for (let j = 0; j < bytes.length; j++) {
-      carry += bytes[j] * 58;
-      bytes[j] = carry & 0xff;
-      carry >>= 8;
-    }
-    while (carry > 0) {
-      bytes.push(carry & 0xff);
-      carry >>= 8;
-    }
-  }
-  for (const ch of s) {
-    if (ch === "1") bytes.push(0);
-    else break;
-  }
-  return Uint8Array.from(bytes.reverse());
 }
 
 /**

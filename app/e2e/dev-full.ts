@@ -34,6 +34,7 @@ import { join, resolve } from 'node:path'
 import { Keypair } from '@solana/web3.js'
 import { TOKEN_PROGRAM_ID, associatedTokenAccount } from '@kassandra-market/oracles'
 
+import { base58Encode } from '../src/lib/base58.ts'
 import { toHex, tokenAccountBytes } from '../../sdks/oracles/ts/test/surfpool/harness.ts'
 import { MockAnthropic } from '../../sdks/oracles/ts/test/surfpool/mock-anthropic.ts'
 import {
@@ -63,31 +64,6 @@ const LOGS = join(ROOT, 'logs')
 const INDEXER_BIN = join(ROOT, 'target', 'release', 'kassandra-indexer')
 const RUNNER_CONFIG = join(LOGS, 'runner.config.json')
 const WALLET_FILE = join(APP_DIR, 'e2e', '.wallet.json')
-
-/** Minimal base58 (Bitcoin alphabet) encoder — for the Phantom-import secret. */
-function base58Encode(bytes: Uint8Array): string {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-  const digits = [0]
-  for (const byte of bytes) {
-    let carry = byte
-    for (let i = 0; i < digits.length; i++) {
-      carry += digits[i] << 8
-      digits[i] = carry % 58
-      carry = (carry / 58) | 0
-    }
-    while (carry > 0) {
-      digits.push(carry % 58)
-      carry = (carry / 58) | 0
-    }
-  }
-  let out = ''
-  for (const b of bytes) {
-    if (b === 0) out += ALPHABET[0]
-    else break
-  }
-  for (let i = digits.length - 1; i >= 0; i--) out += ALPHABET[digits[i]]
-  return out
-}
 
 /**
  * The dev wallet: by default the local Solana CLI keypair
