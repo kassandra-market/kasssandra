@@ -71,6 +71,14 @@ test('MarketDetail renders the candlestick chart from indexed data', async ({ pa
   await expect(tradeCard.getByRole('group', { name: 'Buy or sell' })).toBeVisible()
 
   // The interval toggle is wired (switching re-queries the series without error).
-  await page.getByRole('button', { name: '1m' }).click()
+  // Target the 1m button inside the chart's interval group. A brief chart
+  // (re)mount while the series loads can transiently duplicate the toggle, so wait
+  // for it to settle to a single instance before clicking — otherwise Playwright's
+  // strict-mode single-match trips on the momentary duplicate.
+  const oneMinute = page
+    .getByRole('group', { name: 'Candle interval' })
+    .getByRole('button', { name: '1m', exact: true })
+  await expect(oneMinute).toHaveCount(1)
+  await oneMinute.first().click()
   await expect(page.getByTestId('price-chart-empty')).toHaveCount(0)
 })
