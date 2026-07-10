@@ -2,17 +2,19 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Address } from "@solana/web3.js";
 import { decodeMarketOracle, pda } from "@kassandra-market/markets";
-import { Card } from "../../ui";
-import { buildCreateMarketIxs, buildCreateAllSteps, type ActivateStep } from "../../../market/data/actions";
-import { useWriteAction } from "../../../market/hooks/useWriteAction";
-import { useActionSequence, type StepStatus } from "../../../market/hooks/useActionSequence";
-import { useConfig } from "../../../market/hooks/useMarketDetail";
-import { useKassBalance } from "../../../market/hooks/useKassBalance";
-import { formatKass, outcomeLabel } from "../../../market/lib/marketView";
-import { parseKassAmount, balanceGateError } from "../../../market/data/amount";
-import { ConnectGate } from "./ConnectGate";
-import { Field, KassBalanceLine, SubmitButton, TextInput } from "./formPrimitives";
-import { WriteStatusRegion } from "./WriteStatusRegion";
+import { Card } from "../../../ui";
+import { buildCreateMarketIxs, buildCreateAllSteps, type ActivateStep } from "../../../../market/data/actions";
+import { useWriteAction } from "../../../../market/hooks/useWriteAction";
+import { useActionSequence } from "../../../../market/hooks/useActionSequence";
+import { useConfig } from "../../../../market/hooks/useMarketDetail";
+import { useKassBalance } from "../../../../market/hooks/useKassBalance";
+import { formatKass, outcomeLabel } from "../../../../market/lib/marketView";
+import { parseKassAmount, balanceGateError } from "../../../../market/data/amount";
+import { ConnectGate } from "../ConnectGate";
+import { Field, KassBalanceLine, SubmitButton, TextInput } from "../formPrimitives";
+import { WriteStatusRegion } from "../WriteStatusRegion";
+import { ModeButton } from "./ModeButton";
+import { BatchStepList } from "./BatchStepList";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
@@ -375,68 +377,6 @@ export function CreateMarketForm() {
         </form>
       </ConnectGate>
     </Card>
-  );
-}
-
-/** One segment of the single/batch mode toggle. */
-function ModeButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      className={`rounded-[10px] px-3 py-1.5 font-inter text-[13px] font-medium transition-colors ${
-        active ? "bg-chestnut text-liquid-abyss shadow-bloom" : "text-driftwood hover:text-sepia"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-/** Compact per-outcome progress list for the batch sequence. */
-function BatchStepList({ steps, statuses }: { steps: ActivateStep[]; statuses: StepStatus[] }) {
-  return (
-    <ol aria-live="polite" className="flex flex-col gap-1.5">
-      {steps.map((step, i) => {
-        const st: StepStatus = statuses[i] ?? { kind: "pending" };
-        const glyph =
-          st.kind === "done" ? "✓" : st.kind === "error" ? "✕" : st.kind === "running" ? "…" : "○";
-        const tone =
-          st.kind === "done"
-            ? "text-chestnut"
-            : st.kind === "error"
-              ? "text-ember-orange"
-              : st.kind === "running"
-                ? "text-bronze"
-                : "text-stone";
-        return (
-          <li key={step.label} className="flex flex-col gap-0.5">
-            <div className="flex items-center gap-2 font-inter text-[13px]">
-              <span className={`w-3 text-center font-mono text-[12px] ${tone}`}>{glyph}</span>
-              <span className={st.kind === "done" ? "text-chestnut" : "text-sepia"}>
-                {i + 1}. {step.label}
-              </span>
-              {st.kind === "done" && st.signature === "already-landed" ? (
-                <span className="font-mono text-[11px] text-stone">already on-chain</span>
-              ) : null}
-            </div>
-            {st.kind === "error" ? (
-              <p className="pl-6 font-inter text-[12px] text-ember-orange">{st.message}</p>
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
   );
 }
 

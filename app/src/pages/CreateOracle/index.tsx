@@ -2,56 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Link, useNavigate } from 'react-router-dom'
 import { Address } from '@solana/web3.js'
 import { decodeProtocol, pda } from '@kassandra-market/oracles'
-import { useWalletModal } from '@solana/wallet-adapter-react-ui'
-import { Card, EyebrowTag } from '../components/ui'
-import { Field, SubmitButton, TextInput } from '../components/oracles/actions/formPrimitives'
-import { WriteStatusRegion } from '../components/oracles/actions/WriteStatusRegion'
-import { useWriteAction } from '../hooks/useWriteAction'
-import { rememberNonce } from '../lib/nonceStore'
-import { isMockMode } from '../data/mockOracles'
-import { postOracleMetadata } from '../data/indexer'
+import { Card, EyebrowTag } from '../../components/ui'
+import { Field, SubmitButton, TextInput } from '../../components/oracles/actions/formPrimitives'
+import { WriteStatusRegion } from '../../components/oracles/actions/WriteStatusRegion'
+import { useWriteAction } from '../../hooks/useWriteAction'
+import { rememberNonce } from '../../lib/nonceStore'
+import { isMockMode } from '../../data/mockOracles'
+import { postOracleMetadata } from '../../data/indexer'
 import {
   buildCreateOracleIxs,
   defaultPromptTemplate,
   randomNonce,
   type CreateOracleBuild,
-} from '../data/actions/create'
-
-const selectClass =
-  'w-full rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] ' +
-  'text-sepia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 ' +
-  'focus-visible:ring-offset-2 focus-visible:ring-offset-parchment'
-
-const textareaClass =
-  'w-full rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] ' +
-  'text-sepia placeholder:text-driftwood focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment ' +
-  'aria-[invalid=true]:border-ember-orange/60'
-
-/** Pad to 2 digits — used by the hand-rolled datetime-local formatter. */
-function pad(n: number): string {
-  return n < 10 ? `0${n}` : String(n)
-}
-
-/** Format a `Date` as a `datetime-local` value (`YYYY-MM-DDTHH:mm`), local time. */
-function toDatetimeLocal(d: Date): string {
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  )
-}
-
-/** A `datetime-local` string → unix SECONDS (local-time interpreted). NaN if unparseable. */
-function datetimeLocalToUnix(value: string): number {
-  const ms = new Date(value).getTime()
-  return Number.isNaN(ms) ? NaN : Math.floor(ms / 1000)
-}
-
-// Valid-base58 KASS/USDC placeholders for the offline `?mock` render (no protocol
-// on-chain) — chosen so the client-side address validation passes and the
-// submitting/success states are drivable via `?mock&wallet=connected`.
-const MOCK_KASS = 'So11111111111111111111111111111111111111112'
-const MOCK_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+} from '../../data/actions/create'
+import { datetimeLocalToUnix, toDatetimeLocal } from './helpers'
+import { MOCK_KASS, MOCK_USDC, selectClass, textareaClass } from './constants'
+import { ConnectPrompt } from './ConnectPrompt'
 
 /**
  * The create-oracle page at `/oracles/new` — a Auros form that opens a new
@@ -396,22 +362,5 @@ export default function CreateOracle() {
         )}
       </div>
     </main>
-  )
-}
-
-/** Disconnected gate with copy tailored to creating an oracle. */
-function ConnectPrompt() {
-  const { setVisible } = useWalletModal()
-  return (
-    <Card className="flex flex-wrap items-center gap-3">
-      <p className="font-inter text-[15px] text-driftwood">Connect a wallet to create an oracle.</p>
-      <button
-        type="button"
-        onClick={() => setVisible(true)}
-        className="rounded-button border border-pebble bg-soft-cream px-4 py-2 font-inter text-[13px] text-sepia hover:bg-pebble/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pebble focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
-      >
-        Connect wallet
-      </button>
-    </Card>
   )
 }
