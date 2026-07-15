@@ -12,6 +12,7 @@ import { useMarketDetail } from "../market/hooks/useMarketDetail";
 import { MarketNotFoundError, type MarketDetail as MarketDetailData } from "../market/data/markets";
 import { explorerAddressUrl } from "../market/lib/explorer";
 import {
+  detailView,
   formatKass,
   impliedYesProbability,
   phaseLabel,
@@ -261,6 +262,10 @@ function DetailBody({
 export default function MarketDetail() {
   const { pubkey } = useParams<{ pubkey: string }>();
   const { data, loading, error, refetch, refetchAfterWrite } = useMarketDetail(pubkey);
+  // `ready` whenever we hold data for THIS market, so the Active-market 15s poll
+  // refreshes in place instead of blanking to the skeleton and remounting (which
+  // would wipe in-progress trade/contribute form fields).
+  const view = detailView(pubkey, data, loading, error);
 
   return (
     <main className="mx-auto max-w-[900px] px-6 py-20">
@@ -282,15 +287,11 @@ export default function MarketDetail() {
         />
       </div>
 
-      {loading ? (
-        <div className="mt-10 flex flex-col gap-6" aria-hidden="true">
-          {Array.from({ length: 3 }, (_, i) => (
-            <Card key={i} className="h-28 animate-pulse bg-pure-card">
-              <span className="sr-only">Loading</span>
-            </Card>
-          ))}
-        </div>
-      ) : error ? (
+      {view === "ready" && data ? (
+        // Actions use the reconcile-lag-resilient refetch so the UI reliably
+        // reflects a just-confirmed write (e.g. Funding → Active after activate).
+        <DetailBody detail={data} refetch={refetchAfterWrite} />
+      ) : view === "error" && error ? (
         <div className="mx-auto mt-10 max-w-[640px]">
           <Card className="flex flex-col items-center gap-4 text-center">
             <p className="font-inter text-body text-bronze">
@@ -303,10 +304,14 @@ export default function MarketDetail() {
             </Button>
           </Card>
         </div>
-      ) : data ? (
-        // Actions use the reconcile-lag-resilient refetch so the UI reliably
-        // reflects a just-confirmed write (e.g. Funding → Active after activate).
-        <DetailBody detail={data} refetch={refetchAfterWrite} />
+      ) : view === "loading" ? (
+        <div className="mt-10 flex flex-col gap-6" aria-hidden="true">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Card key={i} className="h-28 animate-pulse bg-pure-card">
+              <span className="sr-only">Loading</span>
+            </Card>
+          ))}
+        </div>
       ) : null}
     </main>
   );

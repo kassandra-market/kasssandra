@@ -262,3 +262,30 @@ export function truncateMiddle(value: string, head = 4, tail = 4): string {
   if (value.length <= head + tail + 1) return value;
   return `${value.slice(0, head)}…${value.slice(-tail)}`;
 }
+
+/** The market-detail page's four top-level views. */
+export type DetailView = "loading" | "error" | "ready" | "empty";
+
+/**
+ * Pick the market-detail page's top-level view from its async read state.
+ *
+ * `ready` (render the detail) WINS whenever we already hold data for the CURRENT
+ * market — even mid-refetch (`loading` true). The Active-market poll refetches
+ * every 15s and the read layer flips `loading` true on each run while keeping the
+ * data; without this precedence the page would blank back to the skeleton on every
+ * tick, remounting the trade/contribute forms and wiping any in-progress input.
+ * The skeleton therefore shows only before the current market's FIRST load, and
+ * when navigating to a DIFFERENT market (data still holds the previous one — a
+ * `data.pubkey` mismatch — so we don't flash stale detail).
+ */
+export function detailView(
+  pubkey: string | undefined,
+  data: { pubkey: string } | undefined,
+  loading: boolean,
+  error: unknown,
+): DetailView {
+  if (data && data.pubkey === pubkey) return "ready";
+  if (loading) return "loading";
+  if (error) return "error";
+  return "empty";
+}

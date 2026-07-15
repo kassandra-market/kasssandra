@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AmmReserves } from '../src/market/data/markets'
 import {
+  detailView,
   formatKass,
   formatProbability,
   fundingActions,
@@ -112,5 +113,36 @@ describe('formatKass (market)', () => {
     expect(formatKass(1_000_000_000n)).toBe('1')
     expect(formatKass(1_234_500_000_000n)).toBe('1,234.5')
     expect(formatKass(-1_500_000_000n)).toBe('-1.5')
+  })
+})
+
+describe('detailView — market-detail render precedence', () => {
+  const A = { pubkey: 'MktAAA' }
+
+  it('stays ready during a background refetch of the CURRENT market (loading=true)', () => {
+    // The Active-market 15s poll flips the async loading flag true while keeping
+    // the data. The page must keep rendering the detail (not blank to the
+    // skeleton), so the mounted TradePanel — and its in-progress form fields —
+    // survives the refresh. This is the regression the whole change guards.
+    expect(detailView('MktAAA', A, true, undefined)).toBe('ready')
+  })
+
+  it('shows the skeleton on the first load (no data yet)', () => {
+    expect(detailView('MktAAA', undefined, true, undefined)).toBe('loading')
+  })
+
+  it('shows the skeleton — not stale data — when navigating to a different market', () => {
+    // data is still the previously-viewed market while the new one loads.
+    expect(detailView('MktBBB', A, true, undefined)).toBe('loading')
+  })
+
+  it('surfaces an error only when there is no data to show', () => {
+    expect(detailView('MktAAA', undefined, false, new Error('boom'))).toBe('error')
+    // An error mid-refetch while holding current data keeps showing the data.
+    expect(detailView('MktAAA', A, false, new Error('boom'))).toBe('ready')
+  })
+
+  it('is empty when there is nothing to show and nothing in flight', () => {
+    expect(detailView(undefined, undefined, false, undefined)).toBe('empty')
   })
 })
