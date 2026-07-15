@@ -18,7 +18,7 @@
  */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
 import { WalletContext, type WalletContextState } from '@solana/wallet-adapter-react'
-import { PublicKey, type Connection, type Transaction } from '@solana/web3.js'
+import { Address, Transaction, type Connection } from '@solana/web3.js'
 import { getWalletAccountFeature, useWallets, type UiWallet, type UiWalletAccount } from '@wallet-standard/react'
 import { SolanaSignTransaction } from '@solana/wallet-standard-features'
 
@@ -26,6 +26,31 @@ import { SolanaSignTransaction } from '@solana/wallet-standard-features'
 function solanaChain(account: UiWalletAccount): `solana:${string}` {
   const c = account.chains.find((x): x is `solana:${string}` => x.startsWith('solana:'))
   return c ?? 'solana:mainnet'
+}
+
+/**
+ * Sign a prepared (feePayer + blockhash already set) legacy transaction with the
+ * account's Wallet-Standard `solana:signTransaction` feature, returning the fully
+ * signed WIRE bytes. Shared by both write paths: the oracle `sendTransaction`
+ * (relays these bytes over its RPC) and the markets `signTransaction` (rehydrates
+ * a `Transaction` the indexer relay serializes + submits).
+ */
+async function signWithAccount(account: UiWalletAccount, tx: Transaction): Promise<Uint8Array> {
+  const wire = await tx.serialize({ requireAllSignatures: false, verifySignatures: false })
+  // NOTE (needs live-wallet validation): the exact Wallet-Standard
+  // `signTransaction` input shape (esp. the `account` — UiWalletAccount vs the
+  // underlying WalletAccount) is the one bit we can't verify without a browser
+  // wallet, so the feature is typed permissively here.
+  const getFeature = getWalletAccountFeature as (a: UiWalletAccount, f: string) => unknown
+  const feature = getFeature(account, SolanaSignTransaction) as {
+    signTransaction: (input: unknown) => Promise<ReadonlyArray<{ signedTransaction: Uint8Array }>>
+  }
+  const [{ signedTransaction }] = await feature.signTransaction({
+    account,
+    transaction: wire,
+    chain: solanaChain(account),
+  })
+  return signedTransaction
 }
 
 interface WalletMenuValue {
@@ -49,30 +74,29 @@ export function StandardWalletProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<UiWalletAccount | null>(null)
   const [open, setOpen] = useState(false)
 
-  const publicKey = useMemo(() => (account ? new PublicKey(account.address) : null), [account])
+  const publicKey = useMemo(() => (account ? new Address(account.address) : null), [account])
 
+  // The oracle write path: sign locally, then SEND over the passed RPC connection.
   const sendTransaction = useCallback(
     async (tx: Transaction, connection: Connection): Promise<string> => {
       if (!account || !publicKey) throw new Error('wallet not connected')
       tx.feePayer = publicKey
       tx.recentBlockhash = (await connection.getLatestBlockhash()).blockhash
-      const wire = tx.serialize({ requireAllSignatures: false, verifySignatures: false })
-      // NOTE (needs live-wallet validation): the exact Wallet-Standard
-      // `signTransaction` input shape (esp. the `account` — UiWalletAccount vs the
-      // underlying WalletAccount) is the one bit I can't verify without a browser
-      // wallet, so the feature is typed permissively here.
-      const getFeature = getWalletAccountFeature as (a: UiWalletAccount, f: string) => unknown
-      const feature = getFeature(account, SolanaSignTransaction) as {
-        signTransaction: (
-          input: unknown,
-        ) => Promise<ReadonlyArray<{ signedTransaction: Uint8Array }>>
-      }
-      const [{ signedTransaction }] = await feature.signTransaction({
-        account,
-        transaction: wire,
-        chain: solanaChain(account),
-      })
-      return connection.sendRawTransaction(signedTransaction, { skipPreflight: false })
+      const signed = await signWithAccount(account, tx)
+      return connection.sendRawTransaction(signed, { skipPreflight: false })
+    },
+    [account, publicKey],
+  )
+
+  // The markets write path (`signAndRelay`): sign a prepared (feePayer + blockhash
+  // already set) tx locally and hand the signed `Transaction` back — the indexer
+  // relay serializes + submits it. Without this, the markets `useWriteAction` gate
+  // (`!signTransaction → null sender`) misreports a connected wallet as "Connect a
+  // wallet to participate." on every trade.
+  const signTransaction = useCallback(
+    async (tx: Transaction): Promise<Transaction> => {
+      if (!account || !publicKey) throw new Error('wallet not connected')
+      return Transaction.from(await signWithAccount(account, tx))
     },
     [account, publicKey],
   )
@@ -100,12 +124,12 @@ export function StandardWalletProvider({ children }: { children: ReactNode }) {
         connect: async () => setOpen(true),
         disconnect,
         sendTransaction: sendTransaction as unknown as WalletContextState['sendTransaction'],
-        signTransaction: undefined,
+        signTransaction: signTransaction as unknown as WalletContextState['signTransaction'],
         signAllTransactions: undefined,
         signMessage: undefined,
         signIn: undefined,
       }) as unknown as WalletContextState,
-    [publicKey, account, disconnect, sendTransaction],
+    [publicKey, account, disconnect, sendTransaction, signTransaction],
   )
 
   const menu = useMemo<WalletMenuValue>(
