@@ -42,7 +42,16 @@ export default function OracleDetail() {
     <main className="mx-auto max-w-[1000px] px-6 py-16 md:py-20">
       <BackLink search={search} />
 
-      {loading ? (
+      {/* `data` WINS over a transient `loading`: a post-write refetch flips
+          `loading` true while keeping the prior data, so preferring data here
+          keeps OracleBody mounted (its active tab + form state survive) instead
+          of blanking to the skeleton and remounting on every write. The loading
+          text therefore shows only on the FIRST load (data still undefined); an
+          errored refetch clears data (useAsync) and falls through to not-found /
+          error. */}
+      {data ? (
+        <OracleBody detail={data} refetch={refetch} />
+      ) : loading ? (
         <p className="mt-10 font-inter text-[15px] text-bronze" role="status">
           Reading the chain…
         </p>
@@ -71,8 +80,6 @@ export default function OracleDetail() {
             </div>
           </Card>
         </div>
-      ) : data ? (
-        <OracleBody detail={data} refetch={refetch} />
       ) : null}
     </main>
   )
