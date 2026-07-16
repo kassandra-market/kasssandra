@@ -27,53 +27,103 @@ function ContributorsRemaining({ open }: { open: number }) {
   );
 }
 
+/** A calm empty-state note for a tab whose actions aren't available in this phase. */
+function NoActions({ children }: { children: React.ReactNode }) {
+  return <p className="font-inter text-[13px] text-driftwood">{children}</p>;
+}
+
 /**
- * The status-gated write surface under the read-only market panels. It routes on
- * `market.status`, rendering only the actions valid for the market's current
- * lifecycle phase:
+ * The status-gated LIQUIDITY surface — deposit into / withdraw from THIS market's
+ * pool, phase-routed so it's available across the market's whole life (this is
+ * why the Liquidity tab is present for Active markets too, not just Funding):
  *
- *   - Funding   → ContributeForm; plus ActivateControl once the funding floor is
- *                 met AND the oracle is still live (activation needs a non-terminal
- *                 oracle); plus CancelControl when the oracle is terminal AND the
- *                 market is still under its floor (an under-funded market whose
- *                 oracle already resolved can only be cancelled → refunded).
- *   - Active    → ClaimLpControl; plus ResolveControl once the oracle is terminal.
- *                 (The buy/sell TradePanel — with the price chart — renders
- *                 prominently in the detail body, not here.)
- *   - Resolved / Void → RedeemControl + CollectFeeControl (the permissionless
- *                 protocol-fee crank, shown while a non-zero fee is uncollected) +
- *                 ClaimLpControl (which waits for fee collection before it opens);
- *                 plus CloseMarketControl once the fee is collected AND every
- *                 contributor has exited (`openContributions === 0`).
- *   - Cancelled → RefundControl (reclaim staked KASS); once every contributor has
- *                 been refunded (`openContributions === 0`) it flips to
- *                 CloseMarketControl (reclaim the market's rent to the creator).
+ *   - Funding   → ContributeForm (seed the funding floor).
+ *   - Active    → ClaimLpControl (LP withdrawal; self-gates until settle).
+ *   - Resolved / Void → ClaimLpControl (waits for fee collection before it opens).
+ *   - Cancelled → RefundControl (reclaim staked KASS) until every contributor has
+ *                 exited, after which there's nothing left to withdraw.
  *
- * Every action's `onSuccess` calls `refetch()` so the freshly-changed on-chain
- * state re-renders; the KASS-balance refetch is owned by the individual forms.
+ * The bulk cross-outcome GroupLiquidityPanel sits ABOVE this in the Liquidity tab.
  */
-export function MarketActions({
+export function MarketLiquidityActions({
   detail,
   refetch,
 }: {
   detail: MarketDetail;
   refetch: () => void;
 }) {
-  const { pubkey, market, oracle, contributions } = detail;
+  const { pubkey, market, contributions } = detail;
+
+  switch (market.status) {
+    case MarketStatus.Funding:
+      return <ContributeForm pubkey={pubkey} market={market} onSuccess={refetch} />;
+
+    case MarketStatus.Active:
+    case MarketStatus.Resolved:
+    case MarketStatus.Void:
+      return (
+        <ClaimLpControl
+          pubkey={pubkey}
+          market={market}
+          contributions={contributions}
+          onSuccess={refetch}
+        />
+      );
+
+    case MarketStatus.Cancelled:
+      return market.openContributions > 0 ? (
+        <RefundControl pubkey={pubkey} market={market} onSuccess={refetch} />
+      ) : (
+        <NoActions>All contributors have been refunded — nothing left to withdraw.</NoActions>
+      );
+
+    default:
+      return null;
+  }
+}
+
+/**
+ * The status-gated LIFECYCLE surface — the cranks that move the market between
+ * phases (and the winner's redeem), phase-routed:
+ *
+ *   - Funding   → ActivateControl once the funding floor is met AND the oracle is
+ *                 still live; CancelControl when the oracle is terminal AND the
+ *                 market is still under floor (an under-funded market whose oracle
+ *                 already resolved can only be cancelled → refunded).
+ *   - Active    → ResolveControl once the oracle is terminal.
+ *   - Resolved / Void → RedeemControl (redeem the winning conditional tokens) +
+ *                 CollectFeeControl (the permissionless protocol-fee crank while a
+ *                 non-zero fee is uncollected) + CloseMarketControl once the fee is
+ *                 collected AND every contributor has exited.
+ *   - Cancelled → CloseMarketControl once every contributor has been refunded
+ *                 (reclaim the market's rent to the creator).
+ */
+export function MarketLifecycleActions({
+  detail,
+  refetch,
+}: {
+  detail: MarketDetail;
+  refetch: () => void;
+}) {
+  const { pubkey, market, oracle } = detail;
   const oracleTerminal = oracle ? isTerminal(oracle.phase) : false;
   const config = useConfig();
   // The permissionless fee crank is available on a settled market that carries a
   // non-zero, uncollected protocol fee (needs the Config for the fee destination).
-  const showCollectFee =
-    config.data != null && market.feeBps > 0 && !market.feeCollected;
+  const showCollectFee = config.data != null && market.feeBps > 0 && !market.feeCollected;
 
   switch (market.status) {
     case MarketStatus.Funding: {
       const { funded } = fundingProgress(market);
       const { canActivate, canCancel } = fundingActions(funded, oracleTerminal);
+      if (!canActivate && !canCancel)
+        return (
+          <NoActions>
+            Waiting on the funding floor — activation opens once the market is fully funded.
+          </NoActions>
+        );
       return (
-        <div className="mt-6 flex flex-col gap-6">
-          <ContributeForm pubkey={pubkey} market={market} onSuccess={refetch} />
+        <div className="flex flex-col gap-6">
           {canActivate ? <ActivateControl pubkey={pubkey} market={market} onSuccess={refetch} /> : null}
           {canCancel ? <CancelControl pubkey={pubkey} market={market} onSuccess={refetch} /> : null}
         </div>
@@ -81,18 +131,12 @@ export function MarketActions({
     }
 
     case MarketStatus.Active:
-      // The buy/sell TradePanel (with the chart) renders prominently in the detail
-      // body; here we keep only the secondary Active actions.
-      return (
-        <div className="mt-6 flex flex-col gap-6">
-          {oracleTerminal ? <ResolveControl pubkey={pubkey} market={market} onSuccess={refetch} /> : null}
-          <ClaimLpControl
-            pubkey={pubkey}
-            market={market}
-            contributions={contributions}
-            onSuccess={refetch}
-          />
-        </div>
+      return oracleTerminal ? (
+        <ResolveControl pubkey={pubkey} market={market} onSuccess={refetch} />
+      ) : (
+        <NoActions>
+          The market resolves once its linked oracle reaches a terminal phase.
+        </NoActions>
       );
 
     case MarketStatus.Resolved:
@@ -102,7 +146,7 @@ export function MarketActions({
       // market's account rent back to the creator.
       const canClose = market.feeCollected && market.openContributions === 0;
       return (
-        <div className="mt-6 flex flex-col gap-6">
+        <div className="flex flex-col gap-6">
           <RedeemControl pubkey={pubkey} market={market} onSuccess={refetch} />
           {showCollectFee ? (
             <CollectFeeControl
@@ -112,12 +156,6 @@ export function MarketActions({
               onSuccess={refetch}
             />
           ) : null}
-          <ClaimLpControl
-            pubkey={pubkey}
-            market={market}
-            contributions={contributions}
-            onSuccess={refetch}
-          />
           {canClose ? (
             <CloseMarketControl pubkey={pubkey} market={market} onSuccess={refetch} />
           ) : market.openContributions > 0 ? (
@@ -130,17 +168,10 @@ export function MarketActions({
     case MarketStatus.Cancelled: {
       // A never-activated market closes once every contributor has been refunded.
       const canClose = market.openContributions === 0;
-      return (
-        <div className="mt-6 flex flex-col gap-6">
-          {canClose ? (
-            <CloseMarketControl pubkey={pubkey} market={market} onSuccess={refetch} />
-          ) : (
-            <>
-              <RefundControl pubkey={pubkey} market={market} onSuccess={refetch} />
-              <ContributorsRemaining open={market.openContributions} />
-            </>
-          )}
-        </div>
+      return canClose ? (
+        <CloseMarketControl pubkey={pubkey} market={market} onSuccess={refetch} />
+      ) : (
+        <ContributorsRemaining open={market.openContributions} />
       );
     }
 
@@ -148,5 +179,3 @@ export function MarketActions({
       return null;
   }
 }
-
-export default MarketActions;

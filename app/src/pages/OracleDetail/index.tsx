@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Phase } from '@kassandra-market/oracles'
-import { Button, Card, EyebrowTag } from '../../components/ui'
+import { Button, Card, EyebrowTag, Tabs, TabPanel, type TabItem } from '../../components/ui'
 import { PhaseChip } from '../../components/oracles/PhaseChip'
 import { PhaseTimeline } from '../../components/oracles/PhaseTimeline'
 import { EconomicPanel } from '../../components/oracles/EconomicPanel'
@@ -17,7 +17,7 @@ import { OracleNotFoundError } from '../../data/oracles'
 import { CLUSTER_LABELS, useCluster } from '../../lib/cluster'
 import { RESOLVED_OPTION_NONE, formatKass, relativeDeadline, windowLabel } from '../../lib/oracleView'
 import type { SettleCtx } from './helpers'
-import { BackLink, Row, Section, Stat, VerdictBanner } from './primitives'
+import { BackLink, Row, Section, StatMeter, VerdictBanner } from './primitives'
 import { AiClaimCard, FactCard, MarketCard, ProposerCard } from './cards'
 
 const emptyNote = (text: string) => (
@@ -102,6 +102,30 @@ function OracleBody({
     ? { oracle: pubkey, kassMint: oracle.kassMint, refetch }
     : undefined
 
+  // Section tabs: read the dispute (Overview + its economics/participate surface),
+  // browse the on-chain Records (facts/proposers/claims), watch the challenge
+  // Market, follow live Activity (indexer-gated), and inspect the Details
+  // (parameters + accounts). The verdict banner + lifecycle strip stay ABOVE the
+  // tabs as a persistent at-a-glance header.
+  const indexerOn = isIndexerConfigured()
+  const tabs = useMemo<TabItem[]>(() => {
+    const items: TabItem[] = [
+      { id: 'overview', label: 'Overview' },
+      {
+        id: 'records',
+        label: 'Records',
+        count: facts.length + proposers.length + aiClaims.length,
+      },
+      { id: 'market', label: 'Market', dot: market ? 'chestnut' : null },
+    ]
+    if (indexerOn) items.push({ id: 'activity', label: 'Activity' })
+    items.push({ id: 'details', label: 'Details' })
+    return items
+  }, [facts.length, proposers.length, aiClaims.length, market, indexerOn])
+
+  const [tab, setTab] = useState('overview')
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : 'overview'
+
   return (
     <>
       {/* Header — the SUBJECT (verified question) + its options lead. */}
@@ -148,126 +172,132 @@ function OracleBody({
         {resolved ? (
           <p className="mt-3 font-inter text-[14px] text-chestnut">
             {hasResolvedOption
-              ? `Resolved to option ${oracle.resolvedOption}`
+              ? `Resolved to “${options[oracle.resolvedOption]?.trim() || `option ${oracle.resolvedOption}`}”`
               : 'Resolved with no valid option (dead-end)'}
           </p>
         ) : null}
       </header>
 
-      {/* At-a-glance verdict (h2 banner) + lifecycle timeline — additive header. */}
+      {/* At-a-glance verdict (h2 banner) + lifecycle timeline — a persistent
+          header ABOVE the tabs so the phase + verdict never hide behind a tab. */}
       <VerdictBanner oracle={oracle} />
       <PhaseTimeline oracle={oracle} />
 
-      {/* Stats */}
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <Stat label="Options" value={oracle.optionsCount} />
-        <Stat label="Proposers" value={oracle.proposerCount} />
-        <Stat label="Surviving" value={oracle.survivingCount} />
-        <Stat label="Facts" value={oracle.factCount} />
-        <Stat label="Settled facts" value={oracle.settledCount} />
-        <Stat label="Open challenges" value={oracle.openChallengeCount} />
+      <div className="mt-8">
+        <Tabs items={tabs} value={activeTab} onChange={setTab} ariaLabel="Oracle sections" />
       </div>
 
-      {/* Bond pool (scaled KASS) */}
-      <div className="mt-4">
-        <Card>
-          <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
-            Bond pool
-          </div>
-          <div className="mt-1 font-serif text-heading-sm font-light text-sepia">
-            {formatKass(oracle.bondPool)} KASS
-          </div>
-          <p className="mt-1 font-inter text-[12px] text-driftwood">
-            dispute-bond total {formatKass(oracle.disputeBondTotal)} KASS
-          </p>
-        </Card>
-      </div>
+      {/* Overview — the graphical stats meters, the bond pool, the economic
+          proportion viz, and the phase-gated participate surface. */}
+      <TabPanel id="overview" active={activeTab === 'overview'} className="tab-enter mt-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <StatMeter label="Options" value={oracle.optionsCount} />
+          <StatMeter label="Proposers" value={oracle.proposerCount} />
+          <StatMeter
+            label="Surviving"
+            value={oracle.survivingCount}
+            total={oracle.proposerCount}
+          />
+          <StatMeter label="Facts" value={oracle.factCount} />
+          <StatMeter
+            label="Settled facts"
+            value={oracle.settledCount}
+            total={oracle.factCount}
+          />
+          <StatMeter
+            label="Open challenges"
+            value={oracle.openChallengeCount}
+            total={oracle.factCount}
+            accent
+          />
+        </div>
 
-      {/* Economic picture — flat proportion viz over the decoded economics. */}
-      <EconomicPanel oracle={oracle} proposers={proposers.map((p) => p.proposer)} />
+        {/* Bond pool (scaled KASS) */}
+        <div className="mt-4">
+          <Card>
+            <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+              Bond pool
+            </div>
+            <div className="mt-1 font-serif text-heading-sm font-light tabular-nums text-sepia">
+              {formatKass(oracle.bondPool)} KASS
+            </div>
+            <p className="mt-1 font-inter text-[12px] text-driftwood">
+              dispute-bond total {formatKass(oracle.disputeBondTotal)} KASS
+            </p>
+          </Card>
+        </div>
 
-      {/* Participate — the wallet-signed write forms + permissionless finalize
-          cranks, phase-gated (WF2/RF1). The finalize tails are the proposer /
-          fact PDA pubkeys from the already-fetched detail. */}
-      <OracleActions
-        pubkey={pubkey}
-        oracle={oracle}
-        refetch={refetch}
-        proposers={proposers.map((p) => p.pubkey)}
-        facts={facts.map((f) => f.pubkey)}
-        market={market}
-      />
+        {/* Economic picture — flat proportion viz over the decoded economics. */}
+        <EconomicPanel oracle={oracle} proposers={proposers.map((p) => p.proposer)} />
 
-      {/* Parameters */}
-      <Section title="Parameters">
-        <Card>
-          <dl className="flex flex-col">
-            <Row term="Fact quorum">
-              {oracle.thresholdNum.toString()} / {oracle.thresholdDen.toString()}
-            </Row>
-            <Row term="Market margin">
-              {oracle.marketThresholdNum.toString()} / {oracle.marketThresholdDen.toString()}
-            </Row>
-            <Row term="Flip slash">
-              {oracle.flipSlashNum.toString()} / {oracle.flipSlashDen.toString()}
-            </Row>
-            <Row term="Phase window">{windowLabel(oracle.phaseWindow)}</Row>
-            <Row term="Proposal window">{windowLabel(oracle.proposalWindow)}</Row>
-            <Row term="TWAP window">{windowLabel(oracle.twapWindow)}</Row>
-          </dl>
-        </Card>
-      </Section>
+        {/* Participate — the wallet-signed write forms + permissionless finalize
+            cranks, phase-gated (WF2/RF1). The finalize tails are the proposer /
+            fact PDA pubkeys from the already-fetched detail. */}
+        <OracleActions
+          pubkey={pubkey}
+          oracle={oracle}
+          refetch={refetch}
+          proposers={proposers.map((p) => p.pubkey)}
+          facts={facts.map((f) => f.pubkey)}
+          market={market}
+        />
+      </TabPanel>
 
-      {/* Facts */}
-      <Section title="Facts" count={facts.length}>
-        {facts.length === 0 ? (
-          emptyNote('No facts submitted for this oracle.')
-        ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {facts.map((f) => (
-              <FactCard
-                key={f.pubkey}
-                pubkey={f.pubkey}
-                fact={f.fact}
-                voting={
-                  votingOpen ? { oracle: pubkey, kassMint: oracle.kassMint, refetch } : undefined
-                }
-                settle={settle}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
+      {/* Records — the on-chain facts, proposers and AI claims. */}
+      <TabPanel id="records" active={activeTab === 'records'} className="tab-enter">
+        <Section title="Facts" count={facts.length}>
+          {facts.length === 0 ? (
+            emptyNote('No facts submitted for this oracle.')
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {facts.map((f) => (
+                <FactCard
+                  key={f.pubkey}
+                  pubkey={f.pubkey}
+                  fact={f.fact}
+                  voting={
+                    votingOpen ? { oracle: pubkey, kassMint: oracle.kassMint, refetch } : undefined
+                  }
+                  settle={settle}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
 
-      {/* Proposers */}
-      <Section title="Proposers" count={proposers.length}>
-        {proposers.length === 0 ? (
-          emptyNote('No proposers registered.')
-        ) : (
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {proposers.map((p) => (
-              <ProposerCard key={p.pubkey} pubkey={p.pubkey} proposer={p.proposer} settle={settle} />
-            ))}
-          </div>
-        )}
-      </Section>
+        <Section title="Proposers" count={proposers.length}>
+          {proposers.length === 0 ? (
+            emptyNote('No proposers registered.')
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {proposers.map((p) => (
+                <ProposerCard
+                  key={p.pubkey}
+                  pubkey={p.pubkey}
+                  proposer={p.proposer}
+                  settle={settle}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
 
-      {/* AI Claims */}
-      <Section title="AI claims" count={aiClaims.length}>
-        {aiClaims.length === 0 ? (
-          emptyNote('No AI claims submitted.')
-        ) : (
-          <div className="flex flex-col gap-4">
-            {aiClaims.map((c) => (
-              <AiClaimCard key={c.pubkey} pubkey={c.pubkey} aiClaim={c.aiClaim} settle={settle} />
-            ))}
-          </div>
-        )}
-      </Section>
+        <Section title="AI claims" count={aiClaims.length}>
+          {aiClaims.length === 0 ? (
+            emptyNote('No AI claims submitted.')
+          ) : (
+            <div className="flex flex-col gap-4">
+              {aiClaims.map((c) => (
+                <AiClaimCard key={c.pubkey} pubkey={c.pubkey} aiClaim={c.aiClaim} settle={settle} />
+              ))}
+            </div>
+          )}
+        </Section>
+      </TabPanel>
 
       {/* Market — the existing card (accounts + close control) plus the CU1
-          live visualization panel (prices / TWAP / margin / countdown), additive. */}
-      <Section title="Challenge market">
+          live visualization panel (prices / TWAP / margin / countdown). */}
+      <TabPanel id="market" active={activeTab === 'market'} className="tab-enter mt-6">
         {market ? (
           <>
             <MarketCard pubkey={market.pubkey} market={market.market} settle={settle} />
@@ -285,35 +315,56 @@ function OracleBody({
         ) : (
           emptyNote('No challenge market opened for this oracle.')
         )}
-      </Section>
+      </TabPanel>
 
-      {/* On-chain activity — indexed event history (renders only when the
-          indexer backend is configured; otherwise absent). */}
-      {isIndexerConfigured() ? (
-        <Section title="Activity">
+      {/* Activity — indexed event history (tab present only when the indexer
+          backend is configured). */}
+      {indexerOn ? (
+        <TabPanel id="activity" active={activeTab === 'activity'} className="tab-enter mt-6">
           <ActivityFeed oracle={pubkey} />
-        </Section>
+        </TabPanel>
       ) : null}
 
-      {/* Accounts */}
-      <Section title="Accounts">
-        <Card>
-          <dl className="flex flex-col">
-            <Row term="Creator">
-              <Truncated value={oracle.creator.toString()} copyable label="creator" />
-            </Row>
-            <Row term="KASS mint">
-              <Truncated value={oracle.kassMint.toString()} copyable label="KASS mint" />
-            </Row>
-            <Row term="USDC mint">
-              <Truncated value={oracle.usdcMint.toString()} copyable label="USDC mint" />
-            </Row>
-            <Row term="Stake vault">
-              <Truncated value={oracle.stakeVault.toString()} copyable label="stake vault" />
-            </Row>
-          </dl>
-        </Card>
-      </Section>
+      {/* Details — the readable parameters + the account bindings. */}
+      <TabPanel id="details" active={activeTab === 'details'} className="tab-enter">
+        <Section title="Parameters">
+          <Card>
+            <dl className="flex flex-col">
+              <Row term="Fact quorum">
+                {oracle.thresholdNum.toString()} / {oracle.thresholdDen.toString()}
+              </Row>
+              <Row term="Market margin">
+                {oracle.marketThresholdNum.toString()} / {oracle.marketThresholdDen.toString()}
+              </Row>
+              <Row term="Flip slash">
+                {oracle.flipSlashNum.toString()} / {oracle.flipSlashDen.toString()}
+              </Row>
+              <Row term="Phase window">{windowLabel(oracle.phaseWindow)}</Row>
+              <Row term="Proposal window">{windowLabel(oracle.proposalWindow)}</Row>
+              <Row term="TWAP window">{windowLabel(oracle.twapWindow)}</Row>
+            </dl>
+          </Card>
+        </Section>
+
+        <Section title="Accounts">
+          <Card>
+            <dl className="flex flex-col">
+              <Row term="Creator">
+                <Truncated value={oracle.creator.toString()} copyable label="creator" />
+              </Row>
+              <Row term="KASS mint">
+                <Truncated value={oracle.kassMint.toString()} copyable label="KASS mint" />
+              </Row>
+              <Row term="USDC mint">
+                <Truncated value={oracle.usdcMint.toString()} copyable label="USDC mint" />
+              </Row>
+              <Row term="Stake vault">
+                <Truncated value={oracle.stakeVault.toString()} copyable label="stake vault" />
+              </Row>
+            </dl>
+          </Card>
+        </Section>
+      </TabPanel>
     </>
   )
 }

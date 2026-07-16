@@ -6,6 +6,7 @@ import { CategoricalCard } from "../components/markets/CategoricalCard";
 import { useInitialReveal } from "../hooks/useInitialReveal";
 import { useMarkets } from "../market/hooks/useMarkets";
 import { useConfig } from "../market/hooks/useMarketDetail";
+import { useOracleMeta } from "../hooks/useOracleMeta";
 import { groupByOracle, isCategorical, type MarketSummary } from "../market/data/markets";
 import { fundingProgress, statusLabel } from "../market/lib/marketView";
 
@@ -21,11 +22,12 @@ const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
   "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
 
-/** Case-insensitive match against a market's address + status label. */
-function matches(summary: MarketSummary, query: string): boolean {
+/** Case-insensitive match against a market's question + address + status label. */
+function matches(summary: MarketSummary, query: string, subject?: string): boolean {
   if (!query) return true;
   const q = query.toLowerCase();
   return (
+    (subject ? subject.toLowerCase().includes(q) : false) ||
     summary.pubkey.toLowerCase().includes(q) ||
     summary.market.oracle.toString().toLowerCase().includes(q) ||
     statusLabel(summary.market.status).toLowerCase().includes(q)
@@ -79,13 +81,23 @@ export default function Markets() {
   // empty-but-live program.
   const notInitialized = !config.loading && config.data === null;
 
+  // On-chain oracle metadata (question + option labels) for EVERY loaded market's
+  // oracle, so titles/labels and question-search are available before filtering.
+  // Best-effort: an empty map (no indexer) degrades cards to pubkeys/indices.
+  const oracleKeys = useMemo(
+    () =>
+      data ? Array.from(new Set(data.map((m) => m.market.oracle.toString()))) : [],
+    [data],
+  );
+  const metaMap = useOracleMeta(oracleKeys);
+
   const visible = useMemo(() => {
     if (!data) return [];
     return sortMarkets(
-      data.filter((m) => matches(m, search)),
+      data.filter((m) => matches(m, search, metaMap.get(m.market.oracle.toString())?.subject)),
       sortBy,
     );
-  }, [data, search, sortBy]);
+  }, [data, search, sortBy, metaMap]);
 
   // Collapse each oracle's sub-markets into a group: a categorical (N>2) oracle
   // renders as ONE grouped card; binary/single-outcome oracles render as today.
@@ -106,7 +118,7 @@ export default function Markets() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by address or status…"
+            placeholder="Search by question, address, or status…"
             aria-label="Search markets"
             className={`w-full rounded-button border border-pebble bg-pure-card px-3 py-2 font-inter text-body text-sepia placeholder:text-driftwood sm:w-72 ${focusRing}`}
           />
@@ -189,6 +201,7 @@ export default function Markets() {
                   <CategoricalCard
                     key={group.oracle}
                     group={group}
+                    meta={metaMap.get(group.oracle)}
                     enterIndex={stagger ? i++ : undefined}
                   />
                 ) : (
@@ -196,6 +209,7 @@ export default function Markets() {
                     <MarketCard
                       key={summary.pubkey}
                       summary={summary}
+                      meta={metaMap.get(summary.market.oracle.toString())}
                       enterIndex={stagger ? i++ : undefined}
                     />
                   ))
