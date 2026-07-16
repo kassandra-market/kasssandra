@@ -41,7 +41,7 @@
   --color-sepia: #ffffff; /* headings -> platinum */
   --color-bronze: #c7d3d2; /* secondary text -> silver-mist (lifted for the lighter canvas) */
   --color-driftwood: #c7d3d2; /* muted body -> silver-mist */
-  --color-stone: #9bb0ad; /* lighter muted -> teal-gray */
+  --color-stone: #b3c6c3; /* lowest-emphasis text — lifted to clear AA 4.5:1 on kelp cards while staying dimmer than driftwood */
   --color-pebble: rgba(255, 255, 255, 0.12); /* hairline borders on dark */
   --color-chestnut: #8fe9dd; /* positive/confirmed/active accent -> bright aqua (success lines, confirmed chips, active toggles, current step). MUST stay distinct from the kelp card surface. */
   --color-ember-orange: #ff6f61; /* error/danger signal -> living coral (alerts, invalid inputs, disqualify verdicts, high-impact warnings) */
@@ -123,6 +123,12 @@
 
   /* Auros avoids elevation entirely — depth is surface color, never shadow. */
   --shadow-bloom: none;
+
+  /* Motion easing — the built-in CSS curves are too weak; override Tailwind's
+   * `ease-out` / `ease-in-out` utilities with punchier curves so every
+   * transition across the app lands with intent (Emil Kowalski's curves). */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 /*
@@ -137,6 +143,20 @@
   border-radius: var(--radius-card);
   box-shadow: none;
   font-family: var(--font-inter);
+  /* Materialize from the center: scale + fade + un-blur together (a real glass
+   * surface arriving, not a flat fade). Transition-based (not a locked keyframe)
+   * so it can be interrupted/retargeted. */
+  transition:
+    opacity 220ms var(--ease-out),
+    transform 220ms var(--ease-out),
+    filter 220ms var(--ease-out);
+}
+@starting-style {
+  .wallet-adapter-modal-wrapper {
+    opacity: 0;
+    transform: scale(0.96);
+    filter: blur(4px);
+  }
 }
 .wallet-adapter-modal-title {
   color: var(--color-platinum);
@@ -186,6 +206,10 @@
     line-height: var(--leading-body);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Let the type respond to size (the scale already carries size-specific
+     * tracking: tight negative on display, ~0 on body, positive on captions). */
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
   }
   /* Headings: platinum, geometric, medium weight (never bold, never light). */
   h1,
@@ -269,12 +293,15 @@
    * toward the cursor by --drift-depth px, smoothed by a transition.
    */
   .drift {
+    /* No CSS transition: usePointerField springs --pointer-x/y each frame, so
+     * the drift follows the sprung value directly (a transition here would just
+     * add lag on top of the spring). */
     transform: translate3d(
       calc(var(--pointer-x, 0) * var(--drift-depth, 8px)),
       calc(var(--pointer-y, 0) * var(--drift-depth, 8px)),
       0
     );
-    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
   }
 
   /* Connector line between an oracle card and the market that uses it — a faint
@@ -303,7 +330,9 @@
      * bottom. */
     -webkit-mask-image: linear-gradient(to bottom, #000 50%, transparent 88%);
     mask-image: linear-gradient(to bottom, #000 50%, transparent 88%);
-    transition: background 0.25s ease-out;
+    /* No CSS transition: the spotlight center reads the sprung --pointer-px/py,
+     * so it already glides (the spring is the smoothing). */
+    will-change: background-position;
   }
 }
 
@@ -327,5 +356,110 @@
   }
   .hero-link-flow {
     animation: none !important;
+  }
+  /* Modal: keep the opacity fade, drop the scale + blur movement. */
+  .wallet-adapter-modal-wrapper {
+    transition: opacity 200ms var(--ease-out) !important;
+  }
+}
+
+/*
+ * Translucent floating chrome (nav + footer): a blurred material that lets the
+ * abyssal canvas — and content scrolling under the sticky nav — show through,
+ * with a bright top edge catching the light. Reduced-transparency users get a
+ * solid, frostier surface instead.
+ */
+.chrome-glass {
+  background-color: color-mix(in srgb, var(--color-liquid-deep) 68%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+}
+@supports not (backdrop-filter: blur(1px)) {
+  /* No backdrop-filter (older Safari/Firefox) → fall back to the solid surface. */
+  .chrome-glass {
+    background-color: var(--color-liquid-deep);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .chrome-glass {
+    background-color: var(--color-liquid-deep);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/*
+ * First-load grid stagger — the browse cards fade + rise in, one after another,
+ * ONLY on the first data render (the page gates it with useInitialReveal, so
+ * filter/sort re-renders never re-animate). Per-card offset via --stagger-delay.
+ */
+@keyframes stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes stagger-fade {
+  from {
+    opacity: 0;
+  }
+}
+.stagger-in {
+  animation: stagger-in 0.34s var(--ease-out) both;
+  animation-delay: var(--stagger-delay, 0ms);
+  will-change: transform, opacity;
+}
+
+/*
+ * Status + menu entrances — transition-based (@starting-style), so they can be
+ * interrupted/retargeted rather than locked keyframes. Status lines materialize
+ * (fade + rise + un-blur) as the write phase changes; the mobile menu drops from
+ * the bar edge.
+ */
+.status-enter {
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 160ms var(--ease-out),
+    filter 160ms var(--ease-out);
+}
+@starting-style {
+  .status-enter {
+    opacity: 0;
+    transform: translateY(2px);
+    filter: blur(3px);
+  }
+  /* Success gets a touch more presence (scale in) — the confirmed-tx beat. */
+  .status-enter-success {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: blur(3px);
+  }
+}
+.mobile-menu-enter {
+  transition:
+    opacity 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+@starting-style {
+  .mobile-menu-enter {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Gentler equivalents: opacity only, no movement / no stagger. */
+  .stagger-in {
+    animation-name: stagger-fade;
+    animation-delay: 0ms !important;
+  }
+  .status-enter,
+  .status-enter-success,
+  .mobile-menu-enter {
+    transition: opacity 160ms ease !important;
   }
 }

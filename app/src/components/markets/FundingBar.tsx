@@ -19,7 +19,10 @@ export function FundingBar({ market }: { market: Pick<Market, "totalContributed"
         aria-valuenow={Math.round(pct * 100)}
         aria-label="Funding progress"
       >
-        <div className="h-full rounded-sm bg-chestnut transition-all" style={{ width }} />
+        <div
+          className="h-full rounded-sm bg-chestnut transition-[width] duration-500 ease-out motion-reduce:transition-none"
+          style={{ width }}
+        />
       </div>
       <p className="font-inter text-[12px] text-driftwood">
         <span className="font-medium text-sepia">{formatKass(market.totalContributed)}</span>

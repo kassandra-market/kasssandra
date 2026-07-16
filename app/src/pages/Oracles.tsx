@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { useInitialReveal } from '../hooks/useInitialReveal'
 import { Button, Card, SectionHeader } from '../components/ui'
 import { PhaseChip } from '../components/oracles/PhaseChip'
 import { DashboardStats, OracleFilters } from '../components/oracles/DashboardStats'
@@ -26,12 +27,16 @@ function OracleCard({
   summary,
   search,
   meta,
+  enterIndex,
 }: {
   summary: OracleSummary
   search: string
   meta?: OracleMetaView
+  /** First-load stagger index (undefined = no entrance animation). */
+  enterIndex?: number
 }) {
   const { pubkey, oracle } = summary
+  const stagger = enterIndex !== undefined
   const { label } = phaseView(oracle.phase)
   const resolved = oracle.phase === Phase.Resolved
   const hasResolvedOption = resolved && oracle.resolvedOption !== RESOLVED_OPTION_NONE
@@ -41,9 +46,14 @@ function OracleCard({
   return (
     <Link
       to={{ pathname: `/oracles/${pubkey}`, search }}
-      className={`group block rounded-card ${focusRing}`}
+      className={`group block rounded-card ${focusRing}${stagger ? ' stagger-in' : ''}`}
+      style={
+        stagger
+          ? ({ '--stagger-delay': `${Math.min(enterIndex, 10) * 40}ms` } as CSSProperties)
+          : undefined
+      }
     >
-      <Card className="flex h-full flex-col gap-3 transition-colors group-hover:border-driftwood">
+      <Card className="flex h-full flex-col gap-3 transition-[transform,border-color] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:border-cyan-phosphor/40 group-active:scale-[0.99] motion-reduce:group-hover:translate-y-0">
         <div className="flex items-center justify-between gap-2">
           <PhaseChip phase={oracle.phase} />
           <span className="font-inter text-[12px] text-driftwood">
@@ -160,6 +170,8 @@ export default function Oracles() {
   const { cluster } = useCluster()
   const { search } = useLocation()
   const { data, loading, error, refetch } = useOracles()
+  // Stagger the grid in only on the first data render (not on filter/sort/poll).
+  const stagger = useInitialReveal(!loading && (data?.length ?? 0) > 0)
 
   // Client-side view state — search + phase filter + sort, all composed over the
   // already-fetched list (no re-fetch). `search` (URL query) is unrelated: it
@@ -194,7 +206,7 @@ export default function Oracles() {
       <div className="mt-8 flex justify-center">
         <Link
           to={{ pathname: '/oracles/new', search }}
-          className="inline-flex items-center justify-center gap-2 rounded-button bg-chestnut px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss transition-all duration-150 hover:-translate-y-px hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
+          className="inline-flex items-center justify-center gap-2 rounded-button bg-chestnut px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss transition-[transform,filter] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
         >
           Create oracle
         </Link>
@@ -261,12 +273,13 @@ export default function Oracles() {
             </div>
           ) : (
             <div className={gridClass}>
-              {visible.map((summary) => (
+              {visible.map((summary, i) => (
                 <OracleCard
                   key={summary.pubkey}
                   summary={summary}
                   search={search}
                   meta={meta.get(summary.pubkey)}
+                  enterIndex={stagger ? i : undefined}
                 />
               ))}
             </div>

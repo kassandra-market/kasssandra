@@ -29,7 +29,7 @@ export function ProbabilityBar({ probability }: { probability: number | null }) 
         aria-label="Implied YES probability"
       >
         <div
-          className="h-full rounded-sm bg-ember-orange transition-all"
+          className="h-full rounded-sm bg-ember-orange transition-[width] duration-500 ease-out motion-reduce:transition-none"
           style={{ width: `${yesPct}%` }}
         />
       </div>
