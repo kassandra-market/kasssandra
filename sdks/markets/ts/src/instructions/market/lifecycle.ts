@@ -17,7 +17,8 @@ import {
 } from "../../constants.js";
 import * as pda from "../../pda.js";
 import type { AddressInput } from "../../pda.js";
-import { addr, ro, w, withDisc } from "../payload.js";
+import * as md from "../../metadao/index.js";
+import { addr, ro, u64LE, w, withDisc } from "../payload.js";
 
 // ---------------------------------------------------------------------------
 // Activate (Ix 6) — turn a fully-funded Funding market into a live MetaDAO
@@ -312,5 +313,125 @@ export async function closeMarket(args: CloseMarketArgs): Promise<TransactionIns
       ro(TOKEN_PROGRAM_ID),
     ],
     data: withDisc(Ix.CloseMarket),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// AddLiquidity (Ix 11) — deposit KASS into an Active market's live cYES/cNO AMM,
+// minting pooled LP into the Market-PDA-owned lp_vault (claimable pro-rata by the
+// gross-LP basis). Program-signed split + add_liquidity mirror activate; the
+// ratio-limited remainder is returned to the depositor's cYES/cNO ATA.
+//
+// `quoteAmount`/`maxBaseAmount`/`minLpTokens` are computed by the caller (the
+// `addLiquidity` flow) from the live reserves. Payload = amount ++ quoteAmount ++
+// maxBaseAmount ++ minLpTokens (4 × u64 LE).
+//
+// Account order MUST match `sdks/markets/rust/src/ix/add_liquidity.rs` /
+// `processor::add_liquidity`:
+//  0 market(w) 1 oracle(ro) 2 depositor(signer,w) 3 depositor_kass_ata(w)
+//  4 escrow(w,PDA) 5 question(ro) 6 vault(w) 7 vault_underlying_ata(w)
+//  8 yes_mint(w) 9 no_mint(w) 10 market_cyes(w,PDA) 11 market_cno(w,PDA)
+// 12 depositor_cyes_ata(w) 13 depositor_cno_ata(w) 14 amm(w) 15 lp_mint(w)
+// 16 lp_vault(w,PDA) 17 amm_vault_base(w) 18 amm_vault_quote(w)
+// 19 contribution(w,PDA) 20 cv_event_authority(ro) 21 cv_program(ro)
+// 22 amm_event_authority(ro) 23 amm_program(ro) 24 token program(ro) 25 system program(ro).
+// ---------------------------------------------------------------------------
+export interface AddLiquidityArgs {
+  /** The Active market being funded (writable). */
+  market: AddressInput;
+  /** The market's Kassandra oracle (must be non-terminal). */
+  oracle: AddressInput;
+  /** Depositor (signer): KASS source authority + Contribution rent. */
+  depositor: AddressInput;
+  /** Canonical KASS mint (for the depositor's KASS ATA — the split-funding source). */
+  kassMint: AddressInput;
+  /** MetaDAO Question. */
+  question: AddressInput;
+  /** KASS conditional vault. */
+  vault: AddressInput;
+  /** The vault's KASS ATA (split destination for the underlying). */
+  vaultUnderlyingAta: AddressInput;
+  /** cYES conditional mint (idx 0). */
+  yesMint: AddressInput;
+  /** cNO conditional mint (idx 1). */
+  noMint: AddressInput;
+  /** The cYES/cNO AMM pool. */
+  amm: AddressInput;
+  /** The pool's LP mint. */
+  lpMint: AddressInput;
+  /** The AMM's cYES (base) ATA. */
+  ammVaultBase: AddressInput;
+  /** The AMM's cNO (quote) ATA. */
+  ammVaultQuote: AddressInput;
+  /** Conditional-vault program event authority. */
+  cvEventAuthority: AddressInput;
+  /** AMM program event authority. */
+  ammEventAuthority: AddressInput;
+  /** KASS to deposit (raw base units, > 0). */
+  amount: bigint | number;
+  /** cNO deposited in full; base (cYES) is ratio-derived and capped at `maxBaseAmount`. */
+  quoteAmount: bigint | number;
+  /** Max cYES the AMM may pull (== `amount`). */
+  maxBaseAmount: bigint | number;
+  /** Slippage floor — MetaDAO requires this non-zero for a live pool. */
+  minLpTokens: bigint | number;
+  /** Conditional-vault program id (defaults to {@link EXTERNAL_PROGRAM_IDS}.conditionalVault). */
+  cvProgram?: AddressInput;
+  /** AMM program id (defaults to {@link EXTERNAL_PROGRAM_IDS}.ammV04). */
+  ammProgram?: AddressInput;
+  /** SPL Token program id (defaults to {@link TOKEN_PROGRAM_ID}). */
+  tokenProgram?: AddressInput;
+  /** System program id (defaults to {@link SYSTEM_PROGRAM_ID}). */
+  systemProgram?: AddressInput;
+  programId?: Address;
+}
+
+export async function addLiquidity(args: AddLiquidityArgs): Promise<TransactionInstruction> {
+  const programId = args.programId ?? MARKET_PROGRAM_ID;
+  const escrow = await pda.escrow(args.market, programId);
+  const cyes = await pda.cyes(args.market, programId);
+  const cno = await pda.cno(args.market, programId);
+  const lpVault = await pda.lpVault(args.market, programId);
+  const contribution = await pda.contribution(args.market, args.depositor, programId);
+  const depositorKassAta = await md.pda.ata(args.depositor, args.kassMint);
+  const depositorCyesAta = await md.pda.ata(args.depositor, args.yesMint);
+  const depositorCnoAta = await md.pda.ata(args.depositor, args.noMint);
+  return new TransactionInstruction({
+    programId,
+    keys: [
+      w(addr(args.market)),
+      ro(addr(args.oracle)),
+      w(addr(args.depositor), true),
+      w(depositorKassAta),
+      w(escrow.address),
+      ro(addr(args.question)),
+      w(addr(args.vault)),
+      w(addr(args.vaultUnderlyingAta)),
+      w(addr(args.yesMint)),
+      w(addr(args.noMint)),
+      w(cyes.address),
+      w(cno.address),
+      w(depositorCyesAta),
+      w(depositorCnoAta),
+      w(addr(args.amm)),
+      w(addr(args.lpMint)),
+      w(lpVault.address),
+      w(addr(args.ammVaultBase)),
+      w(addr(args.ammVaultQuote)),
+      w(contribution.address),
+      ro(addr(args.cvEventAuthority)),
+      ro(addr(args.cvProgram ?? EXTERNAL_PROGRAM_IDS.conditionalVault)),
+      ro(addr(args.ammEventAuthority)),
+      ro(addr(args.ammProgram ?? EXTERNAL_PROGRAM_IDS.ammV04)),
+      ro(addr(args.tokenProgram ?? TOKEN_PROGRAM_ID)),
+      ro(addr(args.systemProgram ?? SYSTEM_PROGRAM_ID)),
+    ],
+    data: withDisc(
+      Ix.AddLiquidity,
+      u64LE(args.amount),
+      u64LE(args.quoteAmount),
+      u64LE(args.maxBaseAmount),
+      u64LE(args.minLpTokens),
+    ),
   });
 }

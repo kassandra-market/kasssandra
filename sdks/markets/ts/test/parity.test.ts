@@ -25,7 +25,7 @@ import {
 import { resolveQuestion, splitTokens } from "../src/metadao/vault.js";
 import { addLiquidity } from "../src/metadao/amm.js";
 
-describe("parity guard: Ix discriminants (instruction.rs 0..=10)", () => {
+describe("parity guard: Ix discriminants (instruction.rs 0..=11)", () => {
   // Pinned from programs/markets/src/instruction.rs.
   const PINNED: Record<string, number> = {
     InitConfig: 0,
@@ -39,6 +39,7 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=10)", () => {
     ResolveMarket: 8,
     CollectFee: 9,
     CloseMarket: 10,
+    AddLiquidity: 11,
   };
 
   it("matches every Ix by name and value", () => {
@@ -47,10 +48,10 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=10)", () => {
     }
   });
 
-  it("has exactly 11 instructions (0..=10), no more, no fewer", () => {
+  it("has exactly 12 instructions (0..=11), no more, no fewer", () => {
     const numericValues = Object.values(Ix).filter((v) => typeof v === "number");
     expect(numericValues.sort((a, b) => (a as number) - (b as number))).toEqual(
-      Array.from({ length: 11 }, (_, i) => i),
+      Array.from({ length: 12 }, (_, i) => i),
     );
   });
 });
@@ -90,8 +91,8 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
   // Pinned absolute on-chain ABI sizes from `account_sizes_are_stable`.
   const PINNED = {
     Config: 120,
-    Market: 400,
-    Contribution: 88,
+    Market: 424,
+    Contribution: 96,
   } as const;
 
   it("matches every pinned account size", () => {

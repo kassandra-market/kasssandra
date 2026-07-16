@@ -49,6 +49,7 @@ export enum Ix {
   ResolveMarket = 8,
   CollectFee = 9,
   CloseMarket = 10,
+  AddLiquidity = 11,
 }
 
 /**
@@ -157,8 +158,8 @@ export function decodeError(code: number): MarketError | null {
  */
 export const ACCOUNT_SIZES = {
   Config: 120,
-  Market: 400,
-  Contribution: 88,
+  Market: 424,
+  Contribution: 96,
 } as const;
 
 /**
