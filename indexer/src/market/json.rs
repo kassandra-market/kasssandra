@@ -106,6 +106,10 @@ pub struct MarketDto {
     pub lp_mint: String,
     pub lp_vault: String,
     pub lp_total: String,
+    // Gross-LP accounting (frozen at activate; grows with post-activation add_liquidity).
+    pub activation_lp: String,
+    pub activation_contributed: String,
+    pub gross_lp_total: String,
     pub slot: String,
 }
 
@@ -136,6 +140,9 @@ impl MarketDto {
             lp_mint: b58(m.lp_mint),
             lp_vault: b58(m.lp_vault),
             lp_total: m.lp_total.to_string(),
+            activation_lp: m.activation_lp.to_string(),
+            activation_contributed: m.activation_contributed.to_string(),
+            gross_lp_total: m.gross_lp_total.to_string(),
             slot: slot.to_string(),
         }
     }
@@ -149,6 +156,8 @@ pub struct ContributionDto {
     pub amount: String,
     pub claimed: bool,
     pub bump: u8,
+    /// LP minted for this contributor by post-activation `add_liquidity` (0 for pure funders).
+    pub late_lp: String,
 }
 
 impl ContributionDto {
@@ -159,6 +168,7 @@ impl ContributionDto {
             amount: c.amount.to_string(),
             claimed: c.claimed != 0,
             bump: c.bump,
+            late_lp: c.late_lp.to_string(),
         }
     }
 }
