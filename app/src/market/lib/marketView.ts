@@ -4,7 +4,13 @@
  * outcome text, and pubkey truncation. NO React here; the pages + chip
  * components consume these, and `app/test/marketView.test.ts` unit-tests them.
  */
-import { MarketStatus, Phase, type Market, type MarketOracle } from "@kassandra-market/markets";
+import {
+  MarketStatus,
+  Phase,
+  type Contribution,
+  type Market,
+  type MarketOracle,
+} from "@kassandra-market/markets";
 import type { AmmReserves, MarketSummary } from "../data/markets";
 
 /** The winning categorical option indices for a binary market. */
@@ -128,6 +134,39 @@ export function impliedYesProbability(reserves: AmmReserves | null | undefined):
   const total = reserves.base + reserves.quote;
   if (total <= 0n) return null;
   return Number(reserves.quote) / Number(total);
+}
+
+/**
+ * Mark-to-market KASS value of the cYES/cNO pool. Each conditional token is worth
+ * its win probability (cYES → P(YES), cNO → P(NO)), so the pool marks to
+ * `base·P(YES) + quote·P(NO) = 2·base·quote / (base + quote)` — which reduces to
+ * the complete-set value at a 50/50 pool and adds the excess side's probability
+ * weight otherwise. Base units (KASS decimals); `null` when reserves are absent or
+ * the pool is empty.
+ */
+export function poolValueKass(reserves: AmmReserves | null | undefined): bigint | null {
+  if (!reserves) return null;
+  const sum = reserves.base + reserves.quote;
+  if (sum <= 0n) return null;
+  return (2n * reserves.base * reserves.quote) / sum;
+}
+
+/**
+ * A contributor's gross LP position — the honest basis `claim_lp` pays out on:
+ * their funding stake's pro-rata share of the LP minted at activation
+ * (`amount / activationContributed × activationLp`) plus any LP they added
+ * post-activation (`lateLp`). Zero funding-derived LP before activation
+ * (`activationContributed == 0`); a pure late LP contributes only `lateLp`.
+ */
+export function contributorLp(
+  contribution: Pick<Contribution, "amount" | "lateLp">,
+  market: Pick<Market, "activationLp" | "activationContributed">,
+): bigint {
+  const fundingLp =
+    market.activationContributed > 0n
+      ? (contribution.amount * market.activationLp) / market.activationContributed
+      : 0n;
+  return fundingLp + contribution.lateLp;
 }
 
 /** Format a `0..1` probability as a whole-percent string (`0.634` → `63%`); `null` → `—`. */
@@ -255,6 +294,21 @@ export function outcomeResolutionText(
   }
   if (oracle.phase === Phase.InvalidDeadend) return "Voided";
   return phaseLabel(oracle.phase);
+}
+
+/**
+ * The base58 pubkey of the prediction sub-market to link to for an `oracle` — the
+ * lowest-outcome sub-market that resolves against it (its detail page shows the
+ * whole categorical group), or `undefined` when none is bound yet. Powers the
+ * oracle page's reverse link to its market.
+ */
+export function firstBoundMarketPubkey(
+  markets: MarketSummary[],
+  oracle: string,
+): string | undefined {
+  return markets
+    .filter((m) => m.market.oracle.toString() === oracle)
+    .sort((a, b) => a.market.outcomeIndex - b.market.outcomeIndex)[0]?.pubkey;
 }
 
 /** Truncate a long identifier keeping `head`+`tail` chars: `Abc1…Xy9z`. */

@@ -45,8 +45,8 @@ const AMM_QUOTE_AMOUNT_OFFSET: usize = 123;
 
 /// Decode a MetaDAO `Amm` account's `(base, quote)` reserves — `(cYES, cNO)` raw
 /// base units — after verifying the account discriminator. Returns `None` for a
-/// non-AMM / truncated account. Shared by the read API (live reserves) and the
-/// reconcile-loop price sampler.
+/// non-AMM / truncated account. Shared by the read API (live reserves + the
+/// live-read price sample recorded on a detail fetch) and the ws price subscriber.
 pub fn decode_amm_reserves(data: &[u8]) -> Option<(u64, u64)> {
     if data.len() < AMM_QUOTE_AMOUNT_OFFSET + 8 {
         return None;

@@ -32,7 +32,14 @@ import { BatchStepList } from "./CreateMarketForm/BatchStepList";
  * single-market builders into one {@link useActionSequence} run. Renders nothing
  * for a lone market (not a group).
  */
-export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
+export function GroupLiquidityPanel({
+  oracle,
+  embedded = false,
+}: {
+  oracle: string;
+  /** Render as a bare subsection (no Card wrapper) — for folding into another panel. */
+  embedded?: boolean;
+}) {
   const indexer = useIndexer();
   const config = useConfig();
   const kassMint = config.data ? config.data.kassMint.toString() : undefined;
@@ -163,8 +170,8 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
   // Not a group (a lone market uses its own Contribute / Claim-LP controls).
   if (siblings.length <= 1) return null;
 
-  return (
-    <Card className="flex flex-col gap-4">
+  const body = (
+    <>
       <div>
         <h3 className="font-serif text-subheading font-light text-sepia">Group liquidity</h3>
         <p className="mt-1 font-inter text-[13px] text-bronze">
@@ -228,7 +235,15 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
           {steps.length > 0 ? <BatchStepList steps={steps} statuses={seq.statuses} /> : null}
         </div>
       </ConnectGate>
-    </Card>
+    </>
+  );
+
+  // Embedded → a bare subsection (divider + content) to fold into another panel;
+  // standalone → its own Card.
+  return embedded ? (
+    <div className="flex flex-col gap-4 border-t border-pebble pt-5">{body}</div>
+  ) : (
+    <Card className="flex flex-col gap-4">{body}</Card>
   );
 }
 

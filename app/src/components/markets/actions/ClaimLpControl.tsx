@@ -23,11 +23,15 @@ export function ClaimLpControl({
   market,
   contributions,
   onSuccess,
+  embedded = false,
 }: {
   pubkey: string;
   market: Market;
   contributions: { pubkey: string; contribution: Contribution }[];
   onSuccess: () => void;
+  /** Render bare (no Card / heading) and, with nothing to claim, an explanatory
+   *  note instead of nothing — for use as a tab inside another panel. */
+  embedded?: boolean;
 }) {
   const action = useWriteAction(onSuccess);
 
@@ -38,8 +42,29 @@ export function ClaimLpControl({
           ({ contribution }) => !contribution.claimed && contribution.contributor.toString() === action.address,
         );
 
-  // Nothing to claim (disconnected, not a contributor, or already claimed) → hide.
-  if (!mine) return null;
+  const wrap = (children: React.ReactNode) =>
+    embedded ? (
+      <div className="flex flex-col gap-4">{children}</div>
+    ) : (
+      <Card className="flex flex-col gap-4">{children}</Card>
+    );
+  const heading = embedded ? null : (
+    <h3 className="font-serif text-subheading font-light text-sepia">Claim LP tokens</h3>
+  );
+  // Full-width CTA when embedded (matches the Deposit tab); auto-width standalone.
+  const btnClass = embedded ? "w-full py-3 text-[15px]" : "";
+
+  // Nothing to claim (disconnected, not a contributor, or already claimed). A
+  // standalone control hides; a Claim TAB shows a calm note rather than an empty tab.
+  if (!mine) {
+    if (!embedded) return null;
+    return wrap(
+      <p className="font-inter text-[13px] text-driftwood">
+        You have no LP position to claim here. Add liquidity on the Deposit tab — your LP becomes
+        claimable once the market resolves and its protocol fee is collected.
+      </p>,
+    );
+  }
 
   // A contributor's claimable position is their Funding stake (`amount` KASS, which
   // earned LP pro-rata at activation) and/or the liquidity they added post-activation
@@ -54,17 +79,22 @@ export function ClaimLpControl({
   // Fee gate: claim_lp opens only after the protocol fee is collected. Until then
   // (Active, or Resolved/Void awaiting the crank) show a disabled waiting state.
   if (!market.feeCollected) {
-    return (
-      <Card className="flex flex-col gap-4">
+    return wrap(
+      <>
         <div>
-          <h3 className="font-serif text-subheading font-light text-sepia">Claim LP tokens</h3>
-          <p className="mt-1 font-inter text-[13px] text-driftwood">
+          {heading}
+          <p className={`font-inter text-[13px] text-driftwood ${embedded ? "" : "mt-1"}`}>
             Your {positionText} is claimable as a share of the pool's LP tokens. Claims open once the
             market resolves and its protocol fee is collected.
           </p>
         </div>
-        <SubmitButton verb="Waiting for fee collection" status={{ kind: "idle" }} disabled />
-      </Card>
+        <SubmitButton
+          className={btnClass}
+          verb="Waiting for fee collection"
+          status={{ kind: "idle" }}
+          disabled
+        />
+      </>,
     );
   }
 
@@ -80,22 +110,20 @@ export function ClaimLpControl({
     );
   };
 
-  return (
-    <Card className="flex flex-col gap-4">
+  return wrap(
+    <>
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Claim LP tokens</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        {heading}
+        <p className={`font-inter text-[13px] text-driftwood ${embedded ? "" : "mt-1"}`}>
           Your {positionText} is claimable as a share of the pool's LP tokens. Claim them to your
           wallet.
         </p>
       </div>
       <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
-        <div className="flex items-center gap-3">
-          <SubmitButton verb="Claim LP" status={action.status} />
-        </div>
+        <SubmitButton className={btnClass} verb="Claim LP" status={action.status} />
         <WriteStatusRegion status={action.status} successVerb="LP claimed" />
       </form>
-    </Card>
+    </>,
   );
 }
 

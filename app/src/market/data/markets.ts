@@ -74,8 +74,8 @@ export interface OracleGroup {
 export interface MarketDetail {
   pubkey: string;
   market: Market;
-  /** Every decoded contribution to this market. */
-  contributions: { pubkey: string; contribution: Contribution }[];
+  /** Every decoded contribution to this market, latest-first by last-write `slot`. */
+  contributions: { pubkey: string; slot: bigint; contribution: Contribution }[];
   /** The linked Kassandra oracle's read fields, or `null` if unreadable. */
   oracle: MarketOracle | null;
   /** The live cYES/cNO pool reserves (Active markets only), or `null`. */
@@ -212,13 +212,19 @@ export async function fetchMarketDetail(
   if (!detail) throw new MarketNotFoundError(marketPubkey);
 
   // The Contribution DTO carries no address; re-derive the Contribution PDA
-  // (seeds [b"contribution", market, contributor]) for a stable React key.
-  const contributions = await Promise.all(
-    detail.contributions.map(async (c) => ({
-      pubkey: (await pda.contribution(marketPubkey, c.contributor)).address.toString(),
-      contribution: mapContributionDto(c),
-    })),
-  );
+  // (seeds [b"contribution", market, contributor]) for a stable React key. Sort
+  // latest-first by the PDA's last-write slot (the indexer already orders, but a
+  // client-side sort keeps the ledger correct regardless of transport order).
+  const contributions = (
+    await Promise.all(
+      detail.contributions.map(async (c) => ({
+        pubkey: (await pda.contribution(marketPubkey, c.contributor)).address.toString(),
+        // Tolerate a slot-less payload (older indexer mid-deploy) → 0n sorts last.
+        slot: c.slot != null ? BigInt(c.slot) : 0n,
+        contribution: mapContributionDto(c),
+      })),
+    )
+  ).sort((a, b) => (a.slot > b.slot ? -1 : a.slot < b.slot ? 1 : 0));
 
   return {
     pubkey: marketPubkey,

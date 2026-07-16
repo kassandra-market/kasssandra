@@ -46,6 +46,11 @@ vi.mock("../src/components/markets/actions/MarketActions", () => ({
 vi.mock("../src/components/markets/actions/GroupLiquidityPanel", () => ({
   GroupLiquidityPanel: () => null,
 }));
+// The redesigned Liquidity tab's overview reads the connected wallet; render it
+// disconnected (no WalletProvider in this static render).
+vi.mock("@solana/wallet-adapter-react", () => ({
+  useWallet: () => ({ publicKey: null }),
+}));
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";

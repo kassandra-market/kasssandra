@@ -52,6 +52,17 @@ impl Rpc {
         Ok(resp.value)
     }
 
+    /// Like [`get_account`], but also returns the context slot the account was read
+    /// at — used to stamp a `market_price` point recorded from a live read.
+    pub async fn get_account_with_slot(&self, pubkey: &Pubkey) -> Result<Option<(Account, u64)>> {
+        let resp = self
+            .client
+            .get_account_with_commitment(pubkey, self.client.commitment())
+            .await
+            .context("get_account_with_slot")?;
+        Ok(resp.value.map(|acct| (acct, resp.context.slot)))
+    }
+
     /// A recent blockhash for the client to stamp onto its transaction.
     pub async fn latest_blockhash(&self) -> Result<Hash> {
         self.client

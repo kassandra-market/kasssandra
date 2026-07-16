@@ -1,8 +1,11 @@
 /**
- * Regression coverage for the contributions ledger: a post-activation liquidity
- * provider records its position in `lateLp` (LP tokens) with `amount == 0` (no
- * Funding stake), so the row must show the LP it ADDED — not a misleading "0 KASS".
- * A pure funder still shows KASS; a contributor who did both shows both.
+ * Regression coverage for the redesigned Liquidity tab's contributions ledger:
+ * each contribution expands into up to two TAGGED rows — an "Initial funding" row
+ * (`amount` KASS) and a "Liquidity" row (`lateLp` LP) — instead of one combined
+ * "KASS · LP" line. A pure funder shows only funding; a pure late LP shows only
+ * the LP it added (never a misleading "0 KASS"); a both-cohort contributor shows
+ * two separate rows. Also covers the top-panel LP overview (pool value, LP supply,
+ * the connected wallet's share).
  */
 import { vi } from "vitest";
 import { MarketStatus } from "@kassandra-market/markets";
@@ -11,8 +14,11 @@ import { Phase } from "@kassandra-market/oracles";
 const PUB = "Market11111111111111111111111111111111111111";
 const ORACLE = "Orac1e1111111111111111111111111111111111111";
 
-// A Resolved market (isActive === false → default tab is Liquidity, which holds
-// the ledger) with three contributions: a funder, a pure late LP, and both.
+// A Resolved (activated) market — isActive === false → default tab is Liquidity,
+// which holds the overview + ledger. Three contributions: a funder, a pure late
+// LP, and a both-cohort contributor. `activationContributed` = the funding that
+// converted to LP at activation (Fund 1 + Both 2 = 3); `grossLpTotal` = that
+// activation LP (3) + all late LP (Both 3 + Late 0.5 = 3.5) = 6.5.
 const detail = {
   pubkey: PUB,
   market: {
@@ -20,18 +26,23 @@ const detail = {
     outcomeIndex: 0,
     settled: true,
     openContributions: 3,
-    totalContributed: 1_000_000_000n,
+    totalContributed: 3_000_000_000n,
     minLiquidity: 1_000_000_000n,
     feeBps: 0,
     feeCollected: true,
     oracle: { toString: () => ORACLE },
+    activationLp: 3_000_000_000n,
+    activationContributed: 3_000_000_000n,
+    grossLpTotal: 6_500_000_000n,
+    lpTotal: 6_500_000_000n,
   },
   oracle: { optionsCount: 2, phase: Phase.Resolved, resolvedOption: 0 },
-  reserves: null,
+  // 6 cYES / 4 cNO → mark-to-market pool value 2·6·4/(6+4) = 4.8 KASS.
+  reserves: { base: 6_000_000_000n, quote: 4_000_000_000n },
   contributions: [
-    { pubkey: "C1", contribution: { contributor: { toString: () => "Fund1111" }, amount: 1_000_000_000n, lateLp: 0n, claimed: false } },
-    { pubkey: "C2", contribution: { contributor: { toString: () => "Late1111" }, amount: 0n, lateLp: 500_000_000n, claimed: false } },
-    { pubkey: "C3", contribution: { contributor: { toString: () => "Both1111" }, amount: 2_000_000_000n, lateLp: 3_000_000_000n, claimed: false } },
+    { pubkey: "C3", slot: 300n, contribution: { contributor: { toString: () => "Both1111" }, amount: 2_000_000_000n, lateLp: 3_000_000_000n, claimed: false } },
+    { pubkey: "C1", slot: 200n, contribution: { contributor: { toString: () => "Fund1111" }, amount: 1_000_000_000n, lateLp: 0n, claimed: false } },
+    { pubkey: "C2", slot: 100n, contribution: { contributor: { toString: () => "Late1111" }, amount: 0n, lateLp: 500_000_000n, claimed: false } },
   ],
 };
 
@@ -40,8 +51,12 @@ vi.mock("../src/market/hooks/useMarketDetail", () => ({
   useConfig: () => ({ data: undefined, loading: false, error: undefined, refetch: () => {} }),
 }));
 vi.mock("../src/hooks/useOracleMeta", () => ({ useOracleMeta: () => new Map() }));
-// Stub the context-heavy action surfaces so only the ledger + presentational
-// panels render.
+// A connected wallet = the both-cohort contributor, so the overview's "Your share"
+// resolves (its gross LP = 2/3·3 activation + 3 late = 5 of 6.5 = 76.9%).
+vi.mock("@solana/wallet-adapter-react", () => ({
+  useWallet: () => ({ publicKey: { toBase58: () => "Both1111" } }),
+}));
+// Stub the context-heavy action surfaces so only the overview + ledger render.
 vi.mock("../src/components/markets/actions/MarketActions", () => ({
   MarketLiquidityActions: () => null,
   MarketLifecycleActions: () => null,
@@ -67,14 +82,27 @@ function render(): string {
   );
 }
 
-describe("contributions ledger — liquidity vs funding", () => {
-  it("shows added LP for a pure late-LP contribution (not 0 KASS)", () => {
+describe("contributions ledger — tagged funding vs liquidity rows", () => {
+  it("splits each contribution into its own tagged row (never a combined line)", () => {
     const html = render();
-    // The late LP added 0.5 LP with no funding stake — the row surfaces the LP.
+    // The pure late LP surfaces the LP it added — not "0 KASS".
     expect(html).toMatch(/0\.5\s*LP/);
-    // A funder's KASS stake still shows.
+    // The pure funder's KASS stake shows.
     expect(html).toMatch(/1\s*KASS/);
-    // The both-cohort contributor shows KASS · LP together.
-    expect(html).toMatch(/2\s*KASS\s*·\s*3\s*LP/);
+    // The both-cohort contributor now shows TWO separate rows, not "2 KASS · 3 LP".
+    expect(html).toMatch(/2\s*KASS/);
+    expect(html).toMatch(/3\s*LP/);
+    expect(html).not.toMatch(/2\s*KASS\s*·\s*3\s*LP/);
+    // Both action tags are present.
+    expect(html).toContain("Initial funding");
+    expect(html).toContain("Liquidity");
+  });
+
+  it("shows the LP overview: pool value, LP supply, and the wallet's share", () => {
+    const html = render();
+    expect(html).toMatch(/4\.8\s*KASS/); // mark-to-market pool value
+    expect(html).toMatch(/6\.5\s*shares/); // LP supply (grossLpTotal)
+    expect(html).toMatch(/76\.9%/); // your share of the pool
+    expect(html).toMatch(/5\s*LP/); // your gross LP
   });
 });

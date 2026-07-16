@@ -63,6 +63,8 @@ export interface ContributionDto {
   claimed: boolean;
   bump: number;
   lateLp: string;
+  /** Last-write slot of the Contribution PDA — the ledger's latest-first sort key. */
+  slot: string;
 }
 
 /** The linked Kassandra oracle's three read fields (enrichment). */

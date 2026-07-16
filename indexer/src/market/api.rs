@@ -130,7 +130,7 @@ async fn get_market_detail(
             .await
             .map_err(db_err)?
             .iter()
-            .map(ContributionDto::new)
+            .map(|(c, slot)| ContributionDto::new(c, *slot as u64))
             .collect();
 
     let oracle_pk = Pubkey::new_from_array(m.oracle.to_bytes());
@@ -149,12 +149,56 @@ async fn get_market_detail(
         }
         // Zeroed amm (pre-activation) => don't bother reading.
         if amm_pk != Pubkey::default() {
-            if let Ok(Some(acct)) = rpc.get_account(&amm_pk).await {
-                detail.reserves = decode_reserves(&acct.data);
+            if let Ok(Some((acct, read_slot))) = rpc.get_account_with_slot(&amm_pk).await {
+                if let Some((base, quote)) = crate::market::decode_amm_reserves(&acct.data) {
+                    detail.reserves = Some(ReservesDto {
+                        base: base.to_string(),
+                        quote: quote.to_string(),
+                    });
+                    // Advance the candle series from this LIVE read. The ws pool
+                    // subscription (price_subscribe.rs) is the primary source, but it
+                    // needs a ws url AND reliable account-notify delivery; recording
+                    // here — on the very detail fetch the app fires after every trade
+                    // (refetchAfterWrite) and on its 15s poll — guarantees the price
+                    // history advances on a trade regardless of ws. Active-only;
+                    // skipped when the pool is unchanged since the last sample.
+                    if m.status == 1 {
+                        record_price_from_read(&state.client, &pubkey, read_slot as i64, base, quote)
+                            .await;
+                    }
+                }
             }
         }
     }
     Ok(Json(detail))
+}
+
+/// Record a `market_price` point from a live detail read, unless the pool is
+/// unchanged since the last sample (so a flat market polled every 15s doesn't
+/// inflate the series). Best-effort: a failure only forgoes one chart point.
+async fn record_price_from_read(client: &Client, market: &str, slot: i64, base: u64, quote: u64) {
+    let Some(price) = crate::market::implied_yes_probability(base, quote) else {
+        return;
+    };
+    match crate::market::db::latest_price_reserves(client, market).await {
+        // Unchanged reserves → nothing new to plot.
+        Ok(Some((b, q))) if b == base as i64 && q == quote as i64 => return,
+        Ok(_) => {}
+        Err(e) => {
+            log::warn!("[market-price] latest-read {market} failed: {e}");
+            return;
+        }
+    }
+    let ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    if let Err(e) =
+        crate::market::db::insert_price(client, market, slot, ts, base as i64, quote as i64, price)
+            .await
+    {
+        log::warn!("[market-price] live insert {market} failed: {e}");
+    }
 }
 
 #[derive(Deserialize)]
@@ -166,9 +210,10 @@ pub struct CandleQuery {
 }
 
 /// `GET /api/markets/{pubkey}/candles?interval=&limit=` — OHLC candles of the
-/// market's implied YES probability, aggregated from the ws-subscribed price
-/// series (`market_price`). Returns `[]` (200) for a market with no points yet, so
-/// the chart renders an empty state rather than erroring.
+/// market's implied YES probability, aggregated from the `market_price` series
+/// (fed by the ws pool subscription AND the live read on each detail fetch).
+/// Returns `[]` (200) for a market with no points yet, so the chart renders an
+/// empty state rather than erroring.
 async fn get_market_candles(
     State(state): State<Arc<AppState>>,
     Path(pubkey): Path<String>,
@@ -188,14 +233,6 @@ fn decode_oracle(data: &[u8]) -> Option<OracleDto> {
         options_count: *data.get(ORACLE_OPTIONS_COUNT_OFFSET)?,
         phase: *data.get(ORACLE_PHASE_OFFSET)?,
         resolved_option: *data.get(ORACLE_RESOLVED_OPTION_OFFSET)?,
-    })
-}
-
-fn decode_reserves(data: &[u8]) -> Option<ReservesDto> {
-    let (base, quote) = crate::market::decode_amm_reserves(data)?;
-    Some(ReservesDto {
-        base: base.to_string(),
-        quote: quote.to_string(),
     })
 }
 

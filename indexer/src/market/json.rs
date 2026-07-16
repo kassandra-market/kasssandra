@@ -158,10 +158,13 @@ pub struct ContributionDto {
     pub bump: u8,
     /// LP minted for this contributor by post-activation `add_liquidity` (0 for pure funders).
     pub late_lp: String,
+    /// Last-write slot of this Contribution PDA (funding create or latest
+    /// `add_liquidity`) — the ledger's "latest first" ordering key.
+    pub slot: String,
 }
 
 impl ContributionDto {
-    pub fn new(c: &Contribution) -> Self {
+    pub fn new(c: &Contribution, slot: u64) -> Self {
         Self {
             market: b58(c.market),
             contributor: b58(c.contributor),
@@ -169,6 +172,7 @@ impl ContributionDto {
             claimed: c.claimed != 0,
             bump: c.bump,
             late_lp: c.late_lp.to_string(),
+            slot: slot.to_string(),
         }
     }
 }

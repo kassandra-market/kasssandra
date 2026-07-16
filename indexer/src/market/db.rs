@@ -207,6 +207,19 @@ pub async fn insert_price(
     Ok(())
 }
 
+/// The most recent sample's `(base, quote)` reserves for `market`, if any. Used to
+/// skip re-recording an unchanged pool from a live read (mirrors the ws path's
+/// record-on-change-only semantics), keeping the series a clean change-log.
+pub async fn latest_price_reserves(client: &Client, market: &str) -> Result<Option<(i64, i64)>> {
+    let rows = client
+        .query(
+            "SELECT base, quote FROM market_price WHERE market = $1 ORDER BY slot DESC LIMIT 1",
+            &[&market],
+        )
+        .await?;
+    Ok(rows.first().map(|r| (r.get(0), r.get(1))))
+}
+
 /// OHLC candles for `market`, bucketed by `bucket_secs`, most-recent `limit`
 /// buckets returned in ascending time order. `open`/`close` are the first/last
 /// sample (by slot) in each bucket; `high`/`low` the extremes.
@@ -247,10 +260,15 @@ pub async fn get_candles(
 }
 
 /// All contributions whose `market` field points at `market` (base58).
-pub async fn contributions_for(client: &Client, market: &str) -> Result<Vec<Contribution>> {
+pub async fn contributions_for(client: &Client, market: &str) -> Result<Vec<(Contribution, i64)>> {
+    // Each row carries its last-write `slot` (last-writer-wins): the Contribution
+    // PDA is (re)written on the funding create AND on every post-activation
+    // `add_liquidity`, so its slot is the contributor's most-recent activity. Order
+    // by it descending so the ledger reads latest-first without a client-side sort.
     let rows = client
         .query(
-            "SELECT data FROM market_accounts WHERE account_type = $1 AND market_ref = $2",
+            "SELECT data, slot FROM market_accounts \
+             WHERE account_type = $1 AND market_ref = $2 ORDER BY slot DESC",
             &[&TYPE_CONTRIBUTION, &market],
         )
         .await?;
@@ -258,7 +276,8 @@ pub async fn contributions_for(client: &Client, market: &str) -> Result<Vec<Cont
         .iter()
         .filter_map(|r| {
             let data: Vec<u8> = r.get(0);
-            decode::<Contribution>(&data, Contribution::LEN)
+            let slot: i64 = r.get(1);
+            decode::<Contribution>(&data, Contribution::LEN).map(|c| (c, slot))
         })
         .collect())
 }
@@ -341,5 +360,36 @@ mod db_it {
         let recent = get_candles(&client, "MktA", 60, 1).await.unwrap();
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].time, 60);
+    }
+
+    #[tokio::test]
+    async fn latest_price_reserves_returns_the_highest_slot_sample() {
+        let Some(client) = test_client().await else {
+            eprintln!("[db_it] TEST_DATABASE_URL unset — skipping Postgres integration test");
+            return;
+        };
+        client
+            .batch_execute("TRUNCATE market_price")
+            .await
+            .expect("truncate");
+
+        // No samples yet → None (the change-guard then records the first point).
+        assert_eq!(latest_price_reserves(&client, "MktC").await.unwrap(), None);
+
+        // Latest is by slot DESC, not insertion order — insert an earlier slot last.
+        insert_price(&client, "MktC", 5, 50, 100, 300, 0.75)
+            .await
+            .unwrap();
+        insert_price(&client, "MktC", 2, 20, 100, 100, 0.50)
+            .await
+            .unwrap();
+        assert_eq!(
+            latest_price_reserves(&client, "MktC").await.unwrap(),
+            Some((100, 300)),
+            "slot 5 reserves win over the later-inserted slot 2",
+        );
+
+        // A different market must not bleed in.
+        assert_eq!(latest_price_reserves(&client, "MktD").await.unwrap(), None);
     }
 }
