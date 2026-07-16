@@ -239,29 +239,38 @@ function DetailBody({
             <p className="font-inter text-[13px] text-driftwood">No contributions yet.</p>
           ) : (
             <ul className="flex flex-col divide-y divide-pebble/60">
-              {contributions.map(({ pubkey, contribution }) => (
-                <li key={pubkey} className="flex items-center justify-between gap-3 py-2">
-                  <Truncated
-                    value={contribution.contributor.toString()}
-                    label="contributor"
-                    copyable
-                    head={4}
-                    tail={4}
-                  />
-                  <span className="flex items-center gap-3">
-                    <span className="font-inter text-[13px] font-medium tabular-nums text-sepia">
-                      {formatKass(contribution.amount)} KASS
+              {contributions.map(({ pubkey, contribution }) => {
+                // A contribution can be a Funding stake (`amount` KASS), post-
+                // activation liquidity (`lateLp` LP tokens), or both. Pure late LPs
+                // have `amount == 0` — so show the LP they actually added, not "0 KASS".
+                const parts: string[] = [];
+                if (contribution.amount > 0n) parts.push(`${formatKass(contribution.amount)} KASS`);
+                if (contribution.lateLp > 0n) parts.push(`${formatKass(contribution.lateLp)} LP`);
+                const label = parts.length > 0 ? parts.join(" · ") : "0 KASS";
+                return (
+                  <li key={pubkey} className="flex items-center justify-between gap-3 py-2">
+                    <Truncated
+                      value={contribution.contributor.toString()}
+                      label="contributor"
+                      copyable
+                      head={4}
+                      tail={4}
+                    />
+                    <span className="flex items-center gap-3">
+                      <span className="font-inter text-[13px] font-medium tabular-nums text-sepia">
+                        {label}
+                      </span>
+                      <span
+                        className={`font-inter text-[11px] ${
+                          contribution.claimed ? "text-stone" : "text-chestnut"
+                        }`}
+                      >
+                        {contribution.claimed ? "claimed" : "open"}
+                      </span>
                     </span>
-                    <span
-                      className={`font-inter text-[11px] ${
-                        contribution.claimed ? "text-stone" : "text-chestnut"
-                      }`}
-                    >
-                      {contribution.claimed ? "claimed" : "open"}
-                    </span>
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Panel>
