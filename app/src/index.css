@@ -315,6 +315,23 @@
     }
   }
 
+  /* Tab-panel enter: a soft fade + short upward settle when a panel mounts on
+   * tab switch. transform/opacity only; short + calm so rapid tab flicking never
+   * feels laggy. Neutralized under reduced-motion below. */
+  .tab-enter {
+    animation: tab-enter 0.28s cubic-bezier(0.2, 0, 0, 1) both;
+  }
+  @keyframes tab-enter {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
   /* The bioluminescent orb that tracks the cursor across the hero. Kept large
    * and very soft so its falloff reaches full transparency well before any box
    * edge — no visible rectangle/seam even when the cursor is at a corner. */
@@ -461,5 +478,8 @@
   .status-enter-success,
   .mobile-menu-enter {
     transition: opacity 160ms ease !important;
+  }
+  .tab-enter {
+    animation: none !important;
   }
 }

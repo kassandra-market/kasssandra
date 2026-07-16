@@ -26,6 +26,50 @@ export function Stat({ label, value }: { label: string; value: ReactNode }) {
 }
 
 /**
+ * A statistic tile with a graphical proportion meter. Reads the raw `value`, then
+ * a hairline track filled to `value / total` — turning bare counts (surviving of
+ * options, settled of facts) into an at-a-glance bar. `accent` lights the fill
+ * aqua for the one figure worth punctuating (e.g. open challenges); the rest stay
+ * a quiet bronze. Falls back to a flat empty track when `total` is 0.
+ */
+export function StatMeter({
+  label,
+  value,
+  total,
+  accent = false,
+}: {
+  label: string
+  value: number
+  total?: number
+  accent?: boolean
+}) {
+  const pct = total && total > 0 ? Math.min(Math.max(value / total, 0), 1) * 100 : 0
+  return (
+    <div className="rounded-card border border-pebble bg-pure-card p-4">
+      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">{label}</div>
+      <div className="mt-1 flex items-baseline gap-1.5">
+        <span className="font-serif text-subheading font-light tabular-nums text-sepia">{value}</span>
+        {total != null ? (
+          <span className="font-inter text-[12px] tabular-nums text-driftwood">/ {total}</span>
+        ) : null}
+      </div>
+      {total != null ? (
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-soft-cream">
+          <div
+            className={`h-full rounded-full transition-[width] duration-500 ${
+              accent && value > 0 ? 'bg-chestnut' : 'bg-bronze/70'
+            }`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      ) : (
+        <div className="mt-2 h-1.5" aria-hidden />
+      )}
+    </div>
+  )
+}
+
+/**
  * The at-a-glance verdict banner — a calm h2 under the title (NOT a second h1).
  * Resolved reads a confirmed chestnut "Resolved · Option N"; a dead-end reads
  * muted stone; in-flight shows the current phase + a one-line "what's next".

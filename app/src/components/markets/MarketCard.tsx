@@ -6,28 +6,36 @@ import { StatusChip } from "./StatusChip";
 import { FundingBar } from "./FundingBar";
 import { ProbabilityBar } from "./ProbabilityBar";
 import type { MarketSummary } from "../../market/data/markets";
-import { formatKass, impliedYesProbability, truncateMiddle } from "../../market/lib/marketView";
+import { formatKass, impliedYesProbability, outcomeLabel, truncateMiddle } from "../../market/lib/marketView";
+import type { OracleMetaView } from "../../hooks/useOracleMeta";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
   "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
 
 /**
- * One market rendered as a clickable Delphi card. There are no on-chain labels,
- * so the title is the market's short pubkey; the body shows a funding bar
- * (Funding) or the live YES probability (Active), plus TVL (totalContributed).
+ * One market rendered as a clickable Delphi card. The on-chain oracle metadata
+ * (subject + option labels, read best-effort via {@link OracleMetaView}) leads:
+ * the title is the QUESTION and the sub-line is the outcome this market pays YES
+ * on, in words. Without metadata it degrades to the short pubkey + numeric
+ * outcome. The body shows a funding bar (Funding) or the live YES probability
+ * (Active), plus TVL (totalContributed).
  */
 export function MarketCard({
   summary,
+  meta,
   enterIndex,
 }: {
   summary: MarketSummary;
+  meta?: OracleMetaView;
   /** First-load stagger index (undefined = no entrance animation). */
   enterIndex?: number;
 }) {
   const { pubkey, market, reserves } = summary;
   const isFunding = market.status === MarketStatus.Funding;
   const isActive = market.status === MarketStatus.Active;
+  const subject = meta?.subject?.trim();
+  const boundLabel = meta?.options?.[market.outcomeIndex];
   const stagger = enterIndex !== undefined;
 
   return (
@@ -56,11 +64,20 @@ export function MarketCard({
           ) : null}
         </div>
 
-        <h3 className="font-mono text-subheading font-light text-sepia" title={pubkey}>
-          {truncateMiddle(pubkey, 6, 6)}
-        </h3>
-        <p className="font-inter text-[12px] text-driftwood" title={market.oracle.toString()}>
-          Oracle {truncateMiddle(market.oracle.toString(), 4, 4)}
+        {subject ? (
+          <h3 className="text-balance font-serif text-subheading font-light text-sepia" title={subject}>
+            {subject}
+          </h3>
+        ) : (
+          <h3 className="font-mono text-subheading font-light text-sepia" title={pubkey}>
+            {truncateMiddle(pubkey, 6, 6)}
+          </h3>
+        )}
+        <p className="font-inter text-[12px] text-driftwood">
+          Pays <span className="font-medium text-ember-orange">YES</span> on{" "}
+          <span className="text-bronze">
+            {outcomeLabel(market.outcomeIndex, boundLabel)}
+          </span>
         </p>
 
         <div className="mt-1">

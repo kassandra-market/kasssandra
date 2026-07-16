@@ -73,10 +73,12 @@ export function SubmitButton({
   verb,
   status,
   disabled,
+  className = "",
 }: {
   verb: string;
   status: WriteStatus;
   disabled?: boolean;
+  className?: string;
 }) {
   const label =
     status.kind === "building"
@@ -89,7 +91,13 @@ export function SubmitButton({
   const busy =
     status.kind === "building" || status.kind === "signing" || status.kind === "confirming";
   return (
-    <Button type="submit" variant="PrimaryChestnut" disabled={disabled || busy} aria-busy={busy}>
+    <Button
+      type="submit"
+      variant="PrimaryChestnut"
+      disabled={disabled || busy}
+      aria-busy={busy}
+      className={className}
+    >
       {label}
     </Button>
   );

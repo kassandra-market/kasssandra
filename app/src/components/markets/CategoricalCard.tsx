@@ -5,29 +5,36 @@ import { Card } from "../ui";
 import { StatusChip } from "./StatusChip";
 import type { OracleGroup } from "../../market/data/markets";
 import { formatKass, formatProbability, outcomeRow, truncateMiddle } from "../../market/lib/marketView";
+import type { OracleMetaView } from "../../hooks/useOracleMeta";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
   "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
 
 /**
- * A categorical (N>2) oracle rendered as ONE grouped Delphi card: its N outcome
- * sub-markets listed side by side, each showing that outcome's implied chance
- * (its sub-market's YES probability from the pool reserves) plus a status chip,
- * and linking to that sub-market's detail. There are no on-chain labels, so each
- * outcome reads as "Outcome i".
+ * A categorical (N>2) oracle rendered as ONE grouped Delphi card: the QUESTION
+ * (on-chain oracle subject, read best-effort via {@link OracleMetaView}) is the
+ * title, and each outcome sub-market is listed by its option LABEL with that
+ * outcome's implied chance (its sub-market's YES probability from the pool
+ * reserves) plus a status chip, linking to that sub-market's detail. Without
+ * metadata it degrades to a count title + "Outcome i" rows.
  */
 export function CategoricalCard({
   group,
+  meta,
   enterIndex,
 }: {
   group: OracleGroup;
+  meta?: OracleMetaView;
   /** First-load stagger index (undefined = no entrance animation). */
   enterIndex?: number;
 }) {
-  const outcomes = group.markets.map((summary) => outcomeRow(summary));
+  const outcomes = group.markets.map((summary) =>
+    outcomeRow(summary, meta?.options?.[summary.market.outcomeIndex]),
+  );
   const optionsCount = group.optionsCount ?? group.markets.length;
   const tvl = group.markets.reduce((sum, m) => sum + m.market.totalContributed, 0n);
+  const subject = meta?.subject?.trim();
   const stagger = enterIndex !== undefined;
 
   return (
@@ -48,9 +55,15 @@ export function CategoricalCard({
         </span>
       </div>
 
-      <h3 className="font-mono text-subheading font-light text-sepia">
-        {group.markets.length} of {optionsCount} outcomes live
-      </h3>
+      {subject ? (
+        <h3 className="text-balance font-serif text-subheading font-light text-sepia" title={subject}>
+          {subject}
+        </h3>
+      ) : (
+        <h3 className="font-mono text-subheading font-light text-sepia">
+          {group.markets.length} of {optionsCount} outcomes live
+        </h3>
+      )}
 
       <ul className="mt-1 flex flex-col divide-y divide-pebble/60">
         {outcomes.map((row) => (
