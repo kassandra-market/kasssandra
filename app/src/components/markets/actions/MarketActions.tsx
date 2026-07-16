@@ -3,6 +3,7 @@ import type { MarketDetail } from "../../../market/data/markets";
 import { fundingActions, fundingProgress } from "../../../market/lib/marketView";
 import { useConfig } from "../../../market/hooks/useMarketDetail";
 import { ContributeForm } from "./ContributeForm";
+import { AddLiquidityControl } from "./AddLiquidityControl";
 import { CancelControl } from "./CancelControl";
 import { RefundControl } from "./RefundControl";
 import { ActivateControl } from "./ActivateControl";
@@ -38,7 +39,8 @@ function NoActions({ children }: { children: React.ReactNode }) {
  * why the Liquidity tab is present for Active markets too, not just Funding):
  *
  *   - Funding   → ContributeForm (seed the funding floor).
- *   - Active    → ClaimLpControl (LP withdrawal; self-gates until settle).
+ *   - Active    → AddLiquidityControl (deposit into the live AMM) + ClaimLpControl
+ *                 (LP withdrawal; self-gates until settle).
  *   - Resolved / Void → ClaimLpControl (waits for fee collection before it opens).
  *   - Cancelled → RefundControl (reclaim staked KASS) until every contributor has
  *                 exited, after which there's nothing left to withdraw.
@@ -52,13 +54,32 @@ export function MarketLiquidityActions({
   detail: MarketDetail;
   refetch: () => void;
 }) {
-  const { pubkey, market, contributions } = detail;
+  const { pubkey, market, contributions, reserves } = detail;
 
   switch (market.status) {
     case MarketStatus.Funding:
       return <ContributeForm pubkey={pubkey} market={market} onSuccess={refetch} />;
 
     case MarketStatus.Active:
+      // Active markets can BOTH take new liquidity (into the live AMM) and, once
+      // settled, withdraw it — AddLiquidity sits above the (self-gating) ClaimLp.
+      return (
+        <div className="flex flex-col gap-6">
+          <AddLiquidityControl
+            pubkey={pubkey}
+            market={market}
+            reserves={reserves}
+            onSuccess={refetch}
+          />
+          <ClaimLpControl
+            pubkey={pubkey}
+            market={market}
+            contributions={contributions}
+            onSuccess={refetch}
+          />
+        </div>
+      );
+
     case MarketStatus.Resolved:
     case MarketStatus.Void:
       return (

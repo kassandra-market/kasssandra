@@ -12,6 +12,7 @@ export * from "./marketRefs";
 export * from "./create";
 export * from "./createAll";
 export * from "./contribute";
+export * from "./addLiquidity";
 export * from "./bulkLiquidity";
 export * from "./cancel";
 export * from "./refund";

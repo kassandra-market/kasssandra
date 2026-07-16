@@ -122,6 +122,9 @@ export function mapMarketDto(dto: MarketDto): Market {
     feeBps: dto.feeBps,
     feeCollected: dto.feeCollected !== 0,
     outcomeIndex: dto.outcomeIndex,
+    activationLp: BigInt(dto.activationLp),
+    activationContributed: BigInt(dto.activationContributed),
+    grossLpTotal: BigInt(dto.grossLpTotal),
   };
 }
 
@@ -147,6 +150,7 @@ export function mapContributionDto(dto: ContributionDto): Contribution {
     amount: BigInt(dto.amount),
     claimed: dto.claimed,
     bump: dto.bump,
+    lateLp: BigInt(dto.lateLp),
   };
 }
 
