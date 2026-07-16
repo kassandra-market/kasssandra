@@ -23,7 +23,7 @@ export function MarketCard({ summary }: { summary: MarketSummary }) {
 
   return (
     <Link to={`/markets/${pubkey}`} className={`group block rounded-card ${focusRing}`}>
-      <Card className="flex h-full flex-col gap-3 transition-colors group-hover:border-driftwood">
+      <Card className="flex h-full flex-col gap-3 transition-[transform,border-color] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:border-cyan-phosphor/40 group-active:scale-[0.99] motion-reduce:group-hover:translate-y-0">
         <div className="flex items-center justify-between gap-2">
           <StatusChip status={market.status} />
           {/* Active markets are tradeable — surface the trade entry right on the
@@ -32,7 +32,7 @@ export function MarketCard({ summary }: { summary: MarketSummary }) {
           {isActive ? (
             <span className="inline-flex items-center gap-1 font-inter text-[12px] font-medium text-ember-orange">
               Trade
-              <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">
+              <span aria-hidden="true" className="transition-transform duration-200 ease-out group-hover:translate-x-0.5">
                 →
               </span>
             </span>

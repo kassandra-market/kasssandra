@@ -123,6 +123,12 @@
 
   /* Auros avoids elevation entirely — depth is surface color, never shadow. */
   --shadow-bloom: none;
+
+  /* Motion easing — the built-in CSS curves are too weak; override Tailwind's
+   * `ease-out` / `ease-in-out` utilities with punchier curves so every
+   * transition across the app lands with intent (Emil Kowalski's curves). */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 /*
@@ -130,6 +136,12 @@
  * Auros abyss: deep-teal panel, platinum sans title, kelp wallet rows with a
  * cyan-tinted hover. No purple (#512da8) leaks through.
  */
+@keyframes wallet-modal-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
 .wallet-adapter-modal-wrapper {
   background-color: var(--color-liquid-deep);
   color: var(--color-liquid-mist);
@@ -137,6 +149,8 @@
   border-radius: var(--radius-card);
   box-shadow: none;
   font-family: var(--font-inter);
+  /* Centered modal: scale up from the middle + fade (never from scale 0). */
+  animation: wallet-modal-in 200ms var(--ease-out);
 }
 .wallet-adapter-modal-title {
   color: var(--color-platinum);
@@ -327,5 +341,9 @@
   }
   .hero-link-flow {
     animation: none !important;
+  }
+  /* Keep a gentle fade but drop the scale movement on the modal. */
+  .wallet-adapter-modal-wrapper {
+    animation-name: none !important;
   }
 }

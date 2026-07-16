@@ -17,7 +17,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 // `active:scale-[0.96]` gives a tactile press; disabled buttons don't scale.
 const base =
   'inline-flex items-center justify-center gap-2 rounded-button font-inter ' +
-  'text-body font-medium cursor-pointer transition duration-150 ' +
+  'text-body font-medium cursor-pointer transition duration-150 ease-out ' +
   'active:scale-[0.96] disabled:active:scale-100 ' +
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ' +
   'focus-visible:ring-offset-liquid-abyss disabled:opacity-50 disabled:cursor-not-allowed'

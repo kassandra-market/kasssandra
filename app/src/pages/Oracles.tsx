@@ -43,7 +43,7 @@ function OracleCard({
       to={{ pathname: `/oracles/${pubkey}`, search }}
       className={`group block rounded-card ${focusRing}`}
     >
-      <Card className="flex h-full flex-col gap-3 transition-colors group-hover:border-driftwood">
+      <Card className="flex h-full flex-col gap-3 transition-[transform,border-color] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:border-cyan-phosphor/40 group-active:scale-[0.99] motion-reduce:group-hover:translate-y-0">
         <div className="flex items-center justify-between gap-2">
           <PhaseChip phase={oracle.phase} />
           <span className="font-inter text-[12px] text-driftwood">
@@ -194,7 +194,7 @@ export default function Oracles() {
       <div className="mt-8 flex justify-center">
         <Link
           to={{ pathname: '/oracles/new', search }}
-          className="inline-flex items-center justify-center gap-2 rounded-button bg-chestnut px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss transition-all duration-150 hover:-translate-y-px hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
+          className="inline-flex items-center justify-center gap-2 rounded-button bg-chestnut px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss transition-[transform,filter] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
         >
           Create oracle
         </Link>
