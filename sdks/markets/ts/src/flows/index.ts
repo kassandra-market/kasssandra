@@ -17,6 +17,7 @@ export * from "./trade.js";
 export * from "./redeem.js";
 export * from "./collectFee.js";
 export * from "./closeMarket.js";
+export * from "./addLiquidity.js";
 export * from "./jupiter.js";
 export * from "./atas.js";
 export { toAddr } from "./util.js";

@@ -78,6 +78,15 @@ export interface Market {
    * this index). Binary markets are `0`; snapshotted at create. Read from @397.
    */
   outcomeIndex: number;
+  /** LP minted at `activate` (frozen basis for funders' pro-rata claim). Read @400. */
+  activationLp: bigint;
+  /** `totalContributed` at `activate` (frozen). Read @408. */
+  activationContributed: bigint;
+  /**
+   * Activation LP + Σ post-activation `add_liquidity` LP (frozen; NOT reduced by
+   * the fee). The `claim_lp` gross-LP denominator. Read @416.
+   */
+  grossLpTotal: bigint;
 }
 
 /** Decode a `Market` account from its raw bytes. Throws on wrong size or tag. */
@@ -108,5 +117,8 @@ export function decodeMarket(data: Uint8Array): Market {
     feeBps: readU16LE(dv, 394),
     feeCollected: readBool(dv, 396),
     outcomeIndex: readU8(dv, 397),
+    activationLp: readU64LE(dv, 400),
+    activationContributed: readU64LE(dv, 408),
+    grossLpTotal: readU64LE(dv, 416),
   };
 }

@@ -7,8 +7,8 @@ fn account_sizes_are_stable() {
     assert_eq!(size_of::<Market>(), Market::LEN);
     assert_eq!(size_of::<Contribution>(), Contribution::LEN);
     assert_eq!(Config::LEN, 120);
-    assert_eq!(Market::LEN, 400);
-    assert_eq!(Contribution::LEN, 88);
+    assert_eq!(Market::LEN, 424);
+    assert_eq!(Contribution::LEN, 96);
 }
 
 #[test]
@@ -44,12 +44,19 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Market, fee_bps), 394);
     // `fee_collected` flag appended after `fee_bps`, still within the tail pad.
     assert_eq!(offset_of!(Market, fee_collected), 396);
-    // `outcome_index` appended after `fee_collected`, absorbed by the tail pad (LEN 400).
+    // `outcome_index` appended after `fee_collected`, absorbed by the tail pad.
     assert_eq!(offset_of!(Market, outcome_index), 397);
+    // Post-activation liquidity accounting (gross-LP basis), appended 8-aligned
+    // after the former 400-byte tail.
+    assert_eq!(offset_of!(Market, activation_lp), 400);
+    assert_eq!(offset_of!(Market, activation_contributed), 408);
+    assert_eq!(offset_of!(Market, gross_lp_total), 416);
 
     assert_eq!(offset_of!(Contribution, account_type), 0);
     assert_eq!(offset_of!(Contribution, market), 8);
     assert_eq!(offset_of!(Contribution, contributor), 40);
     assert_eq!(offset_of!(Contribution, amount), 72);
     assert_eq!(offset_of!(Contribution, claimed), 80);
+    // Per-contributor post-activation LP, appended 8-aligned after the former tail.
+    assert_eq!(offset_of!(Contribution, late_lp), 88);
 }

@@ -9,15 +9,19 @@ import { describe, expect, it } from 'vitest'
 
 import type { AmmReserves } from '../src/market/data/markets'
 import {
+  contributorLp,
   detailView,
+  firstBoundMarketPubkey,
   formatKass,
   formatProbability,
   fundingActions,
   fundingProgress,
   impliedYesProbability,
+  poolValueKass,
   statusLabel,
   statusTone,
 } from '../src/market/lib/marketView'
+import type { MarketSummary } from '../src/market/data/markets'
 
 const reserves = (base: bigint, quote: bigint): AmmReserves =>
   ({ base, quote }) as unknown as AmmReserves
@@ -144,5 +148,67 @@ describe('detailView — market-detail render precedence', () => {
 
   it('is empty when there is nothing to show and nothing in flight', () => {
     expect(detailView(undefined, undefined, false, undefined)).toBe('empty')
+  })
+})
+
+const KASS = 1_000_000_000n // one whole KASS in base units
+
+describe('poolValueKass — mark-to-market pool value', () => {
+  it('marks a 50/50 pool to its complete-set value', () => {
+    // 100 cYES + 100 cNO at 50/50 = 100 complete sets = 100 KASS.
+    expect(poolValueKass(reserves(100n * KASS, 100n * KASS))).toBe(100n * KASS)
+  })
+
+  it('adds the excess side at its probability weight when skewed', () => {
+    // 200 cYES + 100 cNO: 100 complete sets (100 KASS) + 100 excess cYES each
+    // worth P(YES)=100/300 → 133.333… KASS (floored to base units).
+    expect(poolValueKass(reserves(200n * KASS, 100n * KASS))).toBe(133_333_333_333n)
+  })
+
+  it('is null for absent reserves or an empty pool', () => {
+    expect(poolValueKass(null)).toBeNull()
+    expect(poolValueKass(reserves(0n, 0n))).toBeNull()
+  })
+})
+
+describe('contributorLp — a contributor gross LP position', () => {
+  const market = { activationLp: 500n * KASS, activationContributed: 1_000n * KASS }
+
+  it('gives a pure funder their pro-rata activation LP', () => {
+    // 1000 of 1000 funded → all 500 activation LP.
+    expect(contributorLp({ amount: 1_000n * KASS, lateLp: 0n }, market)).toBe(500n * KASS)
+  })
+
+  it('gives a pure late LP exactly what they added', () => {
+    expect(contributorLp({ amount: 0n, lateLp: 300n * KASS }, market)).toBe(300n * KASS)
+  })
+
+  it('sums funding-derived and late LP for a both-cohort contributor', () => {
+    // 200/1000 of activation → 100 LP, plus 100 late LP = 200 LP.
+    expect(contributorLp({ amount: 200n * KASS, lateLp: 100n * KASS }, market)).toBe(200n * KASS)
+  })
+
+  it('has no funding-derived LP before activation (activationContributed 0)', () => {
+    const pre = { activationLp: 0n, activationContributed: 0n }
+    expect(contributorLp({ amount: 500n * KASS, lateLp: 0n }, pre)).toBe(0n)
+  })
+})
+
+describe('firstBoundMarketPubkey — oracle → its prediction sub-market', () => {
+  const sub = (pubkey: string, oracle: string, outcomeIndex: number): MarketSummary =>
+    ({ pubkey, reserves: null, market: { oracle: { toString: () => oracle }, outcomeIndex } }) as unknown as MarketSummary
+
+  it('returns the lowest-outcome sub-market bound to the oracle', () => {
+    const markets = [
+      sub('MktY', 'OracA', 1),
+      sub('MktX', 'OracA', 0),
+      sub('MktOther', 'OracB', 0),
+    ]
+    expect(firstBoundMarketPubkey(markets, 'OracA')).toBe('MktX') // outcome 0 wins
+  })
+
+  it('is undefined when no market binds to the oracle', () => {
+    expect(firstBoundMarketPubkey([sub('M', 'OracB', 0)], 'OracA')).toBeUndefined()
+    expect(firstBoundMarketPubkey([], 'OracA')).toBeUndefined()
   })
 })

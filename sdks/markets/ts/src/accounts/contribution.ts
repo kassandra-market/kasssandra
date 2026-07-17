@@ -22,6 +22,12 @@ export interface Contribution {
   claimed: boolean;
   /** Contribution PDA bump. */
   bump: number;
+  /**
+   * LP minted for this contributor by post-activation `add_liquidity` (0 for pure
+   * funders). Added to the funder's activation pro-rata share to form the gross LP
+   * `claim_lp` pays out. Read @88.
+   */
+  lateLp: bigint;
 }
 
 /** Decode a `Contribution` account from its raw bytes. Throws on wrong size or tag. */
@@ -35,5 +41,6 @@ export function decodeContribution(data: Uint8Array): Contribution {
     amount: readU64LE(dv, 72),
     claimed: readBool(dv, 80),
     bump: readU8(dv, 81),
+    lateLp: readU64LE(dv, 88),
   };
 }

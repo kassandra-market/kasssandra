@@ -49,6 +49,9 @@ export interface MarketDto {
   lpMint: string;
   lpVault: string;
   lpTotal: string;
+  activationLp: string;
+  activationContributed: string;
+  grossLpTotal: string;
   slot: string;
 }
 
@@ -59,6 +62,9 @@ export interface ContributionDto {
   amount: string;
   claimed: boolean;
   bump: number;
+  lateLp: string;
+  /** Last-write slot of the Contribution PDA — the ledger's latest-first sort key. */
+  slot: string;
 }
 
 /** The linked Kassandra oracle's three read fields (enrichment). */

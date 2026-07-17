@@ -109,6 +109,17 @@ pub struct Market {
     pub fee_collected: u8, // 1 once `collect_fee` has cut the accrued LP fee (gates `claim_lp`)
     pub outcome_index: u8, // this sub-market's oracle outcome (YES = oracle resolves to it)
     pub _pad3: [u8; 2],
+    // --- post-activation liquidity accounting (gross-LP basis) ---
+    // `activation_lp`/`activation_contributed` are FROZEN at `activate` and are the
+    // basis for a funder's pro-rata LP share (`activation_lp · amount /
+    // activation_contributed`). `gross_lp_total` = activation LP + Σ post-activation
+    // `add_liquidity` LP; it is the (fee-independent) denominator for `claim_lp`.
+    // `lp_total`/`total_contributed` above widen to include late adds (lp_total is
+    // still reduced by `collect_fee`); for an activation-only market these reduce to
+    // the pre-add_liquidity semantics exactly.
+    pub activation_lp: u64,
+    pub activation_contributed: u64,
+    pub gross_lp_total: u64,
 }
 impl Market {
     pub const LEN: usize = core::mem::size_of::<Self>();
@@ -126,6 +137,10 @@ pub struct Contribution {
     pub claimed: u8, // bool: refunded/claimed
     pub bump: u8,
     pub _pad: [u8; 6],
+    // LP minted for this contributor by post-activation `add_liquidity` (0 for pure
+    // funders). Added to the funder's activation pro-rata share to form the
+    // contribution's gross LP for `claim_lp`.
+    pub late_lp: u64,
 }
 impl Contribution {
     pub const LEN: usize = core::mem::size_of::<Self>();

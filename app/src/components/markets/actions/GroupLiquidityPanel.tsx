@@ -7,10 +7,13 @@ import { useKassBalance } from "../../../market/hooks/useKassBalance";
 import { useActionSequence } from "../../../market/hooks/useActionSequence";
 import { useIndexer } from "../../../market/lib/indexer";
 import {
+  buildBulkAddLiquiditySteps,
   buildBulkClaimLpSteps,
   buildBulkContributeSteps,
   uniformSplit,
   type ActivateStep,
+  type BulkAddLiquidityEntry,
+  type BulkContributeEntry,
 } from "../../../market/data/actions";
 import { parseKassAmount, balanceGateError } from "../../../market/data/amount";
 import { formatKass, outcomeLabel } from "../../../market/lib/marketView";
@@ -22,12 +25,21 @@ import { BatchStepList } from "./CreateMarketForm/BatchStepList";
 /**
  * Bulk liquidity for a categorical oracle's GROUP of sub-markets: deposit into,
  * or withdraw LP from, several/all outcomes at once. The default deposit splits
- * the entered total UNIFORMLY across every outcome still in funding
- * ({@link uniformSplit}); withdraw claims LP across every outcome whose fee has
- * been collected. Both fan the single-market builders into one
- * {@link useActionSequence} run. Renders nothing for a lone market (not a group).
+ * the entered total UNIFORMLY ({@link uniformSplit}) across every outcome that can
+ * currently take liquidity — Funding outcomes via `contribute`, Active outcomes
+ * via `add_liquidity` into the live AMM — routing each share to the right builder.
+ * Withdraw claims LP across every outcome whose fee has been collected. All fan the
+ * single-market builders into one {@link useActionSequence} run. Renders nothing
+ * for a lone market (not a group).
  */
-export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
+export function GroupLiquidityPanel({
+  oracle,
+  embedded = false,
+}: {
+  oracle: string;
+  /** Render as a bare subsection (no Card wrapper) — for folding into another panel. */
+  embedded?: boolean;
+}) {
   const indexer = useIndexer();
   const config = useConfig();
   const kassMint = config.data ? config.data.kassMint.toString() : undefined;
@@ -47,6 +59,21 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
     () => siblings.filter((m) => m.market.status === MarketStatus.Funding),
     [siblings],
   );
+  // Active outcomes can take AMM liquidity, but only when their live reserves are
+  // known (needed to size the balanced deposit); drop any whose reserves haven't
+  // loaded yet.
+  const active = useMemo(
+    () =>
+      siblings.filter((m) => m.market.status === MarketStatus.Active && m.reserves != null),
+    [siblings],
+  );
+  // Everything that can take liquidity right now, in outcome order — the uniform
+  // split covers Funding (contribute) + Active (add_liquidity) alike.
+  const depositable = useMemo(
+    () =>
+      [...funding, ...active].sort((a, b) => a.market.outcomeIndex - b.market.outcomeIndex),
+    [funding, active],
+  );
   const claimable = useMemo(
     () => siblings.filter((m) => m.market.feeCollected),
     [siblings],
@@ -60,12 +87,12 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
     refetchBalance();
   });
 
-  // Parse the total + its uniform per-outcome split across the funding markets.
+  // Parse the total + its uniform per-outcome split across every depositable outcome.
   const parsed = total.trim() === "" ? null : parseKassAmount(total);
   const totalValue = parsed?.value ?? null;
-  const shares = totalValue !== null ? uniformSplit(totalValue, funding.length) : [];
+  const shares = totalValue !== null ? uniformSplit(totalValue, depositable.length) : [];
   const perShareLabel =
-    funding.length > 0 && totalValue !== null && totalValue > 0n
+    depositable.length > 0 && totalValue !== null && totalValue > 0n
       ? `${formatKass(shares[0])}${shares.some((s) => s !== shares[0]) ? "–" + formatKass(shares.find((s) => s !== shares[0])!) : ""} KASS each`
       : null;
 
@@ -78,18 +105,42 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
     const gate = balanceGateError(totalValue, balance);
     if (gate) return setError(gate);
 
-    const entries = funding.map((m, i) => ({
-      market: m.pubkey,
-      label: outcomeLabel(m.market.outcomeIndex),
-      amount: shares[i],
-    }));
+    // Route each depositable outcome's uniform share to the right builder: Funding
+    // → contribute, Active → add_liquidity (into the live AMM).
+    const contributeEntries: BulkContributeEntry[] = [];
+    const addEntries: BulkAddLiquidityEntry[] = [];
+    for (let i = 0; i < depositable.length; i++) {
+      const m = depositable[i];
+      const label = outcomeLabel(m.market.outcomeIndex);
+      if (m.market.status === MarketStatus.Funding) {
+        contributeEntries.push({ market: m.pubkey, label, amount: shares[i] });
+      } else {
+        addEntries.push({
+          market: m.pubkey,
+          label,
+          amount: shares[i],
+          marketAccount: m.market,
+          reserves: m.reserves!,
+        });
+      }
+    }
     try {
-      const built = await buildBulkContributeSteps({
-        indexer,
-        kassMint,
-        contributor: seq.address,
-        entries,
-      });
+      const built: ActivateStep[] = [];
+      if (contributeEntries.some((entry) => entry.amount > 0n)) {
+        built.push(
+          ...(await buildBulkContributeSteps({
+            indexer,
+            kassMint,
+            contributor: seq.address,
+            entries: contributeEntries,
+          })),
+        );
+      }
+      if (addEntries.some((entry) => entry.amount > 0n)) {
+        built.push(
+          ...(await buildBulkAddLiquiditySteps({ contributor: seq.address, entries: addEntries })),
+        );
+      }
       seq.reset();
       setSteps(built);
       await seq.run(built);
@@ -119,8 +170,8 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
   // Not a group (a lone market uses its own Contribute / Claim-LP controls).
   if (siblings.length <= 1) return null;
 
-  return (
-    <Card className="flex flex-col gap-4">
+  const body = (
+    <>
       <div>
         <h3 className="font-serif text-subheading font-light text-sepia">Group liquidity</h3>
         <p className="mt-1 font-inter text-[13px] text-bronze">
@@ -130,15 +181,16 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
 
       <ConnectGate connected={seq.connected}>
         <div className="flex flex-col gap-5">
-          {/* Deposit — uniform split across the outcomes still in funding. */}
-          {funding.length > 0 ? (
+          {/* Deposit — uniform split across every outcome accepting liquidity
+              (Funding → contribute, Active → add_liquidity into the live AMM). */}
+          {depositable.length > 0 ? (
             <form onSubmit={onDeposit} className="flex flex-col gap-2">
               <Field
                 label="Deposit (total KASS)"
                 hint={
                   perShareLabel
-                    ? `Split uniformly across ${funding.length} funding outcome${funding.length > 1 ? "s" : ""} · ${perShareLabel}`
-                    : `Split uniformly across ${funding.length} funding outcome${funding.length > 1 ? "s" : ""}`
+                    ? `Split uniformly across ${depositable.length} outcome${depositable.length > 1 ? "s" : ""} · ${perShareLabel}`
+                    : `Split uniformly across ${depositable.length} outcome${depositable.length > 1 ? "s" : ""}`
                 }
                 error={error}
               >
@@ -155,13 +207,13 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
               <KassBalanceLine balance={balance} loading={balanceLoading} format={formatKass} />
               <div>
                 <Button type="submit" variant="PrimaryChestnut" disabled={seq.busy}>
-                  {seq.busy ? "Depositing…" : `Deposit into ${funding.length} outcomes`}
+                  {seq.busy ? "Depositing…" : `Deposit into ${depositable.length} outcomes`}
                 </Button>
               </div>
             </form>
           ) : (
             <p className="font-inter text-[13px] text-driftwood">
-              No outcomes are in funding — deposits are closed for this group.
+              No outcomes are accepting liquidity — deposits are closed for this group.
             </p>
           )}
 
@@ -183,7 +235,15 @@ export function GroupLiquidityPanel({ oracle }: { oracle: string }) {
           {steps.length > 0 ? <BatchStepList steps={steps} statuses={seq.statuses} /> : null}
         </div>
       </ConnectGate>
-    </Card>
+    </>
+  );
+
+  // Embedded → a bare subsection (divider + content) to fold into another panel;
+  // standalone → its own Card.
+  return embedded ? (
+    <div className="flex flex-col gap-4 border-t border-pebble pt-5">{body}</div>
+  ) : (
+    <Card className="flex flex-col gap-4">{body}</Card>
   );
 }
 

@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { MarketStatus, isTerminal } from "@kassandra-market/markets";
 import type { MarketDetail } from "../../../market/data/markets";
 import { fundingActions, fundingProgress } from "../../../market/lib/marketView";
 import { useConfig } from "../../../market/hooks/useMarketDetail";
 import { ContributeForm } from "./ContributeForm";
+import { AddLiquidityControl } from "./AddLiquidityControl";
 import { CancelControl } from "./CancelControl";
 import { RefundControl } from "./RefundControl";
 import { ActivateControl } from "./ActivateControl";
@@ -32,13 +34,83 @@ function NoActions({ children }: { children: React.ReactNode }) {
   return <p className="font-inter text-[13px] text-driftwood">{children}</p>;
 }
 
+type LiqTab = "deposit" | "claim";
+
+/** The Deposit/Claim underline sub-tabs (mirrors the Trade ticket's Buy/Sell). */
+function LiquiditySubTabs({ value, onChange }: { value: LiqTab; onChange: (v: LiqTab) => void }) {
+  const tabs: { value: LiqTab; label: string }[] = [
+    { value: "deposit", label: "Deposit" },
+    { value: "claim", label: "Claim" },
+  ];
+  return (
+    <div role="tablist" aria-label="Liquidity action" className="flex gap-5 border-b border-pebble">
+      {tabs.map((t) => {
+        const active = t.value === value;
+        return (
+          <button
+            key={t.value}
+            role="tab"
+            type="button"
+            aria-selected={active}
+            onClick={() => onChange(t.value)}
+            className={`relative -mb-px pb-2 font-inter text-[14px] transition-colors ${
+              active ? "font-medium text-sepia" : "text-driftwood hover:text-sepia"
+            }`}
+          >
+            {t.label}
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-chestnut transition-opacity ${
+                active ? "opacity-100" : "opacity-0"
+              }`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * The Active-market liquidity surface as two tabs of one panel: Deposit (add into
+ * the live AMM) and Claim (withdraw the pro-rata LP; self-gates until the market
+ * settles and its fee is collected). Both controls render bare (no nested Card).
+ */
+function LiquidityActionTabs({ detail, refetch }: { detail: MarketDetail; refetch: () => void }) {
+  const { pubkey, market, contributions, reserves } = detail;
+  const [tab, setTab] = useState<LiqTab>("deposit");
+  return (
+    <div className="flex flex-col gap-4">
+      <LiquiditySubTabs value={tab} onChange={setTab} />
+      {tab === "deposit" ? (
+        <AddLiquidityControl
+          embedded
+          pubkey={pubkey}
+          market={market}
+          reserves={reserves}
+          onSuccess={refetch}
+        />
+      ) : (
+        <ClaimLpControl
+          embedded
+          pubkey={pubkey}
+          market={market}
+          contributions={contributions}
+          onSuccess={refetch}
+        />
+      )}
+    </div>
+  );
+}
+
 /**
  * The status-gated LIQUIDITY surface — deposit into / withdraw from THIS market's
  * pool, phase-routed so it's available across the market's whole life (this is
  * why the Liquidity tab is present for Active markets too, not just Funding):
  *
  *   - Funding   → ContributeForm (seed the funding floor).
- *   - Active    → ClaimLpControl (LP withdrawal; self-gates until settle).
+ *   - Active    → LiquidityActionTabs: Deposit (add into the live AMM) + Claim
+ *                 (LP withdrawal; self-gates until settle) as two tabs of one panel.
  *   - Resolved / Void → ClaimLpControl (waits for fee collection before it opens).
  *   - Cancelled → RefundControl (reclaim staked KASS) until every contributor has
  *                 exited, after which there's nothing left to withdraw.
@@ -59,6 +131,10 @@ export function MarketLiquidityActions({
       return <ContributeForm pubkey={pubkey} market={market} onSuccess={refetch} />;
 
     case MarketStatus.Active:
+      // Active markets can BOTH take new liquidity (into the live AMM) and, once
+      // settled, withdraw it — Deposit + Claim as two tabs of one panel.
+      return <LiquidityActionTabs detail={detail} refetch={refetch} />;
+
     case MarketStatus.Resolved:
     case MarketStatus.Void:
       return (

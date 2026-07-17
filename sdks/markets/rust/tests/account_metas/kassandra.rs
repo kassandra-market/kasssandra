@@ -232,6 +232,89 @@ fn golden_activate() {
 }
 
 #[test]
+fn golden_add_liquidity() {
+    let (depositor, oracle, kass_mint) = (pk(3), pk(4), pk(2));
+    let ix = ix::add_liquidity(&depositor, &oracle, &kass_mint, 0, 1000, 500, 1000, 1);
+    let (market, _) = pda::market(&oracle, 0);
+    let (escrow, _) = pda::escrow(&market);
+    let (question, _) = md::question(&oracle.to_bytes(), &market, 2);
+    let (vault, _) = md::vault(&question, &kass_mint);
+    let vault_underlying_ata = md::ata(&vault, &kass_mint);
+    let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
+    let (no_mint, _) = md::conditional_token_mint(&vault, 1);
+    let (market_cyes, _) = pda::market_cyes(&market);
+    let (market_cno, _) = pda::market_cno(&market);
+    let depositor_kass_ata = md::ata(&depositor, &kass_mint);
+    let depositor_cyes_ata = md::ata(&depositor, &yes_mint);
+    let depositor_cno_ata = md::ata(&depositor, &no_mint);
+    let (amm, _) = md::amm(&yes_mint, &no_mint);
+    let (lp_mint, _) = md::amm_lp_mint(&amm);
+    let (lp_vault, _) = pda::lp_vault(&market);
+    let amm_vault_base = md::ata(&amm, &yes_mint);
+    let amm_vault_quote = md::ata(&amm, &no_mint);
+    let (contribution, _) = pda::contribution(&market, &depositor);
+    let (cv_event_auth, _) = md::event_authority(&md::CONDITIONAL_VAULT_ID);
+    let (amm_event_auth, _) = md::event_authority(&md::AMM_ID);
+    assert_eq!(
+        labeled(
+            &ix,
+            with_programs(vec![
+                (market, "market"),
+                (oracle, "oracle"),
+                (depositor, "depositor"),
+                (depositor_kass_ata, "depositorKassAta"),
+                (escrow, "escrow"),
+                (question, "question"),
+                (vault, "vault"),
+                (vault_underlying_ata, "vaultUnderlyingAta"),
+                (yes_mint, "yesMint"),
+                (no_mint, "noMint"),
+                (market_cyes, "marketCyes"),
+                (market_cno, "marketCno"),
+                (depositor_cyes_ata, "depositorCyesAta"),
+                (depositor_cno_ata, "depositorCnoAta"),
+                (amm, "amm"),
+                (lp_mint, "lpMint"),
+                (lp_vault, "lpVault"),
+                (amm_vault_base, "ammVaultBase"),
+                (amm_vault_quote, "ammVaultQuote"),
+                (contribution, "contribution"),
+                (cv_event_auth, "cvEventAuthority"),
+                (amm_event_auth, "ammEventAuthority"),
+            ]),
+        ),
+        vec![
+            ("market", false, true),
+            ("oracle", false, false),
+            ("depositor", true, true),
+            ("depositorKassAta", false, true),
+            ("escrow", false, true),
+            ("question", false, false),
+            ("vault", false, true),
+            ("vaultUnderlyingAta", false, true),
+            ("yesMint", false, true),
+            ("noMint", false, true),
+            ("marketCyes", false, true),
+            ("marketCno", false, true),
+            ("depositorCyesAta", false, true),
+            ("depositorCnoAta", false, true),
+            ("amm", false, true),
+            ("lpMint", false, true),
+            ("lpVault", false, true),
+            ("ammVaultBase", false, true),
+            ("ammVaultQuote", false, true),
+            ("contribution", false, true),
+            ("cvEventAuthority", false, false),
+            ("cvProgram", false, false),
+            ("ammEventAuthority", false, false),
+            ("ammProgram", false, false),
+            ("tokenProgram", false, false),
+            ("systemProgram", false, false),
+        ],
+    );
+}
+
+#[test]
 fn golden_claim_lp() {
     let (market, _) = pda::market(&pk(4), 0);
     let (lp_vault, _) = pda::lp_vault(&market);

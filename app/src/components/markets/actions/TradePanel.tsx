@@ -241,6 +241,12 @@ export function TradePanel({
   const yesProb = impliedYesProbability(reserves);
   const noProb = yesProb === null ? null : 1 - yesProb;
 
+  // The chart loads its own candles and self-polls, but has no trade signal — so a
+  // trade's price move only reaches it on the next poll. Key it to the live reserves
+  // (refreshed post-trade by the reconcile-lag-resilient `onSuccess` burst) so the
+  // chart reloads the moment the price actually moves, in step with the readouts.
+  const chartRefreshKey = reserves ? `${reserves.base}-${reserves.quote}` : "empty";
+
   const positionBalance = outcome === "yes" ? yes.balance : no.balance;
   // Buy gates on KASS; sell gates on the held outcome shares (both 9 dp). The
   // gate message names the asset it checks, so selling asks for shares, not KASS.
@@ -330,7 +336,7 @@ export function TradePanel({
         <div className="flex justify-end">
           <UnitTabs value={unit} onChange={setUnit} usdAvailable={usdAvailable} />
         </div>
-        <PriceChart pubkey={pubkey} />
+        <PriceChart pubkey={pubkey} refreshKey={chartRefreshKey} />
       </Card>
 
       {/* Order ticket — the floating buy/sell card. */}

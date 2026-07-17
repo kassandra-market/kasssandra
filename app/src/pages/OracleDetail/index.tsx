@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { Phase } from '@kassandra-market/oracles'
 import { Button, Card, EyebrowTag, Tabs, TabPanel, type TabItem } from '../../components/ui'
 import { PhaseChip } from '../../components/oracles/PhaseChip'
@@ -14,6 +14,8 @@ import { OracleActions } from '../../components/oracles/actions'
 import { isIndexerConfigured } from '../../data/indexer'
 import { useOracleDetail } from '../../hooks/useOracles'
 import { useOracleMeta } from '../../hooks/useOracleMeta'
+import { useMarkets } from '../../market/hooks/useMarkets'
+import { firstBoundMarketPubkey } from '../../market/lib/marketView'
 import { OracleNotFoundError } from '../../data/oracles'
 import { CLUSTER_LABELS, useCluster } from '../../lib/cluster'
 import { RESOLVED_OPTION_NONE, relativeDeadline, windowLabel } from '../../lib/oracleView'
@@ -109,6 +111,16 @@ function OracleBody({
   const metaItems = useMemo(() => [pubkey], [pubkey])
   const meta = useOracleMeta(metaItems).get(pubkey)
   const options = meta?.options ?? []
+
+  // The prediction market(s) that resolve against THIS oracle (distinct from the
+  // oracle's own challenge `market` above). A categorical oracle has one sub-market
+  // per outcome; link to the first — its detail page shows the whole group. Powers
+  // the reverse of the market page's "View oracle" link.
+  const { data: allMarkets } = useMarkets()
+  const predictionMarket = useMemo(
+    () => firstBoundMarketPubkey(allMarkets ?? [], pubkey),
+    [allMarkets, pubkey],
+  )
   const resolved = oracle.phase === Phase.Resolved
   const hasResolvedOption = resolved && oracle.resolvedOption !== RESOLVED_OPTION_NONE
   const votingOpen = oracle.phase === Phase.FactVoting
@@ -181,6 +193,14 @@ function OracleBody({
           <PhaseChip phase={oracle.phase} />
           <span>{relativeDeadline(oracle.deadline)}</span>
           <Truncated value={pubkey} copyable label="oracle address" />
+          {predictionMarket ? (
+            <Link
+              to={`/markets/${predictionMarket}`}
+              className="rounded-sm font-inter text-[13px] font-medium text-chestnut hover:text-ember-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chestnut/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+            >
+              View prediction market →
+            </Link>
+          ) : null}
         </div>
         {meta?.uri && (
           <div className="mt-3 flex items-baseline gap-2 font-inter text-[13px] text-driftwood">
