@@ -11,10 +11,8 @@
  * Auros design system — "abyssal terminal with bioluminescent data orbs".
  * Near-black teal canvas, rationed color, geometric medium-weight display type,
  * surface-lift depth (no shadows). Tailwind v4 CSS-first @theme: every token is
- * emitted as a utility. The legacy Delphi token NAMES are preserved and remapped
- * onto the Auros palette so existing components re-skin without edits; new code
- * should prefer the Auros-named tokens (liquid-*, platinum, silver-mist,
- * lavender-phosphor).
+ * emitted as a utility. Every token below is Auros-named; there is no legacy
+ * alias layer.
  */
 @theme {
   /* ---- Auros palette (canonical) ----
@@ -32,22 +30,12 @@
   --color-lavender-phosphor: #fde9ff; /* stat / emphasis accent (pink) */
   --color-cyan-phosphor: #cbfffc; /* aqua end of the signature gradient */
 
-  /* ---- Legacy (Delphi) names remapped onto Auros so components re-skin ---- */
-  --color-parchment: #0b3f3a; /* page bg -> abyss */
-  --color-soft-cream: #063431; /* recessed bg -> deep */
-  --color-pure-card: #14524b; /* card -> kelp */
-  --color-ink-black: #063431; /* darkest -> deep */
-  --color-charcoal-bark: #edfffe; /* default body text -> mist */
-  --color-sepia: #ffffff; /* headings -> platinum */
-  --color-bronze: #c7d3d2; /* secondary text -> silver-mist (lifted for the lighter canvas) */
-  --color-driftwood: #c7d3d2; /* muted body -> silver-mist */
-  --color-stone: #b3c6c3; /* lowest-emphasis text — lifted to clear AA 4.5:1 on kelp cards while staying dimmer than driftwood */
-  --color-pebble: rgba(255, 255, 255, 0.12); /* hairline borders on dark */
-  --color-chestnut: #8fe9dd; /* positive/confirmed/active accent -> bright aqua (success lines, confirmed chips, active toggles, current step). MUST stay distinct from the kelp card surface. */
-  --color-ember-orange: #ff6f61; /* error/danger signal -> living coral (alerts, invalid inputs, disqualify verdicts, high-impact warnings) */
-  --color-saffron-pulse: #cbfffc; /* secondary accent -> cyan */
-  --color-peach-glow: #14524b; /* soft accent bg -> kelp */
-  --color-cobalt: #cbfffc; /* the verified dot -> cyan (no blue) */
+  /* ---- Auros accents without a canonical name above ---- */
+  --color-silver: #c7d3d2; /* secondary/muted text on the lighter canvas (was bronze/driftwood — identical hex, merged) */
+  --color-silver-dim: #b3c6c3; /* lowest-emphasis text — lifted to clear AA 4.5:1 on kelp cards while staying dimmer than silver (was stone) */
+  --color-hairline: rgba(255, 255, 255, 0.12); /* hairline borders on dark (was pebble) */
+  --color-aqua: #8fe9dd; /* positive/confirmed/active accent (success lines, confirmed chips, active toggles, current step). MUST stay distinct from the kelp card surface (was chestnut) */
+  --color-coral: #ff6f61; /* error/danger signal (alerts, invalid inputs, disqualify verdicts, high-impact warnings) (was ember-orange) */
 
   /* Signature gradients — reserved for the primary CTA + rare accent moments */
   --gradient-bioluminescent: linear-gradient(90deg, rgb(0, 130, 124) 0%, rgb(203, 255, 252) 100%);
