@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from "react";
 import { pda, type Market } from "@kassandra-market/markets";
-import { Card, EyebrowTag } from "../../ui";
+import { Card } from "../../ui";
 import {
   buildBuyIxs,
   buildSellIxs,
@@ -480,9 +480,9 @@ export function TradePanel({
             {/* TODO wire buildJupiterEntryRequest + app fetch (GET /quote → POST /swap) + composeWithEntry. */}
             <div className="flex items-center justify-between gap-2 font-inter text-[12px] text-silver-dim">
               <span>Pay with any token (Jupiter)</span>
-              <EyebrowTag pill className="!text-[10px] !tracking-[0.06em]">
+              <span className="rounded-tag border border-hairline px-2.5 py-1 font-inter text-[12px] text-silver">
                 Coming soon
-              </EyebrowTag>
+              </span>
             </div>
           </form>
         </ConnectGate>
