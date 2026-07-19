@@ -7,7 +7,7 @@ const COLUMNS: { heading: string; links: string[] }[] = [
 
 const linkFocus =
   'rounded-sm focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-soft-cream'
+  'focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-deep'
 
 /**
  * Auros footer — a translucent glass material (`chrome-glass`) with a hairline
@@ -16,18 +16,18 @@ const linkFocus =
  */
 export default function SiteFooter() {
   return (
-    <footer className="chrome-glass border-t border-pebble">
+    <footer className="chrome-glass border-t border-hairline">
       <div className="mx-auto max-w-[1200px] px-6 py-16">
         <div className="grid grid-cols-2 gap-10 sm:grid-cols-3 lg:grid-cols-5">
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
-            <span className="font-serif text-[24px] font-light text-sepia">Kassandra</span>
-            <p className="mt-3 max-w-[28ch] font-inter text-[14px] text-driftwood">
+            <span className="font-serif text-[24px] font-light text-platinum">Kassandra</span>
+            <p className="mt-3 max-w-[28ch] font-inter text-[14px] text-silver">
               An optimistic oracle with a mind. Built on Solana.
             </p>
           </div>
           {COLUMNS.map((col) => (
             <nav key={col.heading} aria-label={col.heading}>
-              <h2 className="font-inter text-[13px] font-medium uppercase tracking-[0.08em] text-sepia">
+              <h2 className="font-inter text-[13px] font-medium uppercase tracking-[0.08em] text-platinum">
                 {col.heading}
               </h2>
               <ul className="mt-3 flex flex-col gap-2">
@@ -35,7 +35,7 @@ export default function SiteFooter() {
                   <li key={l}>
                     <a
                       href="#"
-                      className={`font-inter text-[14px] text-bronze transition-colors hover:text-sepia ${linkFocus}`}
+                      className={`font-inter text-[14px] text-silver transition-colors hover:text-platinum ${linkFocus}`}
                     >
                       {l}
                     </a>
@@ -45,7 +45,7 @@ export default function SiteFooter() {
             </nav>
           ))}
         </div>
-        <p className="mt-12 border-t border-pebble pt-6 font-inter text-[13px] text-driftwood">
+        <p className="mt-12 border-t border-hairline pt-6 font-inter text-[13px] text-silver">
           © 2026 Kassandra · A decentralized, AI-assisted optimistic oracle.
         </p>
       </div>

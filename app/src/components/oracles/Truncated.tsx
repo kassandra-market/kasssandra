@@ -33,7 +33,7 @@ export function Truncated({
 
   if (!copyable) {
     return (
-      <span className={`font-mono text-[13px] text-bronze ${className}`} title={value}>
+      <span className={`font-mono text-[13px] text-silver ${className}`} title={value}>
         {shown}
       </span>
     )
@@ -59,10 +59,10 @@ export function Truncated({
       onClick={onCopy}
       title={`Copy ${label}: ${value}`}
       aria-label={copied ? `${label} copied to clipboard` : `Copy ${label} ${value}`}
-      className={`group inline-flex items-center gap-1 rounded-sm font-mono text-[13px] text-bronze transition-colors hover:text-sepia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment ${className}`}
+      className={`group inline-flex items-center gap-1 rounded-sm font-mono text-[13px] text-silver transition-colors hover:text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss ${className}`}
     >
       <span>{shown}</span>
-      <span aria-hidden="true" className="text-[11px] text-driftwood group-hover:text-sepia">
+      <span aria-hidden="true" className="text-[11px] text-silver group-hover:text-platinum">
         {copied ? '✓ copied' : '⧉'}
       </span>
     </button>

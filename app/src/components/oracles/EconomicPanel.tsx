@@ -23,10 +23,10 @@ function Bar({
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-inter text-[12px] text-driftwood">{label}</span>
-        <span className="font-inter text-[12px] tabular-nums text-sepia">{formatKass(value)}</span>
+        <span className="font-inter text-[12px] text-silver">{label}</span>
+        <span className="font-inter text-[12px] tabular-nums text-platinum">{formatKass(value)}</span>
       </div>
-      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-soft-cream">
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-liquid-deep">
         <div className={`h-full rounded-full ${fill}`} style={{ width: `${width}%` }} />
       </div>
     </div>
@@ -76,9 +76,9 @@ export function EconomicPanel({
   return (
     <section
       aria-label="Economic picture"
-      className="mt-4 rounded-card border border-pebble bg-pure-card p-5"
+      className="mt-4 rounded-card border border-hairline bg-liquid-kelp p-5"
     >
-      <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+      <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
         Economics · KASS
       </span>
 
@@ -91,17 +91,17 @@ export function EconomicPanel({
               label={m.label}
               value={m.value}
               width={pct(m.value, meterMax)}
-              fill="bg-bronze/70"
+              fill="bg-silver/70"
             />
           ))
         ) : (
-          <p className="font-inter text-[13px] text-driftwood">No bonds staked yet.</p>
+          <p className="font-inter text-[13px] text-silver">No bonds staked yet.</p>
         )}
       </div>
 
       {/* Option bond split */}
       <div className="mt-6">
-        <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+        <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
           Proposer bond by option
         </span>
         <div className="mt-3 flex flex-col gap-3">
@@ -112,11 +112,11 @@ export function EconomicPanel({
                 label={o.option === leadingOption ? `Option ${o.option} · leading` : `Option ${o.option}`}
                 value={o.bond}
                 width={pct(o.bond, optionMax)}
-                fill={o.option === leadingOption ? 'bg-cyan-phosphor' : 'bg-pebble'}
+                fill={o.option === leadingOption ? 'bg-cyan-phosphor' : 'bg-hairline'}
               />
             ))
           ) : (
-            <p className="font-inter text-[13px] text-driftwood">No proposer bonds yet.</p>
+            <p className="font-inter text-[13px] text-silver">No proposer bonds yet.</p>
           )}
         </div>
       </div>

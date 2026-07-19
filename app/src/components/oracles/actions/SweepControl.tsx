@@ -63,18 +63,18 @@ export function SweepControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Sweep oracle</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Sweep oracle</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Once the grace period has passed, sweep the residual vault balance to the DAO treasury and
           close the oracle, refunding its rent to the creator.
         </p>
-        <p className="mt-1 font-inter text-[12px] text-driftwood">
+        <p className="mt-1 font-inter text-[12px] text-silver">
           Permissionless — any connected wallet can run this; it only pays the fee.
         </p>
       </div>
       {!graceElapsed ? (
-        <div className="rounded-tag border border-pebble bg-soft-cream px-3 py-2">
-          <p className="font-inter text-[13px] text-bronze">
+        <div className="rounded-tag border border-hairline bg-liquid-deep px-3 py-2">
+          <p className="font-inter text-[13px] text-silver">
             The sweep opens after the 30-day grace ({relativeDeadline(graceEndsAt)}).
           </p>
         </div>
@@ -85,7 +85,7 @@ export function SweepControl({
               <SubmitButton verb="Sweep oracle" status={action.status} />
             </div>
             {error ? (
-              <p className="font-inter text-[12px] text-ember-orange">{error}</p>
+              <p className="font-inter text-[12px] text-coral">{error}</p>
             ) : null}
             <WriteStatusRegion status={action.status} successVerb="Swept" />
           </form>

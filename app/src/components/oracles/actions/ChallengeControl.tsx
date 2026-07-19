@@ -32,9 +32,9 @@ export function ChallengeControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Challenge round</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
-          Open challenges: <span className="text-sepia">{oracle.openChallengeCount}</span>
+        <h3 className="font-serif text-subheading font-light text-platinum">Challenge round</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
+          Open challenges: <span className="text-platinum">{oracle.openChallengeCount}</span>
           {market ? (
             <>
               {' · '}a market is {market.market.settled ? 'settled' : 'open'} (see the challenge-market
@@ -42,7 +42,7 @@ export function ChallengeControl({
             </>
           ) : null}
         </p>
-        <p className="mt-1 font-inter text-[12px] text-driftwood">
+        <p className="mt-1 font-inter text-[12px] text-silver">
           Open a challenge directly from the browser — the full MetaDAO v0.4 market is composed
           client-side (no runner JSON). Trade, crank, and one-click settle live on the
           challenge-market card below.

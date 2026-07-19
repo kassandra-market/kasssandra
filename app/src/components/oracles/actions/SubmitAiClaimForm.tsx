@@ -113,14 +113,14 @@ export function SubmitAiClaimForm({
 
   const radioClass = (active: boolean) =>
     `rounded-tag border px-3 py-1.5 font-inter text-[13px] ${
-      active ? 'border-chestnut bg-soft-cream text-chestnut' : 'border-pebble bg-pure-card text-driftwood'
-    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment`
+      active ? 'border-aqua bg-liquid-deep text-aqua' : 'border-hairline bg-liquid-kelp text-silver'
+    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss`
 
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Submit an AI claim</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Submit an AI claim</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           As a proposer, stamp your model’s verdict for this oracle. The runner produces the model,
           params and I/O hashes — paste them as hex, or paste the runner’s JSON payload.
         </p>
@@ -128,7 +128,7 @@ export function SubmitAiClaimForm({
       <ConnectGate connected={action.connected}>
         <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
           <div className="flex flex-col gap-2">
-            <span className="font-inter text-[13px] font-medium text-sepia">Input mode</span>
+            <span className="font-inter text-[13px] font-medium text-platinum">Input mode</span>
             <div className="flex gap-2" role="radiogroup" aria-label="AI-claim input mode">
               <button
                 type="button"
@@ -166,7 +166,7 @@ export function SubmitAiClaimForm({
                   placeholder='{ "model_id": "64 hex…", "params_hash": "64 hex…", "io_hash": "64 hex…", "option": 0 }'
                   value={paste}
                   onChange={(e) => setPaste(e.target.value)}
-                  className="w-full rounded-tag border border-pebble bg-pure-card px-3 py-2 font-mono text-[12px] text-sepia placeholder:text-driftwood focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment aria-[invalid=true]:border-ember-orange/60"
+                  className="w-full rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-mono text-[12px] text-platinum placeholder:text-silver focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss aria-[invalid=true]:border-coral/60"
                 />
               )}
             </Field>

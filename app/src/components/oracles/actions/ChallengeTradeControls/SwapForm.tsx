@@ -80,24 +80,24 @@ export function SwapForm({
       <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1.5">
-            <span className="font-inter text-[13px] font-medium text-sepia">Pool</span>
+            <span className="font-inter text-[13px] font-medium text-platinum">Pool</span>
             <select
               aria-label="Pool"
               value={pool}
               onChange={(e) => setPool(e.target.value as Pool)}
-              className="rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] text-sepia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40"
+              className="rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40"
             >
               <option value="pass">Pass pool</option>
               <option value="fail">Fail pool</option>
             </select>
           </label>
           <label className="flex flex-col gap-1.5">
-            <span className="font-inter text-[13px] font-medium text-sepia">Side</span>
+            <span className="font-inter text-[13px] font-medium text-platinum">Side</span>
             <select
               aria-label="Side"
               value={side}
               onChange={(e) => setSide(e.target.value as Side)}
-              className="rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] text-sepia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40"
+              className="rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40"
             >
               <option value="buy">Buy (USDC → KASS)</option>
               <option value="sell">Sell (KASS → USDC)</option>
@@ -134,23 +134,23 @@ export function SwapForm({
         </Field>
 
         {/* Expected-out + price-impact preview (constant-product, CU1 reserves). */}
-        <div className="rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[12px]">
+        <div className="rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[12px]">
           {amm === null ? (
-            <p className="text-driftwood">Pool not readable — no estimate.</p>
+            <p className="text-silver">Pool not readable — no estimate.</p>
           ) : parsed.value === undefined ? (
-            <p className="text-driftwood">Enter an amount to preview the expected output.</p>
+            <p className="text-silver">Enter an amount to preview the expected output.</p>
           ) : (
             <dl className="flex flex-col gap-1">
               <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-driftwood">Expected out — {outLabel}</dt>
-                <dd className="tabular-nums text-sepia">
+                <dt className="text-silver">Expected out — {outLabel}</dt>
+                <dd className="tabular-nums text-platinum">
                   ≈ {formatUnits(est.expectedOut, outDecimals)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-3">
-                <dt className="text-driftwood">Price impact</dt>
+                <dt className="text-silver">Price impact</dt>
                 <dd
-                  className={`tabular-nums ${est.impact >= 0.1 ? 'text-ember-orange' : 'text-sepia'}`}
+                  className={`tabular-nums ${est.impact >= 0.1 ? 'text-coral' : 'text-platinum'}`}
                 >
                   ≈ {impactPct}%
                 </dd>

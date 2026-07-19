@@ -19,8 +19,8 @@ import {
 import { Phase } from '@kassandra-market/oracles'
 
 const focusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 ' +
-  'focus-visible:ring-offset-2 focus-visible:ring-offset-parchment'
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 ' +
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss'
 
 /** One oracle rendered as a clickable Auros card. */
 function OracleCard({
@@ -56,14 +56,14 @@ function OracleCard({
       <Card className="flex h-full flex-col gap-3 transition-[transform,border-color] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:border-cyan-phosphor/40 group-active:scale-[0.99] motion-reduce:group-hover:translate-y-0">
         <div className="flex items-center justify-between gap-2">
           <PhaseChip phase={oracle.phase} />
-          <span className="font-inter text-[12px] text-driftwood">
+          <span className="font-inter text-[12px] text-silver">
             {relativeDeadline(oracle.deadline)}
           </span>
         </div>
 
         {/* Subject (the question) near the top — the on-chain plaintext when the
             metadata has loaded, else the phase label. */}
-        <h3 className="font-serif text-subheading font-light text-sepia">
+        <h3 className="font-serif text-subheading font-light text-platinum">
           {meta?.subject ?? label}
         </h3>
         {options.length > 0 && (
@@ -71,36 +71,36 @@ function OracleCard({
             {options.slice(0, SHOWN).map((opt, i) => (
               <span
                 key={i}
-                className="rounded-tag border border-pebble bg-soft-cream px-2 py-0.5 font-inter text-[12px] text-bronze"
+                className="rounded-tag border border-hairline bg-liquid-deep px-2 py-0.5 font-inter text-[12px] text-silver"
               >
                 {opt}
               </span>
             ))}
             {options.length > SHOWN && (
-              <span className="rounded-tag px-2 py-0.5 font-inter text-[12px] text-driftwood">
+              <span className="rounded-tag px-2 py-0.5 font-inter text-[12px] text-silver">
                 +{options.length - SHOWN}
               </span>
             )}
           </div>
         )}
 
-        <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 font-inter text-[13px] text-bronze">
+        <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 font-inter text-[13px] text-silver">
           <div className="flex gap-1">
-            <dt className="text-driftwood">Proposers</dt>
-            <dd className="font-medium text-sepia">{oracle.proposerCount}</dd>
+            <dt className="text-silver">Proposers</dt>
+            <dd className="font-medium text-platinum">{oracle.proposerCount}</dd>
           </div>
           <div className="flex gap-1">
-            <dt className="text-driftwood">Facts</dt>
-            <dd className="font-medium text-sepia">{oracle.factCount}</dd>
+            <dt className="text-silver">Facts</dt>
+            <dd className="font-medium text-platinum">{oracle.factCount}</dd>
           </div>
           <div className="flex gap-1">
-            <dt className="text-driftwood">Options</dt>
-            <dd className="font-medium text-sepia">{oracle.optionsCount}</dd>
+            <dt className="text-silver">Options</dt>
+            <dd className="font-medium text-platinum">{oracle.optionsCount}</dd>
           </div>
         </dl>
 
         {resolved ? (
-          <p className="font-inter text-[13px] text-chestnut">
+          <p className="font-inter text-[13px] text-aqua">
             {hasResolvedOption
               ? `Resolved · option ${oracle.resolvedOption}`
               : 'Resolved · no valid option'}
@@ -116,12 +116,12 @@ function SkeletonCard() {
   return (
     <Card className="flex h-full animate-pulse flex-col gap-3" aria-hidden="true">
       <div className="flex items-center justify-between">
-        <div className="h-6 w-20 rounded-tag bg-soft-cream" />
-        <div className="h-4 w-16 rounded-sm bg-soft-cream" />
+        <div className="h-6 w-20 rounded-tag bg-liquid-deep" />
+        <div className="h-4 w-16 rounded-sm bg-liquid-deep" />
       </div>
-      <div className="h-6 w-32 rounded-sm bg-soft-cream" />
-      <div className="h-4 w-24 rounded-sm bg-soft-cream" />
-      <div className="mt-2 h-4 w-full rounded-sm bg-soft-cream" />
+      <div className="h-6 w-32 rounded-sm bg-liquid-deep" />
+      <div className="h-4 w-24 rounded-sm bg-liquid-deep" />
+      <div className="mt-2 h-4 w-full rounded-sm bg-liquid-deep" />
     </Card>
   )
 }
@@ -130,19 +130,19 @@ function SkeletonCard() {
 function SkeletonStats() {
   return (
     <div
-      className="mt-10 animate-pulse rounded-card border border-pebble bg-pure-card px-6 py-5"
+      className="mt-10 animate-pulse rounded-card border border-hairline bg-liquid-kelp px-6 py-5"
       aria-hidden="true"
     >
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-2">
-          <div className="h-3 w-32 rounded-sm bg-soft-cream" />
-          <div className="h-8 w-40 rounded-sm bg-soft-cream" />
+          <div className="h-3 w-32 rounded-sm bg-liquid-deep" />
+          <div className="h-8 w-40 rounded-sm bg-liquid-deep" />
         </div>
         <div className="flex flex-wrap gap-6">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="flex flex-col gap-1">
-              <div className="h-6 w-8 rounded-sm bg-soft-cream" />
-              <div className="h-3 w-16 rounded-sm bg-soft-cream" />
+              <div className="h-6 w-8 rounded-sm bg-liquid-deep" />
+              <div className="h-3 w-16 rounded-sm bg-liquid-deep" />
             </div>
           ))}
         </div>
@@ -206,7 +206,7 @@ export default function Oracles() {
       <div className="mt-8 flex justify-center">
         <Link
           to={{ pathname: '/oracles/new', search }}
-          className="inline-flex items-center justify-center gap-2 rounded-button bg-chestnut px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss transition-[transform,filter] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
+          className="inline-flex items-center justify-center gap-2 rounded-button bg-aqua px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss transition-[transform,filter] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
         >
           Create oracle
         </Link>
@@ -215,7 +215,7 @@ export default function Oracles() {
       {loading ? (
         <>
           <SkeletonStats />
-          <p className="mt-8 text-center font-inter text-[15px] text-bronze" role="status">
+          <p className="mt-8 text-center font-inter text-[15px] text-silver" role="status">
             Reading the chain…
           </p>
           <div className={gridClass} aria-hidden="true">
@@ -227,10 +227,10 @@ export default function Oracles() {
       ) : error ? (
         <div className="mx-auto mt-12 max-w-[560px]">
           <Card>
-            <h2 className="font-serif text-heading-sm font-light text-sepia">
+            <h2 className="font-serif text-heading-sm font-light text-platinum">
               Couldn’t load oracles
             </h2>
-            <p className="mt-2 font-inter text-[15px] text-bronze">{error.message}</p>
+            <p className="mt-2 font-inter text-[15px] text-silver">{error.message}</p>
             <div className="mt-5">
               <Button variant="GhostOutline" onClick={refetch}>
                 Retry
@@ -241,11 +241,11 @@ export default function Oracles() {
       ) : !data || data.length === 0 ? (
         <div className="mx-auto mt-12 max-w-[560px] text-center">
           <Card>
-            <p className="font-inter text-[15px] text-bronze">
+            <p className="font-inter text-[15px] text-silver">
               No oracles found on{' '}
-              <span className="font-medium text-sepia">{CLUSTER_LABELS[cluster]}</span>.
+              <span className="font-medium text-platinum">{CLUSTER_LABELS[cluster]}</span>.
             </p>
-            <p className="mt-2 font-inter text-[13px] text-driftwood">
+            <p className="mt-2 font-inter text-[13px] text-silver">
               Switch cluster in the top bar, or point the app at a seeded validator.
             </p>
           </Card>
@@ -266,7 +266,7 @@ export default function Oracles() {
           {visible.length === 0 ? (
             <div className="mx-auto mt-12 max-w-[560px] text-center">
               <Card>
-                <p className="font-inter text-[15px] text-bronze">
+                <p className="font-inter text-[15px] text-silver">
                   No oracles match the current search and filters.
                 </p>
               </Card>

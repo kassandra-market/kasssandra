@@ -25,18 +25,18 @@ export function WriteStatusRegion({
   return (
     <div aria-live="polite" className="min-h-[1.25rem]">
       {status.kind === "building" || status.kind === "signing" || status.kind === "confirming" ? (
-        <p className="status-enter font-inter text-[13px] text-bronze">{BUSY_LABEL[status.kind]}</p>
+        <p className="status-enter font-inter text-[13px] text-silver">{BUSY_LABEL[status.kind]}</p>
       ) : null}
 
       {status.kind === "success" ? (
-        <p className="status-enter status-enter-success font-inter text-[13px] text-chestnut">
+        <p className="status-enter status-enter-success font-inter text-[13px] text-aqua">
           {successVerb} · <span className="font-mono">{shortSig(status.signature)}</span>
           {" · "}
           <a
             href={explorerTxUrl(status.signature)}
             target="_blank"
             rel="noreferrer noopener"
-            className="underline decoration-pebble underline-offset-4 hover:text-sepia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+            className="underline decoration-hairline underline-offset-4 hover:text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
           >
             View on Explorer
           </a>
@@ -44,10 +44,10 @@ export function WriteStatusRegion({
       ) : null}
 
       {status.kind === "error" ? (
-        <div className="status-enter rounded-tag border border-ember-orange/40 bg-ember-orange/10 px-3 py-2">
-          <p className="font-inter text-[13px] text-ember-orange">{status.message}</p>
+        <div className="status-enter rounded-tag border border-coral/40 bg-coral/10 px-3 py-2">
+          <p className="font-inter text-[13px] text-coral">{status.message}</p>
           {status.logs && status.logs.length > 0 ? (
-            <pre className="mt-1.5 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] text-bronze">
+            <pre className="mt-1.5 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-[11px] text-silver">
               {status.logs.join("\n")}
             </pre>
           ) : null}

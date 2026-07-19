@@ -63,18 +63,18 @@ function StepRow({ label, status }: { label: string; status: StepStatus | undefi
     kind === 'done' ? '✓' : kind === 'running' ? '…' : kind === 'error' ? '✕' : '·'
   const tone =
     kind === 'done'
-      ? 'text-chestnut'
+      ? 'text-aqua'
       : kind === 'error'
-        ? 'text-ember-orange'
+        ? 'text-coral'
         : kind === 'running'
-          ? 'text-sepia'
-          : 'text-driftwood'
+          ? 'text-platinum'
+          : 'text-silver'
   return (
     <li className="flex items-baseline gap-2 font-inter text-[13px]">
       <span aria-hidden className={`w-4 tabular-nums ${tone}`}>
         {mark}
       </span>
-      <span className={kind === 'pending' ? 'text-driftwood' : 'text-sepia'}>{label}</span>
+      <span className={kind === 'pending' ? 'text-silver' : 'text-platinum'}>{label}</span>
       <span className="sr-only">
         {kind === 'done'
           ? 'completed'
@@ -85,7 +85,7 @@ function StepRow({ label, status }: { label: string; status: StepStatus | undefi
               : 'pending'}
       </span>
       {kind === 'error' && status && 'message' in status ? (
-        <span className="ml-1 text-ember-orange">— {status.message}</span>
+        <span className="ml-1 text-coral">— {status.message}</span>
       ) : null}
     </li>
   )
@@ -211,8 +211,8 @@ export function ChallengeComposeForm({
   return (
     <Card className="mt-4 flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Open a challenge</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Open a challenge</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Compose the full MetaDAO v0.4 market from the browser — no runner JSON. This stakes USDC to
           challenge an uncontested claim; the connected wallet is the challenger and pays for each
           step.
@@ -286,7 +286,7 @@ export function ChallengeComposeForm({
 
           {/* Staged-progress checklist. */}
           {started ? (
-            <ol className="flex flex-col gap-1.5 rounded-tag border border-pebble bg-pure-card px-3 py-3" aria-label="Compose progress">
+            <ol className="flex flex-col gap-1.5 rounded-tag border border-hairline bg-liquid-kelp px-3 py-3" aria-label="Compose progress">
               {labels.map((label, i) => (
                 <StepRow key={label} label={label} status={seq.statuses[i]} />
               ))}
@@ -305,7 +305,7 @@ export function ChallengeComposeForm({
               <button
                 type="button"
                 onClick={onRetry}
-                className="rounded-tag bg-chestnut px-4 py-2 font-inter text-[14px] font-medium text-parchment hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+                className="rounded-tag bg-aqua px-4 py-2 font-inter text-[14px] font-medium text-liquid-abyss hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
               >
                 Retry from step {seq.resumeFrom + 1}
               </button>
@@ -313,17 +313,17 @@ export function ChallengeComposeForm({
           </div>
 
           {buildError ? (
-            <p role="alert" className="font-inter text-[12px] text-ember-orange">
+            <p role="alert" className="font-inter text-[12px] text-coral">
               {buildError}
             </p>
           ) : null}
           {seq.allDone ? (
-            <p role="status" className="font-inter text-[13px] text-chestnut">
+            <p role="status" className="font-inter text-[13px] text-aqua">
               Challenge opened — the market is live. The visualization and trade controls below will
               light up on refresh.
             </p>
           ) : hasError ? (
-            <p role="status" className="font-inter text-[12px] text-bronze">
+            <p role="status" className="font-inter text-[12px] text-silver">
               A step failed. Completed steps are safe to keep — retry resumes from the failed step.
             </p>
           ) : null}

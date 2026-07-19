@@ -46,30 +46,30 @@ export function FactCard({
       </div>
       <dl className="flex flex-col gap-1.5 font-inter text-[13px]">
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="text-driftwood">Content hash</dt>
+          <dt className="text-silver">Content hash</dt>
           <dd>
             <Truncated value={hashHex(fact.contentHash)} copyable label="content hash" />
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="text-driftwood">Fact account</dt>
+          <dt className="text-silver">Fact account</dt>
           <dd>
             <Truncated value={pubkey} copyable label="fact address" />
           </dd>
         </div>
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="text-driftwood">Approve / duplicate stake</dt>
-          <dd className="text-sepia">
+          <dt className="text-silver">Approve / duplicate stake</dt>
+          <dd className="text-platinum">
             {formatKass(fact.approveStake)} / {formatKass(fact.duplicateStake)} KASS
           </dd>
         </div>
       </dl>
       <div>
-        <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+        <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
           URI (off-chain, untrusted)
         </div>
         {/* Untrusted content — rendered as inert text, never auto-fetched or linked. */}
-        <p className="mt-0.5 break-all font-mono text-[12px] text-bronze">
+        <p className="mt-0.5 break-all font-mono text-[12px] text-silver">
           {fact.uri.length > 0 ? fact.uri : '—'}
         </p>
       </div>
@@ -77,7 +77,7 @@ export function FactCard({
         <button
           type="button"
           onClick={contest}
-          className="self-start rounded-button border border-ember-orange/50 bg-ember-orange/10 px-3 py-1.5 font-inter text-[13px] font-medium text-ember-orange transition-colors hover:bg-ember-orange/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ember-orange/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment active:scale-[0.98]"
+          className="self-start rounded-button border border-coral/50 bg-coral/10 px-3 py-1.5 font-inter text-[13px] font-medium text-coral transition-colors hover:bg-coral/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-coral/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss active:scale-[0.98]"
         >
           Contest with a market →
         </button>
@@ -163,14 +163,14 @@ export function ProposerCard({
         </div>
         <dl className="flex flex-col gap-1.5 font-inter text-[13px]">
           <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-driftwood">Authority</dt>
+            <dt className="text-silver">Authority</dt>
             <dd>
               <Truncated value={authority} copyable label="proposer authority" />
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-driftwood">Option</dt>
-            <dd className="text-sepia">
+            <dt className="text-silver">Option</dt>
+            <dd className="text-platinum">
               {proposer.originalOption}
               {hasClaim && proposer.claimOption !== proposer.originalOption
                 ? ` → ${proposer.claimOption}`
@@ -178,17 +178,17 @@ export function ProposerCard({
             </dd>
           </div>
           <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-driftwood">Bond</dt>
-            <dd className="text-sepia">{formatKass(proposer.bond)} KASS</dd>
+            <dt className="text-silver">Bond</dt>
+            <dd className="text-platinum">{formatKass(proposer.bond)} KASS</dd>
           </div>
           {proposer.slashedAmount > 0n ? (
             <div className="flex items-baseline justify-between gap-4">
-              <dt className="text-driftwood">Slashed</dt>
-              <dd className="text-sepia">{formatKass(proposer.slashedAmount)} KASS</dd>
+              <dt className="text-silver">Slashed</dt>
+              <dd className="text-platinum">{formatKass(proposer.slashedAmount)} KASS</dd>
             </div>
           ) : null}
           <div className="flex items-baseline justify-between gap-4">
-            <dt className="text-driftwood">Proposer account</dt>
+            <dt className="text-silver">Proposer account</dt>
             <dd>
               <Truncated value={pubkey} copyable label="proposer address" />
             </dd>
@@ -222,8 +222,8 @@ export function ProposerCard({
 /** A hash row styled like a TriggerPreviewCard sub-card (cream, driftwood label, mono value). */
 function HashRow({ label, value }: { label: string; value: Uint8Array }) {
   return (
-    <div className="rounded-tag border border-pebble bg-soft-cream px-3 py-2">
-      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">{label}</div>
+    <div className="rounded-tag border border-hairline bg-liquid-deep px-3 py-2">
+      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">{label}</div>
       <div className="mt-0.5">
         <Truncated value={hashHex(value)} head={8} tail={6} copyable label={label} />
       </div>
@@ -244,17 +244,17 @@ export function AiClaimCard({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-serif text-subheading font-light text-sepia">
+        <span className="font-serif text-subheading font-light text-platinum">
           Claim · option {aiClaim.option}
         </span>
         {aiClaim.challenged ? <Chip tone="ember">Challenged</Chip> : <Chip>Uncontested</Chip>}
       </div>
       <div className="flex items-baseline justify-between gap-4 font-inter text-[13px]">
-        <span className="text-driftwood">Submitter</span>
+        <span className="text-silver">Submitter</span>
         <Truncated value={aiClaim.authority.toString()} copyable label="submitter" />
       </div>
       <div className="flex items-baseline justify-between gap-4 font-inter text-[13px]">
-        <span className="text-driftwood">Claim account</span>
+        <span className="text-silver">Claim account</span>
         <Truncated value={pubkey} copyable label="AI claim address" />
       </div>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -294,7 +294,7 @@ export function MarketCard({
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-serif text-subheading font-light text-sepia">Challenge market</span>
+        <span className="font-serif text-subheading font-light text-platinum">Challenge market</span>
         {market.settled ? <Chip tone="confirmed">Settled</Chip> : <Chip>Open</Chip>}
       </div>
       <dl className="flex flex-col gap-1.5">

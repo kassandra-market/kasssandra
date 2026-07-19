@@ -139,9 +139,9 @@ export function PriceChart({
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const yesColor = cssVar(el, "--color-chestnut", "#8fe9dd");
-    const noColor = cssVar(el, "--color-ember-orange", "#ff6f61");
-    const text = cssVar(el, "--color-bronze", "#bbc7c6");
+    const yesColor = cssVar(el, "--color-aqua", "#8fe9dd");
+    const noColor = cssVar(el, "--color-coral", "#ff6f61");
+    const text = cssVar(el, "--color-silver", "#bbc7c6");
     const grid = "rgba(127, 143, 141, 0.16)";
 
     const chart = createChart(el, {
@@ -235,20 +235,20 @@ export function PriceChart({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 font-inter text-[12px]">
-          <span className="text-driftwood">Share price · history</span>
-          <span className="inline-flex items-center gap-1.5 text-sepia">
-            <span className="h-2 w-2 rounded-full bg-chestnut" aria-hidden="true" />
+          <span className="text-silver">Share price · history</span>
+          <span className="inline-flex items-center gap-1.5 text-platinum">
+            <span className="h-2 w-2 rounded-full bg-aqua" aria-hidden="true" />
             YES
           </span>
-          <span className="inline-flex items-center gap-1.5 text-sepia">
-            <span className="h-2 w-2 rounded-full bg-ember-orange" aria-hidden="true" />
+          <span className="inline-flex items-center gap-1.5 text-platinum">
+            <span className="h-2 w-2 rounded-full bg-coral" aria-hidden="true" />
             NO
           </span>
         </div>
         <div
           role="group"
           aria-label="Window"
-          className="inline-flex rounded-button border border-pebble p-0.5"
+          className="inline-flex rounded-button border border-hairline p-0.5"
         >
           {WINDOWS.map((w) => {
             const selected = w.secs === windowSecs;
@@ -259,7 +259,7 @@ export function PriceChart({
                 aria-pressed={selected}
                 onClick={() => setWindowSecs(w.secs)}
                 className={`rounded-[10px] px-2.5 py-1 font-inter text-[12px] transition-colors ${
-                  selected ? "bg-chestnut text-parchment" : "text-sepia hover:bg-pebble/50"
+                  selected ? "bg-aqua text-liquid-abyss" : "text-platinum hover:bg-hairline/50"
                 }`}
               >
                 {w.label}
@@ -281,7 +281,7 @@ export function PriceChart({
             <p
               data-testid="price-chart-empty"
               className={`font-inter text-[13px] ${
-                error ? "text-ember-orange" : "text-driftwood"
+                error ? "text-coral" : "text-silver"
               }`}
             >
               {error

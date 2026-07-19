@@ -88,14 +88,14 @@ export function SubmitFactForm({
 
   const radioClass = (active: boolean) =>
     `rounded-tag border px-3 py-1.5 font-inter text-[13px] ${
-      active ? 'border-chestnut bg-soft-cream text-chestnut' : 'border-pebble bg-pure-card text-driftwood'
-    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment`
+      active ? 'border-aqua bg-liquid-deep text-aqua' : 'border-hairline bg-liquid-kelp text-silver'
+    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss`
 
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Submit a fact</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Submit a fact</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Stake KASS behind a fact. The content hash seeds the fact PDA; the URI points at the
           off-chain evidence.
         </p>
@@ -103,7 +103,7 @@ export function SubmitFactForm({
       <ConnectGate connected={action.connected}>
         <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
           <div className="flex flex-col gap-2">
-            <span className="font-inter text-[13px] font-medium text-sepia">Content hash source</span>
+            <span className="font-inter text-[13px] font-medium text-platinum">Content hash source</span>
             <div className="flex gap-2" role="radiogroup" aria-label="Content hash source">
               <button
                 type="button"

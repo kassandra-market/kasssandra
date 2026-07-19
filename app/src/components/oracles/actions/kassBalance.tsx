@@ -20,13 +20,13 @@ export function KassBalanceLine({
 }) {
   if (balance === null) {
     if (loading) {
-      return <p className="-mt-1 font-inter text-[12px] text-driftwood">Checking balance…</p>
+      return <p className="-mt-1 font-inter text-[12px] text-silver">Checking balance…</p>
     }
     return null
   }
   return (
-    <p className="-mt-1 font-inter text-[12px] text-driftwood">
-      Your KASS: <span className="text-bronze">{formatKass(balance)}</span>
+    <p className="-mt-1 font-inter text-[12px] text-silver">
+      Your KASS: <span className="text-silver">{formatKass(balance)}</span>
     </p>
   )
 }

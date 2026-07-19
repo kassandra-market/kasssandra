@@ -27,15 +27,15 @@ export type ChipTone = "neutral" | "info" | "ember" | "confirmed" | "muted";
 /** Tailwind class strings (Delphi tokens) per {@link ChipTone}. */
 export const CHIP_TONE_CLASSES: Record<ChipTone, string> = {
   // Quiet default — achromatic warm.
-  neutral: "border-pebble bg-soft-cream text-bronze",
+  neutral: "border-hairline bg-liquid-deep text-silver",
   // Subtle cyan hint — crowdfunding in progress (Funding).
-  info: "border-cobalt/30 bg-cobalt/10 text-cyan-phosphor",
+  info: "border-cyan-phosphor/30 bg-cyan-phosphor/10 text-cyan-phosphor",
   // The single ember punctuation moment — the live/active market.
-  ember: "border-ember-orange/40 bg-ember-orange/10 text-ember-orange",
+  ember: "border-coral/40 bg-coral/10 text-coral",
   // A calm, grounded aqua "confirmed" for resolution.
-  confirmed: "border-chestnut/30 bg-chestnut/10 text-chestnut",
-  // Lowest-emphasis stone for voided / cancelled.
-  muted: "border-pebble bg-transparent text-stone",
+  confirmed: "border-aqua/30 bg-aqua/10 text-aqua",
+  // Lowest-emphasis silver-dim for voided / cancelled.
+  muted: "border-hairline bg-transparent text-silver-dim",
 };
 
 /** Human label for a {@link MarketStatus}. */

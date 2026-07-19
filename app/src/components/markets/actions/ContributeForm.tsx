@@ -57,8 +57,8 @@ export function ContributeForm({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Contribute funding</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Contribute funding</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Stake KASS toward this market's funding floor. Refundable if it's cancelled.
         </p>
       </div>

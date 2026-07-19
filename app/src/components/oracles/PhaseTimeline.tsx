@@ -4,16 +4,16 @@ import { relativeDeadline } from '../../lib/oracleView'
 
 /** Segment (progress-bar) fill per step status. Current = the chestnut highlight. */
 function barClass(step: TimelineStep): string {
-  if (step.status === 'current') return step.deadend ? 'bg-stone' : 'bg-chestnut'
-  if (step.status === 'done') return 'bg-driftwood'
-  return 'bg-pebble/50'
+  if (step.status === 'current') return step.deadend ? 'bg-silver-dim' : 'bg-aqua'
+  if (step.status === 'done') return 'bg-silver'
+  return 'bg-hairline/50'
 }
 
 /** Label colour per step status. */
 function labelClass(status: StepStatus): string {
-  if (status === 'current') return 'text-chestnut font-medium'
-  if (status === 'done') return 'text-driftwood'
-  return 'text-stone'
+  if (status === 'current') return 'text-aqua font-medium'
+  if (status === 'done') return 'text-silver'
+  return 'text-silver-dim'
 }
 
 /**
@@ -31,14 +31,14 @@ export function PhaseTimeline({ oracle }: { oracle: Oracle }) {
   return (
     <section
       aria-label="Dispute lifecycle"
-      className="mt-6 rounded-card border border-pebble bg-pure-card p-5"
+      className="mt-6 rounded-card border border-hairline bg-liquid-kelp p-5"
     >
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+        <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
           Lifecycle
         </span>
         {current ? (
-          <span className="font-inter text-[12px] text-bronze">
+          <span className="font-inter text-[12px] text-silver">
             {current.terminal ? current.label : relativeDeadline(oracle.phaseEndsAt)}
           </span>
         ) : null}

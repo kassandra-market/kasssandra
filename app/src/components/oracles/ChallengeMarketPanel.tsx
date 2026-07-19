@@ -32,43 +32,43 @@ function PoolColumn({ label, amm }: { label: string; amm: AmmV04 | null }) {
   const spot = amm ? instantaneousPrice(amm) : null
   const twap = amm ? twapPrice(amm) : null
   return (
-    <div className="rounded-card border border-pebble bg-pure-card p-4">
-      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">{label}</div>
+    <div className="rounded-card border border-hairline bg-liquid-kelp p-4">
+      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">{label}</div>
       {amm ? (
         <>
           <dl className="mt-2 flex flex-col gap-1.5 font-inter text-[13px]">
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-driftwood">Spot price</dt>
-              <dd className="tabular-nums text-sepia">{formatSpot(spot)}</dd>
+              <dt className="text-silver">Spot price</dt>
+              <dd className="tabular-nums text-platinum">{formatSpot(spot)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-driftwood">TWAP</dt>
-              <dd className="tabular-nums text-sepia">
+              <dt className="text-silver">TWAP</dt>
+              <dd className="tabular-nums text-platinum">
                 {twap === null ? (
-                  <span className="text-driftwood">TWAP forming…</span>
+                  <span className="text-silver">TWAP forming…</span>
                 ) : (
                   formatTwap(twap)
                 )}
               </dd>
             </div>
           </dl>
-          <div className="mt-3 border-t border-pebble pt-2 font-inter text-[12px]">
+          <div className="mt-3 border-t border-hairline pt-2 font-inter text-[12px]">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-driftwood">Base reserve</span>
-              <span className="tabular-nums text-bronze">
+              <span className="text-silver">Base reserve</span>
+              <span className="tabular-nums text-silver">
                 {formatUnits(amm.baseAmount, amm.baseDecimals)}
               </span>
             </div>
             <div className="mt-1 flex items-baseline justify-between gap-3">
-              <span className="text-driftwood">Quote reserve</span>
-              <span className="tabular-nums text-bronze">
+              <span className="text-silver">Quote reserve</span>
+              <span className="tabular-nums text-silver">
                 {formatUnits(amm.quoteAmount, amm.quoteDecimals)}
               </span>
             </div>
           </div>
         </>
       ) : (
-        <p className="mt-2 font-inter text-[13px] text-driftwood">Pool not readable.</p>
+        <p className="mt-2 font-inter text-[13px] text-silver">Pool not readable.</p>
       )}
     </div>
   )
@@ -102,12 +102,12 @@ export function ChallengeMarketPanel({ market, oracle }: { market: Market; oracl
   const fillPct = Math.min(Math.max(progress, 0), 1) * 100
 
   return (
-    <div className="mt-4 rounded-card border border-pebble bg-soft-cream p-5">
+    <div className="mt-4 rounded-card border border-hairline bg-liquid-deep p-5">
       {/* The single ember punctuation moment for this panel is the margin bar
           below; the header chip stays quiet (settled / countdown) so there is
           exactly ONE ember accent on screen. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="font-serif text-subheading font-light text-sepia">Live market</span>
+        <span className="font-serif text-subheading font-light text-platinum">Live market</span>
         {market.settled ? (
           <Chip tone="confirmed">Settled</Chip>
         ) : (
@@ -124,23 +124,23 @@ export function ChallengeMarketPanel({ market, oracle }: { market: Market; oracl
       {/* TWAP → disqualify-margin progress (fail vs pass). */}
       <div className="mt-5">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="font-inter text-[12px] text-driftwood">
+          <span className="font-inter text-[12px] text-silver">
             Fail-vs-pass TWAP · disqualify margin{' '}
             {oracle.marketThresholdNum.toString()}/{oracle.marketThresholdDen.toString()}
           </span>
           <span
-            className={`font-inter text-[12px] tabular-nums ${near ? 'text-ember-orange' : 'text-sepia'}`}
+            className={`font-inter text-[12px] tabular-nums ${near ? 'text-coral' : 'text-platinum'}`}
           >
             {twapReady ? `${Math.round(progress * 100)}%` : '—'}
           </span>
         </div>
-        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-pure-card">
+        <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-liquid-kelp">
           <div
-            className={`h-full rounded-full ${near ? 'bg-ember-orange' : 'bg-bronze'}`}
+            className={`h-full rounded-full ${near ? 'bg-coral' : 'bg-silver'}`}
             style={{ width: `${twapReady ? fillPct : 0}%` }}
           />
         </div>
-        <p className="mt-1 font-inter text-[11px] text-driftwood">
+        <p className="mt-1 font-inter text-[11px] text-silver">
           {!twapReady
             ? 'TWAP forming — the time-weighted price is not yet meaningful (pre start-delay).'
             : over
@@ -150,29 +150,29 @@ export function ChallengeMarketPanel({ market, oracle }: { market: Market; oracl
       </div>
 
       {/* Countdown + challenger position */}
-      <dl className="mt-5 grid grid-cols-1 gap-3 border-t border-pebble pt-4 sm:grid-cols-2">
+      <dl className="mt-5 grid grid-cols-1 gap-3 border-t border-hairline pt-4 sm:grid-cols-2">
         <div>
-          <dt className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+          <dt className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
             TWAP window
           </dt>
-          <dd className="mt-0.5 font-inter text-[14px] text-sepia">
+          <dd className="mt-0.5 font-inter text-[14px] text-platinum">
             {market.twapEnd <= BigInt(Math.floor(Date.now() / 1000))
               ? 'Window closed'
               : relativeDeadline(market.twapEnd).replace('ends in', 'settles in')}
           </dd>
         </div>
         <div>
-          <dt className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+          <dt className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
             Challenger USDC
           </dt>
-          <dd className="mt-0.5 font-inter text-[14px] tabular-nums text-sepia">
+          <dd className="mt-0.5 font-inter text-[14px] tabular-nums text-platinum">
             {formatUsdc(market.challengerUsdc)} USDC
           </dd>
         </div>
       </dl>
 
       {loading && !pass && !fail ? (
-        <p className="mt-3 font-inter text-[12px] text-driftwood" role="status">
+        <p className="mt-3 font-inter text-[12px] text-silver" role="status">
           Reading the pools…
         </p>
       ) : null}

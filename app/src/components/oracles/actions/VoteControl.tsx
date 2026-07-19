@@ -61,11 +61,11 @@ export function VoteControl({
 
   const choiceClass = (active: boolean) =>
     `flex-1 rounded-tag border px-3 py-1.5 font-inter text-[13px] ${
-      active ? 'border-chestnut bg-soft-cream text-chestnut' : 'border-pebble bg-pure-card text-driftwood'
-    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment`
+      active ? 'border-aqua bg-liquid-deep text-aqua' : 'border-hairline bg-liquid-kelp text-silver'
+    } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss`
 
   return (
-    <div className="mt-1 border-t border-pebble pt-3">
+    <div className="mt-1 border-t border-hairline pt-3">
       <ConnectGate connected={action.connected}>
         <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
           <div className="flex gap-2" role="radiogroup" aria-label="Vote on this fact">

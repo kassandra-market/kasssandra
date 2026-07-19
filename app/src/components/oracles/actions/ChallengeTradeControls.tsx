@@ -123,31 +123,31 @@ export function ChallengeTradeControls({
   return (
     <Card className="mt-4 flex flex-col gap-5">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Trade &amp; settle</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Trade &amp; settle</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Trade the pass/fail conditional pools, crank their TWAP, and settle the challenge — the
           swap-driven TWAP is what decides the verdict.
         </p>
       </div>
 
       {market.settled ? (
-        <p className="font-inter text-[13px] text-bronze">
+        <p className="font-inter text-[13px] text-silver">
           This market is settled — trading and cranking are closed.
         </p>
       ) : (
         <>
           {/* Swap */}
-          <section className="border-t border-pebble pt-4">
-            <h4 className="font-inter text-[13px] font-medium text-sepia">Swap a pool</h4>
+          <section className="border-t border-hairline pt-4">
+            <h4 className="font-inter text-[13px] font-medium text-platinum">Swap a pool</h4>
             <div className="mt-3">
               <SwapForm market={market} pools={{ pass, fail }} refetch={onWrite} />
             </div>
           </section>
 
           {/* Crank */}
-          <section className="border-t border-pebble pt-4">
-            <h4 className="font-inter text-[13px] font-medium text-sepia">Crank TWAP</h4>
-            <p className="mt-0.5 font-inter text-[12px] text-driftwood">
+          <section className="border-t border-hairline pt-4">
+            <h4 className="font-inter text-[13px] font-medium text-platinum">Crank TWAP</h4>
+            <p className="mt-0.5 font-inter text-[12px] text-silver">
               Permissionless — folds the current price into a pool&apos;s TWAP (once per ~150 slots).
             </p>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -171,9 +171,9 @@ export function ChallengeTradeControls({
       )}
 
       {/* Settle + verdict preview */}
-      <section className="border-t border-pebble pt-4">
+      <section className="border-t border-hairline pt-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h4 className="font-inter text-[13px] font-medium text-sepia">Settle challenge</h4>
+          <h4 className="font-inter text-[13px] font-medium text-platinum">Settle challenge</h4>
           {twapReady ? (
             <Chip tone={wouldDisqualify ? 'ember' : 'confirmed'}>
               {wouldDisqualify ? 'Would DISQUALIFY' : 'Would SURVIVE'}
@@ -182,26 +182,26 @@ export function ChallengeTradeControls({
         </div>
 
         {/* Verdict preview (CU1 marginProgress against the on-chain threshold). */}
-        <div className="mt-2 rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[12px]">
+        <div className="mt-2 rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[12px]">
           <dl className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-driftwood">Pass TWAP</dt>
-              <dd className="tabular-nums text-sepia">{formatTwap(passTwap)}</dd>
+              <dt className="text-silver">Pass TWAP</dt>
+              <dd className="tabular-nums text-platinum">{formatTwap(passTwap)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-driftwood">Fail TWAP</dt>
-              <dd className="tabular-nums text-sepia">{formatTwap(failTwap)}</dd>
+              <dt className="text-silver">Fail TWAP</dt>
+              <dd className="tabular-nums text-platinum">{formatTwap(failTwap)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3">
-              <dt className="text-driftwood">
+              <dt className="text-silver">
                 Margin {oracle.marketThresholdNum.toString()}/{oracle.marketThresholdDen.toString()}
               </dt>
-              <dd className={`tabular-nums ${near ? 'text-ember-orange' : 'text-sepia'}`}>
+              <dd className={`tabular-nums ${near ? 'text-coral' : 'text-platinum'}`}>
                 {twapReady ? `${Math.round(progress * 100)}%` : '—'}
               </dd>
             </div>
           </dl>
-          <p className="mt-1.5 text-driftwood">
+          <p className="mt-1.5 text-silver">
             {!twapReady
               ? 'TWAP forming — the verdict is not yet meaningful (pre start-delay).'
               : wouldDisqualify
@@ -211,14 +211,14 @@ export function ChallengeTradeControls({
         </div>
 
         {market.settled ? (
-          <p className="mt-3 font-inter text-[12px] text-driftwood">This market is already settled.</p>
+          <p className="mt-3 font-inter text-[12px] text-silver">This market is already settled.</p>
         ) : !settleOpen ? (
-          <p className="mt-3 font-inter text-[12px] text-bronze">
+          <p className="mt-3 font-inter text-[12px] text-silver">
             Settle opens after the market&apos;s TWAP window ({relativeDeadline(market.twapEnd)}).
           </p>
         ) : (
           <div className="mt-3">
-            <p className="font-inter text-[12px] text-driftwood">
+            <p className="font-inter text-[12px] text-silver">
               Permissionless — any connected wallet can crank the settle. The full account set is
               derived from the market; no paste needed.
             </p>

@@ -39,12 +39,12 @@ export function SectionHeader({
           <EyebrowTag pill={eyebrowPill}>{eyebrow}</EyebrowTag>
         </div>
       ) : null}
-      <Heading className="font-serif font-light text-heading text-sepia">
+      <Heading className="font-serif font-light text-heading text-platinum">
         <span className="block">{line1}</span>
-        {line2 ? <span className="block italic text-bronze">{line2}</span> : null}
+        {line2 ? <span className="block italic text-silver">{line2}</span> : null}
       </Heading>
       {paragraph ? (
-        <p className="mt-5 font-inter text-[17px] leading-relaxed text-bronze">{paragraph}</p>
+        <p className="mt-5 font-inter text-[17px] leading-relaxed text-silver">{paragraph}</p>
       ) : null}
     </div>
   )

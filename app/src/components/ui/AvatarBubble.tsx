@@ -25,7 +25,7 @@ function initials(name: string): string {
 export function VerifiedDot({ size = 22 }: { size?: number }) {
   return (
     <span
-      className="absolute bottom-0 right-0 grid place-items-center rounded-avatar bg-cobalt ring-2 ring-parchment"
+      className="absolute bottom-0 right-0 grid place-items-center rounded-avatar bg-cyan-phosphor ring-2 ring-liquid-abyss"
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
@@ -69,7 +69,7 @@ export function AvatarBubble({
         />
       ) : (
         <div
-          className="grid h-full w-full place-items-center rounded-avatar font-inter font-medium text-sepia"
+          className="grid h-full w-full place-items-center rounded-avatar font-inter font-medium text-platinum"
           style={{
             background: 'linear-gradient(135deg, #fed0b3 0%, #f65726 100%)',
             fontSize: size * 0.34,

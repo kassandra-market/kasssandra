@@ -23,7 +23,7 @@ export interface PhaseView {
  * phases apart: neutral at the open (Created/Proposal), a cyan `info` hint while
  * facts are staked/voted, a lavender `accent` while the AI adjudicates, the ember
  * spark for the active Challenge, a calm aqua `confirmed` at resolution, and muted
- * stone for dead-ends. The label text always names the phase (never color-only).
+ * silver-dim for dead-ends. The label text always names the phase (never color-only).
  */
 export function phaseView(phase: Phase | undefined): PhaseView {
   switch (phase) {

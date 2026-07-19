@@ -10,8 +10,8 @@ export function ProbabilityGauge({ probability }: { probability: number | null }
   if (probability === null) {
     return (
       <div className="flex h-[132px] flex-col items-center justify-center gap-1 text-center">
-        <span className="font-serif text-subheading font-light text-driftwood">—</span>
-        <span className="font-inter text-[12px] text-driftwood">Live price unavailable</span>
+        <span className="font-serif text-subheading font-light text-silver">—</span>
+        <span className="font-inter text-[12px] text-silver">Live price unavailable</span>
       </div>
     )
   }
@@ -28,7 +28,7 @@ export function ProbabilityGauge({ probability }: { probability: number | null }
             fill="none"
             strokeWidth={12}
             strokeLinecap="round"
-            style={{ stroke: 'var(--color-soft-cream)' }}
+            style={{ stroke: 'var(--color-liquid-deep)' }}
           />
           <path
             d={arc}
@@ -37,15 +37,15 @@ export function ProbabilityGauge({ probability }: { probability: number | null }
             strokeLinecap="round"
             pathLength={100}
             strokeDasharray={`${yesPct} 100`}
-            style={{ stroke: 'var(--color-ember-orange)', transition: 'stroke-dasharray 0.5s cubic-bezier(0.2,0,0,1)' }}
+            style={{ stroke: 'var(--color-coral)', transition: 'stroke-dasharray 0.5s cubic-bezier(0.2,0,0,1)' }}
           />
         </svg>
         {/* Centred read-out sitting in the arc well. */}
         <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
-          <span className="font-serif text-heading-sm font-light tabular-nums text-ember-orange">
+          <span className="font-serif text-heading-sm font-light tabular-nums text-coral">
             {yesPct}%
           </span>
-          <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+          <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
             implied YES
           </span>
         </div>
@@ -58,8 +58,8 @@ export function ProbabilityGauge({ probability }: { probability: number | null }
         aria-valuenow={yesPct}
         aria-label="Implied YES probability"
       >
-        <span className="font-medium text-ember-orange">YES {yesPct}%</span>
-        <span className="text-driftwood">NO {noPct}%</span>
+        <span className="font-medium text-coral">YES {yesPct}%</span>
+        <span className="text-silver">NO {noPct}%</span>
       </div>
     </div>
   )

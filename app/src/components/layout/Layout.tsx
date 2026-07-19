@@ -10,7 +10,7 @@ import SiteFooter from '../landing/SiteFooter'
  */
 export default function Layout() {
   return (
-    <div className="flex min-h-screen flex-col bg-parchment">
+    <div className="flex min-h-screen flex-col bg-liquid-abyss">
       {/* Keyboard skip link — the first focusable element; hidden until focused,
           then jumps past the nav to the routed content. */}
       <a

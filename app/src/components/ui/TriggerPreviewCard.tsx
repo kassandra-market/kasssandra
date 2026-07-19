@@ -26,11 +26,11 @@ export function TriggerPreviewCard({
   className = '',
 }: TriggerPreviewCardProps) {
   return (
-    <div className={`rounded-tag border border-pebble bg-soft-cream p-4 ${className}`}>
-      <div className="font-inter text-[11px] font-medium uppercase tracking-[0.08em] text-driftwood">
+    <div className={`rounded-tag border border-hairline bg-liquid-deep p-4 ${className}`}>
+      <div className="font-inter text-[11px] font-medium uppercase tracking-[0.08em] text-silver">
         {whenLabel}
       </div>
-      <p className="mt-1.5 font-inter text-[14px] leading-snug text-charcoal-bark">
+      <p className="mt-1.5 font-inter text-[14px] leading-snug text-liquid-mist">
         {condition}
         {variable ? (
           <>
@@ -39,7 +39,7 @@ export function TriggerPreviewCard({
           </>
         ) : null}
       </p>
-      <div className="mt-3 border-t border-pebble pt-2.5 font-inter text-[13px] text-stone">
+      <div className="mt-3 border-t border-hairline pt-2.5 font-inter text-[13px] text-silver-dim">
         {actionLabel}
       </div>
     </div>

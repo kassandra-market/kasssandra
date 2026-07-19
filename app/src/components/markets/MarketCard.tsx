@@ -10,8 +10,8 @@ import { formatKass, impliedYesProbability, outcomeLabel, truncateMiddle } from 
 import type { OracleMetaView } from "../../hooks/useOracleMeta";
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
-  "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
+  "focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss";
 
 /**
  * One market rendered as a clickable Delphi card. The on-chain oracle metadata
@@ -55,7 +55,7 @@ export function MarketCard({
               card so every interface showing a tradeable market points into its
               trading interface (the detail's TradePanel). */}
           {isActive ? (
-            <span className="inline-flex items-center gap-1 font-inter text-[12px] font-medium text-ember-orange">
+            <span className="inline-flex items-center gap-1 font-inter text-[12px] font-medium text-coral">
               Trade
               <span aria-hidden="true" className="transition-transform duration-200 ease-out group-hover:translate-x-0.5">
                 →
@@ -65,17 +65,17 @@ export function MarketCard({
         </div>
 
         {subject ? (
-          <h3 className="text-balance font-serif text-subheading font-light text-sepia" title={subject}>
+          <h3 className="text-balance font-serif text-subheading font-light text-platinum" title={subject}>
             {subject}
           </h3>
         ) : (
-          <h3 className="font-mono text-subheading font-light text-sepia" title={pubkey}>
+          <h3 className="font-mono text-subheading font-light text-platinum" title={pubkey}>
             {truncateMiddle(pubkey, 6, 6)}
           </h3>
         )}
-        <p className="font-inter text-[12px] text-driftwood">
-          Pays <span className="font-medium text-ember-orange">YES</span> on{" "}
-          <span className="text-bronze">
+        <p className="font-inter text-[12px] text-silver">
+          Pays <span className="font-medium text-coral">YES</span> on{" "}
+          <span className="text-silver">
             {outcomeLabel(market.outcomeIndex, boundLabel)}
           </span>
         </p>
@@ -85,10 +85,10 @@ export function MarketCard({
           {isActive ? <ProbabilityBar probability={impliedYesProbability(reserves)} /> : null}
         </div>
 
-        <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 pt-1 font-inter text-[13px] text-bronze">
+        <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 pt-1 font-inter text-[13px] text-silver">
           <div className="flex gap-1">
-            <dt className="text-driftwood">TVL</dt>
-            <dd className="font-medium text-sepia">{formatKass(market.totalContributed)} KASS</dd>
+            <dt className="text-silver">TVL</dt>
+            <dd className="font-medium text-platinum">{formatKass(market.totalContributed)} KASS</dd>
           </div>
         </dl>
       </Card>

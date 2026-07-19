@@ -36,8 +36,8 @@ export function CollectFeeControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Collect protocol fee</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Collect protocol fee</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           This market accrued a {(market.feeBps / 100).toFixed(2)}% protocol fee on its LP earnings.
           Collecting routes that accrued cut to the KASS futarchy and unlocks LP claims (claims are
           held until the fee is collected). Permissionless — anyone may crank it.

@@ -21,7 +21,7 @@ import { CloseMarketControl } from "./CloseMarketControl";
  */
 function ContributorsRemaining({ open }: { open: number }) {
   return (
-    <p className="font-inter text-[12px] text-driftwood">
+    <p className="font-inter text-[12px] text-silver">
       {open > 0
         ? `${open} contributor${open === 1 ? "" : "s"} yet to claim — the market can be closed once all have exited.`
         : "All contributions claimed — the market is ready to close."}
@@ -31,7 +31,7 @@ function ContributorsRemaining({ open }: { open: number }) {
 
 /** A calm empty-state note for a tab whose actions aren't available in this phase. */
 function NoActions({ children }: { children: React.ReactNode }) {
-  return <p className="font-inter text-[13px] text-driftwood">{children}</p>;
+  return <p className="font-inter text-[13px] text-silver">{children}</p>;
 }
 
 type LiqTab = "deposit" | "claim";
@@ -43,7 +43,7 @@ function LiquiditySubTabs({ value, onChange }: { value: LiqTab; onChange: (v: Li
     { value: "claim", label: "Claim" },
   ];
   return (
-    <div role="tablist" aria-label="Liquidity action" className="flex gap-5 border-b border-pebble">
+    <div role="tablist" aria-label="Liquidity action" className="flex gap-5 border-b border-hairline">
       {tabs.map((t) => {
         const active = t.value === value;
         return (
@@ -54,13 +54,13 @@ function LiquiditySubTabs({ value, onChange }: { value: LiqTab; onChange: (v: Li
             aria-selected={active}
             onClick={() => onChange(t.value)}
             className={`relative -mb-px pb-2 font-inter text-[14px] transition-colors ${
-              active ? "font-medium text-sepia" : "text-driftwood hover:text-sepia"
+              active ? "font-medium text-platinum" : "text-silver hover:text-platinum"
             }`}
           >
             {t.label}
             <span
               aria-hidden
-              className={`pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-chestnut transition-opacity ${
+              className={`pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-aqua transition-opacity ${
                 active ? "opacity-100" : "opacity-0"
               }`}
             />

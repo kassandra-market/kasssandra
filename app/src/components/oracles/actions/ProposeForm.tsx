@@ -59,8 +59,8 @@ export function ProposeForm({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Propose an option</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Propose an option</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Escrow a KASS bond behind the option you believe resolves this dispute.
         </p>
       </div>
@@ -73,7 +73,7 @@ export function ProposeForm({
                 aria-describedby={ids.describedById}
                 value={option}
                 onChange={(e) => setOption(Number(e.target.value))}
-                className="w-full rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] text-sepia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+                className="w-full rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
               >
                 {Array.from({ length: oracle.optionsCount }, (_, i) => (
                   <option key={i} value={i}>

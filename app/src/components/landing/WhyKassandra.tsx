@@ -42,8 +42,8 @@ export default function WhyKassandra() {
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={i * 90} className="h-full">
               <Card className="h-full transition-[transform,border-color] duration-200 hover:-translate-y-1 hover:border-cyan-phosphor/40">
-                <h3 className="font-serif text-heading-sm font-light text-sepia">{f.title}</h3>
-                <p className="mt-3 font-inter text-body text-bronze">{f.body}</p>
+                <h3 className="font-serif text-heading-sm font-light text-platinum">{f.title}</h3>
+                <p className="mt-3 font-inter text-body text-silver">{f.body}</p>
               </Card>
             </Reveal>
           ))}

@@ -63,7 +63,7 @@ export function SettleButton({
           />
         </div>
         {proposerAuthority === undefined ? (
-          <p className="font-inter text-[12px] text-ember-orange">
+          <p className="font-inter text-[12px] text-coral">
             The challenged proposer isn&apos;t loaded yet — reload the oracle to settle.
           </p>
         ) : null}

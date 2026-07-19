@@ -76,13 +76,13 @@ function ModeTabs({ value, onChange }: { value: Mode; onChange: (m: Mode) => voi
             aria-selected={active}
             onClick={() => onChange(t.value)}
             className={`relative -mb-px pb-2 font-inter text-[15px] transition-colors ${
-              active ? "font-medium text-sepia" : "text-driftwood hover:text-sepia"
+              active ? "font-medium text-platinum" : "text-silver hover:text-platinum"
             }`}
           >
             {t.label}
             <span
               aria-hidden
-              className={`pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-chestnut transition-opacity ${
+              className={`pointer-events-none absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-aqua transition-opacity ${
                 active ? "opacity-100" : "opacity-0"
               }`}
             />
@@ -108,7 +108,7 @@ function UnitTabs({
     <div
       role="group"
       aria-label="Price unit"
-      className="inline-flex rounded-button border border-pebble p-0.5"
+      className="inline-flex rounded-button border border-hairline p-0.5"
     >
       {UNITS.map((u) => {
         const disabled = u === "USD" && !usdAvailable;
@@ -123,10 +123,10 @@ function UnitTabs({
             onClick={() => onChange(u)}
             className={`rounded-[10px] px-2.5 py-1 font-inter text-[12px] transition-colors ${
               selected
-                ? "bg-chestnut text-liquid-abyss"
+                ? "bg-aqua text-liquid-abyss"
                 : disabled
-                  ? "cursor-not-allowed text-stone/50"
-                  : "text-sepia hover:bg-pebble/50"
+                  ? "cursor-not-allowed text-silver-dim/50"
+                  : "text-platinum hover:bg-hairline/50"
             }`}
           >
             {u}
@@ -140,7 +140,7 @@ function UnitTabs({
 /**
  * A big YES/NO outcome-price button (the reference's "Oui 58,0¢" / "Non 42,1¢"):
  * doubles as the outcome selector and the live implied-price readout. Selected
- * fills its tone (YES aqua-chestnut, NO ember); unselected is a quiet outline.
+ * fills its tone (YES aqua, NO coral); unselected is a quiet outline.
  */
 function OutcomeButton({
   outcome,
@@ -160,11 +160,11 @@ function OutcomeButton({
   const isYes = outcome === "yes";
   const label = isYes ? "YES" : "NO";
   const selectedClass = isYes
-    ? "border-chestnut bg-chestnut text-liquid-abyss"
-    : "border-ember-orange bg-ember-orange text-liquid-abyss";
+    ? "border-aqua bg-aqua text-liquid-abyss"
+    : "border-coral bg-coral text-liquid-abyss";
   const idleClass = isYes
-    ? "border-pebble bg-soft-cream text-chestnut hover:border-chestnut/50"
-    : "border-pebble bg-soft-cream text-ember-orange hover:border-ember-orange/50";
+    ? "border-hairline bg-liquid-deep text-aqua hover:border-aqua/50"
+    : "border-hairline bg-liquid-deep text-coral hover:border-coral/50";
   return (
     <button
       type="button"
@@ -311,8 +311,8 @@ export function TradePanel({
       <Card className="flex flex-col gap-4 lg:col-span-3">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="font-serif text-subheading font-light text-sepia">Price history</h3>
-            <p className="mt-1 font-inter text-[13px] text-driftwood">
+            <h3 className="font-serif text-subheading font-light text-platinum">Price history</h3>
+            <p className="mt-1 font-inter text-[13px] text-silver">
               {displayUnit === "%"
                 ? "Implied probability · YES vs NO"
                 : `Share price (${displayUnit}) · YES vs NO`}
@@ -320,14 +320,14 @@ export function TradePanel({
           </div>
           <div className="flex gap-5 text-right">
             <div>
-              <p className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">YES</p>
-              <p className="font-serif text-heading-sm font-light tabular-nums text-chestnut">
+              <p className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">YES</p>
+              <p className="font-serif text-heading-sm font-light tabular-nums text-aqua">
                 {formatSharePrice(yesProb, displayUnit, kassUsd)}
               </p>
             </div>
             <div>
-              <p className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">NO</p>
-              <p className="font-serif text-heading-sm font-light tabular-nums text-ember-orange">
+              <p className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">NO</p>
+              <p className="font-serif text-heading-sm font-light tabular-nums text-coral">
                 {formatSharePrice(noProb, displayUnit, kassUsd)}
               </p>
             </div>
@@ -341,15 +341,15 @@ export function TradePanel({
 
       {/* Order ticket — the floating buy/sell card. */}
       <Card className="flex flex-col gap-4 lg:col-span-2">
-        <div className="border-b border-pebble pb-3">
-          <p className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">Order</p>
-          <p className="mt-1 text-balance font-inter text-[14px] text-sepia" title={question}>
+        <div className="border-b border-hairline pb-3">
+          <p className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">Order</p>
+          <p className="mt-1 text-balance font-inter text-[14px] text-platinum" title={question}>
             {question ?? "Trade this market"}
           </p>
-          <p className="mt-0.5 font-inter text-[12px] text-driftwood">
-            {boundLabel ? <span className="text-bronze">{boundLabel}</span> : "This outcome"}
+          <p className="mt-0.5 font-inter text-[12px] text-silver">
+            {boundLabel ? <span className="text-silver">{boundLabel}</span> : "This outcome"}
             {" · "}
-            <span className={outcome === "yes" ? "text-chestnut" : "text-ember-orange"}>
+            <span className={outcome === "yes" ? "text-aqua" : "text-coral"}>
               {outcome.toUpperCase()}
             </span>
           </p>
@@ -358,7 +358,7 @@ export function TradePanel({
         <div className="flex items-center justify-between">
           <ModeTabs value={mode} onChange={setMode} />
           <span
-            className="rounded-tag border border-pebble px-2.5 py-1 font-inter text-[12px] text-driftwood"
+            className="rounded-tag border border-hairline px-2.5 py-1 font-inter text-[12px] text-silver"
             title="Trades execute at the current AMM price"
           >
             Market order
@@ -394,21 +394,21 @@ export function TradePanel({
             {/* Amount — large field + balance line + quick-add chips. */}
             <div className="flex flex-col gap-2">
               <div className="flex items-baseline justify-between gap-2">
-                <label htmlFor={amountId} className="font-inter text-[13px] font-medium text-sepia">
+                <label htmlFor={amountId} className="font-inter text-[13px] font-medium text-platinum">
                   Amount
                 </label>
-                <span className="font-inter text-[12px] text-driftwood">
+                <span className="font-inter text-[12px] text-silver">
                   {mode === "buy" ? (
                     <>
                       Balance{" "}
-                      <span className="text-bronze">
+                      <span className="text-silver">
                         {kass.balance === null ? "—" : `${formatKass(kass.balance)} KASS`}
                       </span>
                     </>
                   ) : (
                     <>
                       You hold{" "}
-                      <span className="text-bronze">
+                      <span className="text-silver">
                         {positionBalance === null ? "—" : `${formatKass(positionBalance)} ${outcome.toUpperCase()}`}
                       </span>
                     </>
@@ -416,8 +416,8 @@ export function TradePanel({
                 </span>
               </div>
               <div
-                className={`flex items-baseline gap-2 rounded-tag border bg-pure-card px-3 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-sepia/40 focus-within:ring-offset-2 focus-within:ring-offset-parchment ${
-                  inputError ? "border-ember-orange/60" : "border-pebble"
+                className={`flex items-baseline gap-2 rounded-tag border bg-liquid-kelp px-3 py-2.5 transition-colors focus-within:ring-2 focus-within:ring-platinum/40 focus-within:ring-offset-2 focus-within:ring-offset-liquid-abyss ${
+                  inputError ? "border-coral/60" : "border-hairline"
                 }`}
               >
                 <input
@@ -428,14 +428,14 @@ export function TradePanel({
                   placeholder="0"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-transparent font-serif text-heading-sm font-light tabular-nums text-sepia placeholder:text-driftwood focus:outline-none"
+                  className="w-full bg-transparent font-serif text-heading-sm font-light tabular-nums text-platinum placeholder:text-silver focus:outline-none"
                 />
-                <span className="font-inter text-[13px] text-driftwood">
+                <span className="font-inter text-[13px] text-silver">
                   {mode === "buy" ? "KASS" : "shares"}
                 </span>
               </div>
               <p id={descId} className="min-h-[1rem] font-inter text-[12px]">
-                {inputError ? <span className="text-ember-orange">{inputError}</span> : null}
+                {inputError ? <span className="text-coral">{inputError}</span> : null}
               </p>
               <div className="grid grid-cols-4 gap-2">
                 {PRESETS.map((n) => (
@@ -443,7 +443,7 @@ export function TradePanel({
                     key={n}
                     type="button"
                     onClick={() => bump(n)}
-                    className="rounded-tag border border-pebble bg-soft-cream px-2 py-1.5 font-inter text-[13px] tabular-nums text-sepia transition-colors hover:border-driftwood active:scale-[0.96]"
+                    className="rounded-tag border border-hairline bg-liquid-deep px-2 py-1.5 font-inter text-[13px] tabular-nums text-platinum transition-colors hover:border-silver active:scale-[0.96]"
                   >
                     +{n}
                   </button>
@@ -451,7 +451,7 @@ export function TradePanel({
                 <button
                   type="button"
                   onClick={setMax}
-                  className="rounded-tag border border-pebble bg-soft-cream px-2 py-1.5 font-inter text-[13px] text-sepia transition-colors hover:border-driftwood active:scale-[0.96]"
+                  className="rounded-tag border border-hairline bg-liquid-deep px-2 py-1.5 font-inter text-[13px] text-platinum transition-colors hover:border-silver active:scale-[0.96]"
                 >
                   Max
                 </button>
@@ -460,9 +460,9 @@ export function TradePanel({
 
             {/* Live "you receive" estimate (buy only). */}
             {mode === "buy" && buyReceived !== null ? (
-              <div className="flex items-baseline justify-between rounded-tag bg-soft-cream px-3 py-2 font-inter text-[13px]">
-                <span className="text-driftwood">You receive ≈</span>
-                <span className="tabular-nums text-sepia">
+              <div className="flex items-baseline justify-between rounded-tag bg-liquid-deep px-3 py-2 font-inter text-[13px]">
+                <span className="text-silver">You receive ≈</span>
+                <span className="tabular-nums text-platinum">
                   {formatKass(buyReceived)} {outcome.toUpperCase()} shares
                 </span>
               </div>
@@ -479,7 +479,7 @@ export function TradePanel({
             {/* Jupiter any-token entry: DISABLED (deferred). */}
             {/* TODO wire buildJupiterEntryRequest + app fetch (GET /quote → POST /swap) + composeWithEntry. */}
             <label
-              className="flex cursor-not-allowed items-center gap-2 font-inter text-[12px] text-stone"
+              className="flex cursor-not-allowed items-center gap-2 font-inter text-[12px] text-silver-dim"
               title="Coming soon — pay with USDC/SOL via Jupiter"
             >
               <input type="checkbox" disabled className="cursor-not-allowed" />

@@ -32,8 +32,8 @@ import {
 const ZERO_ADDRESS = "11111111111111111111111111111111";
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
-  "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
+  "focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss";
 
 /** A labelled address row: a copyable truncation + a Solana Explorer link. */
 function AddressRow({ label, address }: { label: string; address: Address }) {
@@ -41,9 +41,9 @@ function AddressRow({ label, address }: { label: string; address: Address }) {
   const zero = value === ZERO_ADDRESS;
   return (
     <div className="flex items-center justify-between gap-3 py-1.5">
-      <span className="font-inter text-[13px] text-driftwood">{label}</span>
+      <span className="font-inter text-[13px] text-silver">{label}</span>
       {zero ? (
-        <span className="font-mono text-[12px] text-stone">set at activation</span>
+        <span className="font-mono text-[12px] text-silver-dim">set at activation</span>
       ) : (
         <span className="flex items-center gap-2">
           <Truncated value={value} label={label} copyable head={4} tail={4} />
@@ -52,7 +52,7 @@ function AddressRow({ label, address }: { label: string; address: Address }) {
             target="_blank"
             rel="noreferrer"
             aria-label={`View ${label} on Solana Explorer`}
-            className={`rounded-sm font-inter text-[11px] text-driftwood hover:text-ember-orange ${focusRing}`}
+            className={`rounded-sm font-inter text-[11px] text-silver hover:text-coral ${focusRing}`}
           >
             explorer ↗
           </a>
@@ -66,7 +66,7 @@ function AddressRow({ label, address }: { label: string; address: Address }) {
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card className="flex flex-col gap-4">
-      <h2 className="font-inter text-[13px] font-medium uppercase tracking-[0.08em] text-driftwood">
+      <h2 className="font-inter text-[13px] font-medium uppercase tracking-[0.08em] text-silver">
         {title}
       </h2>
       {children}
@@ -78,8 +78,8 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 function ReserveFigure({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-driftwood">{label}</dt>
-      <dd className="font-medium tabular-nums text-sepia">{value}</dd>
+      <dt className="text-silver">{label}</dt>
+      <dd className="font-medium tabular-nums text-platinum">{value}</dd>
     </div>
   );
 }
@@ -92,7 +92,7 @@ function InfoTip({ label, children }: { label: string; children: string }) {
       role="img"
       aria-label={`${label}: ${children}`}
       title={children}
-      className="ml-1 inline-flex h-4 w-4 cursor-help select-none items-center justify-center rounded-full border border-pebble align-middle font-inter text-[10px] leading-none text-driftwood"
+      className="ml-1 inline-flex h-4 w-4 cursor-help select-none items-center justify-center rounded-full border border-hairline align-middle font-inter text-[10px] leading-none text-silver"
     >
       i
     </span>
@@ -110,11 +110,11 @@ function percentOf(part: bigint, whole: bigint): string {
 function StatTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+      <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
         {label}
       </span>
-      <span className="font-serif text-heading-sm font-light tabular-nums text-sepia">{value}</span>
-      {sub ? <span className="font-inter text-[12px] text-driftwood">{sub}</span> : null}
+      <span className="font-serif text-heading-sm font-light tabular-nums text-platinum">{value}</span>
+      {sub ? <span className="font-inter text-[12px] text-silver">{sub}</span> : null}
     </div>
   );
 }
@@ -126,8 +126,8 @@ function ContribTag({ kind }: { kind: "funding" | "liquidity" }) {
     <span
       className={`shrink-0 rounded-tag border px-2 py-0.5 font-inter text-[11px] ${
         funding
-          ? "border-cobalt/30 bg-cobalt/10 text-cyan-phosphor"
-          : "border-chestnut/30 bg-chestnut/10 text-chestnut"
+          ? "border-cyan-phosphor/30 bg-cyan-phosphor/10 text-cyan-phosphor"
+          : "border-aqua/30 bg-aqua/10 text-aqua"
       }`}
     >
       {funding ? "Initial funding" : "Liquidity"}
@@ -195,7 +195,7 @@ function ContributionsLedger({
   contributions: MarketDetailData["contributions"];
 }) {
   if (contributions.length === 0) {
-    return <p className="font-inter text-[13px] text-driftwood">No contributions yet.</p>;
+    return <p className="font-inter text-[13px] text-silver">No contributions yet.</p>;
   }
   type Row = {
     key: string;
@@ -235,7 +235,7 @@ function ContributionsLedger({
       });
   }
   return (
-    <ul className="flex flex-col divide-y divide-pebble/60">
+    <ul className="flex flex-col divide-y divide-hairline/60">
       {rows.map((r) => (
         <li key={r.key} className="flex items-center justify-between gap-3 py-2">
           <span className="flex min-w-0 items-center gap-2">
@@ -243,11 +243,11 @@ function ContributionsLedger({
             <Truncated value={r.contributor} label="contributor" copyable head={4} tail={4} />
           </span>
           <span className="flex items-center gap-3">
-            <span className="font-inter text-[13px] font-medium tabular-nums text-sepia">
+            <span className="font-inter text-[13px] font-medium tabular-nums text-platinum">
               {r.amount}
             </span>
             <span
-              className={`font-inter text-[11px] ${r.claimed ? "text-stone" : "text-chestnut"}`}
+              className={`font-inter text-[11px] ${r.claimed ? "text-silver-dim" : "text-aqua"}`}
             >
               {r.claimed ? "claimed" : "open"}
             </span>
@@ -327,30 +327,30 @@ function DetailBody({
           outcome this sub-market pays YES on, in words. Mirrors the oracle page. */}
       <header>
         <EyebrowTag pill>Market</EyebrowTag>
-        <h1 className="mt-3 text-balance font-serif text-heading font-light text-sepia">
+        <h1 className="mt-3 text-balance font-serif text-heading font-light text-platinum">
           {subject ?? "Prediction market"}
         </h1>
-        <p className="mt-3 font-inter text-body text-bronze">
-          Pays <span className="font-medium text-ember-orange">YES</span> if the oracle resolves to{" "}
+        <p className="mt-3 font-inter text-body text-silver">
+          Pays <span className="font-medium text-coral">YES</span> if the oracle resolves to{" "}
           {boundLabel ? (
-            <span className="font-medium text-sepia">“{boundLabel}”</span>
+            <span className="font-medium text-platinum">“{boundLabel}”</span>
           ) : (
-            <span className="font-medium text-sepia">outcome {market.outcomeIndex}</span>
+            <span className="font-medium text-platinum">outcome {market.outcomeIndex}</span>
           )}
           {optionsCount !== null ? (
-            <span className="text-driftwood">
+            <span className="text-silver">
               {" "}
               · outcome {market.outcomeIndex} of {optionsCount}
             </span>
           ) : null}
         </p>
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 font-inter text-[13px] text-driftwood">
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 font-inter text-[13px] text-silver">
           <StatusChip status={market.status} />
           <span>{outcomeResolutionText(oracle, market.outcomeIndex)}</span>
           <Truncated value={pubkey} copyable label="market address" head={4} tail={4} />
           <Link
             to={`/oracles/${market.oracle.toString()}`}
-            className={`font-inter text-[13px] font-medium text-chestnut hover:text-ember-orange ${focusRing}`}
+            className={`font-inter text-[13px] font-medium text-aqua hover:text-coral ${focusRing}`}
           >
             View oracle →
           </Link>
@@ -380,7 +380,7 @@ function DetailBody({
       <TabPanel id="liquidity" active={activeTab === "liquidity"} className="tab-enter flex flex-col gap-6">
         <Panel title="Liquidity">
           <LiquidityOverview detail={detail} />
-          <div className="border-t border-pebble pt-5">
+          <div className="border-t border-hairline pt-5">
             <MarketLiquidityActions detail={detail} refetch={refetch} />
           </div>
           <GroupLiquidityPanel oracle={market.oracle.toString()} embedded />
@@ -390,7 +390,7 @@ function DetailBody({
           {/* LP composition — funders' seed LP vs independent post-activation LP. */}
           {hasPool ? (
             <div className="flex flex-col gap-1.5">
-              <p className="font-inter text-[12px] font-medium uppercase tracking-[0.06em] text-driftwood">
+              <p className="font-inter text-[12px] font-medium uppercase tracking-[0.06em] text-silver">
                 LP composition
                 <InfoTip label="LP composition">
                   Funding LP was minted from the funders' escrow when the market was activated;
@@ -414,8 +414,8 @@ function DetailBody({
 
           {/* Pool composition — the underlying cYES/cNO token reserves. */}
           {reserves ? (
-            <div className="flex flex-col gap-1.5 border-t border-pebble pt-3">
-              <p className="font-inter text-[12px] font-medium uppercase tracking-[0.06em] text-driftwood">
+            <div className="flex flex-col gap-1.5 border-t border-hairline pt-3">
+              <p className="font-inter text-[12px] font-medium uppercase tracking-[0.06em] text-silver">
                 Pool composition
                 <InfoTip label="Pool composition">
                   The AMM holds a pair of conditional tokens: cYES pays 1 KASS if the outcome
@@ -430,37 +430,37 @@ function DetailBody({
           ) : null}
 
           {/* Pool details — raised / floor / protocol fee. */}
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 border-t border-pebble pt-3 font-inter text-[13px] text-bronze">
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 border-t border-hairline pt-3 font-inter text-[13px] text-silver">
             <div className="flex gap-1">
-              <dt className="text-driftwood">Raised</dt>
-              <dd className="font-medium tabular-nums text-sepia">
+              <dt className="text-silver">Raised</dt>
+              <dd className="font-medium tabular-nums text-platinum">
                 {formatKass(market.totalContributed)} KASS
               </dd>
             </div>
             <div className="flex gap-1">
-              <dt className="text-driftwood">Floor</dt>
-              <dd className="font-medium tabular-nums text-sepia">
+              <dt className="text-silver">Floor</dt>
+              <dd className="font-medium tabular-nums text-platinum">
                 {formatKass(market.minLiquidity)} KASS
               </dd>
             </div>
             <div className="flex gap-1">
-              <dt className="text-driftwood">Protocol fee</dt>
-              <dd className="font-medium tabular-nums text-sepia">
+              <dt className="text-silver">Protocol fee</dt>
+              <dd className="font-medium tabular-nums text-platinum">
                 {(market.feeBps / 100).toFixed(2)}%
               </dd>
             </div>
             {market.feeBps > 0 ? (
               <div className="flex gap-1">
-                <dt className="text-driftwood">Fee collected</dt>
-                <dd className="font-medium text-sepia">{market.feeCollected ? "yes" : "no"}</dd>
+                <dt className="text-silver">Fee collected</dt>
+                <dd className="font-medium text-platinum">{market.feeCollected ? "yes" : "no"}</dd>
               </div>
             ) : null}
           </dl>
 
           {/* Contributions — split into tagged (Initial funding / Liquidity) rows,
               latest-first by the Contribution PDA's last-write slot. */}
-          <div className="flex flex-col gap-2 border-t border-pebble pt-3">
-            <p className="font-inter text-[12px] font-medium uppercase tracking-[0.06em] text-driftwood">
+          <div className="flex flex-col gap-2 border-t border-hairline pt-3">
+            <p className="font-inter text-[12px] font-medium uppercase tracking-[0.06em] text-silver">
               Contributions ({contributions.length})
             </p>
             <ContributionsLedger contributions={contributions} />
@@ -481,9 +481,9 @@ function DetailBody({
         <Panel title="Implied probability">
           {isActive ? (
             <>
-              <p className="font-inter text-[13px] text-driftwood">
+              <p className="font-inter text-[13px] text-silver">
                 The market's live estimate that this outcome resolves{" "}
-                <span className="font-medium text-ember-orange">YES</span>.
+                <span className="font-medium text-coral">YES</span>.
                 <InfoTip label="What is implied probability">
                   Implied probability is the market's estimate of the chance this outcome resolves
                   YES, read from the pool price: P(YES) = cNO ÷ (cYES + cNO). A larger cNO reserve
@@ -493,7 +493,7 @@ function DetailBody({
               <ProbabilityGauge probability={yesProbability} />
             </>
           ) : (
-            <p className="font-inter text-[13px] text-driftwood">
+            <p className="font-inter text-[13px] text-silver">
               Live prices appear once the market is Active (the cYES/cNO pool is composed at
               activation).
             </p>
@@ -502,7 +502,7 @@ function DetailBody({
 
         <Panel title="Linked oracle">
           {subject ? (
-            <p className="text-balance font-serif text-subheading font-light text-sepia">
+            <p className="text-balance font-serif text-subheading font-light text-platinum">
               “{subject}”
             </p>
           ) : null}
@@ -515,51 +515,51 @@ function DetailBody({
                     key={i}
                     className={`rounded-tag border px-2.5 py-1 font-inter text-[13px] ${
                       bound
-                        ? "border-ember-orange/50 bg-soft-cream text-sepia"
-                        : "border-pebble bg-soft-cream text-bronze"
+                        ? "border-coral/50 bg-liquid-deep text-platinum"
+                        : "border-hairline bg-liquid-deep text-silver"
                     }`}
                   >
-                    <span className="tabular-nums text-driftwood">{i}</span>
-                    <span className="mx-1 text-driftwood">·</span>
+                    <span className="tabular-nums text-silver">{i}</span>
+                    <span className="mx-1 text-silver">·</span>
                     {opt}
-                    {bound ? <span className="ml-1.5 text-[11px] text-ember-orange">YES</span> : null}
+                    {bound ? <span className="ml-1.5 text-[11px] text-coral">YES</span> : null}
                   </span>
                 );
               })}
             </div>
           ) : null}
           {oracle ? (
-            <dl className="flex flex-wrap gap-x-8 gap-y-1 font-inter text-[13px] text-bronze">
+            <dl className="flex flex-wrap gap-x-8 gap-y-1 font-inter text-[13px] text-silver">
               <div className="flex gap-1">
-                <dt className="text-driftwood">Phase</dt>
-                <dd className="font-medium text-sepia">{phaseLabel(oracle.phase)}</dd>
+                <dt className="text-silver">Phase</dt>
+                <dd className="font-medium text-platinum">{phaseLabel(oracle.phase)}</dd>
               </div>
               <div className="flex gap-1">
-                <dt className="text-driftwood">Options</dt>
-                <dd className="font-medium tabular-nums text-sepia">{oracle.optionsCount}</dd>
+                <dt className="text-silver">Options</dt>
+                <dd className="font-medium tabular-nums text-platinum">{oracle.optionsCount}</dd>
               </div>
               <div className="flex gap-1">
-                <dt className="text-driftwood">Outcome</dt>
-                <dd className="font-medium text-sepia">
+                <dt className="text-silver">Outcome</dt>
+                <dd className="font-medium text-platinum">
                   {outcomeResolutionText(oracle, market.outcomeIndex)}
                 </dd>
               </div>
             </dl>
           ) : (
-            <p className="font-inter text-[13px] text-driftwood">
+            <p className="font-inter text-[13px] text-silver">
               The linked oracle account could not be read.
             </p>
           )}
           <Link
             to={`/oracles/${market.oracle.toString()}`}
-            className={`font-inter text-[13px] font-medium text-chestnut hover:text-ember-orange ${focusRing}`}
+            className={`font-inter text-[13px] font-medium text-aqua hover:text-coral ${focusRing}`}
           >
             Open oracle page →
           </Link>
         </Panel>
 
         <Panel title="Bindings">
-          <div className="divide-y divide-pebble/60">
+          <div className="divide-y divide-hairline/60">
             <AddressRow label="Oracle" address={market.oracle} />
             <AddressRow label="Creator" address={market.creator} />
             <AddressRow label="KASS mint" address={market.kassMint} />
@@ -590,7 +590,7 @@ export default function MarketDetail() {
     <main className="mx-auto max-w-[1000px] px-6 py-20">
       <Link
         to="/markets"
-        className={`inline-block font-inter text-[13px] text-driftwood hover:text-sepia ${focusRing}`}
+        className={`inline-block font-inter text-[13px] text-silver hover:text-platinum ${focusRing}`}
       >
         ← All markets
       </Link>
@@ -613,7 +613,7 @@ export default function MarketDetail() {
             />
           </div>
           <Card className="flex flex-col items-center gap-4 text-center">
-            <p className="font-inter text-body text-bronze">
+            <p className="font-inter text-body text-silver">
               {error instanceof MarketNotFoundError
                 ? "This market was not found."
                 : `Could not load this market: ${error.message}`}
@@ -626,7 +626,7 @@ export default function MarketDetail() {
       ) : view === "loading" ? (
         <div className="mt-10 flex flex-col gap-6" aria-hidden="true">
           {Array.from({ length: 3 }, (_, i) => (
-            <Card key={i} className="h-28 animate-pulse bg-pure-card">
+            <Card key={i} className="h-28 animate-pulse bg-liquid-kelp">
               <span className="sr-only">Loading</span>
             </Card>
           ))}

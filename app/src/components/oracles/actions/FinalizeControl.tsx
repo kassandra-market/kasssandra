@@ -55,15 +55,15 @@ export function FinalizeControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">{title}</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">{description}</p>
-        <p className="mt-1 font-inter text-[12px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">{title}</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">{description}</p>
+        <p className="mt-1 font-inter text-[12px] text-silver">
           Permissionless — any connected wallet can crank this; it only pays the fee.
         </p>
       </div>
       {nearCap ? (
-        <div className="rounded-tag border border-pebble bg-soft-cream px-3 py-2">
-          <p className="font-inter text-[13px] text-bronze">
+        <div className="rounded-tag border border-hairline bg-liquid-deep px-3 py-2">
+          <p className="font-inter text-[13px] text-silver">
             This oracle's proposer set is too large to finalize in a single browser transaction.
             Run the finalize via the v0/ALT path (a keypair-driven crank) to advance it.
           </p>

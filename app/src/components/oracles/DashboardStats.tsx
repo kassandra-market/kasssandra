@@ -9,17 +9,17 @@ import { formatKass } from '../../lib/oracleView'
 import type { OracleStats, PhaseCounts, PhaseFilter, SortBy } from '../../lib/oracleStats'
 
 const focusRing =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 ' +
-  'focus-visible:ring-offset-2 focus-visible:ring-offset-parchment'
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 ' +
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss'
 
 /** One monetary figure: a scaled-KASS serif value over an Inter label. */
 function MoneyTile({ amount, label }: { amount: bigint; label: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="font-serif text-heading-sm font-light leading-none tabular-nums text-sepia">
+      <span className="font-serif text-heading-sm font-light leading-none tabular-nums text-platinum">
         {formatKass(amount)}
       </span>
-      <span className="font-inter text-[12px] text-driftwood">{label}</span>
+      <span className="font-inter text-[12px] text-silver">{label}</span>
     </div>
   )
 }
@@ -34,18 +34,18 @@ export function DashboardStats({ stats }: { stats: OracleStats }) {
   return (
     <section
       aria-label="Oracle capital at stake"
-      className="mt-10 rounded-card border border-pebble bg-pure-card px-6 py-5"
+      className="mt-10 rounded-card border border-hairline bg-liquid-kelp px-6 py-5"
     >
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         {/* Headline: total capital at stake — scaled KASS, the lavender accent. */}
         <div className="flex flex-col gap-0.5">
-          <span className="font-inter text-[12px] uppercase tracking-wide text-driftwood">
+          <span className="font-inter text-[12px] uppercase tracking-wide text-silver">
             Value at stake
           </span>
           <span className="font-serif text-heading font-light leading-none tabular-nums text-lavender-phosphor">
             {formatKass(stats.bondsAtRisk)}
           </span>
-          <span className="font-inter text-[12px] text-bronze">KASS · across active oracles</span>
+          <span className="font-inter text-[12px] text-silver">KASS · across active oracles</span>
         </div>
 
         {/* The monetary breakdown (all scaled KASS). */}
@@ -67,13 +67,13 @@ export function DashboardStats({ stats }: { stats: OracleStats }) {
  * glance (color is never the only signal — every chip has its text label + count).
  */
 const FILTERS: { value: PhaseFilter; label: string; countKey: keyof PhaseCounts; dot: string }[] = [
-  { value: 'all', label: 'All', countKey: 'total', dot: 'bg-driftwood' },
-  { value: 'proposal', label: 'Proposal', countKey: 'proposal', dot: 'bg-bronze' },
+  { value: 'all', label: 'All', countKey: 'total', dot: 'bg-silver' },
+  { value: 'proposal', label: 'Proposal', countKey: 'proposal', dot: 'bg-silver' },
   { value: 'inDispute', label: 'In dispute', countKey: 'inDispute', dot: 'bg-cyan-phosphor' },
   { value: 'aiClaim', label: 'AI claim', countKey: 'aiClaim', dot: 'bg-lavender-phosphor' },
-  { value: 'challenge', label: 'Challenged', countKey: 'challenge', dot: 'bg-ember-orange' },
-  { value: 'resolved', label: 'Resolved', countKey: 'resolved', dot: 'bg-chestnut' },
-  { value: 'invalidDeadend', label: 'Dead end', countKey: 'invalidDeadend', dot: 'bg-stone' },
+  { value: 'challenge', label: 'Challenged', countKey: 'challenge', dot: 'bg-coral' },
+  { value: 'resolved', label: 'Resolved', countKey: 'resolved', dot: 'bg-aqua' },
+  { value: 'invalidDeadend', label: 'Dead end', countKey: 'invalidDeadend', dot: 'bg-silver-dim' },
 ]
 
 const SORTS: { value: SortBy; label: string }[] = [
@@ -103,14 +103,14 @@ function ToggleChip({
       onClick={onClick}
       className={`inline-flex items-center gap-2 rounded-tag border px-3 py-2 font-inter text-[13px] font-medium transition-colors ${focusRing} ${
         active
-          ? 'border-sepia/30 bg-soft-cream text-sepia'
-          : 'border-pebble bg-transparent text-bronze hover:border-driftwood hover:text-sepia'
+          ? 'border-platinum/30 bg-liquid-deep text-platinum'
+          : 'border-hairline bg-transparent text-silver hover:border-silver hover:text-platinum'
       }`}
     >
       {dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} aria-hidden="true" />}
       <span>{label}</span>
       {count !== undefined && (
-        <span className="tabular-nums text-[12px] text-driftwood">{count}</span>
+        <span className="tabular-nums text-[12px] text-silver">{count}</span>
       )}
     </button>
   )
@@ -155,12 +155,12 @@ export function OracleFilters({
             value={search}
             onChange={(e) => onSearch(e.target.value)}
             placeholder="Search by phase or address…"
-            className={`w-full rounded-button border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] text-sepia placeholder:text-driftwood sm:w-72 ${focusRing}`}
+            className={`w-full rounded-button border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] text-platinum placeholder:text-silver sm:w-72 ${focusRing}`}
           />
         </label>
 
         <div className="flex items-center gap-2" role="group" aria-label="Sort oracles">
-          <span className="font-inter text-[12px] text-driftwood">Sort</span>
+          <span className="font-inter text-[12px] text-silver">Sort</span>
           {SORTS.map(({ value, label }) => (
             <ToggleChip
               key={value}
@@ -183,7 +183,7 @@ export function OracleFilters({
             onClick={() => onFilter(value)}
           />
         ))}
-        <span className="ml-auto font-inter text-[12px] text-driftwood" aria-live="polite">
+        <span className="ml-auto font-inter text-[12px] text-silver" aria-live="polite">
           {shown} shown
         </span>
       </div>

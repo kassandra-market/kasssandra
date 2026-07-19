@@ -52,12 +52,12 @@ export function ClaimControl({
   }
 
   return (
-    <div className="mt-1 border-t border-pebble pt-3">
+    <div className="mt-1 border-t border-hairline pt-3">
       <form className="flex flex-col gap-2" onSubmit={onSubmit} noValidate>
         <div className="flex items-center gap-3">
           <SubmitButton verb={verb} status={action.status} />
         </div>
-        <p className="font-inter text-[12px] text-driftwood">{description}</p>
+        <p className="font-inter text-[12px] text-silver">{description}</p>
         <WriteStatusRegion status={action.status} successVerb={successVerb} />
       </form>
     </div>

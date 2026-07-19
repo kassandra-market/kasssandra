@@ -15,21 +15,21 @@ import {
  * positive = aqua chestnut). `dark` = the swatch is dark, so label text goes light.
  */
 const COLORS: { name: string; token: string; hex: string; dark?: boolean }[] = [
-  { name: 'parchment', token: 'bg-parchment', hex: '#012624', dark: true },
-  { name: 'soft-cream', token: 'bg-soft-cream', hex: '#011d1c', dark: true },
-  { name: 'pure-card', token: 'bg-pure-card', hex: '#003734', dark: true },
-  { name: 'ink-black', token: 'bg-ink-black', hex: '#011d1c', dark: true },
-  { name: 'charcoal-bark', token: 'bg-charcoal-bark', hex: '#edfffe' },
-  { name: 'sepia', token: 'bg-sepia', hex: '#ffffff' },
-  { name: 'bronze', token: 'bg-bronze', hex: '#bbc7c6' },
-  { name: 'driftwood', token: 'bg-driftwood', hex: '#bbc7c6' },
-  { name: 'stone', token: 'bg-stone', hex: '#8fa3a1' },
-  { name: 'pebble', token: 'bg-pebble', hex: 'rgba(255,255,255,0.1)', dark: true },
-  { name: 'chestnut', token: 'bg-chestnut', hex: '#8fe9dd' },
-  { name: 'ember-orange', token: 'bg-ember-orange', hex: '#ff6f61' },
-  { name: 'saffron-pulse', token: 'bg-saffron-pulse', hex: '#cbfffc' },
-  { name: 'peach-glow', token: 'bg-peach-glow', hex: '#003734', dark: true },
-  { name: 'cobalt', token: 'bg-cobalt', hex: '#cbfffc' },
+  { name: 'parchment', token: 'bg-liquid-abyss', hex: '#012624', dark: true },
+  { name: 'soft-cream', token: 'bg-liquid-deep', hex: '#011d1c', dark: true },
+  { name: 'pure-card', token: 'bg-liquid-kelp', hex: '#003734', dark: true },
+  { name: 'ink-black', token: 'bg-liquid-deep', hex: '#011d1c', dark: true },
+  { name: 'charcoal-bark', token: 'bg-liquid-mist', hex: '#edfffe' },
+  { name: 'sepia', token: 'bg-platinum', hex: '#ffffff' },
+  { name: 'bronze', token: 'bg-silver', hex: '#bbc7c6' },
+  { name: 'driftwood', token: 'bg-silver', hex: '#bbc7c6' },
+  { name: 'stone', token: 'bg-silver-dim', hex: '#8fa3a1' },
+  { name: 'pebble', token: 'bg-hairline', hex: 'rgba(255,255,255,0.1)', dark: true },
+  { name: 'chestnut', token: 'bg-aqua', hex: '#8fe9dd' },
+  { name: 'ember-orange', token: 'bg-coral', hex: '#ff6f61' },
+  { name: 'saffron-pulse', token: 'bg-cyan-phosphor', hex: '#cbfffc' },
+  { name: 'peach-glow', token: 'bg-liquid-kelp', hex: '#003734', dark: true },
+  { name: 'cobalt', token: 'bg-cyan-phosphor', hex: '#cbfffc' },
 ]
 
 /** Type-scale roles. Serif is used ONLY for display >= 20px (subheading and up). */
@@ -46,7 +46,7 @@ const TYPE_SCALE: { role: string; cls: string; serif: boolean; px: string }[] = 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mb-20">
-      <h2 className="mb-6 font-serif text-heading-sm font-light text-sepia">{title}</h2>
+      <h2 className="mb-6 font-serif text-heading-sm font-light text-platinum">{title}</h2>
       {children}
     </section>
   )
@@ -57,8 +57,8 @@ export default function StyleGuide() {
     <main className="mx-auto max-w-[1200px] px-6 py-16">
       <header className="mb-16 text-center">
         <EyebrowTag pill>Design System · U1</EyebrowTag>
-        <h1 className="mt-4 font-serif text-display font-light text-sepia">Kassandra</h1>
-        <p className="mx-auto mt-3 max-w-[560px] font-inter text-[17px] text-bronze">
+        <h1 className="mt-4 font-serif text-display font-light text-platinum">Kassandra</h1>
+        <p className="mx-auto mt-3 max-w-[560px] font-inter text-[17px] text-silver">
           The Auros visual language — an abyssal-teal terminal with bioluminescent data accents,
           coral reserved for danger. A living gallery of tokens and primitives.
         </p>
@@ -68,13 +68,13 @@ export default function StyleGuide() {
       <Panel title="Color tokens">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
           {COLORS.map((c) => (
-            <div key={c.name} className="overflow-hidden rounded-tag border border-pebble">
+            <div key={c.name} className="overflow-hidden rounded-tag border border-hairline">
               <div
-                className={`${c.token} flex h-20 items-end p-2 ${c.dark ? 'text-white' : 'text-sepia'}`}
+                className={`${c.token} flex h-20 items-end p-2 ${c.dark ? 'text-white' : 'text-platinum'}`}
               >
                 <span className="font-mono text-[11px]">{c.hex}</span>
               </div>
-              <div className="bg-pure-card px-2 py-1.5 font-inter text-[12px] text-charcoal-bark">
+              <div className="bg-liquid-kelp px-2 py-1.5 font-inter text-[12px] text-liquid-mist">
                 {c.name}
               </div>
             </div>
@@ -86,12 +86,12 @@ export default function StyleGuide() {
       <Panel title="Type scale">
         <div className="flex flex-col gap-5">
           {TYPE_SCALE.map((t) => (
-            <div key={t.role} className="flex items-baseline gap-6 border-b border-pebble pb-4">
-              <span className="w-28 shrink-0 font-mono text-[12px] text-driftwood">
+            <div key={t.role} className="flex items-baseline gap-6 border-b border-hairline pb-4">
+              <span className="w-28 shrink-0 font-mono text-[12px] text-silver">
                 {t.role} · {t.px}
               </span>
               <span
-                className={`${t.cls} ${t.serif ? 'font-serif font-light' : 'font-inter'} text-sepia`}
+                className={`${t.cls} ${t.serif ? 'font-serif font-light' : 'font-inter'} text-platinum`}
               >
                 Truth, settled.
               </span>
@@ -110,7 +110,7 @@ export default function StyleGuide() {
             Disabled
           </Button>
         </div>
-        <p className="mt-4 font-inter text-[13px] text-driftwood">
+        <p className="mt-4 font-inter text-[13px] text-silver">
           The primary action is a lifted-teal fill with a{' '}
           <code className="font-mono">cyan-phosphor</code> hairline — distinct from the kelp card
           surface it sits on (depth is surface color, not shadow). Connect is the signature aurora
@@ -123,8 +123,8 @@ export default function StyleGuide() {
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <EyebrowTag>Optimistic resolution</EyebrowTag>
-            <h3 className="mt-3 font-serif text-heading-sm font-light text-sepia">Propose &amp; challenge</h3>
-            <p className="mt-2 font-inter text-body text-bronze">
+            <h3 className="mt-3 font-serif text-heading-sm font-light text-platinum">Propose &amp; challenge</h3>
+            <p className="mt-2 font-inter text-body text-silver">
               Anyone proposes an answer. A challenge window opens. If unchallenged, it settles.
             </p>
           </Card>
@@ -133,7 +133,7 @@ export default function StyleGuide() {
               <EyebrowTag pill>Eyebrow · pill</EyebrowTag>
               <EyebrowTag>Eyebrow · bare</EyebrowTag>
             </div>
-            <p className="mt-4 font-inter text-body text-bronze">
+            <p className="mt-4 font-inter text-body text-silver">
               Pure-card surface, 16px radius, 24px padding, a single 1px pebble hairline — flat, no
               heavy shadow.
             </p>
@@ -157,11 +157,11 @@ export default function StyleGuide() {
         <div className="flex flex-wrap items-center gap-10">
           <div className="text-center">
             <AvatarBubble name="Cassandra Vela" verified />
-            <p className="mt-2 font-inter text-[12px] text-driftwood">placeholder + verified</p>
+            <p className="mt-2 font-inter text-[12px] text-silver">placeholder + verified</p>
           </div>
           <div className="text-center">
             <AvatarBubble name="Milo Trent" />
-            <p className="mt-2 font-inter text-[12px] text-driftwood">placeholder fallback</p>
+            <p className="mt-2 font-inter text-[12px] text-silver">placeholder fallback</p>
           </div>
           <div className="text-center">
             <AvatarBubble
@@ -169,7 +169,7 @@ export default function StyleGuide() {
               src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='70'%3E%3Crect width='70' height='70' fill='%233e2407'/%3E%3Ccircle cx='35' cy='35' r='16' fill='%23f65726'/%3E%3C/svg%3E"
               verified
             />
-            <p className="mt-2 font-inter text-[12px] text-driftwood">image src + verified</p>
+            <p className="mt-2 font-inter text-[12px] text-silver">image src + verified</p>
           </div>
         </div>
       </Panel>
@@ -184,7 +184,7 @@ export default function StyleGuide() {
         </div>
       </Panel>
 
-      <footer className="mt-16 border-t border-pebble pt-6 font-mono text-[12px] text-driftwood">
+      <footer className="mt-16 border-t border-hairline pt-6 font-mono text-[12px] text-silver">
         @kassandra-market/oracles workspace import resolves · KASSANDRA_PROGRAM_ID ={' '}
         {KASSANDRA_PROGRAM_ID.toString()}
       </footer>

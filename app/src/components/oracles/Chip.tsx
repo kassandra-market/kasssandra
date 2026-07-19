@@ -11,17 +11,17 @@ export type ChipTone = 'neutral' | 'info' | 'accent' | 'ember' | 'confirmed' | '
 
 const toneClass: Record<ChipTone, string> = {
   // Opening / quiet default — achromatic warm.
-  neutral: 'border-pebble bg-soft-cream text-bronze',
+  neutral: 'border-hairline bg-liquid-deep text-silver',
   // Subtle cyan hint — evidence being staked/voted (in dispute).
-  info: 'border-cobalt/30 bg-cobalt/10 text-cyan-phosphor',
+  info: 'border-cyan-phosphor/30 bg-cyan-phosphor/10 text-cyan-phosphor',
   // Subtle lavender hint — AI adjudication in progress.
   accent: 'border-lavender-phosphor/30 bg-lavender-phosphor/10 text-lavender-phosphor',
   // The ember punctuation moment — the active challenge.
-  ember: 'border-ember-orange/40 bg-ember-orange/10 text-ember-orange',
+  ember: 'border-coral/40 bg-coral/10 text-coral',
   // A calm, grounded aqua "confirmed" for resolution.
-  confirmed: 'border-chestnut/30 bg-chestnut/10 text-chestnut',
+  confirmed: 'border-aqua/30 bg-aqua/10 text-aqua',
   // Lowest-emphasis stone for dead-ends / disqualified.
-  muted: 'border-pebble bg-transparent text-stone',
+  muted: 'border-hairline bg-transparent text-silver-dim',
 }
 
 export interface ChipProps extends HTMLAttributes<HTMLSpanElement> {

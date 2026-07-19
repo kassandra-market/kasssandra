@@ -8,8 +8,8 @@ import { formatKass, formatProbability, outcomeRow, truncateMiddle } from "../..
 import type { OracleMetaView } from "../../hooks/useOracleMeta";
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
-  "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
+  "focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss";
 
 /**
  * A categorical (N>2) oracle rendered as ONE grouped Delphi card: the QUESTION
@@ -47,25 +47,25 @@ export function CategoricalCard({
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center rounded-tag border border-pebble bg-soft-cream px-2.5 py-1 font-inter text-[12px] font-medium text-bronze">
+        <span className="inline-flex items-center rounded-tag border border-hairline bg-liquid-deep px-2.5 py-1 font-inter text-[12px] font-medium text-silver">
           Categorical · {optionsCount} outcomes
         </span>
-        <span className="font-inter text-[12px] text-driftwood" title={group.oracle}>
+        <span className="font-inter text-[12px] text-silver" title={group.oracle}>
           Oracle {truncateMiddle(group.oracle, 4, 4)}
         </span>
       </div>
 
       {subject ? (
-        <h3 className="text-balance font-serif text-subheading font-light text-sepia" title={subject}>
+        <h3 className="text-balance font-serif text-subheading font-light text-platinum" title={subject}>
           {subject}
         </h3>
       ) : (
-        <h3 className="font-mono text-subheading font-light text-sepia">
+        <h3 className="font-mono text-subheading font-light text-platinum">
           {group.markets.length} of {optionsCount} outcomes live
         </h3>
       )}
 
-      <ul className="mt-1 flex flex-col divide-y divide-pebble/60">
+      <ul className="mt-1 flex flex-col divide-y divide-hairline/60">
         {outcomes.map((row) => (
           <li key={row.pubkey}>
             <Link
@@ -73,13 +73,13 @@ export function CategoricalCard({
               className={`group flex items-center justify-between gap-3 rounded-sm py-2 ${focusRing}`}
             >
               <span className="flex items-center gap-2">
-                <span className="font-inter text-[13px] text-sepia group-hover:text-ember-orange">
+                <span className="font-inter text-[13px] text-platinum group-hover:text-coral">
                   {row.label}
                 </span>
                 <StatusChip status={row.status} />
               </span>
               <span className="flex items-center gap-2">
-                <span className="font-inter text-[13px] font-medium text-ember-orange">
+                <span className="font-inter text-[13px] font-medium text-coral">
                   {formatProbability(row.probability)}
                 </span>
                 {/* An Active outcome sub-market is tradeable — point into its
@@ -87,7 +87,7 @@ export function CategoricalCard({
                 {row.status === MarketStatus.Active ? (
                   <span
                     aria-hidden="true"
-                    className="font-inter text-[13px] text-ember-orange transition-transform group-hover:translate-x-0.5"
+                    className="font-inter text-[13px] text-coral transition-transform group-hover:translate-x-0.5"
                   >
                     →
                   </span>
@@ -98,10 +98,10 @@ export function CategoricalCard({
         ))}
       </ul>
 
-      <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 pt-1 font-inter text-[13px] text-bronze">
+      <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 pt-1 font-inter text-[13px] text-silver">
         <div className="flex gap-1">
-          <dt className="text-driftwood">TVL</dt>
-          <dd className="font-medium text-sepia">{formatKass(tvl)} KASS</dd>
+          <dt className="text-silver">TVL</dt>
+          <dd className="font-medium text-platinum">{formatKass(tvl)} KASS</dd>
         </div>
       </dl>
     </Card>

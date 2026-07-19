@@ -44,29 +44,29 @@ export function RedeemControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Redeem payout</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Redeem payout</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           The market is settled. Redeem burns your conditional tokens for the resolved KASS payout
           (winning shares pay out, worthless shares pay nothing).
         </p>
       </div>
       <ConnectGate connected={action.connected}>
         <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 font-inter text-[12px] text-driftwood">
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 font-inter text-[12px] text-silver">
             <div className="flex gap-1">
               <dt>Your YES</dt>
-              <dd className="text-bronze">{yes.balance === null ? "—" : formatKass(yes.balance)}</dd>
+              <dd className="text-silver">{yes.balance === null ? "—" : formatKass(yes.balance)}</dd>
             </div>
             <div className="flex gap-1">
               <dt>Your NO</dt>
-              <dd className="text-bronze">{no.balance === null ? "—" : formatKass(no.balance)}</dd>
+              <dd className="text-silver">{no.balance === null ? "—" : formatKass(no.balance)}</dd>
             </div>
           </dl>
           <div className="flex items-center gap-3">
             <SubmitButton verb="Redeem" status={action.status} disabled={nothing} />
           </div>
           {nothing ? (
-            <p className="font-inter text-[12px] text-stone">No redeemable positions in this wallet.</p>
+            <p className="font-inter text-[12px] text-silver-dim">No redeemable positions in this wallet.</p>
           ) : null}
           <WriteStatusRegion status={action.status} successVerb="Redeemed" />
         </form>

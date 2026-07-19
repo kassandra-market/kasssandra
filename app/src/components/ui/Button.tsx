@@ -32,8 +32,8 @@ const variants: Record<ButtonVariant, string> = {
     'hover:-translate-y-0.5 active:translate-y-0',
   // Transparent, 1px hairline, platinum text. No bg/shadow.
   GhostOutline:
-    'bg-transparent text-platinum border border-pebble px-4 py-2.5 ' +
-    'hover:border-silver-mist focus-visible:ring-pebble',
+    'bg-transparent text-platinum border border-hairline px-4 py-2.5 ' +
+    'hover:border-silver-mist focus-visible:ring-hairline',
   // The signature aurora gradient pill (cyan -> white -> pink), dark text,
   // uppercase tracked. Reserved for the top-level CTA (wallet connect).
   NavPill:

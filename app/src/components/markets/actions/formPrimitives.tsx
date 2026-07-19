@@ -3,10 +3,10 @@ import { Button } from "../../ui";
 import type { WriteStatus } from "../../../market/data/writeAction";
 
 const inputClass =
-  "w-full rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] " +
-  "text-sepia placeholder:text-driftwood focus-visible:outline-none focus-visible:ring-2 " +
-  "focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment " +
-  "aria-[invalid=true]:border-ember-orange/60";
+  "w-full rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] " +
+  "text-platinum placeholder:text-silver focus-visible:outline-none focus-visible:ring-2 " +
+  "focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss " +
+  "aria-[invalid=true]:border-coral/60";
 
 /**
  * A labelled field wrapper: a label, the control, and inline error text
@@ -30,15 +30,15 @@ export function Field({
   const invalid = Boolean(error);
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="font-inter text-[13px] font-medium text-sepia">
+      <label htmlFor={id} className="font-inter text-[13px] font-medium text-platinum">
         {label}
       </label>
       {children({ id, describedById, invalid })}
       <p id={describedById} className="font-inter text-[12px] min-h-[1rem]">
         {error ? (
-          <span className="text-ember-orange">{error}</span>
+          <span className="text-coral">{error}</span>
         ) : hint ? (
-          <span className="text-driftwood">{hint}</span>
+          <span className="text-silver">{hint}</span>
         ) : null}
       </p>
     </div>
@@ -120,13 +120,13 @@ export function KassBalanceLine({
 }) {
   if (balance === null) {
     if (loading) {
-      return <p className="-mt-1 font-inter text-[12px] text-driftwood">Checking balance…</p>;
+      return <p className="-mt-1 font-inter text-[12px] text-silver">Checking balance…</p>;
     }
     return null;
   }
   return (
-    <p className="-mt-1 font-inter text-[12px] text-driftwood">
-      Your KASS: <span className="text-bronze">{format(balance)}</span>
+    <p className="-mt-1 font-inter text-[12px] text-silver">
+      Your KASS: <span className="text-silver">{format(balance)}</span>
     </p>
   );
 }

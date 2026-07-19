@@ -7,7 +7,7 @@
 export function ProbabilityBar({ probability }: { probability: number | null }) {
   if (probability === null) {
     return (
-      <p className="font-inter text-[12px] text-driftwood">Live price unavailable</p>
+      <p className="font-inter text-[12px] text-silver">Live price unavailable</p>
     );
   }
   // Round YES once and derive NO as the complement, so the pair always sums to
@@ -17,11 +17,11 @@ export function ProbabilityBar({ probability }: { probability: number | null }) 
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between font-inter text-[12px]">
-        <span className="font-medium text-ember-orange">YES {yesPct}%</span>
-        <span className="text-driftwood">NO {noPct}%</span>
+        <span className="font-medium text-coral">YES {yesPct}%</span>
+        <span className="text-silver">NO {noPct}%</span>
       </div>
       <div
-        className="h-1.5 w-full overflow-hidden rounded-sm bg-soft-cream"
+        className="h-1.5 w-full overflow-hidden rounded-sm bg-liquid-deep"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
@@ -29,7 +29,7 @@ export function ProbabilityBar({ probability }: { probability: number | null }) 
         aria-label="Implied YES probability"
       >
         <div
-          className="h-full rounded-sm bg-ember-orange transition-[width] duration-500 ease-out motion-reduce:transition-none"
+          className="h-full rounded-sm bg-coral transition-[width] duration-500 ease-out motion-reduce:transition-none"
           style={{ width: `${yesPct}%` }}
         />
       </div>

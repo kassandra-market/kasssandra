@@ -56,11 +56,11 @@ export function Tabs({ items, value, onChange, ariaLabel, className = '' }: Tabs
       role="tablist"
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
-      className={`flex justify-around gap-1 overflow-x-auto rounded-card border border-pebble bg-soft-cream p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
+      className={`flex justify-around gap-1 overflow-x-auto rounded-card border border-hairline bg-liquid-deep p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
     >
       {items.map((t, i) => {
         const selected = t.id === value
-        const dotClass = t.dot === 'ember' ? 'bg-ember-orange' : t.dot === 'chestnut' ? 'bg-chestnut' : ''
+        const dotClass = t.dot === 'ember' ? 'bg-coral' : t.dot === 'chestnut' ? 'bg-aqua' : ''
         return (
           <button
             key={t.id}
@@ -77,10 +77,10 @@ export function Tabs({ items, value, onChange, ariaLabel, className = '' }: Tabs
               'group relative flex shrink-0 items-center gap-2 rounded-[12px] px-3.5 py-2',
               'font-inter text-[13px] whitespace-nowrap transition-[color,background-color]',
               'duration-200 ease-[cubic-bezier(0.2,0,0,1)]',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chestnut/40',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua/40',
               selected
-                ? 'bg-pure-card font-medium text-sepia'
-                : 'text-driftwood hover:text-sepia active:scale-[0.96]',
+                ? 'bg-liquid-kelp font-medium text-platinum'
+                : 'text-silver hover:text-platinum active:scale-[0.96]',
             ].join(' ')}
           >
             {dotClass ? (
@@ -89,7 +89,7 @@ export function Tabs({ items, value, onChange, ariaLabel, className = '' }: Tabs
             <span>{t.label}</span>
             {t.count != null ? (
               <span
-                className={`tabular-nums text-[11px] ${selected ? 'text-chestnut' : 'text-stone'}`}
+                className={`tabular-nums text-[11px] ${selected ? 'text-aqua' : 'text-silver-dim'}`}
               >
                 {t.count}
               </span>
@@ -97,7 +97,7 @@ export function Tabs({ items, value, onChange, ariaLabel, className = '' }: Tabs
             {/* Active underline — a second, non-colour selection cue. */}
             <span
               aria-hidden
-              className={`pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 rounded-full bg-chestnut transition-opacity duration-200 ${
+              className={`pointer-events-none absolute inset-x-3.5 -bottom-px h-0.5 rounded-full bg-aqua transition-opacity duration-200 ${
                 selected ? 'opacity-100' : 'opacity-0'
               }`}
             />

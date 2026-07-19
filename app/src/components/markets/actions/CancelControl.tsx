@@ -30,8 +30,8 @@ export function CancelControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Cancel market</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Cancel market</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           The oracle resolved before this market reached its funding floor, so contributions can be
           refunded. Anyone may cancel it.
         </p>

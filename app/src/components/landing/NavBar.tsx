@@ -17,19 +17,19 @@ const NAV_LINKS: { label: string; href: string; route?: boolean; external?: bool
 // On-brand focus ring (sepia, never default blue) for the plain text links.
 const linkFocus =
   'rounded-sm focus-visible:outline-none focus-visible:ring-2 ' +
-  'focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-soft-cream'
+  'focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-deep'
 
 const navBase = `font-inter text-[14px] transition-colors ${linkFocus}`
-const linkClass = `${navBase} text-bronze hover:text-sepia`
+const linkClass = `${navBase} text-silver hover:text-platinum`
 // Active route link: brighter text + a subtle chestnut underline hint (aria-current
 // carries the semantic; color is never the only signal).
-const activeLinkClass = `${navBase} text-sepia underline decoration-chestnut/70 underline-offset-[6px]`
+const activeLinkClass = `${navBase} text-platinum underline decoration-aqua/70 underline-offset-[6px]`
 
 // The mobile-menu row variant — a full-width, ≥44px-tall tap target (touch
 // guideline) with the same on-brand hover + focus treatment as the inline links.
 const mobileBase = `flex min-h-[44px] items-center font-inter text-[15px] transition-colors ${linkFocus}`
-const mobileLinkClass = `${mobileBase} text-bronze hover:text-sepia`
-const mobileActiveLinkClass = `${mobileBase} text-sepia`
+const mobileLinkClass = `${mobileBase} text-silver hover:text-platinum`
+const mobileActiveLinkClass = `${mobileBase} text-platinum`
 
 /** True when a route link matches the current path (exact or a sub-route). */
 function isActiveLink(link: { href: string; route?: boolean }, pathname: string): boolean {
@@ -95,7 +95,7 @@ function ClusterSelector({ mobile = false }: { mobile?: boolean }) {
   if (isGatewayMode()) {
     return (
       <span
-        className={`${wrap} items-center rounded-button border border-pebble bg-soft-cream px-3 py-2 font-inter text-[13px] text-sepia`}
+        className={`${wrap} items-center rounded-button border border-hairline bg-liquid-deep px-3 py-2 font-inter text-[13px] text-platinum`}
         aria-label="RPC cluster"
       >
         {CLUSTER_LABELS[cluster]}
@@ -111,10 +111,10 @@ function ClusterSelector({ mobile = false }: { mobile?: boolean }) {
         value={cluster}
         onChange={(e) => setCluster(e.target.value as Cluster)}
         className={
-          `${mobile ? 'w-full ' : ''}cursor-pointer rounded-button border border-pebble bg-soft-cream px-3 py-2 ` +
-          'font-inter text-[13px] text-sepia hover:bg-pebble/60 ' +
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pebble ' +
-          'focus-visible:ring-offset-2 focus-visible:ring-offset-soft-cream'
+          `${mobile ? 'w-full ' : ''}cursor-pointer rounded-button border border-hairline bg-liquid-deep px-3 py-2 ` +
+          'font-inter text-[13px] text-platinum hover:bg-hairline/60 ' +
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-hairline ' +
+          'focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-deep'
         }
       >
         {clusters.map((c) => (
@@ -193,7 +193,7 @@ export default function NavBar() {
   return (
     <nav
       aria-label="Primary"
-      className="chrome-glass sticky top-0 z-40 border-b border-pebble"
+      className="chrome-glass sticky top-0 z-40 border-b border-hairline"
     >
       <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 px-6 py-4">
         {/* Left: hamburger (<md) + primary links (≥md) */}
@@ -204,7 +204,7 @@ export default function NavBar() {
             aria-expanded={open}
             aria-controls="mobile-nav-menu"
             onClick={() => setOpen((v) => !v)}
-            className={`-ml-2 inline-flex h-11 w-11 items-center justify-center rounded-button text-sepia hover:bg-pebble/60 md:hidden ${linkFocus}`}
+            className={`-ml-2 inline-flex h-11 w-11 items-center justify-center rounded-button text-platinum hover:bg-hairline/60 md:hidden ${linkFocus}`}
           >
             {open ? <CloseIcon /> : <MenuIcon />}
           </button>
@@ -239,7 +239,7 @@ export default function NavBar() {
         {/* Center: wordmark */}
         <Link
           to="/"
-          className={`font-serif text-[26px] font-light tracking-[-0.01em] text-sepia ${linkFocus}`}
+          className={`font-serif text-[26px] font-light tracking-[-0.01em] text-platinum ${linkFocus}`}
         >
           Kassandra
         </Link>
@@ -254,7 +254,7 @@ export default function NavBar() {
       {/* Mobile menu panel — drops beneath the bar; since the nav is sticky it
           floats over the page content on the same glass material. */}
       {open ? (
-        <div id="mobile-nav-menu" className="mobile-menu-enter border-t border-pebble md:hidden">
+        <div id="mobile-nav-menu" className="mobile-menu-enter border-t border-hairline md:hidden">
           <ul className="flex flex-col px-6 py-1">
             {NAV_LINKS.map((l) => {
               const active = isActiveLink(l, location.pathname)
@@ -283,7 +283,7 @@ export default function NavBar() {
               )
             })}
           </ul>
-          <div className="border-t border-pebble px-6 py-4">
+          <div className="border-t border-hairline px-6 py-4">
             <ClusterSelector mobile />
           </div>
         </div>

@@ -57,8 +57,8 @@ export function ActivateControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Activate market</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Activate market</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           The funding floor is met. Activation composes the cYES/cNO pool and seeds it with the
           escrowed KASS, opening the market for trading. Permissionless — anyone may crank it (four
           sequential transactions).
@@ -72,14 +72,14 @@ export function ActivateControl({
               type="submit"
               disabled={seq.busy || seq.allDone}
               aria-busy={seq.busy}
-              className="inline-flex items-center justify-center gap-2 rounded-button bg-chestnut px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss shadow-bloom transition-[transform,filter,box-shadow] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-parchment disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-button bg-aqua px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss shadow-bloom transition-[transform,filter,box-shadow] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss disabled:cursor-not-allowed disabled:opacity-50"
             >
               {verb}
             </button>
           </div>
           {buildError ? (
-            <div className="rounded-tag border border-ember-orange/40 bg-ember-orange/10 px-3 py-2">
-              <p className="font-inter text-[13px] text-ember-orange">{buildError}</p>
+            <div className="rounded-tag border border-coral/40 bg-coral/10 px-3 py-2">
+              <p className="font-inter text-[13px] text-coral">{buildError}</p>
             </div>
           ) : null}
         </form>
@@ -98,24 +98,24 @@ function StepList({ steps, statuses }: { steps: ActivateStep[]; statuses: StepSt
           <li key={step.label} className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2 font-inter text-[13px]">
               <StepGlyph status={st} />
-              <span className={st.kind === "done" ? "text-chestnut" : "text-sepia"}>
+              <span className={st.kind === "done" ? "text-aqua" : "text-platinum"}>
                 {i + 1}. {step.label}
               </span>
               {st.kind === "done" && st.signature === "already-landed" ? (
-                <span className="font-mono text-[11px] text-stone">already on-chain</span>
+                <span className="font-mono text-[11px] text-silver-dim">already on-chain</span>
               ) : st.kind === "done" ? (
                 <a
                   href={explorerTxUrl(st.signature)}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="font-mono text-[11px] text-driftwood underline decoration-pebble underline-offset-4 hover:text-sepia"
+                  className="font-mono text-[11px] text-silver underline decoration-hairline underline-offset-4 hover:text-platinum"
                 >
                   {shortSig(st.signature)}
                 </a>
               ) : null}
             </div>
             {st.kind === "error" ? (
-              <p className="pl-6 font-inter text-[12px] text-ember-orange">{st.message}</p>
+              <p className="pl-6 font-inter text-[12px] text-coral">{st.message}</p>
             ) : null}
           </li>
         );
@@ -129,12 +129,12 @@ function StepGlyph({ status }: { status: StepStatus }) {
     status.kind === "done" ? "✓" : status.kind === "error" ? "✕" : status.kind === "running" ? "…" : "○";
   const tone =
     status.kind === "done"
-      ? "text-chestnut"
+      ? "text-aqua"
       : status.kind === "error"
-        ? "text-ember-orange"
+        ? "text-coral"
         : status.kind === "running"
-          ? "text-bronze"
-          : "text-stone";
+          ? "text-silver"
+          : "text-silver-dim";
   return <span className={`w-3 text-center font-mono text-[12px] ${tone}`}>{glyph}</span>;
 }
 

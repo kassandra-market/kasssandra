@@ -24,7 +24,7 @@ import { BackLink, Row, Section, VerdictBanner } from './primitives'
 import { AiClaimCard, FactCard, MarketCard, ProposerCard } from './cards'
 
 const emptyNote = (text: string) => (
-  <p className="font-inter text-[14px] text-driftwood">{text}</p>
+  <p className="font-inter text-[14px] text-silver">{text}</p>
 )
 
 /** Phases whose window elapsing unlocks a permissionless advance/finalize crank. */
@@ -65,27 +65,27 @@ export default function OracleDetail() {
       {data ? (
         <OracleBody detail={data} refetch={refetch} />
       ) : loading ? (
-        <p className="mt-10 font-inter text-[15px] text-bronze" role="status">
+        <p className="mt-10 font-inter text-[15px] text-silver" role="status">
           Reading the chain…
         </p>
       ) : notFound ? (
         <div className="mt-10 max-w-[560px]">
           <Card>
-            <h1 className="font-serif text-heading-sm font-light text-sepia">Oracle not found</h1>
-            <p className="mt-2 font-inter text-[15px] text-bronze">
+            <h1 className="font-serif text-heading-sm font-light text-platinum">Oracle not found</h1>
+            <p className="mt-2 font-inter text-[15px] text-silver">
               No Kassandra oracle lives at this address on{' '}
-              <span className="font-medium text-sepia">{CLUSTER_LABELS[cluster]}</span>.
+              <span className="font-medium text-platinum">{CLUSTER_LABELS[cluster]}</span>.
             </p>
-            <p className="mt-2 break-all font-mono text-[12px] text-driftwood">{pubkey}</p>
+            <p className="mt-2 break-all font-mono text-[12px] text-silver">{pubkey}</p>
           </Card>
         </div>
       ) : error ? (
         <div className="mt-10 max-w-[560px]">
           <Card>
-            <h1 className="font-serif text-heading-sm font-light text-sepia">
+            <h1 className="font-serif text-heading-sm font-light text-platinum">
               Couldn’t load this oracle
             </h1>
-            <p className="mt-2 font-inter text-[15px] text-bronze">{error.message}</p>
+            <p className="mt-2 font-inter text-[15px] text-silver">{error.message}</p>
             <div className="mt-5">
               <Button variant="GhostOutline" onClick={refetch}>
                 Retry
@@ -172,7 +172,7 @@ function OracleBody({
       {/* Header — the SUBJECT (verified question) + its options lead. */}
       <header className="mt-8">
         <EyebrowTag pill>Oracle</EyebrowTag>
-        <h1 className="mt-3 font-serif text-heading font-light text-sepia">
+        <h1 className="mt-3 font-serif text-heading font-light text-platinum">
           {meta?.subject ?? 'Oracle dispute'}
         </h1>
         {options.length > 0 && (
@@ -180,46 +180,46 @@ function OracleBody({
             {options.map((opt, i) => (
               <span
                 key={i}
-                className="rounded-tag border border-pebble bg-soft-cream px-2.5 py-1 font-inter text-[13px] text-bronze"
+                className="rounded-tag border border-hairline bg-liquid-deep px-2.5 py-1 font-inter text-[13px] text-silver"
               >
-                <span className="tabular-nums text-driftwood">{i}</span>
-                <span className="mx-1 text-driftwood">·</span>
+                <span className="tabular-nums text-silver">{i}</span>
+                <span className="mx-1 text-silver">·</span>
                 {opt}
               </span>
             ))}
           </div>
         )}
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 font-inter text-[13px] text-driftwood">
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 font-inter text-[13px] text-silver">
           <PhaseChip phase={oracle.phase} />
           <span>{relativeDeadline(oracle.deadline)}</span>
           <Truncated value={pubkey} copyable label="oracle address" />
           {predictionMarket ? (
             <Link
               to={`/markets/${predictionMarket}`}
-              className="rounded-sm font-inter text-[13px] font-medium text-chestnut hover:text-ember-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-chestnut/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+              className="rounded-sm font-inter text-[13px] font-medium text-aqua hover:text-coral focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
             >
               View prediction market →
             </Link>
           ) : null}
         </div>
         {meta?.uri && (
-          <div className="mt-3 flex items-baseline gap-2 font-inter text-[13px] text-driftwood">
+          <div className="mt-3 flex items-baseline gap-2 font-inter text-[13px] text-silver">
             <span>Metadata</span>
             <a
               href={meta.uri}
               target="_blank"
               rel="noreferrer"
-              className="text-chestnut underline decoration-dotted underline-offset-2"
+              className="text-aqua underline decoration-dotted underline-offset-2"
             >
               extended JSON
             </a>
-            <span className="text-driftwood/70" title="sha256 committed on-chain">
+            <span className="text-silver/70" title="sha256 committed on-chain">
               (hash-verified)
             </span>
           </div>
         )}
         {resolved ? (
-          <p className="mt-3 font-inter text-[14px] text-chestnut">
+          <p className="mt-3 font-inter text-[14px] text-aqua">
             {hasResolvedOption
               ? `Resolved to “${options[oracle.resolvedOption]?.trim() || `option ${oracle.resolvedOption}`}”`
               : 'Resolved with no valid option (dead-end)'}

@@ -18,8 +18,8 @@ import { ModeButton } from "./ModeButton";
 import { BatchStepList } from "./BatchStepList";
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
-  "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
+  "focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss";
 
 /**
  * Create a new prediction market bound to an existing Kassandra oracle: an oracle
@@ -228,14 +228,14 @@ export function CreateMarketForm() {
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Create market</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Create market</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Bind a market to an existing Kassandra oracle and seed its funding.
         </p>
       </div>
       {notInitialized ? (
-        <div className="rounded-tag border border-pebble bg-soft-cream p-4">
-          <p className="font-inter text-[13px] text-bronze">
+        <div className="rounded-tag border border-hairline bg-liquid-deep p-4">
+          <p className="font-inter text-[13px] text-silver">
             The program is not initialized (no on-chain Config), so its KASS mint is unknown. Deploy
             + initialize the program before creating a market.
           </p>
@@ -261,8 +261,8 @@ export function CreateMarketForm() {
 
           {/* Redundant-market guard: one market per oracle. */}
           {existingMarket ? (
-            <div className="rounded-tag border border-ember-orange/40 bg-ember-orange/10 px-3 py-2">
-              <p className="font-inter text-[13px] text-ember-orange">
+            <div className="rounded-tag border border-coral/40 bg-coral/10 px-3 py-2">
+              <p className="font-inter text-[13px] text-coral">
                 This oracle already has a market.{" "}
                 <Link to={`/markets/${existingMarket.pubkey}`} className="underline">
                   View it
@@ -278,7 +278,7 @@ export function CreateMarketForm() {
             <div
               role="radiogroup"
               aria-label="Create mode"
-              className="inline-flex rounded-tag border border-pebble bg-soft-cream p-0.5"
+              className="inline-flex rounded-tag border border-hairline bg-liquid-deep p-0.5"
             >
               <ModeButton active={!batchMode} onClick={() => setBatchMode(false)}>
                 Single outcome
@@ -303,7 +303,7 @@ export function CreateMarketForm() {
                     aria-describedby={ids.describedById}
                     value={outcomeIndex}
                     onChange={(e) => setOutcomeIndex(Number(e.target.value))}
-                    className={`w-full rounded-tag border border-pebble bg-pure-card px-3 py-2 font-inter text-[14px] text-sepia ${focusRing}`}
+                    className={`w-full rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] text-platinum ${focusRing}`}
                   >
                     {Array.from({ length: optionsCount as number }, (_, i) => (
                       <option key={i} value={i}>
@@ -320,9 +320,9 @@ export function CreateMarketForm() {
                       setLabels((prev) => ({ ...prev, [outcomeIndex]: e.target.value }))
                     }
                   />
-                  <p className="font-inter text-[12px] text-driftwood">
+                  <p className="font-inter text-[12px] text-silver">
                     This market: YES if the oracle resolves to{" "}
-                    <span className="font-medium text-bronze">
+                    <span className="font-medium text-silver">
                       {outcomeLabel(outcomeIndex, labels[outcomeIndex])}
                     </span>{" "}
                     (of {optionsCount} outcomes).
@@ -331,13 +331,13 @@ export function CreateMarketForm() {
               )}
             </Field>
           ) : isCategorical && batchMode ? (
-            <p className="font-inter text-[12px] text-driftwood">
+            <p className="font-inter text-[12px] text-silver">
               Creates all {optionsCount} outcome sub-markets — one "YES if the oracle resolves to
               outcome ⟨i⟩" market per outcome — as {optionsCount} sequential transactions
               (resumable; already-created outcomes are skipped).
             </p>
           ) : optionsCount === 2 ? (
-            <p className="font-inter text-[12px] text-driftwood">
+            <p className="font-inter text-[12px] text-silver">
               Binary oracle — YES if the oracle resolves to outcome 0.
             </p>
           ) : null}
@@ -358,9 +358,9 @@ export function CreateMarketForm() {
             )}
           </Field>
           {batchMode && parsedSeed.value !== undefined && typeof optionsCount === "number" ? (
-            <p className="-mt-1 font-inter text-[12px] text-driftwood">
+            <p className="-mt-1 font-inter text-[12px] text-silver">
               Total: {optionsCount} × seed ={" "}
-              <span className="font-medium text-bronze">
+              <span className="font-medium text-silver">
                 {formatKass(parsedSeed.value * BigInt(optionsCount))}
               </span>
             </p>
@@ -371,7 +371,7 @@ export function CreateMarketForm() {
             <>
               {batchSteps ? <BatchStepList steps={batchSteps} statuses={seq.statuses} /> : null}
               {seq.busy && runningIdx >= 0 ? (
-                <p aria-live="polite" className="font-inter text-[12px] text-bronze">
+                <p aria-live="polite" className="font-inter text-[12px] text-silver">
                   Creating outcome {runningIdx} of {optionsCount}…
                 </p>
               ) : null}
@@ -380,14 +380,14 @@ export function CreateMarketForm() {
                   type="submit"
                   disabled={seq.busy || seq.allDone || Boolean(balanceError) || Boolean(existingMarket)}
                   aria-busy={seq.busy}
-                  className="inline-flex items-center justify-center gap-2 rounded-button bg-chestnut px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss shadow-bloom transition-[transform,filter,box-shadow] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-parchment disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 rounded-button bg-aqua px-4 py-2.5 font-inter text-body font-medium text-liquid-abyss shadow-bloom transition-[transform,filter,box-shadow] duration-150 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.97] disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-phosphor focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {batchVerb}
                 </button>
               </div>
               {batchError ? (
-                <div className="rounded-tag border border-ember-orange/40 bg-ember-orange/10 px-3 py-2">
-                  <p className="font-inter text-[13px] text-ember-orange">{batchError}</p>
+                <div className="rounded-tag border border-coral/40 bg-coral/10 px-3 py-2">
+                  <p className="font-inter text-[13px] text-coral">{batchError}</p>
                 </div>
               ) : null}
             </>

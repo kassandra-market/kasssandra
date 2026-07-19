@@ -55,7 +55,7 @@ describe('Tabs', () => {
   it('renders a count badge and an accent dot where provided', () => {
     const html = render('overview')
     expect(html).toContain('>3<') // Records count badge
-    expect(html).toContain('bg-chestnut') // Market accent dot / active underline
+    expect(html).toContain('bg-aqua') // Market accent dot / active underline
   })
 
   it('renders only the active panel body', () => {

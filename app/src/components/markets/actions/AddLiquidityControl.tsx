@@ -27,14 +27,14 @@ function baseToPlain(base: bigint): string {
 function KassBadge() {
   return (
     <span
-      className="grid h-9 w-9 shrink-0 place-items-center rounded-avatar border border-chestnut/30 bg-chestnut/15"
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-avatar border border-aqua/30 bg-aqua/15"
       aria-hidden="true"
     >
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="var(--color-chestnut)" strokeWidth="1.6" />
+        <circle cx="12" cy="12" r="9" stroke="var(--color-aqua)" strokeWidth="1.6" />
         <path
           d="M9.5 7.5v9M9.5 12l4-4.5M9.5 12l4 4.5"
-          stroke="var(--color-chestnut)"
+          stroke="var(--color-aqua)"
           strokeWidth="1.6"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -120,10 +120,10 @@ export function AddLiquidityControl({
     <>
       <div>
         {embedded ? null : (
-          <h3 className="font-serif text-subheading font-light text-sepia">Add liquidity</h3>
+          <h3 className="font-serif text-subheading font-light text-platinum">Add liquidity</h3>
         )}
         <p
-          className={`text-pretty font-inter text-[13px] text-driftwood ${embedded ? "" : "mt-1"}`}
+          className={`text-pretty font-inter text-[13px] text-silver ${embedded ? "" : "mt-1"}`}
         >
           Deposit KASS into the live pool. It's split into YES/NO and added at the current price;
           the unmatched side is returned to your wallet as conditional tokens. Your LP is claimable
@@ -133,16 +133,16 @@ export function AddLiquidityControl({
 
       <ConnectGate connected={action.connected}>
         <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
-          <p className="font-inter text-[13px] font-medium text-sepia">Enter deposit amount</p>
+          <p className="font-inter text-[13px] font-medium text-platinum">Enter deposit amount</p>
 
           {/* Token-amount row — KASS mark + symbol on the left, the amount on the right. */}
           <div
-            className={`flex items-center gap-3 rounded-card border bg-soft-cream px-4 py-3.5 transition-colors focus-within:border-cyan-phosphor/50 ${
-              inputError ? "border-ember-orange/60" : "border-pebble"
+            className={`flex items-center gap-3 rounded-card border bg-liquid-deep px-4 py-3.5 transition-colors focus-within:border-cyan-phosphor/50 ${
+              inputError ? "border-coral/60" : "border-hairline"
             }`}
           >
             <KassBadge />
-            <span className="font-serif text-heading-sm font-light text-sepia">KASS</span>
+            <span className="font-serif text-heading-sm font-light text-platinum">KASS</span>
             <input
               inputMode="decimal"
               placeholder="0.00"
@@ -153,15 +153,15 @@ export function AddLiquidityControl({
                 setAmount(e.target.value);
                 setAmountError(undefined);
               }}
-              className="w-full bg-transparent text-right font-serif text-heading-sm font-light tabular-nums text-sepia placeholder:text-driftwood focus:outline-none"
+              className="w-full bg-transparent text-right font-serif text-heading-sm font-light tabular-nums text-platinum placeholder:text-silver focus:outline-none"
             />
           </div>
 
           {/* Balance + percentage quick-sets. */}
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-inter text-[12px] text-driftwood">
+            <span className="font-inter text-[12px] text-silver">
               Balance:{" "}
-              <span className="tabular-nums text-bronze">
+              <span className="tabular-nums text-silver">
                 {balance === null ? (balanceLoading ? "…" : "—") : formatKass(balance)}
               </span>
             </span>
@@ -171,7 +171,7 @@ export function AddLiquidityControl({
                   key={p}
                   type="button"
                   onClick={() => setPercent(p)}
-                  className="rounded-tag border border-pebble bg-transparent px-2.5 py-1.5 font-inter text-[12px] tabular-nums text-sepia transition-colors hover:border-silver-mist active:scale-[0.96]"
+                  className="rounded-tag border border-hairline bg-transparent px-2.5 py-1.5 font-inter text-[12px] tabular-nums text-platinum transition-colors hover:border-silver-mist active:scale-[0.96]"
                 >
                   {p === 100 ? "Max" : `${p}%`}
                 </button>
@@ -180,20 +180,20 @@ export function AddLiquidityControl({
           </div>
 
           {inputError ? (
-            <p className="font-inter text-[12px] text-ember-orange">{inputError}</p>
+            <p className="font-inter text-[12px] text-coral">{inputError}</p>
           ) : null}
 
           {/* Risk acknowledgment — gates the deposit, mirroring the reference. */}
           <label
             htmlFor={riskId}
-            className="flex cursor-pointer items-start gap-2.5 pt-1 font-inter text-[13px] text-driftwood"
+            className="flex cursor-pointer items-start gap-2.5 pt-1 font-inter text-[13px] text-silver"
           >
             <input
               id={riskId}
               type="checkbox"
               checked={accepted}
               onChange={(e) => setAccepted(e.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-chestnut"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-aqua"
             />
             <span className="text-pretty">
               I understand and accept the risks involved in providing liquidity to this pool.

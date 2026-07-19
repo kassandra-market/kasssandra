@@ -19,8 +19,8 @@ const SORT_LABELS: Record<SortBy, string> = {
 };
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 " +
-  "focus-visible:ring-offset-2 focus-visible:ring-offset-parchment";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
+  "focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss";
 
 /** Case-insensitive match against a market's question + address + status label. */
 function matches(summary: MarketSummary, query: string, subject?: string): boolean {
@@ -58,12 +58,12 @@ function SkeletonCard() {
   return (
     <Card className="flex h-full animate-pulse flex-col gap-3" aria-hidden="true">
       <div className="flex items-center justify-between">
-        <div className="h-6 w-20 rounded-tag bg-soft-cream" />
-        <div className="h-4 w-16 rounded-sm bg-soft-cream" />
+        <div className="h-6 w-20 rounded-tag bg-liquid-deep" />
+        <div className="h-4 w-16 rounded-sm bg-liquid-deep" />
       </div>
-      <div className="h-6 w-40 rounded-sm bg-soft-cream" />
-      <div className="h-4 w-24 rounded-sm bg-soft-cream" />
-      <div className="mt-2 h-4 w-full rounded-sm bg-soft-cream" />
+      <div className="h-6 w-40 rounded-sm bg-liquid-deep" />
+      <div className="h-4 w-24 rounded-sm bg-liquid-deep" />
+      <div className="mt-2 h-4 w-full rounded-sm bg-liquid-deep" />
     </Card>
   );
 }
@@ -120,14 +120,14 @@ export default function Markets() {
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by question, address, or status…"
             aria-label="Search markets"
-            className={`w-full rounded-button border border-pebble bg-pure-card px-3 py-2 font-inter text-body text-sepia placeholder:text-driftwood sm:w-72 ${focusRing}`}
+            className={`w-full rounded-button border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-body text-platinum placeholder:text-silver sm:w-72 ${focusRing}`}
           />
-          <label className="flex items-center gap-2 font-inter text-[13px] text-bronze">
+          <label className="flex items-center gap-2 font-inter text-[13px] text-silver">
             Sort
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className={`rounded-button border border-pebble bg-pure-card px-2.5 py-2 font-inter text-body text-sepia ${focusRing}`}
+              className={`rounded-button border border-hairline bg-liquid-kelp px-2.5 py-2 font-inter text-body text-platinum ${focusRing}`}
             >
               {(Object.keys(SORT_LABELS) as SortBy[]).map((k) => (
                 <option key={k} value={k}>
@@ -152,10 +152,10 @@ export default function Markets() {
         ) : error ? (
           <div className="mx-auto max-w-[640px]">
             <Card className="flex flex-col items-center gap-4 text-center">
-              <p className="font-inter text-body text-bronze">
+              <p className="font-inter text-body text-silver">
                 Could not load markets from the indexer.
                 <br />
-                <span className="font-mono text-[12px] text-driftwood">{error.message}</span>
+                <span className="font-mono text-[12px] text-silver">{error.message}</span>
               </p>
               <Button variant="PrimaryChestnut" onClick={refetch}>
                 Retry
@@ -166,19 +166,19 @@ export default function Markets() {
           <div className="mx-auto max-w-[640px]">
             <Card className="flex flex-col items-center gap-4 text-center">
               {search ? (
-                <p className="font-inter text-body text-bronze">No markets match your search.</p>
+                <p className="font-inter text-body text-silver">No markets match your search.</p>
               ) : notInitialized ? (
                 <>
-                  <p className="font-inter text-body text-bronze">
+                  <p className="font-inter text-body text-silver">
                     The kassandra-market program is not set up — its on-chain Config account is
                     missing.
                   </p>
-                  <p className="font-inter text-[13px] text-driftwood">
+                  <p className="font-inter text-[13px] text-silver">
                     Deploy the program and initialize its Config before markets can appear.
                   </p>
                 </>
               ) : (
-                <p className="font-inter text-body text-bronze">
+                <p className="font-inter text-body text-silver">
                   No markets found. The program is live but has no markets yet — create the first
                   one.
                 </p>

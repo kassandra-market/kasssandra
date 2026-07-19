@@ -160,15 +160,15 @@ export default function CreateOracle() {
     <main className="mx-auto max-w-[720px] px-6 py-16 md:py-20">
       <Link
         to="/oracles"
-        className="inline-block font-inter text-[14px] text-sepia underline decoration-pebble underline-offset-4 hover:text-lavender-phosphor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+        className="inline-block font-inter text-[14px] text-platinum underline decoration-hairline underline-offset-4 hover:text-lavender-phosphor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
       >
         ← All oracles
       </Link>
 
       <header className="mt-8">
         <EyebrowTag pill>Create</EyebrowTag>
-        <h1 className="mt-3 font-serif text-heading font-light text-sepia">Open an oracle</h1>
-        <p className="mt-3 font-inter text-[15px] text-bronze">
+        <h1 className="mt-3 font-serif text-heading font-light text-platinum">Open an oracle</h1>
+        <p className="mt-3 font-inter text-[15px] text-silver">
           Pose a question, label the options it can resolve to, and set a deadline. The question and
           labels are stored on-chain as the oracle's metadata; proposers stake KASS behind an answer.
         </p>
@@ -203,7 +203,7 @@ export default function CreateOracle() {
                   <div id={ids.id} aria-describedby={ids.describedById} className="flex flex-col gap-2">
                     {options.map((opt, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <span className="w-5 shrink-0 text-right font-inter text-[12px] tabular-nums text-driftwood">
+                        <span className="w-5 shrink-0 text-right font-inter text-[12px] tabular-nums text-silver">
                           {i}
                         </span>
                         <input
@@ -219,7 +219,7 @@ export default function CreateOracle() {
                           onClick={() => removeOption(i)}
                           disabled={options.length <= 2}
                           aria-label={`Remove option ${i}`}
-                          className="rounded-tag border border-pebble px-2 py-2 font-inter text-[13px] text-bronze transition-colors hover:border-driftwood hover:text-sepia disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+                          className="rounded-tag border border-hairline px-2 py-2 font-inter text-[13px] text-silver transition-colors hover:border-silver hover:text-platinum disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
                         >
                           Remove
                         </button>
@@ -229,7 +229,7 @@ export default function CreateOracle() {
                       <button
                         type="button"
                         onClick={addOption}
-                        className="self-start rounded-tag border border-pebble px-3 py-2 font-inter text-[13px] text-bronze transition-colors hover:border-driftwood hover:text-sepia focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+                        className="self-start rounded-tag border border-hairline px-3 py-2 font-inter text-[13px] text-silver transition-colors hover:border-silver hover:text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
                       >
                         + Add option
                       </button>
@@ -284,18 +284,18 @@ export default function CreateOracle() {
                 )}
               </Field>
 
-              <p className="font-inter text-[12px] text-driftwood">
-                Nonce <span className="font-mono text-bronze">{oraclePreview}</span> — the oracle's
+              <p className="font-inter text-[12px] text-silver">
+                Nonce <span className="font-mono text-silver">{oraclePreview}</span> — the oracle's
                 on-chain address is derived from it.
               </p>
 
               {/* Advanced — extended off-chain metadata (hosted JSON, bound by an
                   on-chain hash). All optional; promptTemplate defaults from the question. */}
-              <div className="border-t border-pebble pt-4">
+              <div className="border-t border-hairline pt-4">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced((v) => !v)}
-                  className="font-inter text-[13px] text-sepia underline decoration-pebble underline-offset-4 hover:text-lavender-phosphor"
+                  className="font-inter text-[13px] text-platinum underline decoration-hairline underline-offset-4 hover:text-lavender-phosphor"
                   aria-expanded={showAdvanced}
                 >
                   {showAdvanced ? '− Hide advanced' : '+ Advanced (resolution rules)'}

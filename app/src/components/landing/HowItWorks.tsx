@@ -47,8 +47,8 @@ export default function HowItWorks() {
             <Reveal as="li" key={s.step} delay={i * 90} className="h-full">
               <Card className="h-full transition-[transform,border-color] duration-200 hover:-translate-y-1 hover:border-cyan-phosphor/40">
                 <EyebrowTag>{`Step ${s.step}`}</EyebrowTag>
-                <h3 className="mt-3 font-serif text-heading-sm font-light text-sepia">{s.title}</h3>
-                <p className="mt-2 font-inter text-body text-bronze">{s.body}</p>
+                <h3 className="mt-3 font-serif text-heading-sm font-light text-platinum">{s.title}</h3>
+                <p className="mt-2 font-inter text-body text-silver">{s.body}</p>
               </Card>
             </Reveal>
           ))}

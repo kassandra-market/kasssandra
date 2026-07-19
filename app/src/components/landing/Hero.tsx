@@ -25,12 +25,12 @@ const POSITIONS: { pos: string; depth: number }[] = [
 
 /** Chip color per tone — subtle Auros hairlines, ember reserved for the Challenge moment. */
 const TONE_CLASSES: Record<HeroTone, string> = {
-  neutral: 'border-pebble text-silver-mist',
+  neutral: 'border-hairline text-silver-mist',
   info: 'border-cyan-phosphor/30 text-cyan-phosphor',
   accent: 'border-lavender-phosphor/30 text-lavender-phosphor',
-  ember: 'border-ember-orange/40 text-ember-orange',
-  confirmed: 'border-chestnut/40 text-chestnut',
-  muted: 'border-pebble text-stone',
+  ember: 'border-coral/40 text-coral',
+  confirmed: 'border-aqua/40 text-aqua',
+  muted: 'border-hairline text-silver-dim',
 }
 
 /** A loading placeholder in a scatter slot — shown only while live data is still fetching. */
@@ -39,7 +39,7 @@ function SkeletonCard({ index }: { index: number }) {
   return (
     <div className={'w-full lg:absolute lg:w-[248px] ' + slot.pos} aria-hidden="true">
       <div className="drift" style={{ '--drift-depth': `${slot.depth}px` } as CSSProperties}>
-        <div className="animate-pulse rounded-card border border-pebble bg-pure-card p-4 motion-reduce:animate-none">
+        <div className="animate-pulse rounded-card border border-hairline bg-liquid-kelp p-4 motion-reduce:animate-none">
           <div className="flex items-center justify-between gap-2">
             <div className="h-2.5 w-14 rounded bg-white/10" />
             <div className="h-4 w-16 rounded-tag bg-white/10" />
@@ -64,7 +64,7 @@ function ConstellationCard({ card, index }: { card: HeroCard; index: number }) {
       <div className="drift" style={{ '--drift-depth': `${slot.depth}px` } as CSSProperties}>
         <Link
           to={card.href}
-          className="group block rounded-card border border-pebble bg-pure-card p-4 transition-[transform,border-color] duration-200 hover:-translate-y-1 hover:border-cyan-phosphor/40 focus-visible:outline-none focus-visible:border-cyan-phosphor/60"
+          className="group block rounded-card border border-hairline bg-liquid-kelp p-4 transition-[transform,border-color] duration-200 hover:-translate-y-1 hover:border-cyan-phosphor/40 focus-visible:outline-none focus-visible:border-cyan-phosphor/60"
         >
           <div className="flex items-center justify-between gap-2">
             <span className="label-eyebrow font-inter text-[11px] text-silver-mist">{card.kind}</span>
@@ -77,10 +77,10 @@ function ConstellationCard({ card, index }: { card: HeroCard; index: number }) {
               {card.status}
             </span>
           </div>
-          <p className="mt-3 line-clamp-2 font-inter text-[14px] leading-snug text-charcoal-bark">
+          <p className="mt-3 line-clamp-2 font-inter text-[14px] leading-snug text-liquid-mist">
             {card.title}
           </p>
-          <p className="mt-2 font-inter text-[13px] font-medium tabular-nums text-bronze">
+          <p className="mt-2 font-inter text-[13px] font-medium tabular-nums text-silver">
             <span className="text-lavender-phosphor">{card.metricAccent}</span> {card.metricLabel}
           </p>
         </Link>
@@ -213,12 +213,12 @@ export default function Hero() {
           <div className="drift" style={{ '--drift-depth': '-4px' } as CSSProperties}>
             <h1
               id="hero-heading"
-              className="font-serif font-light text-sepia text-[clamp(3rem,8vw,4rem)] leading-[1] tracking-[-0.03em]"
+              className="font-serif font-light text-platinum text-[clamp(3rem,8vw,4rem)] leading-[1] tracking-[-0.03em]"
             >
               <span className="block">Truth,</span>
-              <span className="block italic text-bronze">settled.</span>
+              <span className="block italic text-silver">settled.</span>
             </h1>
-            <p className="mt-6 max-w-[520px] font-inter text-[17px] leading-relaxed text-bronze">
+            <p className="mt-6 max-w-[520px] font-inter text-[17px] leading-relaxed text-silver">
               Kassandra is a decentralized, AI-assisted optimistic oracle on Solana: propose an
               answer, open a challenge window, and let anyone reproduce the verdict.
             </p>

@@ -12,7 +12,7 @@ export function FundingBar({ market }: { market: Pick<Market, "totalContributed"
   return (
     <div className="flex flex-col gap-1.5">
       <div
-        className="h-1.5 w-full overflow-hidden rounded-sm bg-soft-cream"
+        className="h-1.5 w-full overflow-hidden rounded-sm bg-liquid-deep"
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
@@ -20,15 +20,15 @@ export function FundingBar({ market }: { market: Pick<Market, "totalContributed"
         aria-label="Funding progress"
       >
         <div
-          className="h-full rounded-sm bg-chestnut transition-[width] duration-500 ease-out motion-reduce:transition-none"
+          className="h-full rounded-sm bg-aqua transition-[width] duration-500 ease-out motion-reduce:transition-none"
           style={{ width }}
         />
       </div>
-      <p className="font-inter text-[12px] text-driftwood">
-        <span className="font-medium text-sepia">{formatKass(market.totalContributed)}</span>
+      <p className="font-inter text-[12px] text-silver">
+        <span className="font-medium text-platinum">{formatKass(market.totalContributed)}</span>
         {" / "}
         {formatKass(market.minLiquidity)} KASS
-        {funded ? <span className="text-chestnut"> · funded</span> : null}
+        {funded ? <span className="text-aqua"> · funded</span> : null}
       </p>
     </div>
   );

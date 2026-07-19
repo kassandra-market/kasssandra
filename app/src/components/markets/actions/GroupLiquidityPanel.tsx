@@ -173,8 +173,8 @@ export function GroupLiquidityPanel({
   const body = (
     <>
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Group liquidity</h3>
-        <p className="mt-1 font-inter text-[13px] text-bronze">
+        <h3 className="font-serif text-subheading font-light text-platinum">Group liquidity</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Fund or withdraw across all {siblings.length} outcomes of this market at once.
         </p>
       </div>
@@ -212,15 +212,15 @@ export function GroupLiquidityPanel({
               </div>
             </form>
           ) : (
-            <p className="font-inter text-[13px] text-driftwood">
+            <p className="font-inter text-[13px] text-silver">
               No outcomes are accepting liquidity — deposits are closed for this group.
             </p>
           )}
 
           {/* Withdraw — claim LP across every outcome whose fee has been collected. */}
           {claimable.length > 0 ? (
-            <div className="flex flex-col gap-2 border-t border-pebble pt-4">
-              <p className="font-inter text-[13px] text-bronze">
+            <div className="flex flex-col gap-2 border-t border-hairline pt-4">
+              <p className="font-inter text-[13px] text-silver">
                 Withdraw your LP from {claimable.length} settled outcome
                 {claimable.length > 1 ? "s" : ""}.
               </p>
@@ -241,7 +241,7 @@ export function GroupLiquidityPanel({
   // Embedded → a bare subsection (divider + content) to fold into another panel;
   // standalone → its own Card.
   return embedded ? (
-    <div className="flex flex-col gap-4 border-t border-pebble pt-5">{body}</div>
+    <div className="flex flex-col gap-4 border-t border-hairline pt-5">{body}</div>
   ) : (
     <Card className="flex flex-col gap-4">{body}</Card>
   );

@@ -8,7 +8,7 @@ export function BackLink({ search }: { search: string }) {
   return (
     <Link
       to={{ pathname: '/oracles', search }}
-      className="inline-block font-inter text-[14px] text-sepia underline decoration-pebble underline-offset-4 hover:text-lavender-phosphor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40 focus-visible:ring-offset-2 focus-visible:ring-offset-parchment"
+      className="inline-block font-inter text-[14px] text-platinum underline decoration-hairline underline-offset-4 hover:text-lavender-phosphor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
     >
       ← All oracles
     </Link>
@@ -18,9 +18,9 @@ export function BackLink({ search }: { search: string }) {
 /** A compact labelled statistic tile. */
 export function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-card border border-pebble bg-pure-card p-4">
-      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">{label}</div>
-      <div className="mt-1 font-serif text-subheading font-light text-sepia">{value}</div>
+    <div className="rounded-card border border-hairline bg-liquid-kelp p-4">
+      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">{label}</div>
+      <div className="mt-1 font-serif text-subheading font-light text-platinum">{value}</div>
     </div>
   )
 }
@@ -45,19 +45,19 @@ export function StatMeter({
 }) {
   const pct = total && total > 0 ? Math.min(Math.max(value / total, 0), 1) * 100 : 0
   return (
-    <div className="rounded-card border border-pebble bg-pure-card p-4">
-      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">{label}</div>
+    <div className="rounded-card border border-hairline bg-liquid-kelp p-4">
+      <div className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">{label}</div>
       <div className="mt-1 flex items-baseline gap-1.5">
-        <span className="font-serif text-subheading font-light tabular-nums text-sepia">{value}</span>
+        <span className="font-serif text-subheading font-light tabular-nums text-platinum">{value}</span>
         {total != null ? (
-          <span className="font-inter text-[12px] tabular-nums text-driftwood">/ {total}</span>
+          <span className="font-inter text-[12px] tabular-nums text-silver">/ {total}</span>
         ) : null}
       </div>
       {total != null ? (
-        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-soft-cream">
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-liquid-deep">
           <div
             className={`h-full rounded-full transition-[width] duration-500 ${
-              accent && value > 0 ? 'bg-chestnut' : 'bg-bronze/70'
+              accent && value > 0 ? 'bg-aqua' : 'bg-silver/70'
             }`}
             style={{ width: `${pct}%` }}
           />
@@ -80,19 +80,19 @@ export function VerdictBanner({ oracle }: { oracle: Oracle }) {
   // the single ember "Challenged" spark, so the banner never doubles it up.
   const accent =
     v.kind === 'resolved'
-      ? 'border-l-chestnut'
+      ? 'border-l-aqua'
       : v.kind === 'deadend'
-        ? 'border-l-stone'
-        : 'border-l-bronze'
+        ? 'border-l-silver-dim'
+        : 'border-l-silver'
   const titleClass =
-    v.kind === 'resolved' ? 'text-chestnut' : v.kind === 'deadend' ? 'text-stone' : 'text-sepia'
+    v.kind === 'resolved' ? 'text-aqua' : v.kind === 'deadend' ? 'text-silver-dim' : 'text-platinum'
   return (
     <div
       role="status"
-      className={`mt-6 rounded-card border border-pebble border-l-4 ${accent} bg-pure-card py-4 pl-5 pr-4`}
+      className={`mt-6 rounded-card border border-hairline border-l-4 ${accent} bg-liquid-kelp py-4 pl-5 pr-4`}
     >
       <h2 className={`font-serif text-subheading font-light ${titleClass}`}>{v.title}</h2>
-      <p className="mt-1 font-inter text-[13px] text-bronze">{v.detail}</p>
+      <p className="mt-1 font-inter text-[13px] text-silver">{v.detail}</p>
     </div>
   )
 }
@@ -101,9 +101,9 @@ export function VerdictBanner({ oracle }: { oracle: Oracle }) {
 export function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
     <section className="mt-14">
-      <h2 className="font-serif text-heading-sm font-light text-sepia">
+      <h2 className="font-serif text-heading-sm font-light text-platinum">
         {title}
-        {count != null ? <span className="ml-2 font-inter text-[14px] text-driftwood">({count})</span> : null}
+        {count != null ? <span className="ml-2 font-inter text-[14px] text-silver">({count})</span> : null}
       </h2>
       <div className="mt-4">{children}</div>
     </section>
@@ -113,9 +113,9 @@ export function Section({ title, count, children }: { title: string; count?: num
 /** Definition row for the readable-parameters + accounts blocks. */
 export function Row({ term, children }: { term: string; children: ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-pebble py-2 last:border-b-0">
-      <dt className="font-inter text-[13px] text-driftwood">{term}</dt>
-      <dd className="font-inter text-[14px] text-sepia">{children}</dd>
+    <div className="flex items-baseline justify-between gap-4 border-b border-hairline py-2 last:border-b-0">
+      <dt className="font-inter text-[13px] text-silver">{term}</dt>
+      <dd className="font-inter text-[14px] text-platinum">{children}</dd>
     </div>
   )
 }

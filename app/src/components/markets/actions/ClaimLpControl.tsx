@@ -49,7 +49,7 @@ export function ClaimLpControl({
       <Card className="flex flex-col gap-4">{children}</Card>
     );
   const heading = embedded ? null : (
-    <h3 className="font-serif text-subheading font-light text-sepia">Claim LP tokens</h3>
+    <h3 className="font-serif text-subheading font-light text-platinum">Claim LP tokens</h3>
   );
   // Full-width CTA when embedded (matches the Deposit tab); auto-width standalone.
   const btnClass = embedded ? "w-full py-3 text-[15px]" : "";
@@ -59,7 +59,7 @@ export function ClaimLpControl({
   if (!mine) {
     if (!embedded) return null;
     return wrap(
-      <p className="font-inter text-[13px] text-driftwood">
+      <p className="font-inter text-[13px] text-silver">
         You have no LP position to claim here. Add liquidity on the Deposit tab — your LP becomes
         claimable once the market resolves and its protocol fee is collected.
       </p>,
@@ -83,7 +83,7 @@ export function ClaimLpControl({
       <>
         <div>
           {heading}
-          <p className={`font-inter text-[13px] text-driftwood ${embedded ? "" : "mt-1"}`}>
+          <p className={`font-inter text-[13px] text-silver ${embedded ? "" : "mt-1"}`}>
             Your {positionText} is claimable as a share of the pool's LP tokens. Claims open once the
             market resolves and its protocol fee is collected.
           </p>
@@ -114,7 +114,7 @@ export function ClaimLpControl({
     <>
       <div>
         {heading}
-        <p className={`font-inter text-[13px] text-driftwood ${embedded ? "" : "mt-1"}`}>
+        <p className={`font-inter text-[13px] text-silver ${embedded ? "" : "mt-1"}`}>
           Your {positionText} is claimable as a share of the pool's LP tokens. Claim them to your
           wallet.
         </p>

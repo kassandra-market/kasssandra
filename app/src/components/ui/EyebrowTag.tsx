@@ -12,9 +12,9 @@ export interface EyebrowTagProps extends HTMLAttributes<HTMLSpanElement> {
  */
 export function EyebrowTag({ children, pill = false, className = '', ...rest }: EyebrowTagProps) {
   const base =
-    'inline-block font-inter font-medium uppercase text-saffron-pulse ' +
+    'inline-block font-inter font-medium uppercase text-cyan-phosphor ' +
     'text-[13px] tracking-[0.08em]'
-  const pillClasses = pill ? 'rounded-tag border border-pebble px-3 py-1' : ''
+  const pillClasses = pill ? 'rounded-tag border border-hairline px-3 py-1' : ''
   return (
     <span className={`${base} ${pillClasses} ${className}`} {...rest}>
       {children}

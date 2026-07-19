@@ -25,7 +25,7 @@ export interface TimelineStep {
   status: StepStatus
   /** The terminal resolution step (Resolved / InvalidDeadend). */
   terminal: boolean
-  /** True only for the InvalidDeadend terminal — a muted (non-chestnut) end. */
+  /** True only for the InvalidDeadend terminal — a muted (non-aqua) end. */
   deadend: boolean
 }
 

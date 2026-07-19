@@ -23,8 +23,8 @@ function FlankCard({ title, body, delay = 0 }: { title: string; body: string; de
   return (
     <Reveal delay={delay} className="h-full">
       <Card className="h-full transition-[transform,border-color] duration-200 hover:-translate-y-1 hover:border-cyan-phosphor/40">
-        <h3 className="font-serif text-subheading font-light text-sepia">{title}</h3>
-        <p className="mt-2 font-inter text-body text-bronze">{body}</p>
+        <h3 className="font-serif text-subheading font-light text-platinum">{title}</h3>
+        <p className="mt-2 font-inter text-body text-silver">{body}</p>
       </Card>
     </Reveal>
   )
@@ -58,7 +58,7 @@ export default function TrustPanel() {
             <div
               role="img"
               aria-label="The open-source resolver — anyone can run it"
-              className="relative flex min-h-[440px] flex-col justify-between overflow-hidden rounded-card border border-pebble p-8 pb-16 lg:min-h-[520px]"
+              className="relative flex min-h-[440px] flex-col justify-between overflow-hidden rounded-card border border-hairline p-8 pb-16 lg:min-h-[520px]"
               style={{
                 background:
                   'radial-gradient(90% 70% at 80% 10%, rgba(253,233,255,0.4) 0%, transparent 46%), ' +

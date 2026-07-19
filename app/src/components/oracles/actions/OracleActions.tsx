@@ -20,7 +20,7 @@ import { SweepControl } from './SweepControl'
 function Note({ children }: { children: React.ReactNode }) {
   return (
     <Card>
-      <p className="font-inter text-[14px] text-driftwood">{children}</p>
+      <p className="font-inter text-[14px] text-silver">{children}</p>
     </Card>
   )
 }

@@ -40,8 +40,8 @@ export function CloseMarketControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Close market &amp; reclaim rent</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Close market &amp; reclaim rent</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           Every contributor has exited this settled market, so its program accounts can be reaped.
           Closing returns all of the market's account rent to the creator and removes the market from
           the chain. Permissionless — anyone may crank it.

@@ -33,8 +33,8 @@ export function ResolveControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Resolve market</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Resolve market</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           The oracle has reached a terminal outcome. Resolving settles the market's question so
           winning positions become redeemable. Permissionless — anyone may crank it.
         </p>

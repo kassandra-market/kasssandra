@@ -20,18 +20,18 @@ function EventRow({ event }: { event: IndexedEvent }) {
   const when = event.blockTime != null ? relativeDeadline(BigInt(event.blockTime)) : `slot ${event.slot}`
 
   return (
-    <li className="flex items-baseline justify-between gap-3 border-b border-pebble py-2.5 last:border-0">
+    <li className="flex items-baseline justify-between gap-3 border-b border-hairline py-2.5 last:border-0">
       <div className="flex items-baseline gap-2">
-        <span className="font-inter text-[14px] text-sepia">{ixLabel(event.ixType)}</span>
+        <span className="font-inter text-[14px] text-platinum">{ixLabel(event.ixType)}</span>
         <Chip tone="muted">{when}</Chip>
       </div>
-      <span className="font-mono text-[12px] text-driftwood">
+      <span className="font-mono text-[12px] text-silver">
         {url ? (
           <a
             href={url}
             target="_blank"
             rel="noreferrer noopener"
-            className="underline decoration-pebble underline-offset-4 hover:text-lavender-phosphor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sepia/40"
+            className="underline decoration-hairline underline-offset-4 hover:text-lavender-phosphor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40"
           >
             {shortSig(event.signature)}
           </a>
@@ -59,29 +59,29 @@ export function ActivityFeed({ oracle }: { oracle: string }) {
   return (
     <Card className="flex flex-col gap-3" data-testid="activity-feed">
       <div className="flex items-center justify-between">
-        <h3 className="font-serif text-subheading font-light text-sepia">On-chain activity</h3>
+        <h3 className="font-serif text-subheading font-light text-platinum">On-chain activity</h3>
         {data && data.length > 0 ? (
-          <span className="font-inter text-[13px] text-driftwood">{data.length} events</span>
+          <span className="font-inter text-[13px] text-silver">{data.length} events</span>
         ) : null}
       </div>
 
       {loading ? (
-        <p className="font-inter text-[13px] text-bronze">Reading the index…</p>
+        <p className="font-inter text-[13px] text-silver">Reading the index…</p>
       ) : error ? (
         <div className="flex items-center gap-3">
-          <p className="font-inter text-[13px] text-ember-orange">
+          <p className="font-inter text-[13px] text-coral">
             Couldn&apos;t reach the indexer.
           </p>
           <button
             type="button"
             onClick={refetch}
-            className="font-inter text-[13px] text-sepia underline decoration-pebble underline-offset-4 hover:text-lavender-phosphor"
+            className="font-inter text-[13px] text-platinum underline decoration-hairline underline-offset-4 hover:text-lavender-phosphor"
           >
             Retry
           </button>
         </div>
       ) : !data || data.length === 0 ? (
-        <p className="font-inter text-[13px] text-driftwood">
+        <p className="font-inter text-[13px] text-silver">
           No indexed activity yet for this oracle.
         </p>
       ) : (

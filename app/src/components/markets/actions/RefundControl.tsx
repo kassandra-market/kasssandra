@@ -38,8 +38,8 @@ export function RefundControl({
   return (
     <Card className="flex flex-col gap-4">
       <div>
-        <h3 className="font-serif text-subheading font-light text-sepia">Refund contribution</h3>
-        <p className="mt-1 font-inter text-[13px] text-driftwood">
+        <h3 className="font-serif text-subheading font-light text-platinum">Refund contribution</h3>
+        <p className="mt-1 font-inter text-[13px] text-silver">
           This market was cancelled. Reclaim your staked KASS.
         </p>
       </div>

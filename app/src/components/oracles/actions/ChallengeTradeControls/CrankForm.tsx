@@ -41,7 +41,7 @@ export function CrankForm({
         <div className="flex items-center gap-3">
           <SubmitButton verb={`Crank ${label} TWAP`} status={action.status} disabled={limited} />
           {limited ? (
-            <span className="font-inter text-[12px] text-bronze">
+            <span className="font-inter text-[12px] text-silver">
               Recently cranked — wait ~150 slots.
             </span>
           ) : null}

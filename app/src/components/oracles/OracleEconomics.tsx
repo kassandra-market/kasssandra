@@ -24,20 +24,20 @@ function StatTile({
   const pct = total && total > 0 ? Math.min(Math.max(value / total, 0), 1) * 100 : 0
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+      <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
         {label}
       </span>
       <span className="flex items-baseline gap-1">
-        <span className="font-serif text-heading-sm font-light tabular-nums text-sepia">{value}</span>
+        <span className="font-serif text-heading-sm font-light tabular-nums text-platinum">{value}</span>
         {total != null ? (
-          <span className="font-inter text-[12px] tabular-nums text-driftwood">/ {total}</span>
+          <span className="font-inter text-[12px] tabular-nums text-silver">/ {total}</span>
         ) : null}
       </span>
       {total != null ? (
-        <div className="h-1 w-full overflow-hidden rounded-full bg-soft-cream">
+        <div className="h-1 w-full overflow-hidden rounded-full bg-liquid-deep">
           <div
             className={`h-full rounded-full transition-[width] duration-500 ${
-              accent && value > 0 ? 'bg-chestnut' : 'bg-bronze/70'
+              accent && value > 0 ? 'bg-aqua' : 'bg-silver/70'
             }`}
             style={{ width: `${pct}%` }}
           />
@@ -54,10 +54,10 @@ function Bar({ label, value, width, fill }: { label: string; value: bigint; widt
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="font-inter text-[12px] text-driftwood">{label}</span>
-        <span className="font-inter text-[12px] tabular-nums text-sepia">{formatKass(value)} KASS</span>
+        <span className="font-inter text-[12px] text-silver">{label}</span>
+        <span className="font-inter text-[12px] tabular-nums text-platinum">{formatKass(value)} KASS</span>
       </div>
-      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-soft-cream">
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-liquid-deep">
         <div className={`h-full rounded-full ${fill}`} style={{ width: `${width}%` }} />
       </div>
     </div>
@@ -112,29 +112,29 @@ export function OracleEconomics({ oracle, proposers }: { oracle: Oracle; propose
       </div>
 
       {/* 2 — bonds / vaults */}
-      <div className="border-t border-pebble pt-5">
+      <div className="border-t border-hairline pt-5">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+          <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
             Bonds · KASS
           </span>
-          <span className="font-serif text-subheading font-light tabular-nums text-sepia">
+          <span className="font-serif text-subheading font-light tabular-nums text-platinum">
             {formatKass(oracle.bondPool)} KASS
           </span>
         </div>
         <div className="mt-3 flex flex-col gap-3">
           {meterMax > 0n ? (
             meters.map((m) => (
-              <Bar key={m.label} label={m.label} value={m.value} width={barPct(m.value, meterMax)} fill="bg-bronze/70" />
+              <Bar key={m.label} label={m.label} value={m.value} width={barPct(m.value, meterMax)} fill="bg-silver/70" />
             ))
           ) : (
-            <p className="font-inter text-[13px] text-driftwood">No bonds staked yet.</p>
+            <p className="font-inter text-[13px] text-silver">No bonds staked yet.</p>
           )}
         </div>
       </div>
 
       {/* 3 — proposer bond by option */}
-      <div className="border-t border-pebble pt-5">
-        <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-driftwood">
+      <div className="border-t border-hairline pt-5">
+        <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
           Proposer bond by option
         </span>
         <div className="mt-3 flex flex-col gap-3">
@@ -145,11 +145,11 @@ export function OracleEconomics({ oracle, proposers }: { oracle: Oracle; propose
                 label={o.option === leadingOption ? `Option ${o.option} · leading` : `Option ${o.option}`}
                 value={o.bond}
                 width={barPct(o.bond, optionMax)}
-                fill={o.option === leadingOption ? 'bg-cyan-phosphor' : 'bg-pebble'}
+                fill={o.option === leadingOption ? 'bg-cyan-phosphor' : 'bg-hairline'}
               />
             ))
           ) : (
-            <p className="font-inter text-[13px] text-driftwood">No proposer bonds yet.</p>
+            <p className="font-inter text-[13px] text-silver">No proposer bonds yet.</p>
           )}
         </div>
       </div>

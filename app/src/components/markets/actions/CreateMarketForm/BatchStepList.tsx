@@ -11,25 +11,25 @@ export function BatchStepList({ steps, statuses }: { steps: ActivateStep[]; stat
           st.kind === "done" ? "✓" : st.kind === "error" ? "✕" : st.kind === "running" ? "…" : "○";
         const tone =
           st.kind === "done"
-            ? "text-chestnut"
+            ? "text-aqua"
             : st.kind === "error"
-              ? "text-ember-orange"
+              ? "text-coral"
               : st.kind === "running"
-                ? "text-bronze"
-                : "text-stone";
+                ? "text-silver"
+                : "text-silver-dim";
         return (
           <li key={step.label} className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2 font-inter text-[13px]">
               <span className={`w-3 text-center font-mono text-[12px] ${tone}`}>{glyph}</span>
-              <span className={st.kind === "done" ? "text-chestnut" : "text-sepia"}>
+              <span className={st.kind === "done" ? "text-aqua" : "text-platinum"}>
                 {i + 1}. {step.label}
               </span>
               {st.kind === "done" && st.signature === "already-landed" ? (
-                <span className="font-mono text-[11px] text-stone">already on-chain</span>
+                <span className="font-mono text-[11px] text-silver-dim">already on-chain</span>
               ) : null}
             </div>
             {st.kind === "error" ? (
-              <p className="pl-6 font-inter text-[12px] text-ember-orange">{st.message}</p>
+              <p className="pl-6 font-inter text-[12px] text-coral">{st.message}</p>
             ) : null}
           </li>
         );
