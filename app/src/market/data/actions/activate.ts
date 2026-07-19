@@ -28,7 +28,7 @@
  */
 import { Address, type TransactionInstruction } from "@solana/web3.js";
 import { flows } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import { setComputeUnitLimitIx } from "./compute";
 import { toAddress, type AddressInput } from "./ata";
 
@@ -135,7 +135,7 @@ export async function buildActivateSequence(args: BuildActivateArgs): Promise<Ac
  * re-submits a landed init (which would revert "already in use"). A transient RPC
  * failure resolves to `false` (don't skip — the send is the ultimate guard).
  */
-export async function stepAlreadyLanded(indexer: IndexerClient, step: ActivateStep): Promise<boolean> {
+export async function stepAlreadyLanded(indexer: IndexerReads, step: ActivateStep): Promise<boolean> {
   try {
     const info = await indexer.getAccount(step.checkAccount.toString());
     return info != null;

@@ -12,7 +12,7 @@
 import { type TransactionInstruction } from "@solana/web3.js";
 import { flows } from "@kassandra-market/markets";
 import type { flows as flowsNs } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import { setComputeUnitLimitIx } from "./compute";
 import { toAddress, type AddressInput } from "./ata";
 
@@ -20,7 +20,7 @@ import { toAddress, type AddressInput } from "./ata";
 export const REDEEM_COMPUTE_UNITS = 300_000;
 
 export interface BuildRedeemArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The composed refs for the resolved market (from `marketRefs`). */
   refs: flowsNs.MarketRefs;
   /** Holder + signer (owns the conditional accounts). */

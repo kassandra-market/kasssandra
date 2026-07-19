@@ -12,7 +12,7 @@
  */
 import { Address, TransactionInstruction } from "@solana/web3.js";
 import { flows, pda } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import { ValidationError } from "../writeAction";
 
 /** Anything that names an account: a web3.js `Address` or a base58 string. */
@@ -39,7 +39,7 @@ export function toAddress(field: string, a: AddressInput): Address {
  * the LP claim destination alike (any mint).
  */
 export async function ensureAta(
-  indexer: IndexerClient,
+  indexer: IndexerReads,
   owner: Address,
   mint: Address,
 ): Promise<{ ata: Address; createIx?: TransactionInstruction }> {
@@ -53,7 +53,7 @@ export async function ensureAta(
 
 /** {@link ensureAta} specialised to the KASS mint (the funding-form call sites). */
 export function ensureKassAta(
-  indexer: IndexerClient,
+  indexer: IndexerReads,
   owner: Address,
   kassMint: Address,
 ): Promise<{ ata: Address; createIx?: TransactionInstruction }> {

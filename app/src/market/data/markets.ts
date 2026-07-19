@@ -1,6 +1,6 @@
 /**
  * Market READ data layer — pure, side-effect-free functions over the
- * {@link IndexerClient}. The indexer (Phase 1) has ALREADY enumerated + decoded
+ * {@link IndexerReads}. The indexer (Phase 1) has ALREADY enumerated + decoded
  * every kassandra-market account, so this layer no longer touches a Solana RPC or
  * decodes bytes: it fetches the indexer's DTOs (`/api/markets`,
  * `/api/markets/{pubkey}`, `/api/config`) and MAPS them into the existing app
@@ -23,7 +23,7 @@ import {
 import type {
   ConfigDto,
   ContributionDto,
-  IndexerClient,
+  IndexerReads,
   MarketDto,
   OracleDto,
   ReservesDto,
@@ -175,7 +175,7 @@ function mapReservesDto(dto: ReservesDto): AmmReserves {
  * Active markets, the live cYES/cNO pool reserves (the list card's YES
  * probability). A failed detail read degrades that market's enrichment to `null`.
  */
-export async function fetchMarkets(indexer: IndexerClient): Promise<MarketSummary[]> {
+export async function fetchMarkets(indexer: IndexerReads): Promise<MarketSummary[]> {
   const markets = await indexer.getMarkets();
   const summaries = await Promise.all(
     markets.map(async (dto) => {
@@ -205,7 +205,7 @@ export async function fetchMarkets(indexer: IndexerClient): Promise<MarketSummar
  * oracle yields `oracle: null`; a missing pool yields `reserves: null`.
  */
 export async function fetchMarketDetail(
-  indexer: IndexerClient,
+  indexer: IndexerReads,
   marketPubkey: string,
 ): Promise<MarketDetail> {
   const detail = await indexer.getMarket(marketPubkey);
@@ -274,7 +274,7 @@ export function isCategorical(group: OracleGroup): boolean {
  * Returns `null` when the program is not yet initialised (no Config account, the
  * indexer 404s).
  */
-export async function fetchConfig(indexer: IndexerClient): Promise<Config | null> {
+export async function fetchConfig(indexer: IndexerReads): Promise<Config | null> {
   const dto = await indexer.getConfig();
   return dto ? mapConfigDto(dto) : null;
 }

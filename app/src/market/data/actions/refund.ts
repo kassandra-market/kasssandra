@@ -8,11 +8,11 @@
  */
 import { TransactionInstruction } from "@solana/web3.js";
 import { refund } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import { ensureKassAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildRefundArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The Cancelled market. */
   market: AddressInput;
   /** Canonical KASS mint (== `market.kass_mint`). */

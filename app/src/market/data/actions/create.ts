@@ -11,12 +11,12 @@
  */
 import { TransactionInstruction } from "@solana/web3.js";
 import { createMarket } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import { ValidationError } from "../writeAction";
 import { ensureKassAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildCreateMarketArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The Kassandra oracle the market resolves against (seeds the market PDA). */
   oracle: AddressInput;
   /** Canonical KASS mint (== `config.kass_mint`). */

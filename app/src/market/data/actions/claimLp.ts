@@ -10,11 +10,11 @@
  */
 import { TransactionInstruction } from "@solana/web3.js";
 import { claimLp } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import { ensureAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildClaimLpArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The Active/Resolved/Void market being claimed against. */
   market: AddressInput;
   /** The contributor claiming (seeds the Contribution PDA + LP destination). */

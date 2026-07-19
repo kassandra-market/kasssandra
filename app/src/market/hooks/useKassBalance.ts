@@ -4,7 +4,7 @@
  * {@link useKassBalance} resolves the connected wallet's KASS balance (raw base
  * units) for a given mint, mirroring the unmount-guarded `useEffect`+nonce
  * pattern in {@link useAsync} (TanStack Query is NOT a dep). It reads the KASS ATA
- * via the {@link IndexerClient} and the connected `publicKey` from wallet-adapter,
+ * via the {@link IndexerReads} and the connected `publicKey` from wallet-adapter,
  * so switching wallet re-runs the fetch automatically.
  *
  * The KASS mint comes from the on-chain `Config` (`useConfig().data.kassMint`) —
@@ -20,7 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { pda } from "@kassandra-market/markets";
 import { useIndexer } from "../lib/indexer";
-import type { IndexerClient } from "../lib/indexer";
+import type { IndexerReads } from "../lib/indexer";
 
 /** Byte offset of the `amount: u64` field in an SPL token account. */
 const TOKEN_ACCOUNT_AMOUNT_OFFSET = 64;
@@ -32,7 +32,7 @@ const TOKEN_ACCOUNT_AMOUNT_OFFSET = 64;
  * unexpected/transient indexer failure.
  */
 async function fetchKassBalance(
-  indexer: IndexerClient,
+  indexer: IndexerReads,
   owner: string,
   kassMint: string,
 ): Promise<bigint> {

@@ -9,12 +9,12 @@
  */
 import { TransactionInstruction } from "@solana/web3.js";
 import { contribute } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import { ValidationError } from "../writeAction";
 import { ensureKassAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildContributeArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The market being contributed to. */
   market: AddressInput;
   /** Canonical KASS mint (== `market.kass_mint`). */

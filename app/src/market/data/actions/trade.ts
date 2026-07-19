@@ -19,7 +19,7 @@
 import { type TransactionInstruction } from "@solana/web3.js";
 import { flows } from "@kassandra-market/markets";
 import type { flows as flowsNs } from "@kassandra-market/markets";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import type { AmmReserves } from "../markets";
 import { ValidationError } from "../writeAction";
 import { setComputeUnitLimitIx } from "./compute";
@@ -133,7 +133,7 @@ export function optimalUnwindSwap(held: bigint, inReserve: bigint, outReserve: b
 }
 
 interface TradeCommon {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The composed refs for the Active market (from `marketRefs`). */
   refs: flowsNs.MarketRefs;
   /** Trader + signer. */

@@ -22,10 +22,10 @@ import { flows } from "@kassandra-market/markets";
 import type { ActivateStep } from "./activate";
 import { ensureKassAta, toAddress, type AddressInput } from "./ata";
 import { ValidationError } from "../writeAction";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 
 export interface BuildCreateAllArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The categorical Kassandra oracle every sub-market resolves against. */
   oracle: AddressInput;
   /** The oracle's `options_count` — one create step is emitted per outcome. */

@@ -17,7 +17,7 @@
  */
 import { Address, Keypair, Transaction, type TransactionInstruction } from "@solana/web3.js";
 import { MARKET_PROGRAM_ID, MARKET_ERROR_MESSAGES, decodeError } from "@kassandra-market/markets";
-import { IndexerTxError, type IndexerClient } from "../lib/indexer";
+import { IndexerTxError, type IndexerReads } from "../lib/indexer";
 
 /** Signs a prepared (feePayer + blockhash set) legacy {@link Transaction} in place. */
 export type SignTransaction = (tx: Transaction) => Promise<Transaction>;
@@ -110,7 +110,7 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
  * keypair).
  */
 export async function signAndRelay(
-  indexer: IndexerClient,
+  indexer: IndexerReads,
   feePayer: Address,
   signTransaction: SignTransaction,
   ixs: TransactionInstruction[],
@@ -130,7 +130,7 @@ export async function signAndRelay(
  * deadline — mirrors the old `getSignatureStatuses` loop against the RPC.
  */
 export async function confirmSignature(
-  indexer: IndexerClient,
+  indexer: IndexerReads,
   signature: string,
   timeoutMs = 30_000,
 ): Promise<void> {
@@ -154,7 +154,7 @@ export async function confirmSignature(
  * available) if the relay throws or the tx fails / never confirms.
  */
 export async function sendAndConfirm(
-  indexer: IndexerClient,
+  indexer: IndexerReads,
   sender: TxSender,
   ixs: TransactionInstruction[],
 ): Promise<SendResult> {
@@ -190,7 +190,7 @@ export async function sendAndConfirm(
  * NOTE: the UI does NOT use this — the wallet supplies its own `signTransaction`
  * to {@link signAndRelay}.
  */
-export function keypairSender(indexer: IndexerClient, keypair: Keypair): TxSender {
+export function keypairSender(indexer: IndexerReads, keypair: Keypair): TxSender {
   const sign: SignTransaction = async (tx) => {
     await tx.sign(keypair);
     return tx;

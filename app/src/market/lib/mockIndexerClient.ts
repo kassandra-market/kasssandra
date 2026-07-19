@@ -9,14 +9,14 @@ import type {
   AccountRead,
   CandleDto,
   ConfigDto,
-  IndexerClient,
+  IndexerReads,
   MarketDetailDto,
   MarketDto,
   SignatureStatus,
 } from "./indexer";
 import { mockCandles, mockConfig, mockMarketDetail, mockMarkets } from "../data/mockMarkets";
 
-export class MockIndexerClient {
+export class MockIndexerClient implements IndexerReads {
   /** Mirrors `IndexerClient.getConfig` — the fixture `Config` singleton. */
   async getConfig(): Promise<ConfigDto | null> {
     return mockConfig();
@@ -57,33 +57,3 @@ export class MockIndexerClient {
     throw new Error("MockIndexerClient: writes are not supported in mock mode");
   }
 }
-
-/**
- * Compile-time parity check. `IndexerContext` is typed `IndexerClient | null`
- * (declared in `./indexer`), and `IndexerClient` has a `private readonly base`
- * field — that makes it nominal, not structural, so `MockIndexerClient` can
- * never be assigned to the context without a cast (see `IndexerProvider.tsx`).
- * This type pins each read/write method's signature to `IndexerClient`'s own,
- * so the assignment below fails to typecheck if `MockIndexerClient` drifts
- * from `IndexerClient` on any of the 8 methods — catching most of what the
- * cast in `IndexerProvider.tsx` would otherwise silently swallow.
- *
- * Caveat: this does NOT catch a wholly NEW method being added to
- * `IndexerClient` — nothing here references a method that doesn't exist yet.
- * A properly narrowed shared interface (typing `IndexerContext` itself against
- * an interface instead of the concrete class) would close that gap too, but
- * requires editing `indexer.ts`, which is out of scope for this change.
- */
-type IndexerReadWriteSurface = {
-  getConfig: IndexerClient["getConfig"];
-  getMarkets: IndexerClient["getMarkets"];
-  getMarket: IndexerClient["getMarket"];
-  getCandles: IndexerClient["getCandles"];
-  getAccount: IndexerClient["getAccount"];
-  getBlockhash: IndexerClient["getBlockhash"];
-  sendTransaction: IndexerClient["sendTransaction"];
-  getSignatureStatus: IndexerClient["getSignatureStatus"];
-};
-// Referenced only for its type-check side effect — assignment must typecheck.
-const _parityCheck: IndexerReadWriteSurface = new MockIndexerClient();
-void _parityCheck;

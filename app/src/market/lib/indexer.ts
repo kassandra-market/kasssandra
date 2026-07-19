@@ -256,14 +256,36 @@ export class IndexerClient {
 export const indexer = new IndexerClient();
 
 /**
- * React context carrying the app's single {@link IndexerClient}. The
+ * The structural read/write surface of {@link IndexerClient} — its 8 public
+ * methods, with the private `base` field stripped out via `Pick`. `IndexerClient`
+ * itself is a nominal type (the private field makes it so: no other class can
+ * ever be structurally assignable to it), but `IndexerReads` is a plain
+ * interface, so anything that implements these 8 methods — such as
+ * {@link MockIndexerClient} in `mockIndexerClient.ts` — satisfies it with no
+ * cast. `IndexerContext` and `useIndexer()` are typed against this, not the
+ * concrete class, so both the real and mock clients assign cleanly.
+ */
+export type IndexerReads = Pick<
+  IndexerClient,
+  | "getConfig"
+  | "getMarkets"
+  | "getMarket"
+  | "getCandles"
+  | "getAccount"
+  | "getBlockhash"
+  | "sendTransaction"
+  | "getSignatureStatus"
+>;
+
+/**
+ * React context carrying the app's single {@link IndexerReads} client. The
  * {@link IndexerProvider} component (in `IndexerProvider.tsx`) supplies it; the
  * context + hook live here (a non-component module) so fast-refresh stays happy.
  */
-export const IndexerContext = createContext<IndexerClient | null>(null);
+export const IndexerContext = createContext<IndexerReads | null>(null);
 
-/** The app's {@link IndexerClient}. Throws outside an `IndexerProvider`. */
-export function useIndexer(): IndexerClient {
+/** The app's {@link IndexerReads} client. Throws outside an `IndexerProvider`. */
+export function useIndexer(): IndexerReads {
   const ctx = useContext(IndexerContext);
   if (!ctx) throw new Error("useIndexer must be used within an IndexerProvider");
   return ctx;

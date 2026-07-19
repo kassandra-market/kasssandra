@@ -2,7 +2,7 @@
  * The React seam over the pure write-action state machine.
  *
  * {@link useWriteAction} wires wallet-adapter (`useWallet`) + the
- * {@link IndexerClient} into {@link runWriteAction}: it exposes the current
+ * {@link IndexerReads} into {@link runWriteAction}: it exposes the current
  * {@link WriteStatus}, a `run(build)` that drives one wallet-signed write, the
  * `indexer`/`address`/`connected` the forms need to assemble their action builder
  * args, and a `reset`.
@@ -15,7 +15,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Address, type TransactionInstruction } from "@solana/web3.js";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useIndexer } from "../lib/indexer";
-import type { IndexerClient } from "../lib/indexer";
+import type { IndexerReads } from "../lib/indexer";
 import { signAndRelay, type TxSender } from "../data/send";
 import { isBusy, runWriteAction, type WriteStatus } from "../data/writeAction";
 
@@ -29,7 +29,7 @@ export interface WriteAction {
   /** Whether a wallet is connected (the forms gate on this). */
   connected: boolean;
   /** The indexer client the forms pass to their `build*Ixs` call (ATA-existence check). */
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** Drive one wallet-signed write from an ix-builder; no-op if already busy. */
   run: (build: () => Promise<TransactionInstruction[]>) => Promise<void>;
   /** Reset back to `idle` (e.g. after a success line is dismissed). */

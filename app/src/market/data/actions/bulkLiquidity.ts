@@ -14,7 +14,7 @@ import { buildClaimLpIxs } from "./claimLp";
 import { buildAddLiquidityIxs } from "./addLiquidity";
 import type { ActivateStep } from "./activate";
 import { toAddress, type AddressInput } from "./ata";
-import type { IndexerClient } from "../../lib/indexer";
+import type { IndexerReads } from "../../lib/indexer";
 import type { Market } from "@kassandra-market/markets";
 import type { AmmReserves } from "../markets";
 import { ValidationError } from "../writeAction";
@@ -47,7 +47,7 @@ export interface BulkContributeEntry {
 }
 
 export interface BuildBulkContributeArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** Canonical KASS mint (shared by every sub-market in the group). */
   kassMint: AddressInput;
   /** Contributor authority (the signer). */
@@ -145,7 +145,7 @@ export interface BulkClaimLpEntry {
 }
 
 export interface BuildBulkClaimLpArgs {
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The contributor claiming across the group (the signer). */
   contributor: AddressInput;
   entries: BulkClaimLpEntry[];

@@ -20,7 +20,7 @@
  * offline with a mock sender/connection.
  */
 import type { TransactionInstruction } from "@solana/web3.js";
-import type { IndexerClient } from "../lib/indexer";
+import type { IndexerReads } from "../lib/indexer";
 import { SendError, sendAndConfirm, type TxSender } from "./send";
 
 /**
@@ -92,7 +92,7 @@ export interface RunWriteActionOpts {
   /** Assemble the instructions (an action builder call closing over its args). */
   build: () => Promise<TransactionInstruction[]>;
   /** The indexer client (ATA-existence check inside `build` + signature confirm). */
-  indexer: IndexerClient;
+  indexer: IndexerReads;
   /** The wallet-backed sender: sign + submit, resolve to the signature. */
   walletSender: TxSender;
   /** Drives the form's status region through every transition. */
