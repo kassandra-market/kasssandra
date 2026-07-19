@@ -1,6 +1,6 @@
 import { useId, useState, type FormEvent } from "react";
 import { pda, type Market } from "@kassandra-market/markets";
-import { Card } from "../../ui";
+import { Card, EyebrowTag } from "../../ui";
 import {
   buildBuyIxs,
   buildSellIxs,
@@ -476,15 +476,14 @@ export function TradePanel({
             />
             <WriteStatusRegion status={action.status} successVerb={mode === "buy" ? "Bought" : "Sold"} />
 
-            {/* Jupiter any-token entry: DISABLED (deferred). */}
+            {/* Jupiter any-token entry: DEFERRED. */}
             {/* TODO wire buildJupiterEntryRequest + app fetch (GET /quote → POST /swap) + composeWithEntry. */}
-            <label
-              className="flex cursor-not-allowed items-center gap-2 font-inter text-[12px] text-silver-dim"
-              title="Coming soon — pay with USDC/SOL via Jupiter"
-            >
-              <input type="checkbox" disabled className="cursor-not-allowed" />
-              Pay with any token (Jupiter) — coming soon
-            </label>
+            <div className="flex items-center justify-between gap-2 font-inter text-[12px] text-silver-dim">
+              <span>Pay with any token (Jupiter)</span>
+              <EyebrowTag pill className="!text-[10px] !tracking-[0.06em]">
+                Coming soon
+              </EyebrowTag>
+            </div>
           </form>
         </ConnectGate>
       </Card>
