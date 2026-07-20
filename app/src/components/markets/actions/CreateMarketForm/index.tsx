@@ -16,6 +16,7 @@ import { Field, KassBalanceLine, SubmitButton, TextInput } from "../formPrimitiv
 import { WriteStatusRegion } from "../WriteStatusRegion";
 import { ModeButton } from "./ModeButton";
 import { BatchStepList } from "./BatchStepList";
+import { OraclePicker } from "./OraclePicker";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
@@ -238,19 +239,11 @@ export function CreateMarketForm() {
       <ConnectGate connected={action.connected}>
         <form className="flex flex-col gap-4" onSubmit={batchMode ? onBatchSubmit : onSubmit} noValidate>
           <Field
-            label="Oracle address"
-            hint="The Kassandra oracle this market resolves against."
+            label="Oracle"
+            hint="Type the oracle's question to search, or paste its address."
             error={oracleError}
           >
-            {(ids) => (
-              <TextInput
-                ids={ids}
-                inputMode="text"
-                placeholder="Base58 oracle pubkey"
-                value={oracle}
-                onChange={(e) => setOracle(e.target.value)}
-              />
-            )}
+            {(ids) => <OraclePicker ids={ids} onChange={setOracle} />}
           </Field>
 
           {/* Redundant-market guard: one market per oracle. */}
