@@ -14,7 +14,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 MODE="${1:-all}"
-RPC_URL="http://127.0.0.1:8899"
+# Env-overridable (default 8899) so a second worktree/checkout can run its own
+# stack concurrently on the same host — see app/e2e/dev/env.ts for why a
+# collision surfaces as "getBlockhash failed" in the OTHER worktree.
+export SURFPOOL_PORT="${SURFPOOL_PORT:-8899}"
+RPC_URL="http://127.0.0.1:$SURFPOOL_PORT"
 
 ensure_built() {
   # Always rebuild (incremental ~1s no-op when current) so a STALE .so left from

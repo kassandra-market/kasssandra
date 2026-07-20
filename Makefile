@@ -110,6 +110,13 @@ fmt-check: ## Check Rust formatting without writing
 	cargo fmt --manifest-path indexer/Cargo.toml --check
 
 # ===== Dev: local nodes + seed =============================================
+# Ports (surfpool 8899, indexer 3111, app 5173) are fixed defaults, shared by
+# every checkout on this host. Running a second worktree's dev stack while
+# one is already up on the same ports WILL kill the other's surfpool out from
+# under its indexer (dev-full.sh's crashed-run cleanup can't tell them apart)
+# — that live indexer then fails every getBlockhash call. Set distinct
+# SURFPOOL_PORT/INDEXER_PORT/APP_PORT env vars per concurrent worktree, e.g.
+# `SURFPOOL_PORT=8901 INDEXER_PORT=3112 APP_PORT=5175 make dev`.
 chain: ## Boot surfpool + deploy + seed oracles, and HOLD (Ctrl-C to stop)
 	scripts/dev-up.sh chain
 

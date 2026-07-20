@@ -42,14 +42,20 @@ cargo build --release --locked --manifest-path indexer/Cargo.toml
 
 echo "==> [3/4] ensure logs/ exists + clear leftovers from a crashed run"
 mkdir -p logs
-# `make dev` OWNS the local stack, so a surfpool still listening on the fixed port
-# is a leftover from a previously HARD-killed run (a clean Ctrl-C tears it down).
-# Reusing it would make init_protocol fail with AlreadyInitialized, so clear it.
+# `make dev` OWNS ITS OWN PORT, so a surfpool still listening on it is assumed
+# to be a leftover from a previously HARD-killed run of THIS stack (a clean
+# Ctrl-C tears it down). Reusing it would make init_protocol fail with
+# AlreadyInitialized, so clear it. SURFPOOL_PORT defaults to 8899 but is
+# env-overridable (see app/e2e/dev/env.ts) — set it to a distinct value per
+# worktree/checkout running concurrently on the same host, or this WILL kill
+# a different worktree's live surfpool out from under its indexer (which then
+# fails every getBlockhash call once its RPC connection is dead).
 # (The ephemeral Postgres picks a fresh port per run, so it needs no cleanup.)
+export SURFPOOL_PORT="${SURFPOOL_PORT:-8899}"
 if command -v lsof >/dev/null 2>&1; then
-  leftover="$(lsof -tiTCP:8899 -sTCP:LISTEN 2>/dev/null || true)"
+  leftover="$(lsof -tiTCP:"$SURFPOOL_PORT" -sTCP:LISTEN 2>/dev/null || true)"
   if [ -n "$leftover" ]; then
-    echo "    clearing a leftover process on :8899 (previous run): $leftover"
+    echo "    clearing a leftover process on :$SURFPOOL_PORT (previous run): $leftover"
     echo "$leftover" | xargs kill -9 2>/dev/null || true
     sleep 1
   fi

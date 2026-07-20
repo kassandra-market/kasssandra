@@ -25,7 +25,9 @@ import {
   submitOneFact,
 } from './seed.ts'
 
-const PORT = 8899
+// Env-overridable (default 8899) so a second worktree's `make chain` doesn't
+// collide with an already-running one on the same host — see `e2e/dev/env.ts`.
+const PORT = Number(process.env.SURFPOOL_PORT ?? 8899)
 const WALLET_FILE = join(process.cwd(), 'e2e', '.wallet.json')
 
 async function main(): Promise<void> {

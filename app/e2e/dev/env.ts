@@ -1,12 +1,20 @@
 /**
  * `make dev` stack — ports, paths, and derived service URLs. Pure move/extract
  * from `dev-full.ts` (the runnable `make dev` entry).
+ *
+ * Ports default to the values below but are env-overridable
+ * (`SURFPOOL_PORT`/`INDEXER_PORT`/`APP_PORT`) so a SECOND worktree (or an
+ * unrelated project on the same host) can run its own dev stack concurrently
+ * without colliding on these fixed defaults — a collision otherwise means
+ * `dev-full.sh`'s startup cleanup kills the OTHER stack's surfpool out from
+ * under its still-running indexer, which then fails every `/api/blockhash`
+ * call ("getBlockhash failed") since its RPC connection is dead.
  */
 import { join, resolve } from 'node:path'
 
-export const SURFPOOL_PORT = 8899
-export const INDEXER_PORT = 3111
-export const APP_PORT = 5173
+export const SURFPOOL_PORT = Number(process.env.SURFPOOL_PORT ?? 8899)
+export const INDEXER_PORT = Number(process.env.INDEXER_PORT ?? 3111)
+export const APP_PORT = Number(process.env.APP_PORT ?? 5173)
 
 export const APP_DIR = process.cwd() // `pnpm --filter app exec` runs here
 export const ROOT = resolve(APP_DIR, '..')
