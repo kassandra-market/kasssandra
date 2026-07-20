@@ -298,7 +298,8 @@ export function PriceChart({
         // partial failure (some succeed, or a failing pubkey still has stale
         // cached data) must NOT set `error` — that's the case the switch to
         // `allSettled` exists to protect.
-        const allRejected = results.every((r) => r.status === "rejected");
+        const allRejected =
+          pubkeys.length > 0 && results.every((r) => r.status === "rejected");
         setError(allRejected && !anyData);
         setEmpty(!anyData);
         replot(fit);
