@@ -136,6 +136,15 @@ export function PriceChart({
     (fit: boolean) => {
       const step = gridStep(windowSecs);
       const nowSec = Math.floor(Date.now() / 1000);
+      // Whether ANY spec's grid has at least one REAL (non-whitespace) point.
+      // `setVisibleRange` below throws (`TimeScale._internal_logicalRangeForTimeRange`
+      // → "Value is null") if lightweight-charts has never had a single point
+      // plotted on ANY series — which is exactly the state on first mount,
+      // before the async candle-load effect's first fetch has resolved (see
+      // the series-recreation effect, which calls `replot(true)` synchronously
+      // right after creating fresh series). Guard the fit so it only ever
+      // frames the chart once there's something real to frame.
+      let sawRealData = false;
       for (const spec of seriesRef.current) {
         const line = seriesRefs.current.get(spec.key);
         if (!line) continue;
@@ -151,11 +160,12 @@ export function PriceChart({
             ISeriesApi<"Line">["setData"]
           >[0],
         );
+        if (grid.some((p) => p.value !== undefined)) sawRealData = true;
         const last = grid[grid.length - 1];
         st.plottedStep = last ? last.time : 0;
         st.carriedClose = last && last.value !== undefined ? last.value : null;
       }
-      if (fit) {
+      if (fit && sawRealData) {
         chartRef.current?.timeScale().setVisibleRange({
           from: (nowSec - windowSecs) as UTCTimestamp,
           to: nowSec as UTCTimestamp,
