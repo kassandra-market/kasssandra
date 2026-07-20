@@ -64,12 +64,16 @@ describe("TradePanel — owned-shares row", () => {
     expect(html).toContain("7 NO");
   });
 
-  it("renders one <option> per belief, each showing its label and live price", () => {
+  it("renders one <option> per belief, showing only its label — no probability percentage", () => {
     const html = render();
     expect(html).toContain("<option");
     expect(html).toContain("Yes");
     expect(html).toContain("No");
     expect((html.match(/<option/g) ?? []).length).toBe(2);
+    // Regression: the belief dropdown used to append "· NN%" to each option's
+    // text, duplicating the chart legend's probability and reading as
+    // confusing — the dropdown shows only the plain label now.
+    expect(html).not.toMatch(/<option[^>]*>[^<]*%/);
   });
 
   it("selects the default belief", () => {
