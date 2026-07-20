@@ -69,7 +69,7 @@ function SkeletonCard() {
 }
 
 export default function Markets() {
-  const { data, loading, error, refetch } = useMarkets();
+  const { data, loading, error, refetch, refetchAfterWrite } = useMarkets();
   // Stagger the grid in only on the first data render (not on filter/sort/poll).
   const stagger = useInitialReveal(!loading && (data?.length ?? 0) > 0);
   const config = useConfig();
@@ -211,6 +211,7 @@ export default function Markets() {
                       summary={summary}
                       meta={metaMap.get(summary.market.oracle.toString())}
                       enterIndex={stagger ? i++ : undefined}
+                      onSuccess={refetchAfterWrite}
                     />
                   ))
                 ),

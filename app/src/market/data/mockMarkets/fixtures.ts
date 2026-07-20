@@ -15,6 +15,9 @@
  *
  * Covers, across `MOCK_MARKET_PUBKEYS`:
  *   - a pre-activation `Funding` market (partially funded, own binary oracle)
+ *   - a pre-activation `Funding` market PAST its floor (funded, not yet
+ *     activated, own binary oracle) — the market list card's "Launch market"
+ *     CTA instead of a stake input
  *   - an `Active` market (own binary oracle, live) with populated cYES/cNO
  *     reserves so the trade UI + price chart have live-looking data
  *   - a `Resolved` market (own binary oracle, terminal, YES won)
@@ -72,6 +75,7 @@ const kass = (whole: number): string => (BigInt(whole) * SCALE).toString();
 // --- oracles (one per standalone market, one shared by the categorical group) -
 
 const O_FUNDING = fixturePubkey("oracle-funding");
+const O_FUNDED = fixturePubkey("oracle-funded");
 const O_ACTIVE = fixturePubkey("oracle-active");
 const O_RESOLVED = fixturePubkey("oracle-resolved");
 const O_VOID = fixturePubkey("oracle-void");
@@ -81,6 +85,10 @@ const O_CATEGORICAL_FUNDING = fixturePubkey("oracle-categorical-funding");
 
 const ORACLES: Record<string, OracleDto> = {
   [O_FUNDING]: { optionsCount: 2, phase: 1 /* Proposal */, resolvedOption: 0 },
+  // At its floor but not yet activated — exercises the market list card's
+  // "Launch market" CTA (a Funding market past `minLiquidity` skips the stake
+  // input entirely and offers a one-click activate instead).
+  [O_FUNDED]: { optionsCount: 2, phase: 1 /* Proposal */, resolvedOption: 0 },
   [O_ACTIVE]: { optionsCount: 2, phase: 3 /* FactVoting */, resolvedOption: 0 },
   [O_RESOLVED]: { optionsCount: 2, phase: 7 /* Resolved */, resolvedOption: 0 /* YES (outcomeIndex 0) won */ },
   [O_VOID]: { optionsCount: 2, phase: 8 /* InvalidDeadend */, resolvedOption: 0xff },
@@ -159,6 +167,7 @@ function makeContribution(
 }
 
 const MKT_FUNDING = fixturePubkey("market-funding-binary");
+const MKT_FUNDED = fixturePubkey("market-funded-binary");
 const MKT_ACTIVE = fixturePubkey("market-active-binary");
 const MKT_RESOLVED = fixturePubkey("market-resolved-binary");
 const MKT_VOID = fixturePubkey("market-void-binary");
@@ -187,6 +196,26 @@ const FIXTURES: MarketFixture[] = [
     contributions: [
       makeContribution(MKT_FUNDING, "funding-a", 150_000, { slot: "1001" }),
       makeContribution(MKT_FUNDING, "funding-b", 85_000, { slot: "1000" }),
+    ],
+  },
+  {
+    // Pre-activation, PAST its 500,000 KASS floor — funded but not yet
+    // activated. `MarketCard`'s footer offers a one-click launch here instead
+    // of a stake input.
+    dto: makeMarket("funded", {
+      address: MKT_FUNDED,
+      oracle: O_FUNDED,
+      status: 0 /* Funding */,
+      statusLabel: "Funding",
+      totalContributed: kass(650_000),
+      openContributions: 2,
+      slot: "1003",
+    }),
+    oracle: ORACLES[O_FUNDED],
+    reserves: null,
+    contributions: [
+      makeContribution(MKT_FUNDED, "funded-a", 400_000, { slot: "1003" }),
+      makeContribution(MKT_FUNDED, "funded-b", 250_000, { slot: "1002" }),
     ],
   },
   {

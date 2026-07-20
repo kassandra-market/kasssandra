@@ -99,19 +99,21 @@ function summary(outcomeIndex: number, pubkey: string) {
 }
 
 describe('MarketCard question/label', () => {
-  it('leads with the question and names the bound outcome in words', () => {
+  it('leads with the question — no restated "Pays YES on <outcome>" line', () => {
     const html = inRouter(<MarketCard summary={summary(1, PUB0)} meta={META} />)
     expect(html).toContain('Will it rain in Paris on Bastille Day?')
-    expect(html).toContain('No rain') // options[1] is the bound outcome
     // The title is the question (a serif h3), not the mono pubkey truncation.
     expect(html).toMatch(/<h3[^>]*font-serif[^>]*>Will it rain/)
     expect(html).not.toMatch(/<h3[^>]*font-mono/)
+    // The old "Pays YES on <option label>" line is gone entirely.
+    expect(html).not.toContain('Pays')
+    expect(html).not.toContain('No rain')
   })
 
-  it('degrades to the short pubkey + numeric outcome without metadata', () => {
+  it('degrades to the short pubkey without metadata', () => {
     const html = inRouter(<MarketCard summary={summary(1, PUB0)} />)
-    expect(html).toContain('Outcome 1')
     expect(html).toMatch(/Market0000/) // truncated pubkey title
+    expect(html).toMatch(/<h3[^>]*font-mono/)
   })
 })
 
