@@ -1,3 +1,4 @@
+import { Link, useSearchParams } from "react-router-dom";
 import type { Market, Contribution } from "@kassandra-market/markets";
 import { Card } from "../../ui";
 import { buildClaimLpIxs } from "../../../market/data/actions";
@@ -5,6 +6,9 @@ import { useWriteAction } from "../../../market/hooks/useWriteAction";
 import { formatKass } from "../../../market/lib/marketView";
 import { SubmitButton } from "./formPrimitives";
 import { WriteStatusRegion } from "./WriteStatusRegion";
+
+const inlineLinkClass =
+  "underline decoration-hairline underline-offset-4 hover:text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss";
 
 /**
  * A contributor's pro-rata LP claim, shown by {@link MarketActions} on an
@@ -34,6 +38,16 @@ export function ClaimLpControl({
   embedded?: boolean;
 }) {
   const action = useWriteAction(onSuccess);
+  // A same-page link to the Manage tab (preserving any other query params, e.g.
+  // `?mock&wallet=connected`) — where the permissionless "Collect protocol fee"
+  // crank lives. Without this, a claimant blocked on an uncollected fee has no
+  // path forward from this tab besides independently discovering Manage.
+  const [searchParams] = useSearchParams();
+  const manageTabSearch = (() => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", "manage");
+    return `?${next.toString()}`;
+  })();
 
   const mine =
     action.address == null
@@ -85,7 +99,12 @@ export function ClaimLpControl({
           {heading}
           <p className={`font-inter text-[13px] text-silver ${embedded ? "" : "mt-1"}`}>
             Your {positionText} is claimable as a share of the pool's LP tokens. Claims open once the
-            market resolves and its protocol fee is collected.
+            market resolves and its protocol fee is collected — collect it (permissionless, anyone
+            may crank it) from the{" "}
+            <Link to={{ search: manageTabSearch }} className={inlineLinkClass}>
+              Manage tab
+            </Link>
+            .
           </p>
         </div>
         <SubmitButton
