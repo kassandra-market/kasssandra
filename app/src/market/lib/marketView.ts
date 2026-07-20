@@ -278,6 +278,39 @@ export function outcomeRow(summary: MarketSummary, label?: string | null): Outco
   };
 }
 
+/** Priority order for {@link groupStatus} — earlier entries win. */
+const GROUP_STATUS_PRIORITY: MarketStatus[] = [
+  MarketStatus.Active,
+  MarketStatus.Funding,
+  MarketStatus.Resolved,
+  MarketStatus.Void,
+  MarketStatus.Cancelled,
+];
+
+/**
+ * A categorical group's outcome sub-markets each carry their OWN on-chain
+ * `Market.status`, transitioned independently — but the group must present as
+ * ONE market with one lifecycle to the user, never as N independently-staged
+ * markets (that's the whole point of grouping them into one card/one Trade
+ * tab). This collapses a group's per-outcome statuses into a single status:
+ * Active wins if ANY outcome is Active (the group is tradable right now, same
+ * "any Active outcome makes it tradable" rule the detail page's Trade tab
+ * already uses), else Funding if any outcome is still raising, else the first
+ * terminal status found (Resolved > Void > Cancelled) — so a still-tradable
+ * or still-funding group never gets overshadowed by an unrelated outcome that
+ * already resolved/voided independently.
+ */
+export function groupStatus(markets: Pick<MarketSummary, "market">[]): MarketStatus {
+  const statuses = new Set(markets.map((m) => m.market.status));
+  for (const candidate of GROUP_STATUS_PRIORITY) {
+    if (statuses.has(candidate)) return candidate;
+  }
+  // Every market's status is one of the enum's members, so this is
+  // unreachable for a non-empty `markets` — kept only as a defensive
+  // fallback for an empty array (no sub-markets to summarize).
+  return MarketStatus.Funding;
+}
+
 /**
  * Resolution text for a categorical sub-market (YES = the oracle resolves to
  * `outcomeIndex`). `Resolved` → "YES won" when the oracle's winning option is

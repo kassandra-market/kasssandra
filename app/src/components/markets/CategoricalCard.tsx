@@ -5,7 +5,13 @@ import { Card } from "../ui";
 import { StatusChip } from "./StatusChip";
 import { FundingBar } from "./FundingBar";
 import type { OracleGroup } from "../../market/data/markets";
-import { formatKass, formatProbability, outcomeRow, truncateMiddle } from "../../market/lib/marketView";
+import {
+  formatKass,
+  formatProbability,
+  groupStatus,
+  outcomeRow,
+  truncateMiddle,
+} from "../../market/lib/marketView";
 import type { OracleMetaView } from "../../hooks/useOracleMeta";
 
 const focusRing =
@@ -17,8 +23,17 @@ const focusRing =
  * (on-chain oracle subject, read best-effort via {@link OracleMetaView}) is the
  * title, and each outcome sub-market is listed by its option LABEL with that
  * outcome's implied chance (its sub-market's YES probability from the pool
- * reserves) plus a status chip, linking to that sub-market's detail. Without
- * metadata it degrades to a count title + "Outcome i" rows.
+ * reserves), linking to that sub-market's detail. Without metadata it
+ * degrades to a count title + "Outcome i" rows.
+ *
+ * ONE overall {@link StatusChip} ({@link groupStatus}), not one per outcome
+ * row — each outcome sub-market carries its own on-chain status, transitioned
+ * independently, but showing that here would read as "these are N
+ * independent markets" instead of one categorical market with N outcomes
+ * (exactly the abstraction the detail page's unified Trade tab already
+ * presents). The row-level arrow (→ this outcome is tradable) is likewise
+ * gated on the GROUP's overall status, not the individual row's — landing on
+ * any outcome's detail page shows the same group-wide trading surface.
  */
 export function CategoricalCard({
   group,
@@ -37,6 +52,7 @@ export function CategoricalCard({
   const tvl = group.markets.reduce((sum, m) => sum + m.market.totalContributed, 0n);
   const subject = meta?.subject?.trim();
   const stagger = enterIndex !== undefined;
+  const overallStatus = groupStatus(group.markets);
 
   // While any outcome is still Funding, ONE cumulative bar for the group's
   // combined raised/floor — not a bar per outcome (there is no per-outcome
@@ -60,8 +76,11 @@ export function CategoricalCard({
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center rounded-tag border border-hairline bg-liquid-deep px-2.5 py-1 font-inter text-[12px] font-medium text-silver">
-          Categorical · {optionsCount} outcomes
+        <span className="flex items-center gap-2">
+          <span className="inline-flex items-center rounded-tag border border-hairline bg-liquid-deep px-2.5 py-1 font-inter text-[12px] font-medium text-silver">
+            Categorical · {optionsCount} outcomes
+          </span>
+          <StatusChip status={overallStatus} />
         </span>
         <span className="font-inter text-[12px] text-silver" title={group.oracle}>
           Oracle {truncateMiddle(group.oracle, 4, 4)}
@@ -95,15 +114,15 @@ export function CategoricalCard({
                 <span className="font-inter text-[13px] text-platinum group-hover:text-coral">
                   {row.label}
                 </span>
-                <StatusChip status={row.status} />
               </span>
               <span className="flex items-center gap-2">
                 <span className="font-inter text-[13px] font-medium text-coral">
                   {formatProbability(row.probability)}
                 </span>
-                {/* An Active outcome sub-market is tradeable — point into its
-                    trading interface (that sub-market's detail TradePanel). */}
-                {row.status === MarketStatus.Active ? (
+                {/* Any outcome is tradeable once the GROUP overall is Active —
+                    every outcome's detail page shows the same group-wide Trade
+                    tab, so this isn't gated on THIS row's own status. */}
+                {overallStatus === MarketStatus.Active ? (
                   <span
                     aria-hidden="true"
                     className="font-inter text-[13px] text-coral transition-transform group-hover:translate-x-0.5"

@@ -127,6 +127,27 @@ describe('CategoricalCard question/labels', () => {
     expect(html).toContain('Rain')
     expect(html).toContain('No rain')
   })
+
+  it('shows exactly ONE status for the whole group, never one per outcome row', () => {
+    // Sub-markets transition status independently on-chain — one Active,
+    // others still Funding here — but the card must present as ONE market,
+    // not reveal that these are N independently-staged markets.
+    const group = {
+      oracle: ORACLE,
+      optionsCount: 3,
+      markets: [
+        { ...summary(0, 'Ma0'), market: { ...summary(0, 'Ma0').market, status: MarketStatus.Funding } },
+        { ...summary(1, 'Ma1'), market: { ...summary(1, 'Ma1').market, status: MarketStatus.Active } },
+        { ...summary(2, 'Ma2'), market: { ...summary(2, 'Ma2').market, status: MarketStatus.Funding } },
+      ],
+    } as never
+    const html = inRouter(<CategoricalCard group={group} meta={META} />)
+    const statusChips = (html.match(/aria-label="Status:/g) ?? []).length
+    expect(statusChips).toBe(1)
+    // The overall status must be Active — the group is tradable since at
+    // least one outcome is, not "mostly Funding".
+    expect(html).toContain('aria-label="Status: Active"')
+  })
 })
 
 describe('MarketDetail header question', () => {

@@ -16,6 +16,7 @@ import {
   formatProbability,
   fundingActions,
   fundingProgress,
+  groupStatus,
   impliedYesProbability,
   poolValueKass,
   statusLabel,
@@ -210,5 +211,32 @@ describe('firstBoundMarketPubkey — oracle → its prediction sub-market', () =
   it('is undefined when no market binds to the oracle', () => {
     expect(firstBoundMarketPubkey([sub('M', 'OracB', 0)], 'OracA')).toBeUndefined()
     expect(firstBoundMarketPubkey([], 'OracA')).toBeUndefined()
+  })
+})
+
+describe('groupStatus — a categorical group collapsed to ONE lifecycle status', () => {
+  const at = (status: MarketStatus) => ({ market: { status } })
+
+  it('Active wins even when other outcomes are still Funding', () => {
+    expect(groupStatus([at(MarketStatus.Funding), at(MarketStatus.Active), at(MarketStatus.Funding)])).toBe(
+      MarketStatus.Active,
+    )
+  })
+
+  it('Active wins even when another outcome already resolved independently', () => {
+    expect(groupStatus([at(MarketStatus.Resolved), at(MarketStatus.Active)])).toBe(MarketStatus.Active)
+  })
+
+  it('Funding wins over any terminal outcome when nothing is Active yet', () => {
+    expect(groupStatus([at(MarketStatus.Void), at(MarketStatus.Funding)])).toBe(MarketStatus.Funding)
+  })
+
+  it('falls back to a terminal status, preferring Resolved, once nothing is Active or Funding', () => {
+    expect(groupStatus([at(MarketStatus.Void), at(MarketStatus.Resolved)])).toBe(MarketStatus.Resolved)
+    expect(groupStatus([at(MarketStatus.Cancelled), at(MarketStatus.Void)])).toBe(MarketStatus.Void)
+  })
+
+  it('a lone market just reports its own status', () => {
+    expect(groupStatus([at(MarketStatus.Active)])).toBe(MarketStatus.Active)
   })
 })
