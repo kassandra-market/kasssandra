@@ -7,10 +7,21 @@ import { beliefProbability, computeBeliefs, defaultBeliefKey, type Belief } from
 import { PriceChart, type ChartSeriesSpec } from "../PriceChart";
 import { TradePanel } from "./TradePanel";
 
-/** Fixed categorical palette for belief curves/pills, cycling past its length. */
+/**
+ * Fixed categorical palette for belief curves/pills, cycling past its length.
+ * LITERAL hex only — `PriceChart`'s curves are drawn on an HTML canvas via
+ * lightweight-charts, and a raw `var(--color-x)` string passed as a canvas
+ * `strokeStyle` is an invalid CSS <color> value there (canvas doesn't resolve
+ * custom properties — only the CSS cascade does, e.g. an inline SVG `stroke`),
+ * so the browser silently ignores the assignment and the line renders solid
+ * black instead. The first two entries mirror `--color-aqua`/`--color-coral`
+ * (`app/src/index.css`) as literals for that reason; the legend pills below
+ * still take the same value via a plain inline `style`, which resolves it
+ * fine since that's real CSS, not a canvas call.
+ */
 const BELIEF_COLORS = [
-  "var(--color-aqua)",
-  "var(--color-coral)",
+  "#8fe9dd",
+  "#ff6f61",
   "#c9a5ff",
   "#ffd166",
   "#7fd1ae",

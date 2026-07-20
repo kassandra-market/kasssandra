@@ -21,8 +21,14 @@ vi.mock("../src/components/markets/actions/TradePanel", () => ({
   ),
 }));
 vi.mock("../src/components/markets/PriceChart", () => ({
-  PriceChart: ({ series }: { series: { key: string; label: string }[] }) => (
-    <div data-testid="price-chart">{series.map((s) => s.label).join(",")}</div>
+  PriceChart: ({ series }: { series: { key: string; label: string; color: string }[] }) => (
+    <div data-testid="price-chart">
+      {series.map((s) => (
+        <span key={s.key} data-testid="chart-series" data-color={s.color}>
+          {s.label}
+        </span>
+      ))}
+    </div>
   ),
 }));
 
@@ -143,5 +149,29 @@ describe("GroupTradePanel", () => {
     const html = render({ detail: d, group: g, options: ["Zero", "One", "Two"], refetch: () => {} });
     const beliefCount = (html.match(/data-testid="belief"/g) ?? []).length;
     expect(beliefCount).toBe(3); // NOT 4 — outcome 1 must appear exactly once
+  });
+
+  it("every chart series color is a literal hex, never a CSS var() reference", () => {
+    // PriceChart's curves are drawn on an HTML canvas via lightweight-charts —
+    // a raw `var(--color-x)` string is an invalid canvas strokeStyle (canvas
+    // doesn't resolve custom properties, only the CSS cascade does), so it's
+    // silently ignored and the line renders solid black instead of its
+    // intended color. Regression guard for that: cycle enough beliefs to
+    // exercise the whole palette and assert every one is a real hex color.
+    const d = detail("Market0111111111111111111111111111111111111", 0, MarketStatus.Active, R);
+    const g = group([
+      summary(0, MarketStatus.Active, R),
+      summary(1, MarketStatus.Active, R),
+      summary(2, MarketStatus.Active, R),
+      summary(3, MarketStatus.Active, R),
+      summary(4, MarketStatus.Active, R),
+      summary(5, MarketStatus.Active, R),
+    ]);
+    const html = render({ detail: d, group: g, options: [], refetch: () => {} });
+    const colors = [...html.matchAll(/data-color="([^"]+)"/g)].map((m) => m[1]);
+    expect(colors.length).toBe(6);
+    for (const color of colors) {
+      expect(color).toMatch(/^#[0-9a-fA-F]{6}$/);
+    }
   });
 });
