@@ -333,8 +333,9 @@ export function CreateMarketForm() {
           ) : isCategorical && batchMode ? (
             <p className="font-inter text-[12px] text-driftwood">
               Creates all {optionsCount} outcome sub-markets — one "YES if the oracle resolves to
-              outcome ⟨i⟩" market per outcome — as {optionsCount} sequential transactions
-              (resumable; already-created outcomes are skipped).
+              outcome ⟨i⟩" market per outcome — packed into as few transactions as will fit and
+              signed together in one wallet approval (resumable; already-created outcomes are
+              skipped).
             </p>
           ) : optionsCount === 2 ? (
             <p className="font-inter text-[12px] text-driftwood">
