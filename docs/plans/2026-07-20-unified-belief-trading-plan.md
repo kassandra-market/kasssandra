@@ -1355,13 +1355,15 @@ see `app/e2e/seed-market.ts` for the 3-option `proposal` oracle mentioned in
    option, color-matched to its pill. The order-ticket dropdown lists every
    option once (no YES/NO suffix). Switching the dropdown updates the "You
    own" row, price-impact preview, and resets any typed amount.
-2. **Binary market page → Trade tab:** legend shows exactly one pill (its own
-   label, or "Yes" if unlabeled) — confirm the chart's single curve is the
-   YES curve, not YES+NO. The dropdown lists two entries (its bound label /
-   "Yes", and its complement / "No"); selecting "No" and typing an amount
-   still produces a correct buy/sell preview (compare against the reserves
-   shown in the Liquidity tab's pool composition figures for a sanity check
-   on the price).
+2. **Binary market page → Trade tab:** legend shows two pills — its own
+   label (or "Yes" if unlabeled) and its complement ("No", or the oracle's
+   other option label) — and the chart shows both curves color-matched to
+   their pills (a deliberate final call, see the design doc's note under
+   "Chart: one curve per belief" — this superseded an earlier brainstorm
+   answer). The dropdown lists the same two entries; selecting "No" and
+   typing an amount still produces a correct buy/sell preview (compare
+   against the reserves shown in the Liquidity tab's pool composition
+   figures for a sanity check on the price).
 3. **A trade lands:** after a successful buy/sell, confirm the chart reloads
    (the traded curve visibly steps) and the dropdown's live prices update.
 4. **Resize / mobile width:** legend pills wrap onto multiple lines without

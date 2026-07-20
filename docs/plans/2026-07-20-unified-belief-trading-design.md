@@ -61,6 +61,13 @@ market's existing candle series, computed client-side — no new indexer
 endpoint. Colors come from a small fixed categorical palette, cycling if
 there are more beliefs than colors.
 
+Note: this means a lone binary market's chart shows **two** curves (YES and
+NO), matching its two-entry dropdown below — a deliberate final call to keep
+the chart and dropdown showing the exact same belief set everywhere, made
+after this drifted from an earlier "always a single YES curve" brainstorm
+answer; confirmed and kept as-is once the discrepancy surfaced during manual
+browser verification (Task 6).
+
 Above the chart, a row of small pills — visually similar to today's outcome
 tabs but **not clickable** — shows one pill per belief: color dot, label,
 live probability. Pure legend/readout, replacing both the old clickable
