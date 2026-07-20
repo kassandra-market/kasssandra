@@ -7,7 +7,14 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { MAX_POINTS, buildGrid, buildWindowedGrid, gridBars, gridStep } from "../src/components/markets/priceGrid";
+import {
+  MAX_POINTS,
+  buildGrid,
+  buildWindowedGrid,
+  gridBars,
+  gridStep,
+  invertGrid,
+} from "../src/components/markets/priceGrid";
 import type { CandleDto } from "../src/market/lib/indexer";
 
 const candle = (time: number, close: number): CandleDto => ({
@@ -125,5 +132,26 @@ describe("gridStep / gridBars — window → step + bar budget", () => {
     const now = 1_000_123;
     const grid = buildGrid([candle(1_000_000, 0.5)], gridStep(60), now, gridBars(60));
     expect(grid[grid.length - 1].time).toBe(now); // exact current second
+  });
+});
+
+describe("invertGrid", () => {
+  it("complements every real value, leaving time untouched", () => {
+    const grid = [
+      { time: 100, value: 0.3 },
+      { time: 101, value: 0.75 },
+    ];
+    expect(invertGrid(grid)).toEqual([
+      { time: 100, value: 0.7 },
+      { time: 101, value: 0.25 },
+    ]);
+  });
+
+  it("leaves whitespace points (no value) as whitespace", () => {
+    expect(invertGrid([{ time: 100 }])).toEqual([{ time: 100, value: undefined }]);
+  });
+
+  it("empty in, empty out", () => {
+    expect(invertGrid([])).toEqual([]);
   });
 });

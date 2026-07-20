@@ -96,3 +96,11 @@ export function buildWindowedGrid(
   }
   return [...padding, ...core];
 }
+
+/** Complement every real value in a grid (`v → 1 - v`), leaving whitespace
+ *  points (`value === undefined`) and `time` untouched. Used to derive a
+ *  binary market's NO curve from its YES candles client-side, with no second
+ *  indexer fetch. */
+export function invertGrid(grid: GridPoint[]): GridPoint[] {
+  return grid.map((p) => ({ time: p.time, value: p.value === undefined ? undefined : 1 - p.value }));
+}

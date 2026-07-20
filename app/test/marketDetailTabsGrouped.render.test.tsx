@@ -64,7 +64,12 @@ vi.mock('../src/market/hooks/useOracleGroup', () => ({
   }),
 }))
 vi.mock('../src/components/markets/actions/TradePanel', () => ({
-  TradePanel: () => null,
+  TradePanel: ({ beliefs }: { beliefs: { key: string }[] }) => (
+    <div data-testid="trade-panel">{beliefs.length} beliefs</div>
+  ),
+}))
+vi.mock('../src/components/markets/PriceChart', () => ({
+  PriceChart: () => null,
 }))
 // The Liquidity tab (default here, since the current outcome is Funding) reads
 // the connected wallet for "Your stake"; render it disconnected (no
