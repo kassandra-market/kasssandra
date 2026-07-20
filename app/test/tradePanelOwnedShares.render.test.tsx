@@ -1,7 +1,6 @@
 /**
  * Render coverage for TradePanel's "You own" row: the connected wallet's YES/NO
- * share holdings must be visible regardless of buy/sell mode (previously only
- * shown in sell mode via the amount field's balance line).
+ * share holdings must be visible regardless of buy/sell mode.
  */
 import { vi } from "vitest";
 
@@ -28,11 +27,6 @@ vi.mock("../src/market/hooks/useKassBalance", () => ({
 vi.mock("../src/hooks/useKassUsdcPrice", () => ({
   useKassUsdcPrice: () => null,
 }));
-vi.mock("../src/components/markets/PriceChart", () => ({
-  PriceChart: () => null,
-}));
-// ConnectGate reaches for the wallet-modal context (absent in a static render) —
-// stub it to a pass-through so the connected form body renders.
 vi.mock("../src/components/markets/actions/ConnectGate", () => ({
   ConnectGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -42,6 +36,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { TradePanel } from "../src/components/markets/actions/TradePanel";
+import type { Belief } from "../src/market/lib/beliefs";
 
 const market = {
   kassMint: { toString: () => KASS_MINT },
@@ -50,17 +45,35 @@ const market = {
 } as never;
 const reserves = { base: 1_000_000_000n, quote: 1_000_000_000n } as never;
 
+const beliefs: Belief[] = [
+  { key: "Market1111:yes", pubkey: "Market1111", market, reserves, outcome: "yes", label: "Yes" },
+  { key: "Market1111:no", pubkey: "Market1111", market, reserves, outcome: "no", label: "No" },
+];
+
 function render(): string {
   return renderToStaticMarkup(
-    <TradePanel pubkey="Market1111" market={market} reserves={reserves} onSuccess={() => {}} />,
+    <TradePanel beliefs={beliefs} defaultBeliefKey="Market1111:yes" onSuccess={() => {}} />,
   );
 }
 
 describe("TradePanel — owned-shares row", () => {
-  it("shows both YES and NO holdings in buy mode (the default)", () => {
+  it("shows both YES and NO holdings regardless of the selected belief", () => {
     const html = render();
     expect(html).toContain("You own");
     expect(html).toContain("42 YES");
     expect(html).toContain("7 NO");
+  });
+
+  it("renders one <option> per belief, each showing its label and live price", () => {
+    const html = render();
+    expect(html).toContain("<option");
+    expect(html).toContain("Yes");
+    expect(html).toContain("No");
+    expect((html.match(/<option/g) ?? []).length).toBe(2);
+  });
+
+  it("selects the default belief", () => {
+    const html = render();
+    expect(html).toMatch(/<option[^>]*value="Market1111:yes"[^>]*selected/);
   });
 });
