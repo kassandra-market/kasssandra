@@ -67,6 +67,9 @@ vi.mock("../src/components/markets/actions/GroupLiquidityPanel", () => ({
   GroupLiquidityPanel: () => null,
 }));
 vi.mock("../src/components/markets/actions/TradePanel", () => ({ TradePanel: () => null }));
+// GroupTradePanel now renders the real PriceChart behind the legend, which
+// needs an IndexerProvider this lightweight structural test doesn't provide.
+vi.mock("../src/components/markets/PriceChart", () => ({ PriceChart: () => null }));
 
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
