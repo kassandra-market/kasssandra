@@ -423,6 +423,13 @@ kill %1
 
 ## Part 3 — Small polish batch
 
+Note: the design doc's audit finding #5 (`/admin` page unstyled) is NOT a task here.
+Verified during planning that `src/pages/Admin.tsx` already wraps each section in
+`Card` and uses the standard type scale — the original audit screenshot only showed
+the wallet-gate prompt (no wallet connected), not the actual per-section forms, so
+the finding was based on incomplete information. No work needed; the earlier
+"admin page" finding is superseded by this note.
+
 ### Task 3.1: Jupiter stub → status badge
 
 **Files:**
