@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { pda } from "@kassandra-market/markets";
 import { Card } from "../../ui";
 import {
@@ -135,6 +135,21 @@ export function TradePanel({
     defaultBeliefKey ?? beliefs[0]?.key ?? "",
   );
   const selected = beliefs.find((b) => b.key === selectedKey) ?? beliefs[0];
+
+  // If `selectedKey` no longer matches any belief (e.g. it resolved/vanished
+  // from a parent poll or post-trade refetch), `selected` silently fell back
+  // to `beliefs[0]` above. Resync `selectedKey` to that fallback and reset
+  // the transient form state the same way `handleBeliefChange` would — this
+  // is the passive counterpart to that user-driven handler.
+  useEffect(() => {
+    if (selected.key !== selectedKey) {
+      setSelectedKey(selected.key);
+      setAmount("");
+      setAmountError(undefined);
+      setDetailsOpen(false);
+    }
+  }, [selected.key, selectedKey]);
+
   const { pubkey, market, reserves, outcome } = selected;
 
   const kassMint = market.kassMint.toString();
