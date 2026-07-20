@@ -278,7 +278,6 @@ export function PriceChart({
           pubkeys.map((pk) => indexer.getCandles(pk, gridStep(windowSecs), CANDLE_LIMIT)),
         );
         if (!active) return;
-        setError(false);
         let anyData = false;
         pubkeys.forEach((pk, i) => {
           const result = results[i];
@@ -293,6 +292,14 @@ export function PriceChart({
           }
           if (st.candles.length > 0) anyData = true;
         });
+        // `allSettled` never rejects, so a total backend outage (every pubkey
+        // rejected, and none has ever had real data — cached or fresh) must be
+        // detected here rather than relying on the outer catch. A genuinely
+        // partial failure (some succeed, or a failing pubkey still has stale
+        // cached data) must NOT set `error` — that's the case the switch to
+        // `allSettled` exists to protect.
+        const allRejected = results.every((r) => r.status === "rejected");
+        setError(allRejected && !anyData);
         setEmpty(!anyData);
         replot(fit);
       } catch {
