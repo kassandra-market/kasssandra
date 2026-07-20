@@ -12,8 +12,8 @@ import {
 } from "../../../market/data/actions";
 import { useWriteAction } from "../../../market/hooks/useWriteAction";
 import { useKassBalance } from "../../../market/hooks/useKassBalance";
-import { KASS_DECIMALS, formatKass, formatProbability } from "../../../market/lib/marketView";
-import { beliefProbability, type Belief } from "../../../market/lib/beliefs";
+import { KASS_DECIMALS, formatKass } from "../../../market/lib/marketView";
+import type { Belief } from "../../../market/lib/beliefs";
 import { parseKassAmount, balanceGateError } from "../../../market/data/amount";
 import { ConnectGate } from "./ConnectGate";
 import { Field, SubmitButton, TextInput } from "./formPrimitives";
@@ -80,9 +80,9 @@ function ModeTabs({ value, onChange }: { value: Mode; onChange: (m: Mode) => voi
 }
 
 /** The single selector for "what you're buying/selling" — one option per
- *  belief, each showing its live implied probability. A native <select> (not
- *  a custom popover): accessible by default, and every option is always
- *  present in the markup so it's testable via SSR without simulating a click. */
+ *  belief. A native <select> (not a custom popover): accessible by default,
+ *  and every option is always present in the markup so it's testable via SSR
+ *  without simulating a click. */
 function BeliefSelect({
   beliefs,
   selectedKey,
@@ -101,7 +101,7 @@ function BeliefSelect({
     >
       {beliefs.map((b) => (
         <option key={b.key} value={b.key}>
-          {b.label} · {formatProbability(beliefProbability(b))}
+          {b.label}
         </option>
       ))}
     </select>
