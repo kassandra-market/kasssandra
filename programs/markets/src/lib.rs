@@ -7,10 +7,12 @@ use pinocchio::entrypoint;
 #[cfg(not(feature = "no-entrypoint"))]
 entrypoint!(process_instruction);
 
+pub mod config;
 pub mod cpi;
 pub mod error;
 pub mod instruction;
 pub mod kass_oracle;
+pub mod liquidity_floor;
 pub mod processor;
 pub mod state;
 

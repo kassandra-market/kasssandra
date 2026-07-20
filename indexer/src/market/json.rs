@@ -60,6 +60,17 @@ pub struct ConfigDto {
     pub bump: u8,
     pub fee_bps: u16,
     pub fee_destination: String,
+    /// Fixed-point EMA of recent market-creation activity (see the program's
+    /// `liquidity_floor` module).
+    pub market_creation_ema: String,
+    /// Unix timestamp of the last `create_market`, for the EMA decay.
+    pub last_market_creation_unix: String,
+    /// EMA at/below which the floor stays at `min_liquidity` (the base).
+    pub min_liquidity_ema_threshold: String,
+    /// EMA at/above which the floor reaches `min_liquidity_max`.
+    pub min_liquidity_ema_cap: String,
+    /// Ceiling of the activity-scaled ramp; `<= min_liquidity` means disabled (flat).
+    pub min_liquidity_max: String,
     pub slot: String,
 }
 
@@ -73,6 +84,11 @@ impl ConfigDto {
             bump: c.bump,
             fee_bps: c.fee_bps,
             fee_destination: b58(c.fee_destination),
+            market_creation_ema: c.market_creation_ema.to_string(),
+            last_market_creation_unix: c.last_market_creation_unix.to_string(),
+            min_liquidity_ema_threshold: c.min_liquidity_ema_threshold.to_string(),
+            min_liquidity_ema_cap: c.min_liquidity_ema_cap.to_string(),
+            min_liquidity_max: c.min_liquidity_max.to_string(),
             slot: slot.to_string(),
         }
     }

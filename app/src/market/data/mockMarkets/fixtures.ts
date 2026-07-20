@@ -510,16 +510,24 @@ export function mockCandlesFor(pubkey: string, intervalSecs: number, limit: numb
 
 // --- config ------------------------------------------------------------------
 
-/** The `GET /api/config` mock — the program `Config` singleton. */
+/** The `GET /api/config` mock — the program `Config` singleton. The
+ *  activity-scaled min-liquidity ramp is DISABLED (`minLiquidityMax ==
+ *  minLiquidity`) — the mock harness doesn't need a live demand signal. */
 export function mockConfigDto(): ConfigDto {
+  const minLiquidity = kass(500_000);
   return {
     address: fixturePubkey("config"),
     authority: fixturePubkey("futarchy-authority"),
     kassMint: KASS_MINT,
-    minLiquidity: kass(500_000),
+    minLiquidity,
     bump: 254,
     feeBps: 250,
     feeDestination: fixturePubkey("fee-destination"),
+    marketCreationEma: "0",
+    lastMarketCreationUnix: "0",
+    minLiquidityEmaThreshold: "15000000000",
+    minLiquidityEmaCap: "1443000000000",
+    minLiquidityMax: minLiquidity,
     slot: "999",
   };
 }

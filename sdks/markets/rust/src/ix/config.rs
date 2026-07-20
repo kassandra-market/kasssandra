@@ -9,7 +9,11 @@ pub const MAX_FEE_BPS: u16 = 1000;
 
 /// `InitConfig` (Ix 0) — create the `Config` singleton at PDA `[b"config"]`.
 /// Payload = `authority` (32) ++ `min_liquidity` (u64 LE) ++ `fee_bps` (u16 LE)
-/// ++ `fee_destination` (32). Accounts:
+/// ++ `fee_destination` (32) ++ `min_liquidity_ema_threshold` (u64 LE) ++
+/// `min_liquidity_ema_cap` (u64 LE) ++ `min_liquidity_max` (u64 LE) — the
+/// activity-scaled funding-floor curve (`min_liquidity_max <= min_liquidity`
+/// disables the ramp — a flat floor, exactly like the oracle's stake-floor
+/// bootstrap default). Accounts:
 /// `[0] config(pda,w) [1] payer(signer,w) [2] kass_mint(ro) [3] fee_destination(ro)
 ///  [4] system program [5] program_data(ro)`.
 ///
@@ -25,6 +29,9 @@ pub fn init_config(
     min_liquidity: u64,
     fee_bps: u16,
     fee_destination: &Pubkey,
+    min_liquidity_ema_threshold: u64,
+    min_liquidity_ema_cap: u64,
+    min_liquidity_max: u64,
 ) -> Instruction {
     let (config, _) = crate::pda::config();
     let (program_data, _) = crate::pda::program_data(&PROGRAM_ID);
@@ -33,6 +40,9 @@ pub fn init_config(
     data.extend_from_slice(&min_liquidity.to_le_bytes());
     data.extend_from_slice(&fee_bps.to_le_bytes());
     data.extend_from_slice(fee_destination.as_ref());
+    data.extend_from_slice(&min_liquidity_ema_threshold.to_le_bytes());
+    data.extend_from_slice(&min_liquidity_ema_cap.to_le_bytes());
+    data.extend_from_slice(&min_liquidity_max.to_le_bytes());
     Instruction {
         program_id: PROGRAM_ID,
         accounts: vec![
@@ -48,20 +58,31 @@ pub fn init_config(
 }
 
 /// `UpdateConfig` (Ix 1) — futarchy-gated update of `min_liquidity`, `fee_bps`,
-/// and `fee_destination` (all three set together).
-/// Payload = `min_liquidity` (u64 LE) ++ `fee_bps` (u16 LE) ++ `fee_destination` (32).
-/// Accounts: `[0] config(w) [1] authority(signer) [2] fee_destination(ro)`.
+/// `fee_destination`, and the activity-scaled funding-floor curve (all six set
+/// together). Payload = `min_liquidity` (u64 LE) ++ `fee_bps` (u16 LE) ++
+/// `fee_destination` (32) ++ `min_liquidity_ema_threshold` (u64 LE) ++
+/// `min_liquidity_ema_cap` (u64 LE) ++ `min_liquidity_max` (u64 LE). Never
+/// touches the LIVE `market_creation_ema`/`last_market_creation_unix` — only the
+/// curve's governable shape. Accounts: `[0] config(w) [1] authority(signer) [2]
+/// fee_destination(ro)`.
+#[allow(clippy::too_many_arguments)]
 pub fn update_config(
     authority: &Pubkey,
     min_liquidity: u64,
     fee_bps: u16,
     fee_destination: &Pubkey,
+    min_liquidity_ema_threshold: u64,
+    min_liquidity_ema_cap: u64,
+    min_liquidity_max: u64,
 ) -> Instruction {
     let (config, _) = crate::pda::config();
     let mut data = vec![IX_UPDATE_CONFIG];
     data.extend_from_slice(&min_liquidity.to_le_bytes());
     data.extend_from_slice(&fee_bps.to_le_bytes());
     data.extend_from_slice(fee_destination.as_ref());
+    data.extend_from_slice(&min_liquidity_ema_threshold.to_le_bytes());
+    data.extend_from_slice(&min_liquidity_ema_cap.to_le_bytes());
+    data.extend_from_slice(&min_liquidity_max.to_le_bytes());
     Instruction {
         program_id: PROGRAM_ID,
         accounts: vec![

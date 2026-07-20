@@ -50,6 +50,10 @@ class Buf {
     this.dv.setBigUint64(off, v, true);
     return this;
   }
+  i64(off: number, v: bigint): this {
+    this.dv.setBigInt64(off, v, true);
+    return this;
+  }
   key(off: number, a: Address): this {
     this.bytes.set(a.toBytes(), off);
     return this;
@@ -66,14 +70,19 @@ describe("decoders", () => {
       .toThrow(/wrong account_type/);
   });
 
-  it("decodeConfig reads authority@8, kassMint@40, minLiquidity@72, bump@80, feeBps@82, feeDestination@84", () => {
+  it("decodeConfig reads authority@8, kassMint@40, minLiquidity@72, bump@80, feeBps@82, feeDestination@84, + the activity-scaled curve fields @120..152", () => {
     const buf = new Buf(ACCOUNT_SIZES.Config, AccountType.Config)
       .key(8, AUTHORITY)
       .key(40, KASS_MINT)
       .u64(72, 123456789n)
       .u8(80, 254)
       .u16(82, 250)
-      .key(84, FEE_DEST);
+      .key(84, FEE_DEST)
+      .u64(120, 5_000_000_000n) // marketCreationEma
+      .i64(128, 1_700_000_000n) // lastMarketCreationUnix
+      .u64(136, 15_000_000_000n) // minLiquidityEmaThreshold
+      .u64(144, 1_443_000_000_000n) // minLiquidityEmaCap
+      .u64(152, 10_000_000_000n); // minLiquidityMax
     const c = decodeConfig(buf.bytes);
     expect(c.authority.toString()).toBe(AUTHORITY.toString());
     expect(c.kassMint.toString()).toBe(KASS_MINT.toString());
@@ -81,6 +90,11 @@ describe("decoders", () => {
     expect(c.bump).toBe(254);
     expect(c.feeBps).toBe(250);
     expect(c.feeDestination.toString()).toBe(FEE_DEST.toString());
+    expect(c.marketCreationEma).toBe(5_000_000_000n);
+    expect(c.lastMarketCreationUnix).toBe(1_700_000_000n);
+    expect(c.minLiquidityEmaThreshold).toBe(15_000_000_000n);
+    expect(c.minLiquidityEmaCap).toBe(1_443_000_000_000n);
+    expect(c.minLiquidityMax).toBe(10_000_000_000n);
   });
 
   it("decodeMarket reads oracle@8, openContributions@152, status@154, lpTotal@384, settled@392, feeBps@394, feeCollected@396, outcomeIndex@397", () => {

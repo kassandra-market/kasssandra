@@ -138,6 +138,11 @@ export function mapConfigDto(dto: ConfigDto): Config {
     bump: dto.bump,
     feeBps: dto.feeBps,
     feeDestination: new Address(dto.feeDestination),
+    marketCreationEma: BigInt(dto.marketCreationEma),
+    lastMarketCreationUnix: BigInt(dto.lastMarketCreationUnix),
+    minLiquidityEmaThreshold: BigInt(dto.minLiquidityEmaThreshold),
+    minLiquidityEmaCap: BigInt(dto.minLiquidityEmaCap),
+    minLiquidityMax: BigInt(dto.minLiquidityMax),
   };
 }
 

@@ -51,8 +51,13 @@ import {
   QUESTION,
 } from "./helpers/builders.js";
 
+// Recommended activity-scaled min-liquidity curve defaults (mirrors
+// `MIN_LIQUIDITY_EMA_THRESHOLD` / `MIN_LIQUIDITY_EMA_CAP` in constants.ts).
+const DEFAULT_THRESHOLD_BYTES = [0, 214, 17, 126, 3, 0, 0, 0]; // 15_000_000_000n LE
+const DEFAULT_CAP_BYTES = [0, 158, 128, 249, 79, 1, 0, 0]; // 1_443_000_000_000n LE
+
 describe("initConfig (Ix 0)", () => {
-  it("disc, payload = authority(32) ++ u64(minLiquidity) ++ u16(feeBps) ++ feeDestination(32), accounts", async () => {
+  it("disc, payload = authority(32) ++ u64(minLiquidity) ++ u16(feeBps) ++ feeDestination(32) ++ the min-liquidity curve (defaulted, disabled), accounts", async () => {
     const ix = await initConfig({
       payer: PAYER,
       kassMint: KASS_MINT,
@@ -63,14 +68,18 @@ describe("initConfig (Ix 0)", () => {
     });
     expect(ix.data[0]).toBe(Ix.InitConfig);
     // payload: authority 32 ++ u64 LE minLiquidity ++ u16 LE feeBps ++ feeDestination 32
+    // ++ the curve args, defaulted (threshold/cap recommended, max == minLiquidity ⇒ disabled).
     const expected = new Uint8Array([
       ...AUTHORITY.toBytes(),
       5, 0, 0, 0, 0, 0, 0, 0,
       0xfa, 0x00, // 250 LE
       ...FEE_DEST.toBytes(),
+      ...DEFAULT_THRESHOLD_BYTES,
+      ...DEFAULT_CAP_BYTES,
+      5, 0, 0, 0, 0, 0, 0, 0, // minLiquidityMax defaults to minLiquidity (5)
     ]);
     expect(ix.data.slice(1)).toEqual(expected);
-    expect(ix.data.length).toBe(1 + 32 + 8 + 2 + 32);
+    expect(ix.data.length).toBe(1 + 32 + 8 + 2 + 32 + 8 + 8 + 8);
 
     const config = await pda.config();
     const programData = await pda.programData();
@@ -88,7 +97,7 @@ describe("initConfig (Ix 0)", () => {
 });
 
 describe("updateConfig (Ix 1)", () => {
-  it("disc, payload = u64(minLiquidity) ++ u16(feeBps) ++ feeDestination(32), accounts [config(w), authority(ro,signer), feeDestination(ro)]", async () => {
+  it("disc, payload = u64(minLiquidity) ++ u16(feeBps) ++ feeDestination(32) ++ the min-liquidity curve (defaulted, disabled), accounts [config(w), authority(ro,signer), feeDestination(ro)]", async () => {
     const ix = await updateConfig({
       authority: AUTHORITY,
       minLiquidity: 42n,
@@ -97,7 +106,14 @@ describe("updateConfig (Ix 1)", () => {
     });
     expect(ix.data[0]).toBe(Ix.UpdateConfig);
     expect(ix.data.slice(1)).toEqual(
-      new Uint8Array([42, 0, 0, 0, 0, 0, 0, 0, 0x2c, 0x01, ...FEE_DEST.toBytes()]),
+      new Uint8Array([
+        42, 0, 0, 0, 0, 0, 0, 0,
+        0x2c, 0x01,
+        ...FEE_DEST.toBytes(),
+        ...DEFAULT_THRESHOLD_BYTES,
+        ...DEFAULT_CAP_BYTES,
+        42, 0, 0, 0, 0, 0, 0, 0, // minLiquidityMax defaults to minLiquidity (42)
+      ]),
     );
     const config = await pda.config();
     expect(ix.keys.length).toBe(3);
@@ -136,7 +152,7 @@ describe("createMarket (Ix 2)", () => {
     expect(market.address.toString()).not.toBe(marketOutcome0.address.toString());
 
     expect(ix.keys.length).toBe(10);
-    expect(flags(ix.keys)).toBe("rrWWrSWWrr");
+    expect(flags(ix.keys)).toBe("WrWWrSWWrr");
     expect(addrsOf(ix.keys)).toEqual([
       b58(config.address),
       b58(ORACLE),

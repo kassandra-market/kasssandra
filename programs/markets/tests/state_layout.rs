@@ -6,7 +6,7 @@ fn account_sizes_are_stable() {
     assert_eq!(size_of::<Config>(), Config::LEN);
     assert_eq!(size_of::<Market>(), Market::LEN);
     assert_eq!(size_of::<Contribution>(), Contribution::LEN);
-    assert_eq!(Config::LEN, 120);
+    assert_eq!(Config::LEN, 160);
     assert_eq!(Market::LEN, 424);
     assert_eq!(Contribution::LEN, 96);
 }
@@ -20,6 +20,12 @@ fn field_offsets_are_pinned() {
     // Fee config appended after `bump` (@80); Phase-1 offsets above unchanged.
     assert_eq!(offset_of!(Config, fee_bps), 82);
     assert_eq!(offset_of!(Config, fee_destination), 84);
+    // Activity-scaled min-liquidity floor, appended after the fee-config tail.
+    assert_eq!(offset_of!(Config, market_creation_ema), 120);
+    assert_eq!(offset_of!(Config, last_market_creation_unix), 128);
+    assert_eq!(offset_of!(Config, min_liquidity_ema_threshold), 136);
+    assert_eq!(offset_of!(Config, min_liquidity_ema_cap), 144);
+    assert_eq!(offset_of!(Config, min_liquidity_max), 152);
 
     assert_eq!(offset_of!(Market, account_type), 0);
     assert_eq!(offset_of!(Market, oracle), 8);

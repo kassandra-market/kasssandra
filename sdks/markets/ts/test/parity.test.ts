@@ -90,7 +90,7 @@ describe("parity guard: MarketStatus (state.rs 0..=4)", () => {
 describe("parity guard: account sizes (tests/state_layout.rs)", () => {
   // Pinned absolute on-chain ABI sizes from `account_sizes_are_stable`.
   const PINNED = {
-    Config: 120,
+    Config: 160,
     Market: 424,
     Contribution: 96,
   } as const;

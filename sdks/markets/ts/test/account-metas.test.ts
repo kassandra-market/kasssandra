@@ -127,7 +127,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
         ...PROGRAMS,
       ]),
     ).toEqual([
-      ["config", false, false],
+      ["config", false, true],
       ["oracle", false, false],
       ["market", false, true],
       ["escrow", false, true],

@@ -6,9 +6,13 @@ use crate::{
     state::MAX_FEE_BPS,
 };
 
-/// min_liquidity[8] ++ fee_bps[2] ++ fee_destination[32]. The single
-/// futarchy-gated setter updates all three at once.
-const PAYLOAD_LEN: usize = 42;
+/// min_liquidity[8] ++ fee_bps[2] ++ fee_destination[32] ++
+/// min_liquidity_ema_threshold[8] ++ min_liquidity_ema_cap[8] ++
+/// min_liquidity_max[8]. The single futarchy-gated setter updates all six at
+/// once (the activity-scaled funding-floor curve — see `crate::liquidity_floor`
+/// — never touches the LIVE `market_creation_ema`/`last_market_creation_unix`,
+/// only its governable shape).
+const PAYLOAD_LEN: usize = 66;
 
 pub fn process(
     program_id: &Address,
@@ -22,6 +26,9 @@ pub fn process(
     let fee_bps = u16::from_le_bytes(payload[8..10].try_into().unwrap());
     let mut fee_destination = [0u8; 32];
     fee_destination.copy_from_slice(&payload[10..42]);
+    let min_liquidity_ema_threshold = u64::from_le_bytes(payload[42..50].try_into().unwrap());
+    let min_liquidity_ema_cap = u64::from_le_bytes(payload[50..58].try_into().unwrap());
+    let min_liquidity_max = u64::from_le_bytes(payload[58..66].try_into().unwrap());
 
     let [config_ai, authority_ai, fee_destination_ai, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -46,6 +53,9 @@ pub fn process(
     updated.min_liquidity = min_liquidity;
     updated.fee_bps = fee_bps;
     updated.fee_destination = fee_destination.into();
+    updated.min_liquidity_ema_threshold = min_liquidity_ema_threshold;
+    updated.min_liquidity_ema_cap = min_liquidity_ema_cap;
+    updated.min_liquidity_max = min_liquidity_max;
     write_config(config_ai, &updated)?;
     Ok(())
 }

@@ -7,28 +7,47 @@
  */
 import { Address, TransactionInstruction } from "@solana/web3.js";
 
-import { Ix, MARKET_PROGRAM_ID, SYSTEM_PROGRAM_ID } from "../../constants.js";
+import { Ix, MARKET_PROGRAM_ID, MIN_LIQUIDITY_EMA_CAP, MIN_LIQUIDITY_EMA_THRESHOLD, SYSTEM_PROGRAM_ID } from "../../constants.js";
 import * as pda from "../../pda.js";
 import type { AddressInput } from "../../pda.js";
 import { addr, pubkeyBytes, ro, u16LE, u64LE, w, withDisc } from "../payload.js";
 
+/**
+ * The activity-scaled min-liquidity curve args shared by {@link InitConfigArgs}
+ * and {@link UpdateConfigArgs} (see `liquidityFloor` / `Config.minLiquidityMax`'s
+ * doc comment). All three are OPTIONAL: omitting them defaults to a DISABLED
+ * ramp (`minLiquidityMax` == `minLiquidity`, ie. a flat floor) with the
+ * recommended threshold/cap shape — the exact same "harmless until governance
+ * activates it" default the on-chain program's genesis snapshots use.
+ */
+export interface MinLiquidityCurveArgs {
+  /** EMA at/below which the floor stays at `minLiquidity` (the base). Default {@link MIN_LIQUIDITY_EMA_THRESHOLD}. */
+  minLiquidityEmaThreshold?: bigint | number;
+  /** EMA at/above which the floor reaches `minLiquidityMax`. Default {@link MIN_LIQUIDITY_EMA_CAP}. */
+  minLiquidityEmaCap?: bigint | number;
+  /** Ceiling of the ramp. Default == `minLiquidity` (disabled — a flat floor). */
+  minLiquidityMax?: bigint | number;
+}
+
 // ---------------------------------------------------------------------------
 // InitConfig (Ix 0) — create the Config singleton at PDA [b"config"].
-// Payload = authority(32) ++ min_liquidity(u64 LE) ++ fee_bps(u16 LE) ++ fee_destination(32).
+// Payload = authority(32) ++ min_liquidity(u64 LE) ++ fee_bps(u16 LE) ++
+//           fee_destination(32) ++ min_liquidity_ema_threshold(u64 LE) ++
+//           min_liquidity_ema_cap(u64 LE) ++ min_liquidity_max(u64 LE).
 // Accounts: 0 config(w,PDA) 1 payer(signer,w) 2 kass_mint(ro) 3 fee_destination(ro)
 //           4 system program(ro) 5 program_data(ro).
 // `program_data` is this program's BPF-Upgradeable-Loader ProgramData account
 // (derived from the program id): the processor reads its stored upgrade_authority
 // and REQUIRES it equals `payer` (the bootstrap front-run defense).
 // ---------------------------------------------------------------------------
-export interface InitConfigArgs {
+export interface InitConfigArgs extends MinLiquidityCurveArgs {
   /** Payer (signer): tops up rent for the Config PDA. */
   payer: AddressInput;
   /** Canonical KASS mint recorded on the Config. */
   kassMint: AddressInput;
   /** Futarchy authority recorded as `Config.authority` (payload pubkey, not an account). */
   authority: AddressInput;
-  /** Minimum KASS a market must raise before activation. */
+  /** Minimum KASS a market must raise before activation — the BASE (low-demand) floor. */
   minLiquidity: bigint | number;
   /** Protocol fee in basis points (<= {@link MAX_FEE_BPS}). */
   feeBps: number;
@@ -58,19 +77,27 @@ export async function initConfig(args: InitConfigArgs): Promise<TransactionInstr
       u64LE(args.minLiquidity),
       u16LE(args.feeBps),
       pubkeyBytes(args.feeDestination),
+      u64LE(args.minLiquidityEmaThreshold ?? MIN_LIQUIDITY_EMA_THRESHOLD),
+      u64LE(args.minLiquidityEmaCap ?? MIN_LIQUIDITY_EMA_CAP),
+      u64LE(args.minLiquidityMax ?? args.minLiquidity),
     ),
   });
 }
 
 // ---------------------------------------------------------------------------
-// UpdateConfig (Ix 1) — futarchy-gated update of min_liquidity + fee_bps + fee_destination.
-// Payload = min_liquidity(u64 LE) ++ fee_bps(u16 LE) ++ fee_destination(32).
+// UpdateConfig (Ix 1) — futarchy-gated update of min_liquidity + fee_bps +
+// fee_destination + the activity-scaled min-liquidity curve.
+// Payload = min_liquidity(u64 LE) ++ fee_bps(u16 LE) ++ fee_destination(32) ++
+//           min_liquidity_ema_threshold(u64 LE) ++ min_liquidity_ema_cap(u64 LE)
+//           ++ min_liquidity_max(u64 LE).
 // Accounts: 0 config(w) 1 authority(ro,signer) 2 fee_destination(ro).
+// Never touches the LIVE marketCreationEma/lastMarketCreationUnix — only the
+// curve's governable shape.
 // ---------------------------------------------------------------------------
-export interface UpdateConfigArgs {
+export interface UpdateConfigArgs extends MinLiquidityCurveArgs {
   /** Config authority (signer): must equal `Config.authority`. */
   authority: AddressInput;
-  /** New minimum KASS a market must raise before activation. */
+  /** New minimum KASS a market must raise before activation — the BASE floor. */
   minLiquidity: bigint | number;
   /** New protocol fee in basis points (<= {@link MAX_FEE_BPS}). */
   feeBps: number;
@@ -90,6 +117,9 @@ export async function updateConfig(args: UpdateConfigArgs): Promise<TransactionI
       u64LE(args.minLiquidity),
       u16LE(args.feeBps),
       pubkeyBytes(args.feeDestination),
+      u64LE(args.minLiquidityEmaThreshold ?? MIN_LIQUIDITY_EMA_THRESHOLD),
+      u64LE(args.minLiquidityEmaCap ?? MIN_LIQUIDITY_EMA_CAP),
+      u64LE(args.minLiquidityMax ?? args.minLiquidity),
     ),
   });
 }

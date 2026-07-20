@@ -20,6 +20,16 @@ export interface ConfigDto {
   bump: number;
   feeBps: number;
   feeDestination: string;
+  /** Fixed-point EMA of recent market-creation activity. */
+  marketCreationEma: string;
+  /** Unix timestamp of the last `create_market`. */
+  lastMarketCreationUnix: string;
+  /** EMA at/below which the floor stays at `minLiquidity` (the base). */
+  minLiquidityEmaThreshold: string;
+  /** EMA at/above which the floor reaches `minLiquidityMax`. */
+  minLiquidityEmaCap: string;
+  /** Ceiling of the activity-scaled ramp; `<= minLiquidity` means disabled (flat). */
+  minLiquidityMax: string;
   slot: string;
 }
 

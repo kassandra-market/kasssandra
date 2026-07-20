@@ -111,6 +111,23 @@ export enum MarketError {
 /** Governance guardrail: max protocol `fee_bps` (10% = 1000 bps). Mirror of `state::MAX_FEE_BPS`. */
 export const MAX_FEE_BPS = 1000;
 
+/**
+ * Activity-scaled min-liquidity floor (mirrors `config.rs` — see the program's
+ * `liquidity_floor` module doc comment for the model). `MARKET_EMA_*` govern
+ * `Config.marketCreationEma`'s decay/bump; `MIN_LIQUIDITY_EMA_*` are the
+ * RECOMMENDED curve shape an `initConfig`/`updateConfig` caller may pass (any
+ * value is tolerated — a degenerate `cap <= threshold` is treated as disabled).
+ */
+export const MARKET_EMA_SCALE = 1_000_000_000n;
+/** Half-life (seconds) of the market-creation activity EMA. 1 day. */
+export const MARKET_EMA_HALFLIFE_SECS = 86_400n;
+/** Scaled EMA bump added per market creation: one "creation unit". */
+export const MARKET_EMA_INCREMENT = MARKET_EMA_SCALE;
+/** Recommended: EMA at/below which the floor stays at `minLiquidity` (the base). ≈ 10 markets/day. */
+export const MIN_LIQUIDITY_EMA_THRESHOLD = 15_000_000_000n;
+/** Recommended: EMA at/above which the floor reaches `minLiquidityMax`. ≈ 1000 markets/day. */
+export const MIN_LIQUIDITY_EMA_CAP = 1_443_000_000_000n;
+
 /** Human-readable message per {@link MarketError}. */
 export const MARKET_ERROR_MESSAGES: Record<MarketError, string> = {
   [MarketError.InvalidAccount]: "An account passed to the instruction is invalid (wrong owner, address, or contents).",
@@ -161,7 +178,7 @@ export function decodeError(code: number): MarketError | null {
  * many bytes; the parity guard asserts these against the program.
  */
 export const ACCOUNT_SIZES = {
-  Config: 120,
+  Config: 160,
   Market: 424,
   Contribution: 96,
 } as const;

@@ -6,7 +6,7 @@ use kassandra_markets_sdk::{ix, metadao as md, pda, PROGRAM_ID};
 #[test]
 fn golden_init_config() {
     let (payer, kass_mint, authority, fee_dest) = (pk(1), pk(2), pk(3), pk(11));
-    let ix = ix::init_config(&payer, &kass_mint, &authority, 5, 250, &fee_dest);
+    let ix = ix::init_config(&payer, &kass_mint, &authority, 5, 250, &fee_dest, 100, 1000, 5);
     let (config, _) = pda::config();
     let (program_data, _) = pda::program_data(&PROGRAM_ID);
     assert_eq!(
@@ -34,7 +34,7 @@ fn golden_init_config() {
 #[test]
 fn golden_update_config() {
     let (authority, fee_dest) = (pk(3), pk(11));
-    let ix = ix::update_config(&authority, 42, 300, &fee_dest);
+    let ix = ix::update_config(&authority, 42, 300, &fee_dest, 100, 1000, 42);
     let (config, _) = pda::config();
     assert_eq!(
         labeled(
@@ -76,7 +76,7 @@ fn golden_create_market() {
             ]),
         ),
         vec![
-            ("config", false, false),
+            ("config", false, true),
             ("oracle", false, false),
             ("market", false, true),
             ("escrow", false, true),

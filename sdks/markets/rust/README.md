@@ -31,7 +31,10 @@ kassandra-markets-sdk = { path = "../sdks/oracles/rust" }
 use kassandra_markets_sdk::{ix, pda};
 
 let (config, _) = pda::config();
-let ix = ix::init_config(&payer, &kass_mint, &authority, min_liquidity, fee_bps, &fee_destination);
+let ix = ix::init_config(
+    &payer, &kass_mint, &authority, min_liquidity, fee_bps, &fee_destination,
+    min_liquidity_ema_threshold, min_liquidity_ema_cap, min_liquidity_max,
+);
 ```
 
 ## Consumers

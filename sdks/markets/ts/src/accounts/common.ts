@@ -7,7 +7,7 @@
  * `DataView` over the account data so each decoder reads a field by its exact
  * byte offset:
  *
- *   - `u64`  → `bigint`   (`readU64LE`)
+ *   - `u64`/`i64`  → `bigint`   (`readU64LE` / `readI64LE`)
  *   - `u8`/`u16` → `number`
  *   - `[u8;32]` pubkeys → web3.js `Address` (base58) via `readPubkey`
  *   - bool-ish `u8` flags → `boolean` via `readBool`
@@ -40,6 +40,11 @@ export function readU16LE(dv: DataView, offset: number): number {
 /** Read a little-endian unsigned 64-bit integer at `offset` as a `bigint`. */
 export function readU64LE(dv: DataView, offset: number): bigint {
   return dv.getBigUint64(offset, true);
+}
+
+/** Read a little-endian signed 64-bit integer at `offset` as a `bigint`. */
+export function readI64LE(dv: DataView, offset: number): bigint {
+  return dv.getBigInt64(offset, true);
 }
 
 /** Read a bool-ish `u8` flag at `offset` (`0` → false, anything else → true). */

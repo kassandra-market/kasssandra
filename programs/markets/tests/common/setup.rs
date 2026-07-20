@@ -131,6 +131,16 @@ impl TestCtx {
         self.svm.get_sysvar::<Clock>().unix_timestamp
     }
 
+    /// Advance the `Clock` sysvar's `unix_timestamp` by `secs` (leaving every
+    /// other Clock field untouched) — for the activity-scaled min-liquidity
+    /// ramp tests, which need to simulate idle time between `create_market`
+    /// calls without spinning up real wall-clock delay.
+    pub fn advance_clock_secs(&mut self, secs: i64) {
+        let mut clock = self.svm.get_sysvar::<Clock>();
+        clock.unix_timestamp += secs;
+        self.svm.set_sysvar::<Clock>(&clock);
+    }
+
     /// Lamports balance of any account (0 if it does not exist).
     pub fn lamports(&self, key: Pubkey) -> u64 {
         self.svm.get_account(&key).map(|a| a.lamports).unwrap_or(0)

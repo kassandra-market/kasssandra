@@ -54,6 +54,15 @@ pub const MAX_FEE_BPS: u16 = 1000;
 /// the KASS cut (in basis points, `<= MAX_FEE_BPS`) and the KASS token account
 /// (on `kass_mint`) fees are routed to. Appended after `bump` so the Phase-1
 /// offsets (`authority@8`/`kass_mint@40`/`min_liquidity@72`) stay pinned.
+///
+/// `market_creation_ema` + `last_market_creation_unix` track recent
+/// market-CREATION demand (mirroring the Kassandra oracle's creation-fee EMA);
+/// `min_liquidity_ema_threshold`/`_cap`/`_max` are the governable curve
+/// `create_market` evaluates against the decayed EMA to snapshot a new market's
+/// `min_liquidity` floor (see `crate::liquidity_floor`) — `min_liquidity` above
+/// is the BASE (low-demand) floor, ramping up to `min_liquidity_max` as demand
+/// rises. Appended after the fee-config tail; all four new curve/EMA fields are
+/// 8-byte values so no padding is introduced.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Config {
@@ -61,12 +70,18 @@ pub struct Config {
     pub _pad_hdr: [u8; 7],
     pub authority: Pubkey,
     pub kass_mint: Pubkey,
-    pub min_liquidity: u64,
+    pub min_liquidity: u64, // BASE floor — used at/below the EMA threshold (low demand)
     pub bump: u8,
     pub _pad0: u8,
     pub fee_bps: u16,            // protocol fee in basis points (<= MAX_FEE_BPS)
     pub fee_destination: Pubkey, // KASS token account fees are routed to
     pub _pad: [u8; 4],
+    // ---- Activity-scaled min-liquidity floor (mirrors the oracle's stake_floor) --
+    pub market_creation_ema: u64,         // fixed-point EMA of recent market-creation activity
+    pub last_market_creation_unix: i64,   // for EMA decay; 0 at genesis
+    pub min_liquidity_ema_threshold: u64, // EMA at/below which the floor is `min_liquidity` (base)
+    pub min_liquidity_ema_cap: u64,       // EMA at/above which the floor reaches `min_liquidity_max`
+    pub min_liquidity_max: u64,           // ceiling; `<= min_liquidity` at genesis == disabled (flat)
 }
 impl Config {
     pub const LEN: usize = core::mem::size_of::<Self>();

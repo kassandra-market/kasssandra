@@ -45,11 +45,11 @@ futarchy may set (10%). `init_config`/`update_config` reject anything above it.
 
 | Account | Tag | `LEN` (bytes) |
 | --- | --- | --- |
-| `Config` | 1 | 120 |
+| `Config` | 1 | 160 |
 | `Market` | 2 | 400 |
 | `Contribution` | 3 | 88 |
 
-## Config — LEN 120
+## Config — LEN 160
 
 The governed singleton at PDA `[b"config"]`. `authority` is the KASS futarchy DAO
 executor — only it may `update_config`. Created once by `init_config`.
@@ -60,12 +60,31 @@ executor — only it may `update_config`. Created once by `init_config`.
 | `_pad_hdr` | [u8;7] | 1 | header padding |
 | `authority` | Pubkey | 8 | KASS futarchy DAO executor; gates `update_config` |
 | `kass_mint` | Pubkey | 40 | canonical KASS mint |
-| `min_liquidity` | u64 | 72 | KASS a market must raise before activation |
+| `min_liquidity` | u64 | 72 | BASE funding floor a market must raise before activation (low-demand value) |
 | `bump` | u8 | 80 | PDA bump |
 | `_pad0` | u8 | 81 | padding |
 | `fee_bps` | u16 | 82 | protocol fee in basis points (≤ `MAX_FEE_BPS`) |
 | `fee_destination` | Pubkey | 84 | KASS token account fees route to |
 | `_pad` | [u8;4] | 116 | padding |
+| `market_creation_ema` | u64 | 120 | fixed-point EMA of recent market-creation activity |
+| `last_market_creation_unix` | i64 | 128 | unix timestamp of the last `create_market`, for the EMA decay |
+| `min_liquidity_ema_threshold` | u64 | 136 | EMA at/below which the floor stays at `min_liquidity` (the base) |
+| `min_liquidity_ema_cap` | u64 | 144 | EMA at/above which the floor reaches `min_liquidity_max` |
+| `min_liquidity_max` | u64 | 152 | ceiling of the ramp; `<= min_liquidity` disables it (a flat floor) |
+
+### Activity-scaled min-liquidity floor
+
+The KASS a market must raise before `activate` starts at the BASE
+(`min_liquidity` — sane even at genesis, e.g. 1 KASS is fine with almost no
+markets) and ramps UP with recent market-creation demand, mirroring the
+Kassandra oracle's activity-scaled stake floor (see the oracle's
+`stake_floor` module). Each `create_market` decays the stored
+`market_creation_ema` toward 0 by the elapsed time, snapshots the NEW market's
+`Market.min_liquidity` off the decayed EMA via the piecewise-linear
+threshold/cap/max curve (see `programs/markets/src/liquidity_floor.rs`), then
+bumps the EMA by one creation unit. `min_liquidity_max <= min_liquidity`
+disables the ramp entirely (the floor is always the flat base) — the safe
+default until governance activates it via `init_config`/`update_config`.
 
 ## Market — LEN 400
 

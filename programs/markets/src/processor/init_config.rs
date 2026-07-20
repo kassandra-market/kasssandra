@@ -34,8 +34,12 @@ use crate::{
     state::{AccountType, Config, MAX_FEE_BPS},
 };
 
-/// authority[32] ++ min_liquidity[8] ++ fee_bps[2] ++ fee_destination[32].
-const PAYLOAD_LEN: usize = 74;
+/// authority[32] ++ min_liquidity[8] ++ fee_bps[2] ++ fee_destination[32] ++
+/// min_liquidity_ema_threshold[8] ++ min_liquidity_ema_cap[8] ++
+/// min_liquidity_max[8] (the activity-scaled funding-floor curve — see
+/// `crate::liquidity_floor`; `min_liquidity_max <= min_liquidity` disables the
+/// ramp, i.e. a flat floor, exactly like the oracle's stake-floor bootstrap).
+const PAYLOAD_LEN: usize = 98;
 
 pub fn process(
     program_id: &Address,
@@ -51,6 +55,9 @@ pub fn process(
     let fee_bps = u16::from_le_bytes(payload[40..42].try_into().unwrap());
     let mut fee_destination = [0u8; 32];
     fee_destination.copy_from_slice(&payload[42..74]);
+    let min_liquidity_ema_threshold = u64::from_le_bytes(payload[74..82].try_into().unwrap());
+    let min_liquidity_ema_cap = u64::from_le_bytes(payload[82..90].try_into().unwrap());
+    let min_liquidity_max = u64::from_le_bytes(payload[90..98].try_into().unwrap());
 
     let [config_ai, payer_ai, kass_mint_ai, fee_destination_ai, system_prog_ai, program_data_ai, ..] =
         accounts
@@ -132,6 +139,11 @@ pub fn process(
     config.bump = bump;
     config.fee_bps = fee_bps;
     config.fee_destination = fee_destination.into();
+    // Activity-scaled min-liquidity curve; `market_creation_ema` /
+    // `last_market_creation_unix` start at 0 (genesis — no prior activity).
+    config.min_liquidity_ema_threshold = min_liquidity_ema_threshold;
+    config.min_liquidity_ema_cap = min_liquidity_ema_cap;
+    config.min_liquidity_max = min_liquidity_max;
     write_config(config_ai, &config)?;
     Ok(())
 }

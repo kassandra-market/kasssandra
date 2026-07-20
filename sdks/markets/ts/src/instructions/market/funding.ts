@@ -18,9 +18,11 @@ import { addr, ro, u64LE, u8, w, withDisc } from "../payload.js";
 // KASS in. Binary markets pass `outcomeIndex = 0`; a categorical oracle has one
 // sub-market per outcome (the market PDA is keyed by `(oracle, outcomeIndex)`).
 // Payload = seed_amount(u64 LE) ++ outcome_index(u8).
-// Accounts: 0 config(ro) 1 oracle(ro) 2 market(w,PDA) 3 escrow(w,PDA)
+// Accounts: 0 config(w) 1 oracle(ro) 2 market(w,PDA) 3 escrow(w,PDA)
 //           4 kass_mint(ro) 5 creator(signer,w) 6 creator_kass_ata(w)
 //           7 contribution(w,PDA) 8 token program(ro) 9 system program(ro).
+// `config` is WRITABLE: create_market bumps its market-creation-activity EMA
+// (see the program's `liquidity_floor` module).
 // ---------------------------------------------------------------------------
 export interface CreateMarketArgs {
   /** Creator (signer): pays rent + seeds the first contribution. */
@@ -51,7 +53,7 @@ export async function createMarket(args: CreateMarketArgs): Promise<TransactionI
   return new TransactionInstruction({
     programId,
     keys: [
-      ro(config.address),
+      w(config.address),
       ro(addr(args.oracle)),
       w(market.address),
       w(escrow.address),

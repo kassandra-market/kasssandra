@@ -9,9 +9,11 @@ use solana_sdk::pubkey::Pubkey;
 /// `oracle`, its KASS escrow, and the creator's `Contribution`, transferring
 /// `seed_amount` KASS in.
 /// Payload = `seed_amount` (u64 LE) ++ `outcome_index` (u8). Accounts:
-/// `[0] config(ro) [1] oracle(ro) [2] market(pda,w) [3] escrow(pda,w)
+/// `[0] config(w) [1] oracle(ro) [2] market(pda,w) [3] escrow(pda,w)
 ///  [4] kass_mint(ro) [5] creator(signer,w) [6] creator_kass_ata(w)
 ///  [7] contribution(pda,w) [8] token program [9] system program`.
+/// `config` is WRITABLE: `create_market` bumps its market-creation-activity EMA
+/// (see `crate::liquidity_floor` in the program crate).
 #[allow(clippy::too_many_arguments)]
 pub fn create_market(
     creator: &Pubkey,
@@ -31,7 +33,7 @@ pub fn create_market(
     Instruction {
         program_id: PROGRAM_ID,
         accounts: vec![
-            AccountMeta::new_readonly(config, false),
+            AccountMeta::new(config, false),
             AccountMeta::new_readonly(*oracle, false),
             AccountMeta::new(market, false),
             AccountMeta::new(escrow, false),

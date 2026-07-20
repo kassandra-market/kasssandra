@@ -13,7 +13,9 @@
 //! `seed_amount: u64 LE` ++ `outcome_index: u8`.
 //!
 //! # Accounts
-//! 0. config          — read-only; pins the canonical KASS mint + `min_liquidity`
+//! 0. config          — WRITABLE; pins the canonical KASS mint + `min_liquidity`
+//!    base/curve, and is updated with the bumped market-creation-activity EMA
+//!    (see `crate::liquidity_floor`)
 //! 1. oracle          — read-only Kassandra oracle (owned by the Kassandra program)
 //! 2. market PDA      — writable, uninitialized (created here)
 //! 3. escrow PDA      — writable, uninitialized (created + initialized here)
@@ -26,18 +28,20 @@
 
 use bytemuck::Zeroable;
 use pinocchio::{
-    account::AccountView, address::Address, cpi::Seed, error::ProgramError, ProgramResult,
+    account::AccountView, address::Address, cpi::Seed, error::ProgramError,
+    sysvars::{clock::Clock, Sysvar}, ProgramResult,
 };
 use pinocchio_token::instructions::InitializeAccount3;
 
 use crate::{
     cpi::spl::SPL_TOKEN_ACCOUNT_LEN,
     error::MarketError,
+    liquidity_floor::{bumped_market_ema, decay_market_ema, liquidity_floor},
     processor::{
         contribution::record_contribution,
         guards::{
             assert_key, assert_signer, create_pda, load_config, load_kassandra_oracle,
-            rent_exempt_lamports,
+            rent_exempt_lamports, write_config,
         },
     },
     state::{AccountType, Market, MarketStatus},
@@ -77,6 +81,26 @@ pub fn process(
     // `record_contribution` in its favor.
     if seed_amount == 0 {
         return Err(MarketError::ZeroAmount.into());
+    }
+
+    // Activity-scaled min-liquidity floor: decay the stored market-creation EMA
+    // by the elapsed time, snapshot THIS market's floor off the decayed value
+    // (before bumping — mirrors the oracle's stake-floor snapshot order), then
+    // bump the EMA + stamp the creation time back into Config.
+    let now = Clock::get()?.unix_timestamp;
+    let decayed_ema = decay_market_ema(config.market_creation_ema, config.last_market_creation_unix, now);
+    let min_liquidity_floor = liquidity_floor(
+        decayed_ema,
+        config.min_liquidity_ema_threshold,
+        config.min_liquidity_ema_cap,
+        config.min_liquidity,
+        config.min_liquidity_max,
+    );
+    {
+        let mut updated_config = config;
+        updated_config.market_creation_ema = bumped_market_ema(decayed_ema);
+        updated_config.last_market_creation_unix = now;
+        write_config(config_ai, &updated_config)?;
     }
 
     let oracle = load_kassandra_oracle(oracle_ai)?;
@@ -163,7 +187,7 @@ pub fn process(
     market.creator = *creator_ai.address();
     market.kass_mint = config.kass_mint;
     market.escrow_vault = *escrow_ai.address();
-    market.min_liquidity = config.min_liquidity;
+    market.min_liquidity = min_liquidity_floor; // activity-scaled snapshot, immune to later demand changes
     market.fee_bps = config.fee_bps; // snapshot governance fee, immune to later changes
     market.total_contributed = seed_amount;
     market.open_contributions = 1; // the creator's Contribution (created by record_contribution above)
