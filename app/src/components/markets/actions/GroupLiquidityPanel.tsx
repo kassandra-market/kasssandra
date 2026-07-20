@@ -128,9 +128,13 @@ export function GroupLiquidityPanel({
           ...(await buildBulkAddLiquiditySteps({ contributor: seq.address, entries: addEntries })),
         );
       }
-      seq.reset();
       setSteps(built);
-      await seq.run(built);
+      // Force a fresh run (startIndex 0): each deposit builds a brand-new step
+      // list, not a resume of the last one — see `initialRunState`'s doc comment
+      // for why relying on `seq.reset()` here doesn't work (its state update
+      // isn't visible to `run()`'s closure yet), which used to make a second
+      // deposit with the same step count as the first silently no-op.
+      await seq.run(built, 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -146,9 +150,9 @@ export function GroupLiquidityPanel({
     }));
     try {
       const built = await buildBulkClaimLpSteps({ indexer, contributor: seq.address, entries });
-      seq.reset();
       setSteps(built);
-      await seq.run(built);
+      // Force a fresh run — see the matching comment in `onDeposit`.
+      await seq.run(built, 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

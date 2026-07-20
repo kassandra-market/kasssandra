@@ -34,7 +34,7 @@ vi.mock("../src/market/hooks/useKassBalance", () => ({
 vi.mock("../src/market/hooks/useActionSequence", () => ({
   useActionSequence: (onDone?: () => void) => {
     captured.onDone = onDone;
-    return { statuses: [], busy: false, connected: true, address: "Wa11et11111111111111111111111111111111111111", allDone: false, run: async () => {}, reset: () => {} };
+    return { statuses: [], busy: false, connected: true, address: "Wa11et11111111111111111111111111111111111111", allDone: false, run: async () => {} };
   },
 }));
 vi.mock("../src/market/lib/indexer", () => ({ useIndexer: () => ({}) }));

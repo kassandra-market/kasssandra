@@ -50,6 +50,45 @@ function isRunning(statuses: StepStatus[]): boolean {
   return statuses.some((s) => s.kind === "running");
 }
 
+/**
+ * Compute the initial per-step status array + resume index for a `run()` call.
+ * Exported (pure, no React) so the resume-vs-fresh decision is unit-testable
+ * without a render harness — see `test/actionSequence.unit.test.ts`.
+ *
+ * When `startIndex` is given, the caller is declaring a DELIBERATE fresh run
+ * (or an explicit resume point): every status starts `pending`, `prevStatuses`
+ * is ignored entirely. This matters because `prevStatuses` may still reflect an
+ * UNRELATED earlier run whose length merely happens to match the new `steps`
+ * (same length is a coincidence, not evidence of a resume) — and because a
+ * caller that just called `reset()` cannot assume that reset has been applied
+ * to `prevStatuses` yet: React batches the state update, so `run()`'s own
+ * closure over it is still the PRE-reset value until the next render. A
+ * `reset(); run(newSteps)` pair in the same event handler races this and can
+ * silently no-op a brand-new run whose step count matches the old one (see the
+ * "packed multi-instruction transactions can't be retriggered" bug this fixed —
+ * `GroupLiquidityPanel`'s bulk deposit/withdraw). Passing `startIndex`
+ * sidesteps the race by not depending on `prevStatuses` timing at all.
+ *
+ * Without `startIndex` (the `ActivateControl` / `CreateMarketForm` case — one
+ * persistent step list, retried in place after a mid-sequence failure):
+ * auto-detect — reuse `prevStatuses` when its length matches `stepsLength` and
+ * resume at the first non-`done` entry; otherwise start fresh.
+ */
+export function initialRunState(
+  stepsLength: number,
+  prevStatuses: StepStatus[],
+  startIndex?: number,
+): { statusArr: StepStatus[]; begin: number } {
+  const fresh = (): StepStatus[] => Array.from({ length: stepsLength }, () => ({ kind: "pending" as const }));
+  const statusArr: StepStatus[] =
+    startIndex === undefined && prevStatuses.length === stepsLength ? [...prevStatuses] : fresh();
+  const found = startIndex ?? statusArr.findIndex((s) => s.kind !== "done");
+  const begin = found === -1 ? stepsLength : found;
+  // Clear any prior error at/after the resume point.
+  const cleared = statusArr.map((s, i) => (i >= begin && s.kind === "error" ? { kind: "pending" as const } : s));
+  return { statusArr: cleared, begin };
+}
+
 export interface ActionSequence {
   /** Per-step status, index-aligned to the last-run step list. */
   statuses: StepStatus[];
@@ -62,12 +101,14 @@ export interface ActionSequence {
   /** Whether every step has completed. */
   allDone: boolean;
   /**
-   * Run the given ordered steps from the first not-yet-done step, stopping at the
-   * first failure. Safe to call again to retry from the failure.
+   * Run the given ordered steps, stopping at the first failure. Safe to call
+   * again to retry from the failure. `startIndex` forces a deliberate fresh
+   * run (or explicit resume point) instead of the default auto-detected
+   * resume — see {@link initialRunState}'s doc comment for why this matters
+   * for a caller (like `GroupLiquidityPanel`) that runs a NEW step list on
+   * every call rather than retrying the same one in place.
    */
-  run: (steps: ActivateStep[]) => Promise<void>;
-  /** Reset all step statuses (e.g. re-compute). */
-  reset: () => void;
+  run: (steps: ActivateStep[], startIndex?: number) => Promise<void>;
 }
 
 export function useActionSequence(onDone?: () => void): ActionSequence {
@@ -83,25 +124,15 @@ export function useActionSequence(onDone?: () => void): ActionSequence {
 
   const allDone = statuses.length > 0 && statuses.every((s) => s.kind === "done");
 
-  const reset = useCallback(() => setStatuses([]), []);
-
   const run = useCallback(
-    async (steps: ActivateStep[]) => {
+    async (steps: ActivateStep[], startIndex?: number) => {
       if (isRunning(statuses)) return;
       if (!walletSender || !publicKey) {
         setStatuses(steps.map(() => ({ kind: "pending" as const })));
         return;
       }
 
-      // Align the status array to the step list; resume at the first non-done.
-      let statusArr: StepStatus[] =
-        statuses.length === steps.length
-          ? [...statuses]
-          : steps.map(() => ({ kind: "pending" as const }));
-      const found = statusArr.findIndex((s) => s.kind !== "done");
-      const begin = found === -1 ? steps.length : found;
-      // Clear any prior error at/after the resume point.
-      statusArr = statusArr.map((s, i) => (i >= begin && s.kind === "error" ? { kind: "pending" } : s));
+      const { statusArr, begin } = initialRunState(steps.length, statuses, startIndex);
       setStatuses(statusArr);
 
       // Probe every not-yet-done step for a landed (but unconfirmed) prior send,
@@ -210,7 +241,6 @@ export function useActionSequence(onDone?: () => void): ActionSequence {
     address: publicKey ? publicKey.toBase58() : null,
     allDone,
     run,
-    reset,
   };
 }
 
