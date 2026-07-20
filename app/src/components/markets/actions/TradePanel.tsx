@@ -365,7 +365,10 @@ export function TradePanel({
         <div className="flex justify-end">
           <UnitTabs value={unit} onChange={setUnit} usdAvailable={usdAvailable} />
         </div>
-        <PriceChart pubkey={pubkey} refreshKey={chartRefreshKey} />
+        <PriceChart
+          series={[{ key: pubkey, pubkey, label: "YES", color: "var(--color-aqua)" }]}
+          refreshKey={chartRefreshKey}
+        />
       </Card>
 
       {/* Order ticket — the floating buy/sell card. */}

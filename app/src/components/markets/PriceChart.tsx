@@ -10,7 +10,19 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useIndexer, type CandleDto } from "../../market/lib/indexer";
-import { buildWindowedGrid, gridBars, gridStep, MAX_POINTS } from "./priceGrid";
+import { buildWindowedGrid, gridBars, gridStep, invertGrid, MAX_POINTS } from "./priceGrid";
+
+/** One plotted curve: which market to fetch, how to label/color it, and
+ *  whether it's a binary market's NO side (plotted as `1 - YES` of the same
+ *  candles, client-side — no separate fetch). */
+export interface ChartSeriesSpec {
+  /** Stable identity — a belief's `key` (`${pubkey}:${outcome}`). */
+  key: string;
+  pubkey: string;
+  label: string;
+  color: string;
+  invert?: boolean;
+}
 
 /** Selectable visible WINDOWS (seconds of history shown). The plotted step is
  *  derived from the window ({@link gridStep}) — 1s for short windows (per-second
@@ -40,14 +52,13 @@ const CANDLE_LIMIT = MAX_POINTS;
 const CHART_HEIGHT = 280;
 
 /**
- * Both share curves are probabilities, so the price axis is PINNED to the full
- * 0..1 (0–100%) range rather than autoscaling to the data — the YES/NO split is
- * always read against the same fixed scale. Returned from each series'
- * `autoscaleInfoProvider`.
+ * Every plotted curve is a probability, so the price axis is PINNED to the full
+ * 0..1 (0–100%) range rather than autoscaling to the data. Returned from each
+ * series' `autoscaleInfoProvider`.
  */
 const FULL_SCALE = { priceRange: { minValue: 0, maxValue: 1 } };
 
-/** Percent price format shared by both curves. */
+/** Percent price format shared by every curve. */
 const PERCENT_FORMAT = {
   type: "custom" as const,
   minMove: 0.001,
@@ -59,13 +70,22 @@ function cssVar(el: HTMLElement, name: string, dflt: string): string {
   return getComputedStyle(el).getPropertyValue(name).trim() || dflt;
 }
 
+/** Per-pubkey fetch/roll-forward state, independent of how many specs
+ *  (YES + maybe an inverted NO) reference that pubkey. */
+interface PubkeyState {
+  candles: CandleDto[];
+  plottedStep: number;
+  carriedClose: number | null;
+}
+
 /**
- * A price-history chart of a market's two outcome shares — one curve per share
- * (YES + its complement NO), each an implied probability line — backed by the
- * indexer's series (`GET /api/markets/{pubkey}/candles`, recorded per-swap from a
- * websocket `accountSubscribe` on the pool). The vertical axis is fixed 0–100%
- * (probabilities span the full range and the two curves always sum to 100%). The
- * chart is themed from the live Auros CSS variables and polls for freshness.
+ * A price-history chart plotting one curve per belief ({@link ChartSeriesSpec}) —
+ * each its own implied-YES-probability line, never a NO curve fetched
+ * separately (a binary market's NO belief is `1 - YES` of the same candles,
+ * derived client-side via `invert`). Specs sharing a `pubkey` (a binary
+ * market's YES + NO) fetch candles exactly once. The vertical axis is fixed
+ * 0–100%. Themed from live Auros CSS variables; polls for freshness with an
+ * out-of-band `refreshKey` bump after a trade.
  *
  * Samples are plotted on a UNIFORM time grid at the window's step ({@link gridStep}
  * — 1s for short windows, coarser for wide ones), empty steps carried forward as a
@@ -77,35 +97,28 @@ function cssVar(el: HTMLElement, name: string, dflt: string): string {
  * (see {@link buildWindowedGrid}'s whitespace padding + the explicit
  * `setVisibleRange` in `replot`), rather than zooming in to whatever data exists.
  *
- * Meaningful only for an Active market (the cYES/cNO pool exists); a market with
- * no points yet renders a quiet empty state rather than a blank frame.
- *
- * Beyond the background poll, `refreshKey` lets a parent force an immediate reload
- * on demand — the Trade panel derives it from the live reserves so a just-confirmed
- * trade (which moves the price) reloads the candles at once instead of waiting out
- * the poll, matching the instant update of the YES/NO readouts beside it.
+ * Renders a quiet empty state when every plotted market has no points yet.
  */
 export function PriceChart({
-  pubkey,
+  series,
   refreshKey,
 }: {
-  pubkey: string;
+  series: ChartSeriesSpec[];
   /** Change this to force an out-of-band candle reload (e.g. after a trade). */
   refreshKey?: string | number;
 }) {
   const indexer = useIndexer();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const yesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const noRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const seriesRefs = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const [windowSecs, setWindowSecs] = useState<number>(3600);
   const [empty, setEmpty] = useState(false);
   const [error, setError] = useState(false);
-  // Cached raw candles (sparse), plus the plotted window's trailing step + its
-  // carried value, so the wall-clock tick can extend the curve without a refetch.
-  const candlesRef = useRef<CandleDto[]>([]);
-  const plottedStepRef = useRef<number>(0);
-  const carriedCloseRef = useRef<number | null>(null);
+  // Cached raw candles (sparse) per unique pubkey, plus the plotted window's
+  // trailing step + its carried value, so the wall-clock tick can extend the
+  // curve without a refetch. Keyed by pubkey (not spec key) so a binary
+  // market's YES + NO specs share one fetch and one carry state.
+  const pubkeyStateRef = useRef<Map<string, PubkeyState>>(new Map());
 
   // (Re)plot the window from the cached candles: a uniform grid at the window's step
   // (1s for short windows → true per-second resolution), gaps carried forward, the
@@ -113,33 +126,29 @@ export function PriceChart({
   // than the selected scale ({@link buildWindowedGrid}). `fit` frames the whole
   // SELECTED window (mount / window change / trade); a plain poll skips it so the
   // live scroll isn't yanked back every 15s.
-  //
-  // Framing uses `setVisibleRange({from: now - windowSecs, to: now})` — the window
-  // the user picked — rather than `fitContent()`, which zooms to whatever data
-  // actually got plotted. Without the whitespace padding, a market younger than the
-  // window would leave `setVisibleRange` itself clamped to the real data's span
-  // (lightweight-charts won't show a visible range wider than its series' own data),
-  // so both pieces matter: the padded grid gives the series the full window's time
-  // range to work with, and `setVisibleRange` then pins the axis to exactly that
-  // window instead of whatever `fitContent()` would zoom to.
   const replot = useCallback(
     (fit: boolean) => {
       const step = gridStep(windowSecs);
       const nowSec = Math.floor(Date.now() / 1000);
-      const grid = buildWindowedGrid(candlesRef.current, step, nowSec, gridBars(windowSecs));
-      yesRef.current?.setData(
-        grid.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })) as Parameters<
-          ISeriesApi<"Line">["setData"]
-        >[0],
-      );
-      noRef.current?.setData(
-        grid.map((p) => ({ time: p.time as UTCTimestamp, value: p.value === undefined ? undefined : 1 - p.value })) as Parameters<
-          ISeriesApi<"Line">["setData"]
-        >[0],
-      );
-      const last = grid[grid.length - 1];
-      plottedStepRef.current = last ? last.time : 0;
-      carriedCloseRef.current = last && last.value !== undefined ? last.value : null;
+      for (const spec of series) {
+        const line = seriesRefs.current.get(spec.key);
+        if (!line) continue;
+        let st = pubkeyStateRef.current.get(spec.pubkey);
+        if (!st) {
+          st = { candles: [], plottedStep: 0, carriedClose: null };
+          pubkeyStateRef.current.set(spec.pubkey, st);
+        }
+        const grid = buildWindowedGrid(st.candles, step, nowSec, gridBars(windowSecs));
+        const plotted = spec.invert ? invertGrid(grid) : grid;
+        line.setData(
+          plotted.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })) as Parameters<
+            ISeriesApi<"Line">["setData"]
+          >[0],
+        );
+        const last = grid[grid.length - 1];
+        st.plottedStep = last ? last.time : 0;
+        st.carriedClose = last && last.value !== undefined ? last.value : null;
+      }
       if (fit) {
         chartRef.current?.timeScale().setVisibleRange({
           from: (nowSec - windowSecs) as UTCTimestamp,
@@ -147,34 +156,36 @@ export function PriceChart({
         });
       }
     },
-    [windowSecs],
+    [series, windowSecs],
   );
 
-  // Grow the curve to the present: append one carried-forward point per elapsed step
-  // (1s on short windows), so the line's end tracks the current second and advances
-  // smoothly by TIME — not only on trades. Appending at the right edge auto-scrolls
-  // the view to follow. `Math.max` keeps the edge from stepping behind the last
-  // plotted point (client/server clock skew), which would otherwise reject the update.
+  // Grow every curve to the present: append one carried-forward point per elapsed
+  // step (1s on short windows), so each line's end tracks the current second and
+  // advances smoothly by TIME — not only on trades. Computed once per unique
+  // pubkey, then fanned out to every spec referencing it (inverted as needed).
   const rollForward = useCallback(() => {
-    const v = carriedCloseRef.current;
-    if (v === null) return;
     const step = gridStep(windowSecs);
     const nowStep = Math.floor(Date.now() / 1000 / step) * step;
-    let b = plottedStepRef.current;
-    while (nowStep > b) {
-      b += step;
-      yesRef.current?.update({ time: b as UTCTimestamp, value: v });
-      noRef.current?.update({ time: b as UTCTimestamp, value: 1 - v });
+    for (const [pubkey, st] of pubkeyStateRef.current) {
+      if (st.carriedClose === null) continue;
+      let b = st.plottedStep;
+      const specsForPubkey = series.filter((s) => s.pubkey === pubkey);
+      while (nowStep > b) {
+        b += step;
+        for (const spec of specsForPubkey) {
+          const line = seriesRefs.current.get(spec.key);
+          const value = spec.invert ? 1 - st.carriedClose : st.carriedClose;
+          line?.update({ time: b as UTCTimestamp, value });
+        }
+      }
+      st.plottedStep = Math.max(st.plottedStep, b);
     }
-    plottedStepRef.current = Math.max(plottedStepRef.current, b);
-  }, [windowSecs]);
+  }, [series, windowSecs]);
 
-  // Create the chart once, themed from the resolved CSS variables.
+  // Create the chart shell once, themed from the resolved CSS variables.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    const yesColor = cssVar(el, "--color-aqua", "#8fe9dd");
-    const noColor = cssVar(el, "--color-coral", "#ff6f61");
     const text = cssVar(el, "--color-silver", "#bbc7c6");
     const grid = "rgba(127, 143, 141, 0.16)";
 
@@ -208,24 +219,7 @@ export function PriceChart({
       height: CHART_HEIGHT,
       width: Math.floor(el.clientWidth),
     });
-    // One curve per share (YES + NO), both pinned to the 0–100% scale.
-    const yes = chart.addSeries(LineSeries, {
-      color: yesColor,
-      lineWidth: 2,
-      lineType: LineType.Curved,
-      priceFormat: PERCENT_FORMAT,
-      autoscaleInfoProvider: () => FULL_SCALE,
-    });
-    const no = chart.addSeries(LineSeries, {
-      color: noColor,
-      lineWidth: 2,
-      lineType: LineType.Curved,
-      priceFormat: PERCENT_FORMAT,
-      autoscaleInfoProvider: () => FULL_SCALE,
-    });
     chartRef.current = chart;
-    yesRef.current = yes;
-    noRef.current = no;
 
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width;
@@ -237,23 +231,57 @@ export function PriceChart({
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
-      yesRef.current = null;
-      noRef.current = null;
+      seriesRefs.current.clear();
     };
   }, []);
 
-  // Load + poll sample anchors at the window's step; a changed `refreshKey` reloads
-  // immediately (e.g. right after a trade). The first load (mount / window change /
-  // trade) frames the window; the 15s poll refreshes values without re-framing.
+  // (Re)create one line series per spec whenever the SET of spec keys
+  // changes — simplest correct option since belief lists change rarely (a
+  // sibling activating), not on every render.
+  const specKeys = series.map((s) => s.key).join(",");
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    for (const line of seriesRefs.current.values()) chart.removeSeries(line);
+    seriesRefs.current.clear();
+    for (const spec of series) {
+      const line = chart.addSeries(LineSeries, {
+        color: spec.color,
+        lineWidth: 2,
+        lineType: LineType.Curved,
+        priceFormat: PERCENT_FORMAT,
+        autoscaleInfoProvider: () => FULL_SCALE,
+        title: spec.label,
+      });
+      seriesRefs.current.set(spec.key, line);
+    }
+    replot(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [specKeys]);
+
+  // Load + poll candles at the window's step, once per unique pubkey; a
+  // changed `refreshKey` reloads immediately (e.g. right after a trade). The
+  // first load (mount / window change / trade) frames the window; the 15s
+  // poll refreshes values without re-framing.
   useEffect(() => {
     let active = true;
+    const pubkeys = [...new Set(series.map((s) => s.pubkey))];
     const load = async (fit: boolean) => {
       try {
-        const candles: CandleDto[] = await indexer.getCandles(pubkey, gridStep(windowSecs), CANDLE_LIMIT);
+        const results = await Promise.all(
+          pubkeys.map((pk) => indexer.getCandles(pk, gridStep(windowSecs), CANDLE_LIMIT)),
+        );
         if (!active) return;
         setError(false);
-        setEmpty(candles.length === 0);
-        candlesRef.current = candles;
+        let anyData = false;
+        pubkeys.forEach((pk, i) => {
+          const candles = results[i];
+          if (candles.length > 0) anyData = true;
+          const st = pubkeyStateRef.current.get(pk) ?? { candles: [], plottedStep: 0, carriedClose: null };
+          st.candles = candles;
+          pubkeyStateRef.current.set(pk, st);
+        });
+        setEmpty(!anyData);
         replot(fit);
       } catch {
         if (active) setError(true);
@@ -265,9 +293,10 @@ export function PriceChart({
       active = false;
       clearInterval(id);
     };
-  }, [indexer, pubkey, windowSecs, refreshKey, replot]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indexer, specKeys, windowSecs, refreshKey]);
 
-  // Grow the curve to the current second, every second, so the line advances
+  // Grow every curve to the current second, every second, so each line advances
   // smoothly by wall-clock — not only when a trade lands.
   useEffect(() => {
     const id = setInterval(rollForward, LIVE_TICK_MS);
@@ -277,17 +306,7 @@ export function PriceChart({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3 font-inter text-[12px]">
-          <span className="text-silver">Share price · history</span>
-          <span className="inline-flex items-center gap-1.5 text-platinum">
-            <span className="h-2 w-2 rounded-full bg-aqua" aria-hidden="true" />
-            YES
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-platinum">
-            <span className="h-2 w-2 rounded-full bg-coral" aria-hidden="true" />
-            NO
-          </span>
-        </div>
+        <span className="font-inter text-[12px] text-silver">Share price · history</span>
         <div
           role="group"
           aria-label="Window"
