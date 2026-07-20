@@ -123,4 +123,25 @@ describe("GroupTradePanel", () => {
     const g = group([]);
     expect(render({ detail: d, group: g, options: [], refetch: () => {} })).toBe("");
   });
+
+  it("dedupes the current market against its OWN (possibly differently-keyed) entry in group.active by outcomeIndex, not by pubkey literal", () => {
+    // The current page's own market and its corresponding entry in
+    // group.active/siblings are always the SAME on-chain market, but they can
+    // be fetched independently (useMarketDetail vs the group's siblings
+    // query) and so may not share object identity or even an identical
+    // pubkey string in a test fixture. GroupTradePanel's `tradable` dedup
+    // must key on `outcomeIndex`, not on the pubkey literal matching, or this
+    // outcome would be double-counted. This test deliberately gives the two
+    // entries for outcome 1 DIFFERENT pubkeys to prove the dedup doesn't
+    // depend on the pubkeys happening to coincide.
+    const d = detail("CurrentMarketPubkeyA", 1, MarketStatus.Active, R);
+    const g = group([
+      summary(0, MarketStatus.Active, R2),
+      { ...summary(1, MarketStatus.Active, R), pubkey: "DifferentPubkeyForOutcome1" } as unknown as ReturnType<typeof summary>,
+      summary(2, MarketStatus.Active, R),
+    ]);
+    const html = render({ detail: d, group: g, options: ["Zero", "One", "Two"], refetch: () => {} });
+    const beliefCount = (html.match(/data-testid="belief"/g) ?? []).length;
+    expect(beliefCount).toBe(3); // NOT 4 — outcome 1 must appear exactly once
+  });
 });
