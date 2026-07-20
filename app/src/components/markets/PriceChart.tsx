@@ -119,6 +119,12 @@ export function PriceChart({
   // curve without a refetch. Keyed by pubkey (not spec key) so a binary
   // market's YES + NO specs share one fetch and one carry state.
   const pubkeyStateRef = useRef<Map<string, PubkeyState>>(new Map());
+  // Latest `series` value, kept current on every render (not just effects) so
+  // `replot`/`rollForward` can stay referentially stable across renders that
+  // pass a new-but-equivalent `series` array (e.g. TradePanel rebuilds it
+  // inline on every keystroke) while still reading fresh data when they fire.
+  const seriesRef = useRef(series);
+  seriesRef.current = series;
 
   // (Re)plot the window from the cached candles: a uniform grid at the window's step
   // (1s for short windows → true per-second resolution), gaps carried forward, the
@@ -130,7 +136,7 @@ export function PriceChart({
     (fit: boolean) => {
       const step = gridStep(windowSecs);
       const nowSec = Math.floor(Date.now() / 1000);
-      for (const spec of series) {
+      for (const spec of seriesRef.current) {
         const line = seriesRefs.current.get(spec.key);
         if (!line) continue;
         let st = pubkeyStateRef.current.get(spec.pubkey);
@@ -156,7 +162,7 @@ export function PriceChart({
         });
       }
     },
-    [series, windowSecs],
+    [windowSecs],
   );
 
   // Grow every curve to the present: append one carried-forward point per elapsed
@@ -169,7 +175,7 @@ export function PriceChart({
     for (const [pubkey, st] of pubkeyStateRef.current) {
       if (st.carriedClose === null) continue;
       let b = st.plottedStep;
-      const specsForPubkey = series.filter((s) => s.pubkey === pubkey);
+      const specsForPubkey = seriesRef.current.filter((s) => s.pubkey === pubkey);
       while (nowStep > b) {
         b += step;
         for (const spec of specsForPubkey) {
@@ -180,7 +186,7 @@ export function PriceChart({
       }
       st.plottedStep = Math.max(st.plottedStep, b);
     }
-  }, [series, windowSecs]);
+  }, [windowSecs]);
 
   // Create the chart shell once, themed from the resolved CSS variables.
   useEffect(() => {
@@ -268,18 +274,24 @@ export function PriceChart({
     const pubkeys = [...new Set(series.map((s) => s.pubkey))];
     const load = async (fit: boolean) => {
       try {
-        const results = await Promise.all(
+        const results = await Promise.allSettled(
           pubkeys.map((pk) => indexer.getCandles(pk, gridStep(windowSecs), CANDLE_LIMIT)),
         );
         if (!active) return;
         setError(false);
         let anyData = false;
         pubkeys.forEach((pk, i) => {
-          const candles = results[i];
-          if (candles.length > 0) anyData = true;
+          const result = results[i];
           const st = pubkeyStateRef.current.get(pk) ?? { candles: [], plottedStep: 0, carriedClose: null };
-          st.candles = candles;
-          pubkeyStateRef.current.set(pk, st);
+          // A rejected fetch (e.g. a sibling the indexer hasn't backfilled yet)
+          // leaves `st.candles` as whatever was already cached for this pubkey
+          // rather than clobbering it with `[]` — a transient per-pubkey
+          // failure shouldn't wipe an already-loaded curve.
+          if (result.status === "fulfilled") {
+            st.candles = result.value;
+            pubkeyStateRef.current.set(pk, st);
+          }
+          if (st.candles.length > 0) anyData = true;
         });
         setEmpty(!anyData);
         replot(fit);
