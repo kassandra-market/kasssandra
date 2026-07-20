@@ -1,17 +1,28 @@
 /**
- * Headless render coverage for the unified Trade-tab surface: an outcome
- * selector over the existing single-market TradePanel, letting a categorical
- * group's outcomes be traded from one page without navigating away. `TradePanel`
- * is mocked to a stub that prints the props it was handed, so we can assert
- * WHICH outcome's pool the panel is wired to without needing real chain data.
+ * Headless render coverage for the unified Trade-tab surface: a multi-series
+ * price chart with a non-interactive legend, sitting above the order ticket
+ * ({@link TradePanel}) which now owns belief SELECTION itself (via its own
+ * dropdown, mocked here). `TradePanel` and `PriceChart` are both mocked to
+ * stubs that print the props they were handed, so we can assert the FULL
+ * `beliefs` list (and the computed default) without needing real chain data.
  */
 import { vi } from "vitest";
 
 vi.mock("../src/components/markets/actions/TradePanel", () => ({
-  TradePanel: ({ pubkey, boundLabel, question }: { pubkey: string; boundLabel?: string | null; question?: string }) => (
-    <div data-testid="trade-panel" data-pubkey={pubkey} data-bound-label={boundLabel ?? ""}>
+  TradePanel: ({ beliefs, defaultBeliefKey, question }: { beliefs: { key: string; pubkey: string; label: string }[]; defaultBeliefKey: string | null; question?: string }) => (
+    <div data-testid="trade-panel" data-default-belief={defaultBeliefKey ?? ""}>
       {question}
+      {beliefs.map((b) => (
+        <span key={b.key} data-testid="belief" data-key={b.key} data-pubkey={b.pubkey}>
+          {b.label}
+        </span>
+      ))}
     </div>
+  ),
+}));
+vi.mock("../src/components/markets/PriceChart", () => ({
+  PriceChart: ({ series }: { series: { key: string; label: string }[] }) => (
+    <div data-testid="price-chart">{series.map((s) => s.label).join(",")}</div>
   ),
 }));
 
@@ -66,17 +77,17 @@ function render(props: Parameters<typeof GroupTradePanel>[0]): string {
 }
 
 describe("GroupTradePanel", () => {
-  it("renders no outcome selector for a lone Active market — just the plain TradePanel", () => {
-    // A genuinely lone market has no OracleGroup siblings at all — the current
-    // market itself is the only tradable outcome.
+  it("a lone Active market: two beliefs (YES/NO of the same market), no clickable selector", () => {
     const d = detail("MarketA", 0, MarketStatus.Active, R);
     const html = render({ detail: d, group: group([]), options: [], refetch: () => {} });
-    expect(html).not.toContain('role="tablist"');
+    expect(html).not.toContain("<button");
     expect(html).toContain('data-testid="trade-panel"');
+    const beliefCount = (html.match(/data-testid="belief"/g) ?? []).length;
+    expect(beliefCount).toBe(2);
     expect(html).toContain('data-pubkey="MarketA"');
   });
 
-  it("shows an outcome selector for a multi-outcome group, defaulting to the CURRENT market", () => {
+  it("a real categorical group: one belief per Active outcome, defaults to the CURRENT market", () => {
     const d = detail("Market1111111111111111111111111111111111111", 1, MarketStatus.Active, R);
     const g = group([
       summary(0, MarketStatus.Active, R2),
@@ -84,30 +95,27 @@ describe("GroupTradePanel", () => {
       summary(2, MarketStatus.Active, R),
     ]);
     const html = render({ detail: d, group: g, options: ["Zero", "One", "Two"], refetch: () => {} });
-    expect(html).toContain('role="tablist"');
-    // All three outcome pills render, labelled + probability-tagged.
+    expect(html).not.toContain("<button");
+    const beliefCount = (html.match(/data-testid="belief"/g) ?? []).length;
+    expect(beliefCount).toBe(3);
     expect(html).toContain("Zero");
     expect(html).toContain("One");
     expect(html).toContain("Two");
-    // Defaults to the CURRENT market (outcome 1), not outcome 0 despite sorting first.
-    expect(html).toContain('data-pubkey="Market1111111111111111111111111111111111111"');
-    expect(html).toContain('data-bound-label="One"');
+    expect(html).toContain('data-default-belief="Market1111111111111111111111111111111111111:yes"');
   });
 
   it("defaults to the first tradable sibling when the CURRENT market itself isn't Active", () => {
-    // Viewing outcome 0's page while it's still Funding, but outcome 2 is Active.
     const d = detail("Market0111111111111111111111111111111111111", 0, MarketStatus.Funding, null);
     const g = group([summary(2, MarketStatus.Active, R)]);
     const html = render({ detail: d, group: g, options: [], refetch: () => {} });
-    expect(html).toContain('data-pubkey="Market21111111111111111111111111111');
+    expect(html).toContain('data-default-belief="Market21111111111111111111111111111');
   });
 
-  it("passes the shared oracle subject as the trade question, and the picked outcome's own bound label", () => {
+  it("passes the shared oracle subject as the trade question", () => {
     const d = detail("Market1111111111111111111111111111111111111", 1, MarketStatus.Active, R);
     const g = group([summary(1, MarketStatus.Active, R)]);
     const html = render({ detail: d, group: g, subject: "Who wins the tournament?", options: ["Zero", "One"], refetch: () => {} });
     expect(html).toContain("Who wins the tournament?");
-    expect(html).toContain('data-bound-label="One"');
   });
 
   it("renders nothing when no outcome in the group is tradable", () => {
