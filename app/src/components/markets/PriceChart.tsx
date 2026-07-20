@@ -10,7 +10,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useIndexer, type CandleDto } from "../../market/lib/indexer";
-import { buildGrid, gridBars, gridStep } from "./priceGrid";
+import { buildWindowedGrid, gridBars, gridStep, MAX_POINTS } from "./priceGrid";
 
 /** Selectable visible WINDOWS (seconds of history shown). The plotted step is
  *  derived from the window ({@link gridStep}) — 1s for short windows (per-second
@@ -28,8 +28,14 @@ const POLL_MS = 15_000;
 /** Wall-clock tick — extends the curve to the current second on this cadence (ms). */
 const LIVE_TICK_MS = 15;
 
-/** Fetch enough sparse sample anchors to cover the widest window (server-clamped). */
-const CANDLE_LIMIT = 2_000;
+/**
+ * Fetch enough sparse sample anchors to cover the widest window (server-clamped).
+ * Every WINDOWS entry's {@link gridBars} is bounded by {@link MAX_POINTS} by
+ * construction, so this covers all of them — pinned to that constant (not a
+ * separate magic number) so the fetch limit can never fall below a window's
+ * bar count again and silently truncate a busy market's history.
+ */
+const CANDLE_LIMIT = MAX_POINTS;
 
 const CHART_HEIGHT = 280;
 
@@ -66,7 +72,10 @@ function cssVar(el: HTMLElement, name: string, dflt: string): string {
  * flat, interpolated line — so spacing is proportional and consistent. A wall-clock
  * tick (see {@link LIVE_TICK_MS}) grows the curve to the current second every
  * second, so the line's end tracks now and advances smoothly, not only on a trade.
- * The selector picks the visible WINDOW of history, not a candle bucket.
+ * The selector picks the visible WINDOW of history, not a candle bucket — and the
+ * x-axis always spans exactly that window, even for a market younger than it
+ * (see {@link buildWindowedGrid}'s whitespace padding + the explicit
+ * `setVisibleRange` in `replot`), rather than zooming in to whatever data exists.
  *
  * Meaningful only for an Active market (the cYES/cNO pool exists); a market with
  * no points yet renders a quiet empty state rather than a blank frame.
@@ -99,19 +108,44 @@ export function PriceChart({
   const carriedCloseRef = useRef<number | null>(null);
 
   // (Re)plot the window from the cached candles: a uniform grid at the window's step
-  // (1s for short windows → true per-second resolution), gaps carried forward. `fit`
-  // frames the whole window (mount / window change / trade); a plain poll skips it so
-  // the live scroll isn't yanked back every 15s.
+  // (1s for short windows → true per-second resolution), gaps carried forward, the
+  // FRONT padded with whitespace out to the full window when the market is younger
+  // than the selected scale ({@link buildWindowedGrid}). `fit` frames the whole
+  // SELECTED window (mount / window change / trade); a plain poll skips it so the
+  // live scroll isn't yanked back every 15s.
+  //
+  // Framing uses `setVisibleRange({from: now - windowSecs, to: now})` — the window
+  // the user picked — rather than `fitContent()`, which zooms to whatever data
+  // actually got plotted. Without the whitespace padding, a market younger than the
+  // window would leave `setVisibleRange` itself clamped to the real data's span
+  // (lightweight-charts won't show a visible range wider than its series' own data),
+  // so both pieces matter: the padded grid gives the series the full window's time
+  // range to work with, and `setVisibleRange` then pins the axis to exactly that
+  // window instead of whatever `fitContent()` would zoom to.
   const replot = useCallback(
     (fit: boolean) => {
       const step = gridStep(windowSecs);
-      const grid = buildGrid(candlesRef.current, step, Math.floor(Date.now() / 1000), gridBars(windowSecs));
-      yesRef.current?.setData(grid.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })));
-      noRef.current?.setData(grid.map((p) => ({ time: p.time as UTCTimestamp, value: 1 - p.value })));
+      const nowSec = Math.floor(Date.now() / 1000);
+      const grid = buildWindowedGrid(candlesRef.current, step, nowSec, gridBars(windowSecs));
+      yesRef.current?.setData(
+        grid.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })) as Parameters<
+          ISeriesApi<"Line">["setData"]
+        >[0],
+      );
+      noRef.current?.setData(
+        grid.map((p) => ({ time: p.time as UTCTimestamp, value: p.value === undefined ? undefined : 1 - p.value })) as Parameters<
+          ISeriesApi<"Line">["setData"]
+        >[0],
+      );
       const last = grid[grid.length - 1];
       plottedStepRef.current = last ? last.time : 0;
-      carriedCloseRef.current = last ? last.value : null;
-      if (fit) chartRef.current?.timeScale().fitContent();
+      carriedCloseRef.current = last && last.value !== undefined ? last.value : null;
+      if (fit) {
+        chartRef.current?.timeScale().setVisibleRange({
+          from: (nowSec - windowSecs) as UTCTimestamp,
+          to: nowSec as UTCTimestamp,
+        });
+      }
     },
     [windowSecs],
   );
@@ -161,6 +195,15 @@ export function PriceChart({
         timeVisible: true,
         secondsVisible: true,
         shiftVisibleRangeOnNewBar: true,
+        // lightweight-charts' default `minBarSpacing` (0.5px) silently CLAMPS
+        // `setVisibleRange` to fewer bars than requested once a window's point
+        // count (up to MAX_POINTS, see priceGrid.ts) needs sub-0.5px spacing at
+        // the container's width — e.g. a 1D window's 3,600 bars need ~0.14px
+        // each in a ~500px chart, so the axis silently narrowed to ~6h instead
+        // of the requested 24h. A single smooth LINE (not discrete bars/candles)
+        // reads identically whether points are 0.5px or 0.02px apart, so drop
+        // the floor low enough that the selected window is never clamped.
+        minBarSpacing: 0.02,
       },
       height: CHART_HEIGHT,
       width: Math.floor(el.clientWidth),

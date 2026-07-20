@@ -1,9 +1,12 @@
 import type { CandleDto } from "../../market/lib/indexer";
 
-/** One plotted point: bucket-start unix seconds + the value held over that bucket. */
+/** One plotted point: bucket-start unix seconds + the value held over that bucket.
+ *  `value` is `undefined` for a WHITESPACE point ({@link buildWindowedGrid}) — a
+ *  bucket before any real data exists, which extends the plotted time range
+ *  without drawing anything. */
 export interface GridPoint {
   time: number;
-  value: number;
+  value?: number;
 }
 
 /**
@@ -65,4 +68,31 @@ export function buildGrid(
     if (carried !== null) out.push({ time: b, value: carried });
   }
   return out;
+}
+
+/**
+ * Like {@link buildGrid}, but the plotted range is always exactly `maxBars` wide
+ * — the FULL selected window — never narrower. `buildGrid` clamps its start to
+ * the earliest real candle, so a market younger than the window (or one whose
+ * history got clamped to a most-recent slice) returns fewer than `maxBars`
+ * points; the chart component then has real data for only part of its x-axis.
+ * This pads the missing FRONT of the window with WHITESPACE points (`{time}`,
+ * no `value`) so the series' own time range spans the whole window — letting
+ * `setVisibleRange({from: now - windowSecs, to: now})` actually show the full
+ * requested scale, with blank space before the first real point instead of a
+ * zoomed-in sliver of just the available data.
+ */
+export function buildWindowedGrid(
+  candles: CandleDto[],
+  interval: number,
+  nowSec: number,
+  maxBars: number,
+): GridPoint[] {
+  const core = buildGrid(candles, interval, nowSec, maxBars);
+  if (core.length === 0 || core.length >= maxBars) return core;
+  const padding: GridPoint[] = [];
+  for (let i = maxBars - core.length; i >= 1; i--) {
+    padding.push({ time: core[0].time - i * interval });
+  }
+  return [...padding, ...core];
 }

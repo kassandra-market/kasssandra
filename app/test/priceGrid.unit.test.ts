@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { MAX_POINTS, buildGrid, gridBars, gridStep } from "../src/components/markets/priceGrid";
+import { MAX_POINTS, buildGrid, buildWindowedGrid, gridBars, gridStep } from "../src/components/markets/priceGrid";
 import type { CandleDto } from "../src/market/lib/indexer";
 
 const candle = (time: number, close: number): CandleDto => ({
@@ -62,6 +62,46 @@ describe("buildGrid — uniform, gap-filled, wall-clock-extended", () => {
     const grid = buildGrid([candle(0, 0.4), candle(4 * MIN, 0.8)], MIN, 1 * MIN, 500);
     expect(grid[grid.length - 1].time).toBe(4 * MIN);
     expect(grid[grid.length - 1].value).toBe(0.8);
+  });
+
+  it("under-supply: a market younger than the window emits fewer than maxBars points", () => {
+    // Window budget is 60 bars, but the market's first (only) trade was 5 minutes
+    // ago — buildGrid must not backfill bars before the data exists; padding out
+    // to the full window is buildWindowedGrid's job (see below), not buildGrid's.
+    const grid = buildGrid([candle(0, 0.5)], MIN, 5 * MIN, 60);
+    expect(grid.length).toBe(6); // minutes 0..5 inclusive, not 60
+    expect(grid[0].time).toBe(0);
+    expect(grid[grid.length - 1].time).toBe(5 * MIN);
+  });
+});
+
+describe("buildWindowedGrid — pads the FRONT of an under-supplied window with whitespace", () => {
+  it("is empty for no candles (same as buildGrid — nothing to pad against)", () => {
+    expect(buildWindowedGrid([], MIN, 1_000, 500)).toEqual([]);
+  });
+
+  it("pads a young market's grid out to the full maxBars window with value-less points", () => {
+    // Same fixture as the under-supply buildGrid test: one candle 5 minutes ago,
+    // 60-bar (1h) window. buildWindowedGrid must still emit exactly 60 points —
+    // the first 54 as WHITESPACE (time only, no value) — so the series' own time
+    // range spans the whole hour and `setVisibleRange` isn't clamped to the 6
+    // minutes of real data.
+    const grid = buildWindowedGrid([candle(0, 0.5)], MIN, 5 * MIN, 60);
+    expect(grid.length).toBe(60);
+    expect(grid[0].time).toBe((5 - 59) * MIN);
+    expect(grid[grid.length - 1].time).toBe(5 * MIN);
+    // The padding buckets are whitespace (no `value`); real data starts at minute 0.
+    const paddingCount = grid.findIndex((p) => p.time === 0);
+    expect(paddingCount).toBe(54); // 60 total - 6 real (minutes 0..5) = 54 padding
+    expect(grid.slice(0, paddingCount).every((p) => p.value === undefined)).toBe(true);
+    expect(grid.slice(paddingCount).every((p) => p.value !== undefined)).toBe(true);
+  });
+
+  it("does not pad when the real data already fills the window", () => {
+    // Same fixture as buildGrid's "caps the window" test: already exactly 10 bars.
+    const grid = buildWindowedGrid([candle(0, 0.5)], MIN, 100 * MIN, 10);
+    expect(grid.length).toBe(10);
+    expect(grid.every((p) => p.value !== undefined)).toBe(true);
   });
 });
 
