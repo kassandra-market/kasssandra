@@ -55,12 +55,19 @@ reading each belief's own real reserves exactly as today — only the *shown*
 percentage changes. A small tooltip on normalized numbers will read something
 like "adjusted so all options sum to 100%; your trade price still depends on
 this option's own pool," since a user could otherwise be surprised that the
-dropdown's shown 45% and the order ticket's own price preview don't match
-once they've actually selected that option.
+legend's shown 45% and the order ticket's own price preview don't match once
+they've actually selected that option.
 
 ## Live-value call sites
 
-Three places currently compute each option's probability independently and
+**Note:** the order-ticket dropdown (`TradePanel`'s `BeliefSelect`) no longer
+shows a probability at all — a later commit (`f19138c`, "remove the confusing
+probability from the trade belief dropdown") already dropped it since it
+duplicated the legend pill's number right above it on the same panel. So
+there's nothing to normalize there; it's out of scope by virtue of already
+not displaying a number.
+
+Two places currently compute each option's probability independently and
 need to instead compute the group's full raw array once, normalize once,
 then index in:
 
@@ -68,10 +75,6 @@ then index in:
   `const normalized = normalizeAcrossGroup(beliefs.map(beliefProbability))`
   once, and passes `normalized[i]` into each pill as a plain `probability`
   prop, instead of the pill deriving it from `belief` itself.
-- **`TradePanel`'s `BeliefSelect`** (the dropdown): `TradePanel` already
-  receives the full `beliefs` array (every sibling), so it computes the same
-  `normalizeAcrossGroup` once at the top of the component — no new prop
-  threading from `GroupTradePanel` needed.
 - **`CategoricalCard`'s outcome rows** (the `/markets` list): same pattern —
   `normalizeAcrossGroup` once over every row's raw `outcomeRow(...).probability`,
   then use the normalized value in each row's displayed percentage.
