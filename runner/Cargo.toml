@@ -35,6 +35,9 @@ base64 = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Volatile-wipe the decoded 64-byte secret buffers after building the Keypair,
+# so the signing key doesn't linger in freed heap memory.
+zeroize = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

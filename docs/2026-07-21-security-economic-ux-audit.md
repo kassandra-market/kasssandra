@@ -56,7 +56,7 @@ rationale).
   indexer already has the exact guard (`indexer/src/meta_fetch.rs:116-159`) the
   runner omits. Fix: port `is_disallowed`/`is_fetchable` into `HttpFactFetcher`.
 
-- [ ] **I5 (Low) — Runner signing-key material not zeroized.**
+- [x] **I5 (Low) — Runner signing-key material not zeroized.** _(done — `load_keypair` volatile-wipes the JSON `text` and decoded `bytes` secret buffers via `zeroize`.)_
   `runner/src/submit/build.rs:78` (`load_keypair`). Decoded 64-byte secret
   `Vec<u8>` and `Keypair` held with no zeroize-on-drop. No hardcoded secrets, no
   key logging. Fix: wrap the intermediate buffer in `zeroize` / drop promptly.
