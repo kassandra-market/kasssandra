@@ -155,7 +155,7 @@ logged, value parsing is bigint-exact throughout. Findings:
   unusable, and the "Expected out" preview overstates by ~1%. Fix: port
   `AMM_FEE_BPS`/`ammSwapOut` into `challengeTrade.ts` for both preview and floor.
 
-- [ ] **F2 (Medium) — Challenge swap submits with `minAmountOut = 0n` when the pool didn't decode.**
+- [x] **F2 (Medium) — Challenge swap submits with `minAmountOut = 0n` when the pool didn't decode.** _(done — submit disabled when `amm === null`.)_
   `SwapForm.tsx:166` + `challengeTrade.ts:226-229`. With `amm === null` the UI
   says "Pool not readable" but still lets the user swap with an unbounded floor —
   fully sandwichable. Fix: disable submit when `amm === null`.
