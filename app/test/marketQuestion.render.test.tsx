@@ -197,6 +197,29 @@ describe('CategoricalCard question/labels', () => {
     const html = inRouter(<CategoricalCard group={group} meta={META} />)
     expect(html).toMatch(/<ul class="[^"]*max-h-64[^"]*overflow-y-auto[^"]*"/)
   })
+
+  it('outcome-row probabilities are normalized across the group, not each raw independent price', () => {
+    // summary(outcomeIndex, pubkey) always uses reserves { base: 6n, quote: 4n }
+    // (60% raw) per the existing helper — override two entries' reserves so
+    // there's something genuine to rescale.
+    const rich = (outcomeIndex: number, pubkey: string, reserves: { base: bigint; quote: bigint }) => ({
+      ...summary(outcomeIndex, pubkey),
+      reserves,
+    })
+    const group = {
+      oracle: ORACLE,
+      optionsCount: 2,
+      markets: [
+        rich(0, 'Ma0', { base: 3_000_000n, quote: 7_000_000n }), // 70%
+        rich(1, 'Ma1', { base: 6_000_000n, quote: 4_000_000n }), // 40%
+      ],
+    } as never
+    const html = inRouter(<CategoricalCard group={group} meta={META} />)
+    expect(html).toContain('64%') // 0.7 / 1.1 ≈ 0.636 → 64%
+    expect(html).toContain('36%') // 0.4 / 1.1 ≈ 0.364 → 36%
+    expect(html).not.toContain('70%')
+    expect(html).not.toContain('40%')
+  })
 })
 
 describe('MarketDetail header question', () => {

@@ -24,6 +24,7 @@ import {
   formatKass,
   formatProbability,
   groupStatus,
+  normalizeAcrossGroup,
   outcomeLabel,
   outcomeRow,
   truncateMiddle,
@@ -74,6 +75,7 @@ export function CategoricalCard({
   const outcomes = group.markets.map((summary) =>
     outcomeRow(summary, meta?.options?.[summary.market.outcomeIndex]),
   );
+  const normalizedProbabilities = normalizeAcrossGroup(outcomes.map((o) => o.probability));
   const optionsCount = group.optionsCount ?? group.markets.length;
   const tvl = group.markets.reduce((sum, m) => sum + m.market.totalContributed, 0n);
   const subject = meta?.subject?.trim();
@@ -127,7 +129,7 @@ export function CategoricalCard({
       {/* Scrollable, not unbounded — a categorical oracle can have many options,
           which would otherwise overflow the card (and stretch the whole grid row). */}
       <ul className="mt-1 flex max-h-64 flex-col divide-y divide-hairline/60 overflow-y-auto">
-        {outcomes.map((row) => (
+        {outcomes.map((row, i) => (
           <li key={row.pubkey}>
             <Link
               to={`/markets/${row.pubkey}`}
@@ -139,8 +141,11 @@ export function CategoricalCard({
                 </span>
               </span>
               <span className="flex items-center gap-2">
-                <span className="font-inter text-[13px] font-medium text-coral">
-                  {formatProbability(row.probability)}
+                <span
+                  className="font-inter text-[13px] font-medium text-coral"
+                  title="Adjusted so all options sum to 100% — this option's own trade price still depends on its own pool."
+                >
+                  {formatProbability(normalizedProbabilities[i])}
                 </span>
                 {/* Any outcome is tradeable once the GROUP overall is Active —
                     every outcome's detail page shows the same group-wide Trade
