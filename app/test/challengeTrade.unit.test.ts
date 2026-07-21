@@ -15,6 +15,8 @@ import { describe, expect, it } from "vitest";
 
 import { ValidationError } from "../src/data/actions.ts";
 import {
+  AMM_FEE_BPS,
+  ammSwapOut,
   buildCrankTwapIxs,
   buildSwapIxs,
   conditionalTokenMint,
@@ -216,8 +218,9 @@ describe("buildSwapIxs", () => {
       slippageBps: 100, // 1%
       amm,
     });
-    // out = 100000*1000000/(1000000+100000) = 90909; minOut = floor(90909*0.99) = 89999(-ish)
-    const est = constantProductOut(100_000n, amm.quoteAmount, amm.baseAmount);
+    // minOut is floored off the FEE-ADJUSTED output (input reduced by the 1% AMM
+    // fee before the curve), else the floor would sit above real output and revert.
+    const est = ammSwapOut(100_000n, amm.quoteAmount, amm.baseAmount);
     const expectedMin = minOutFromSlippage(est, 100);
     const data = ixs[0].data; // single swap ix (ATAs present)
     // swap data = disc(8) + u8 type + u64 in + u64 out; read the trailing u64.
@@ -271,15 +274,37 @@ describe("pure preview helpers", () => {
     expect(constantProductOut(100n, 0n, 1000n)).toBe(0n);
   });
 
-  it("swapEstimate routes buy=quote→base, sell=base→quote and clamps impact", () => {
+  it("ammSwapOut applies the 1% input fee before the curve", () => {
+    // in=1000 → in_after_fee=990 → out = 990*2000/(1000+990).
+    expect(ammSwapOut(1_000n, 1_000n, 2_000n)).toBe(constantProductOut(990n, 1_000n, 2_000n));
+    // Always ≤ the fee-less estimate, so a slippage floor off it never over-reverts.
+    expect(ammSwapOut(1_000n, 1_000n, 2_000n)).toBeLessThan(
+      constantProductOut(1_000n, 1_000n, 2_000n),
+    );
+    expect(AMM_FEE_BPS).toBe(100);
+    expect(ammSwapOut(0n, 1_000n, 2_000n)).toBe(0n);
+    expect(ammSwapOut(100n, 0n, 2_000n)).toBe(0n);
+  });
+
+  it("swapEstimate routes buy=quote→base, sell=base→quote, is fee-adjusted, and clamps impact", () => {
     const amm = { baseAmount: 2_000n, quoteAmount: 1_000n } as unknown as AmmV04;
     const buy = swapEstimate(amm, "buy", 100n);
     const sell = swapEstimate(amm, "sell", 100n);
-    expect(buy.expectedOut).toBe(constantProductOut(100n, 1_000n, 2_000n));
-    expect(sell.expectedOut).toBe(constantProductOut(100n, 2_000n, 1_000n));
+    // expectedOut reflects what the pool actually pays (fee-adjusted), so the
+    // derived slippage floor cannot exceed real output and revert the swap.
+    expect(buy.expectedOut).toBe(ammSwapOut(100n, 1_000n, 2_000n));
+    expect(sell.expectedOut).toBe(ammSwapOut(100n, 2_000n, 1_000n));
     expect(buy.impact).toBeGreaterThanOrEqual(0);
     expect(buy.impact).toBeLessThanOrEqual(1);
     expect(swapEstimate(null, "buy", 100n).expectedOut).toBe(0n);
+  });
+
+  it("a default-slippage floor stays below real fee-adjusted output (no auto-revert)", () => {
+    // Regression for the F1 bug: fee 1% (100 bps) ≥ default slippage 0.5% (50 bps).
+    const amm = { baseAmount: 1_000_000n, quoteAmount: 1_000_000n } as unknown as AmmV04;
+    const realOut = swapEstimate(amm, "buy", 10_000n).expectedOut;
+    const floor = minOutFromSlippage(realOut, 50); // 0.5% default slippage
+    expect(floor).toBeLessThanOrEqual(realOut);
   });
 
   it("minOutFromSlippage floors by bps and clamps", () => {
