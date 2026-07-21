@@ -40,7 +40,7 @@ rationale).
   upstream unauthenticated. Fix: allowlist the JSON-RPC methods the dApp needs,
   add auth / network isolation, rate-limit.
 
-- [ ] **I3 (Low) — AMM `u64` reserves stored/compared as `i64` (silent wrap above 2^63).**
+- [x] **I3 (Low) — AMM `u64` reserves stored/compared as `i64` (silent wrap above 2^63).** _(done — both price-write sites use checked `i64::try_from`, skipping+logging a reserve above i64::MAX instead of storing a corrupt negative.)_
   `indexer/src/market/api.rs:185,197`, `indexer/src/market/price_subscribe.rs:59-62`,
   `indexer/src/market/db.rs:220`. Reserves decoded `u64` but persisted `as i64`
   and the change-guard compares `b == base as i64`. A reserve > i64::MAX wraps
