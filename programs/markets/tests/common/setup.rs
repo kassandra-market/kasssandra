@@ -152,4 +152,10 @@ impl TestCtx {
     pub fn svm_airdrop(&mut self, key: &Pubkey) {
         self.svm.airdrop(key, 1_000_000_000_000).unwrap();
     }
+
+    /// Airdrop an EXACT lamport amount to an arbitrary key — used to simulate an
+    /// attacker pre-funding a deterministic PDA (the create-or-adopt grief test).
+    pub fn prefund(&mut self, key: &Pubkey, lamports: u64) {
+        self.svm.airdrop(key, lamports).unwrap();
+    }
 }

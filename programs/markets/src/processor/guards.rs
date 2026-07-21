@@ -6,7 +6,8 @@ use pinocchio::{
     sysvars::{rent::Rent, Sysvar},
     ProgramResult,
 };
-use pinocchio_system::instructions::CreateAccount;
+use pinocchio_system::instructions::{Allocate, Assign, CreateAccount, Transfer};
+use pinocchio_token::instructions::InitializeAccount3;
 
 /// Rent-exempt minimum balance for an account of `len` bytes.
 ///
@@ -144,6 +145,98 @@ pub fn create_pda(
         owner,
     }
     .invoke_signed(&[Signer::from(seeds)])
+}
+
+/// Create-or-adopt a program-owned PDA DATA account, tolerating a pre-funded
+/// (system-owned) account that a bare [`create_pda`]/`CreateAccount` would reject
+/// with "account already in use". A PDA's address is deterministic, so an attacker
+/// can grief creation forever by sending 1 lamport to it first; adoption defeats
+/// that. Tops the balance up to rent-exempt (only if short), then PDA-signs
+/// `Allocate`+`Assign`. A system-owned pre-funded account carries no data and can
+/// only be `Allocate`d by the PDA signer, so adoption always succeeds.
+///
+/// The CALLER MUST first reject an ALREADY-initialized account (owner + type tag);
+/// this only stands up an empty/system-owned slot. Mirrors the create-or-adopt in
+/// `init_config`/`activate`.
+pub fn create_or_adopt_pda(
+    payer: &AccountView,
+    pda: &AccountView,
+    seeds: &[Seed],
+    lamports: u64,
+    space: usize,
+    owner: &Address,
+) -> ProgramResult {
+    let current = pda.lamports();
+    if current < lamports {
+        Transfer {
+            from: payer,
+            to: pda,
+            lamports: lamports - current,
+        }
+        .invoke()?;
+    }
+    Allocate {
+        account: pda,
+        space: space as u64,
+    }
+    .invoke_signed(&[Signer::from(seeds)])?;
+    Assign { account: pda, owner }.invoke_signed(&[Signer::from(seeds)])?;
+    Ok(())
+}
+
+/// Create-or-adopt an SPL token account PDA whose token authority is `token_owner`,
+/// on `mint` — the token-account sibling of [`create_or_adopt_pda`] (same
+/// pre-funding-grief resistance). If the account is ALREADY our initialized token
+/// account (token-program owned, matching mint + authority) this is a no-op
+/// (tolerates a partially-completed prior attempt); if it is token-program owned
+/// but NOT ours it is rejected rather than trampled. Otherwise: top up to
+/// rent-exempt, PDA-sign `Allocate`+`Assign` to the token program, then
+/// `InitializeAccount3`. Mirrors `activate::create_market_token_account`.
+pub fn create_or_adopt_token_account(
+    payer: &AccountView,
+    account: &AccountView,
+    mint: &AccountView,
+    token_owner: &Address,
+    seeds: &[Seed],
+    rent: u64,
+) -> ProgramResult {
+    if account.owned_by(&pinocchio_token::ID) {
+        let data = account.try_borrow()?;
+        if data.len() >= crate::cpi::spl::SPL_TOKEN_ACCOUNT_LEN {
+            let acc_mint = metadao::read_pubkey(&data, SPL_TOKEN_MINT_OFFSET)?;
+            let acc_owner = metadao::read_pubkey(&data, SPL_TOKEN_OWNER_OFFSET)?;
+            if &acc_mint == mint.address() && &acc_owner == token_owner {
+                return Ok(()); // already our initialized token account
+            }
+            return Err(MarketError::InvalidAccount.into());
+        }
+    }
+    let current = account.lamports();
+    if current < rent {
+        Transfer {
+            from: payer,
+            to: account,
+            lamports: rent - current,
+        }
+        .invoke()?;
+    }
+    Allocate {
+        account,
+        space: crate::cpi::spl::SPL_TOKEN_ACCOUNT_LEN as u64,
+    }
+    .invoke_signed(&[Signer::from(seeds)])?;
+    Assign {
+        account,
+        owner: &pinocchio_token::ID,
+    }
+    .invoke_signed(&[Signer::from(seeds)])?;
+    InitializeAccount3 {
+        account,
+        mint,
+        owner: token_owner,
+    }
+    .invoke()?;
+    Ok(())
 }
 
 /// Overwrite the [`Market`] state of a program-owned market account. Writes the

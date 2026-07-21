@@ -114,7 +114,7 @@ critical/high fund-loss bug. Scanner SOL-009/SOL-016 flags all confirmed false
 positives (every signing bump canonical + self-consistent; every program-signed
 CPI re-derives and owner/key-checks its accounts).
 
-- [ ] **M1 (Medium) — Permanent market-creation DoS via PDA pre-funding.**
+- [x] **M1 (Medium) — Permanent market-creation DoS via PDA pre-funding.** _(done — market/escrow/contribution now use create-or-adopt (top-up + `Allocate`+`Assign`); re-init gated on program-ownership not lamports; regression test `create_market_survives_prefunded_pdas`.)_
   `processor/create_market.rs:138-168` (via `create_pda` → `CreateAccount`,
   `guards.rs:131-147`). `create_market` creates the `market`, `escrow`, and
   creator `contribution` PDAs with a bare system `CreateAccount`, which aborts
