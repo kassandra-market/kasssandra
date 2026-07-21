@@ -31,11 +31,18 @@ CREATE INDEX IF NOT EXISTS market_accounts_type_idx ON market_accounts (account_
 CREATE INDEX IF NOT EXISTS market_accounts_market_ref_idx ON market_accounts (market_ref);
 
 -- Price time-series for each Active market's cYES/cNO pool, recorded by the
--- websocket price subscriber (`price_subscribe`): one row per pool account update
--- (i.e. per swap), keyed (market, slot). The (market, slot) key dedups a repeated
--- reading of an unchanged pool. `price` is the implied YES probability
--- P(YES) = quote / (base + quote), 0..1. Candles are aggregated from this on read
--- (see `get_candles`).
+-- websocket price subscriber (`price_subscribe`): one row per (market, slot),
+-- upserted to the LATEST observed reserves for that slot. A single slot can
+-- carry more than one real swap on a busy chain (or under a slow local
+-- `clock`-mode block-production interval), so "one row per slot" can't mean
+-- "first write wins" — that silently dropped later, truly-final trades in
+-- that slot (confirmed empirically: two distinct swaps landed in one slot,
+-- and the second's real effect on the price never made it into any candle).
+-- The upsert makes "last write wins" instead, so the persisted row always
+-- reflects the most-recently-observed reserves for that slot, same as a
+-- read of the live account would. `price` is the implied YES probability
+-- P(YES) = quote / (base + quote), 0..1. Candles are aggregated from this on
+-- read (see `get_candles`).
 CREATE TABLE IF NOT EXISTS market_price (
   market TEXT   NOT NULL,          -- Market pubkey (base58)
   slot   BIGINT NOT NULL,          -- slot the sample was read at
@@ -184,9 +191,32 @@ pub async fn get_market(client: &Client, pubkey: &str) -> Result<Option<(Market,
     }))
 }
 
-/// Append one price sample for `market`. Idempotent per (market, slot): a repeated
-/// sample of an unchanged pool (same slot) is dropped, so a flat pool doesn't
-/// inflate the series with duplicate points.
+/// Append one price sample for `market` at `slot`, upserting `base`/`quote`/
+/// `price` to the LATEST observed reserves when another sample already
+/// exists for that exact (market, slot) pair. Two different swaps against
+/// the same market CAN land in the same slot (common on a busy chain; also
+/// reproducible locally with a slow `clock`-mode block-production interval)
+/// — with a plain "ignore on conflict" insert, the second (truly final)
+/// swap's price would be silently and permanently lost, leaving the
+/// recorded series — and every candle built from it — stuck on the FIRST
+/// swap's now-stale state. The upsert means the row for a given slot always
+/// reflects whichever call's reserves landed last, matching what a live
+/// read of the account would show. A genuinely repeated, unchanged-pool
+/// notification (the original reason this table keys on slot at all) just
+/// upserts the same values back — a harmless no-op write, not a correctness
+/// concern.
+///
+/// `ts` is deliberately NOT part of the update: `slot` is the true,
+/// stable event-ordering key, while `ts` is just this process's wall-clock
+/// capture time — a redundant re-observation of the SAME slot (e.g. the ws
+/// subscriber's unconditional baseline re-seed on every reconnect, or a
+/// benign race against the live-read path's own recording) can land
+/// meaningfully LATER in wall-clock terms with no actual reserve change. If
+/// `ts` moved on every such re-observation, a sample could silently migrate
+/// into a different candle bucket (`get_candles` buckets by `ts`) purely
+/// from reconnect/race timing, not from any real trading activity — keeping
+/// the first-observed `ts` avoids that instability while `base`/`quote`/
+/// `price` still always reflect the true latest on-chain state.
 pub async fn insert_price(
     client: &Client,
     market: &str,
@@ -200,7 +230,10 @@ pub async fn insert_price(
         .execute(
             "INSERT INTO market_price (market, slot, ts, base, quote, price)
              VALUES ($1,$2,$3,$4,$5,$6)
-             ON CONFLICT (market, slot) DO NOTHING",
+             ON CONFLICT (market, slot) DO UPDATE
+               SET base = EXCLUDED.base,
+                   quote = EXCLUDED.quote,
+                   price = EXCLUDED.price",
             &[&market, &slot, &ts, &base, &quote, &price],
         )
         .await?;
@@ -286,7 +319,7 @@ pub async fn contributions_for(client: &Client, market: &str) -> Result<Vec<(Con
 mod db_it {
     //! Postgres integration test for the price series → candle aggregation. The
     //! OHLC SQL (integer-bucketed `GROUP BY`, `array_agg … ORDER BY`,
-    //! `ON CONFLICT DO NOTHING`) is Postgres-specific, so it runs on the real
+    //! `ON CONFLICT ... DO UPDATE`) is Postgres-specific, so it runs on the real
     //! engine. Self-skips (never fails) when `TEST_DATABASE_URL` is unset — the
     //! dedicated CI `db-it` job provides a Postgres service and sets it.
 
@@ -327,7 +360,12 @@ mod db_it {
         insert_price(&client, "MktA", 3, 30, 100, 9900, 0.99)
             .await
             .unwrap();
-        // Same (market, slot) as the 0.75 point → ON CONFLICT DO NOTHING (ignored).
+        // Same (market, slot) as the 0.75 point, but DIFFERENT reserves — a
+        // second real swap landing in the same slot as an earlier one (see
+        // `insert_price`'s doc comment: this is exactly the scenario that
+        // used to silently lose data under `ON CONFLICT DO NOTHING`). The
+        // upsert must overwrite slot 2's row to this LATEST value, not
+        // ignore it.
         insert_price(&client, "MktA", 2, 30, 1, 1, 0.01)
             .await
             .unwrap();
@@ -343,13 +381,16 @@ mod db_it {
         let candles = get_candles(&client, "MktA", 60, 100).await.unwrap();
         assert_eq!(candles.len(), 2, "two 60s buckets");
 
-        // Bucket 0: open=first-by-slot(0.50), close=last-by-slot(0.99), hi/lo extremes.
+        // Bucket 0: open=first-by-slot(0.50), close=last-by-slot(0.99) — slot 2's
+        // row is now 0.01 (overwritten), so it's neither open nor close, but it
+        // DOES pull the bucket's low down to 0.01 (MIN(price) over the bucket's
+        // current rows, which now includes the overwritten value).
         let b0 = &candles[0];
         assert_eq!(b0.time, 0);
         assert!((b0.open - 0.50).abs() < 1e-9, "open {}", b0.open);
         assert!((b0.close - 0.99).abs() < 1e-9, "close {}", b0.close);
         assert!((b0.high - 0.99).abs() < 1e-9, "high {}", b0.high);
-        assert!((b0.low - 0.50).abs() < 1e-9, "low {}", b0.low);
+        assert!((b0.low - 0.01).abs() < 1e-9, "low {}", b0.low);
 
         // Bucket 60: a lone sample → O=H=L=C.
         let b1 = &candles[1];
@@ -360,6 +401,111 @@ mod db_it {
         let recent = get_candles(&client, "MktA", 60, 1).await.unwrap();
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].time, 60);
+    }
+
+    /// Regression test for a confirmed production bug: two DIFFERENT real
+    /// swaps against the same market can land in the same slot (verified
+    /// empirically against a real surfpool validator + the real indexer
+    /// binary — two distinct, confirmed on-chain trades landed in one slot,
+    /// and under the old `ON CONFLICT DO NOTHING` the second swap's true
+    /// final reserves were silently and permanently lost; the chart showed
+    /// ~10% when the real on-chain probability was ~92%). A second
+    /// `insert_price` call for the same (market, slot) must overwrite
+    /// `base`/`quote`/`price` to the newest values, not be ignored — but
+    /// `ts` deliberately stays at the FIRST observation (see `insert_price`'s
+    /// doc comment: `slot`, not `ts`, is the true ordering key, and letting
+    /// `ts` drift on a same-slot re-observation risks silent candle-bucket
+    /// migration with no real trading activity behind it).
+    #[tokio::test]
+    async fn insert_price_upserts_to_the_latest_value_on_a_same_slot_collision() {
+        let Some(client) = test_client().await else {
+            eprintln!("[db_it] TEST_DATABASE_URL unset — skipping Postgres integration test");
+            return;
+        };
+        client
+            .batch_execute("TRUNCATE market_price")
+            .await
+            .expect("truncate");
+
+        // First swap lands in slot 42: reserves imply "mostly NO" (price ~0.10).
+        insert_price(&client, "MktE", 42, 100, 3_000_000_000, 335_570_470, 0.1006)
+            .await
+            .unwrap();
+        // A second, genuinely different swap lands in the SAME slot 42
+        // (the confirmed real-world scenario): reserves now imply "mostly
+        // YES" (price ~0.92) — the true final on-chain state.
+        insert_price(&client, "MktE", 42, 101, 304_549_977, 3_335_570_470, 0.9163)
+            .await
+            .unwrap();
+
+        let rows = client
+            .query(
+                "SELECT slot, ts, base, quote, price FROM market_price WHERE market = $1",
+                &[&"MktE"],
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            rows.len(),
+            1,
+            "still exactly one row for (market, slot) — no duplicate row"
+        );
+        let slot: i64 = rows[0].get(0);
+        let ts: i64 = rows[0].get(1);
+        let base: i64 = rows[0].get(2);
+        let quote: i64 = rows[0].get(3);
+        let price: f64 = rows[0].get(4);
+        assert_eq!(slot, 42);
+        assert_eq!(
+            ts, 100,
+            "ts stays at the FIRST observation, not overwritten"
+        );
+        assert_eq!(
+            base, 304_549_977,
+            "base overwritten to the later, true final reserves"
+        );
+        assert_eq!(
+            quote, 3_335_570_470,
+            "quote overwritten to the later, true final reserves"
+        );
+        assert!((price - 0.9163).abs() < 1e-9, "price overwritten to the later, true final value — not stuck at the stale first swap's 0.1006");
+    }
+
+    /// A same-slot re-observation (e.g. the ws subscriber's unconditional
+    /// baseline re-seed on every reconnect) must NOT migrate its sample into
+    /// a different candle bucket just because it happened to land at a later
+    /// wall-clock `ts` — only `slot` (unchanged across the conflict) governs
+    /// whether this is "the same event". Regression test for the bucket-
+    /// migration risk flagged in `insert_price`'s doc comment.
+    #[tokio::test]
+    async fn same_slot_reobservation_does_not_migrate_the_candle_bucket() {
+        let Some(client) = test_client().await else {
+            eprintln!("[db_it] TEST_DATABASE_URL unset — skipping Postgres integration test");
+            return;
+        };
+        client
+            .batch_execute("TRUNCATE market_price")
+            .await
+            .expect("truncate");
+
+        // 60s buckets: [0,60) and [60,120). First observation of slot 7 lands
+        // at ts=59 — bucket 0. A later re-observation of the SAME slot (same
+        // reserves, e.g. a reconnect re-seed) lands at ts=61 — straddling
+        // into what would be bucket 60 if `ts` were allowed to drift.
+        insert_price(&client, "MktF", 7, 59, 100, 100, 0.50)
+            .await
+            .unwrap();
+        insert_price(&client, "MktF", 7, 61, 100, 100, 0.50)
+            .await
+            .unwrap();
+
+        let candles = get_candles(&client, "MktF", 60, 100).await.unwrap();
+        assert_eq!(
+            candles.len(),
+            1,
+            "the re-observation must stay in bucket 0 with the original sample, not spawn a second bucket at 60"
+        );
+        assert_eq!(candles[0].time, 0);
     }
 
     #[tokio::test]
