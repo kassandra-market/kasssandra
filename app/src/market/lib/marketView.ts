@@ -329,10 +329,17 @@ export function groupStatus(markets: Pick<MarketSummary, "market">[]): MarketSta
  * — so this same function is safe to apply uniformly with no
  * categorical-vs-binary branch anywhere it's called.
  *
- * Degenerate zero-sum case (every value is exactly 0): returned unchanged
- * rather than dividing by zero.
+ * Fewer than two non-`null` values (a single currently-priced outcome among
+ * otherwise-`null` siblings, or a singleton array) means there is nothing to
+ * rescale AGAINST — dividing that lone value by itself would wrongly
+ * inflate it to 1 (100%), as if the market were "certain," when it really
+ * just means nothing else has started trading/pricing yet. That case, like
+ * the degenerate zero-sum case (every value is exactly 0), is returned
+ * unchanged rather than divided.
  */
 export function normalizeAcrossGroup(values: (number | null)[]): (number | null)[] {
+  const nonNullCount = values.reduce<number>((count, v) => count + (v === null ? 0 : 1), 0);
+  if (nonNullCount < 2) return values;
   const sum = values.reduce<number>((acc, v) => acc + (v ?? 0), 0);
   if (sum <= 0) return values;
   return values.map((v) => (v === null ? null : v / sum));

@@ -271,6 +271,18 @@ describe('normalizeAcrossGroup — rescale so a group\'s shown probabilities sum
     expect(result).toEqual([0, 0, 0])
   })
 
+  it('a single non-null value among otherwise-null siblings passes through unchanged — not inflated to 1 (100%)', () => {
+    // Only one option in the group has traded/priced so far; the others are
+    // still `Funding` and hence null. Dividing 0.55 by itself would wrongly
+    // read as "certain" — there's nothing yet to rescale it against.
+    const result = normalizeAcrossGroup([0.55, null, null])
+    expect(result).toEqual([0.55, null, null])
+  })
+
+  it('a lone value with no nulls at all (singleton array) is also a no-op', () => {
+    expect(normalizeAcrossGroup([0.42])).toEqual([0.42])
+  })
+
   it('all null → all null', () => {
     expect(normalizeAcrossGroup([null, null])).toEqual([null, null])
   })
