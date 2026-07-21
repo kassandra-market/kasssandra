@@ -174,4 +174,29 @@ describe("GroupTradePanel", () => {
       expect(color).toMatch(/^#[0-9a-fA-F]{6}$/);
     }
   });
+
+  it("legend pill probabilities are normalized across the group, not each outcome's raw independent price", () => {
+    // Two outcomes whose RAW implied-YES probabilities are 70% (R2) and 40%
+    // (R) — deliberately NOT already summing to 100%, so a real rescale must
+    // happen for this test to distinguish "normalized" from "raw". `group()`
+    // must list BOTH outcomes (0 and 1) here, not just the sibling — its
+    // `isGroup` flag is `active.length > 1`, and the categorical (one-belief-
+    // per-outcome) code path only engages when `isGroup` is true. Listing
+    // outcome 0 again alongside the `detail()` for outcome 0 is intentional:
+    // GroupTradePanel's own dedup (by outcomeIndex, proven in the test above)
+    // collapses it against the current market, exactly as the "real
+    // categorical group" test above already does.
+    const d = detail("Market0111111111111111111111111111111111111", 0, MarketStatus.Active, R2); // R2 = 3M/7M → 70%
+    const g = group([
+      summary(0, MarketStatus.Active, R2),
+      summary(1, MarketStatus.Active, R), // R = 6M/4M → 40%
+    ]);
+    const html = render({ detail: d, group: g, options: ["Zero", "One"], refetch: () => {} });
+    // R2 alone would show 70%, R alone 40% — together they must be rescaled:
+    // 0.7/(0.7+0.4) = 0.636363... → rounds to 64%; 0.4/1.1 = 0.363636... → 36%.
+    expect(html).toContain("64%");
+    expect(html).toContain("36%");
+    expect(html).not.toContain("70%");
+    expect(html).not.toContain("40%");
+  });
 });

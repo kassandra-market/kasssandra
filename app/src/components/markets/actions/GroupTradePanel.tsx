@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { MarketStatus } from "@kassandra-market/markets";
 import type { MarketDetail as MarketDetailData, MarketSummary } from "../../../market/data/markets";
 import type { OracleGroupState } from "../../../market/hooks/useOracleGroup";
-import { formatProbability } from "../../../market/lib/marketView";
+import { formatProbability, normalizeAcrossGroup } from "../../../market/lib/marketView";
 import { beliefProbability, computeBeliefs, defaultBeliefKey, type Belief } from "../../../market/lib/beliefs";
 import { PriceChart, type ChartSeriesSpec } from "../PriceChart";
 import { TradePanel } from "./TradePanel";
@@ -32,15 +32,29 @@ function colorFor(index: number): string {
   return BELIEF_COLORS[index % BELIEF_COLORS.length];
 }
 
-/** One non-interactive legend pill: color dot, belief label, live probability.
- *  Purely a readout — clicking it does nothing; the order ticket's dropdown
- *  (below) is the only selector. */
-function BeliefPill({ belief, color }: { belief: Belief; color: string }) {
+/** One non-interactive legend pill: color dot, belief label, live NORMALIZED
+ *  probability (see {@link normalizeAcrossGroup} — rescaled so the group's
+ *  pills always sum to ~100%, since each option is a genuinely independent
+ *  AMM pool with no natural relationship to its siblings' raw price). Purely
+ *  a readout — clicking it does nothing; the order ticket's dropdown (below)
+ *  is the only selector. */
+function BeliefPill({
+  belief,
+  color,
+  probability,
+}: {
+  belief: Belief;
+  color: string;
+  probability: number | null;
+}) {
   return (
-    <span className="flex shrink-0 items-center gap-2 rounded-tag border border-hairline bg-liquid-deep px-3 py-1.5 font-inter text-[13px]">
+    <span
+      className="flex shrink-0 items-center gap-2 rounded-tag border border-hairline bg-liquid-deep px-3 py-1.5 font-inter text-[13px]"
+      title="Adjusted so all options sum to 100% — this option's own trade price still depends on its own pool."
+    >
       <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: color }} />
       <span className="text-platinum">{belief.label}</span>
-      <span className="tabular-nums text-coral">{formatProbability(beliefProbability(belief))}</span>
+      <span className="tabular-nums text-coral">{formatProbability(probability)}</span>
     </span>
   );
 }
@@ -91,6 +105,8 @@ export function GroupTradePanel({
 
   if (beliefs.length === 0) return null;
 
+  const normalizedProbabilities = normalizeAcrossGroup(beliefs.map((b) => beliefProbability(b)));
+
   const series: ChartSeriesSpec[] = beliefs.map((b, i) => ({
     key: b.key,
     pubkey: b.pubkey,
@@ -112,7 +128,7 @@ export function GroupTradePanel({
       <div className="flex flex-col gap-4 rounded-card border border-hairline bg-liquid-deep p-6 lg:col-span-3">
         <div className="flex flex-wrap gap-2" aria-label="Options" role="list">
           {beliefs.map((b, i) => (
-            <BeliefPill key={b.key} belief={b} color={colorFor(i)} />
+            <BeliefPill key={b.key} belief={b} color={colorFor(i)} probability={normalizedProbabilities[i]} />
           ))}
         </div>
         <PriceChart series={series} refreshKey={chartRefreshKey} />
