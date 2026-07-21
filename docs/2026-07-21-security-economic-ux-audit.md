@@ -167,7 +167,7 @@ logged, value parsing is bigint-exact throughout. Findings:
   refuses without reserves; buy doesn't. Fix: mirror the sell-side
   `ValidationError` for buys with null reserves.
 
-- [ ] **F4 (Medium) — Debug modes reachable via URL query param in prod; wallet secret embeddable in bundle.**
+- [x] **F4 (Medium) — Debug modes reachable via URL query param in prod; wallet secret embeddable in bundle.** _(done — `?e2e`/`?mock` query-param branches and the `VITE_E2E_WALLET_SECRET` read are gated on `import.meta.env.DEV`; verified a prod build strips the secret and eliminates the query-param branches even with the env var set.)_
   `app/src/data/mockOracles/mode.ts:5-25`, `app/src/market/lib/e2e.ts:7-10`,
   `providers/AppProviders.tsx:29-35`, `lib/e2eWallet.tsx:36`. `?e2e` swaps in the
   real-signing `E2eWalletProvider`, `?mock` replaces all data with fixtures on the

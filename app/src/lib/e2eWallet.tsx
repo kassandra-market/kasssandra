@@ -32,8 +32,15 @@ export function E2eWalletProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // The funded keypair comes from either the Playwright-injected global or,
     // for interactive `WALLET=funded make dev`, a build-time env var the
-    // orchestrator sets (avoids needing an HTML-injection plugin).
-    const envSecret = (import.meta.env.VITE_E2E_WALLET_SECRET as string | undefined)?.trim()
+    // orchestrator sets (avoids needing an HTML-injection plugin). The env-var
+    // path is DEV-ONLY: `import.meta.env.VITE_E2E_WALLET_SECRET` is INLINED into
+    // the bundle at build time, so any prod build made with it set would ship the
+    // raw 64-byte keypair in public JS. Gating on `import.meta.env.DEV` (folded to
+    // `false` in prod) dead-code-eliminates the read, so the secret can never be
+    // inlined into a production build. Playwright's `window` injection is unaffected.
+    const envSecret = import.meta.env.DEV
+      ? (import.meta.env.VITE_E2E_WALLET_SECRET as string | undefined)?.trim()
+      : undefined
     const secret =
       (typeof window !== 'undefined' ? window.__E2E_WALLET_SECRET__ : undefined) ??
       (envSecret ? (JSON.parse(envSecret) as number[]) : undefined)
