@@ -39,6 +39,16 @@ import { mapWriteError } from "../data/writeAction";
 import { stepAlreadyLanded, type ActivateStep } from "../data/actions/activate";
 import { packSteps } from "../data/actions/packTx";
 
+/**
+ * Max transactions to sign in a single up-front batch approval. Batch-signed txs
+ * are relayed + confirmed SEQUENTIALLY, each confirm taking up to ~30s, while a
+ * blockhash is only valid ~60–90s. Capping at 3 keeps the last tx's relay within
+ * its blockhash's validity even under slow confirmations; longer sequences fall
+ * back to per-tx signing (a fresh blockhash per tx) so nothing can expire
+ * mid-sequence after the user has already approved everything.
+ */
+const MAX_BATCH_SIGN_TXS = 3;
+
 /** The lifecycle of one step in the sequence. */
 export type StepStatus =
   | { kind: "pending" }
@@ -185,10 +195,16 @@ export function useActionSequence(onDone?: () => void): ActionSequence {
         return idxs;
       };
 
-      if (batches.length <= 1 || !signAllTransactions) {
-        // Either everything already packed into one transaction, or the wallet
-        // can't batch-sign — fall back to one popup per packed transaction
-        // (still fewer than one-per-step whenever packing combined steps).
+      if (batches.length <= 1 || batches.length > MAX_BATCH_SIGN_TXS || !signAllTransactions) {
+        // Per-tx path (one popup per packed transaction) when: everything packed
+        // into one tx; the wallet can't batch-sign; OR the sequence is longer than
+        // MAX_BATCH_SIGN_TXS. The batch-sign path below signs every tx UP FRONT
+        // against a current blockhash, then relays + confirms them SEQUENTIALLY —
+        // so on a long sequence a later tx can sit unsent past its blockhash's
+        // validity and fail after the user already approved everything, with no
+        // re-sign path. Per-tx signing fetches a fresh blockhash and signs each tx
+        // immediately before it is sent, so it can't expire mid-sequence. (Still
+        // fewer popups than one-per-step whenever packing combined steps.)
         for (const batch of batches) {
           const idxs = batchIndices(batch.steps.length);
           setRunning(idxs);

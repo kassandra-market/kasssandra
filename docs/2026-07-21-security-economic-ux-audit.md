@@ -196,7 +196,7 @@ logged, value parsing is bigint-exact throughout. Findings:
   alter low-order decimals for balances ≳9M KASS. Fix: bump via `parseKassAmount`
   + bigint add + `toPlainAmount`.
 
-- [ ] **F8 (Low) — Batch-signed sequences can outlive their blockhashes.**
+- [x] **F8 (Low) — Batch-signed sequences can outlive their blockhashes.** _(done — cap the up-front batch-sign at MAX_BATCH_SIGN_TXS=3; longer sequences fall back to per-tx signing with a fresh blockhash each.)_
   `app/src/market/hooks/useActionSequence.ts:207-231`: all packed txs signed
   upfront then relayed+confirmed sequentially (each confirm up to 30s); later txs
   can expire post-approval with no re-sign path. Fix: cap batch-sign to sequences
