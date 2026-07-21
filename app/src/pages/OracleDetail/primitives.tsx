@@ -7,10 +7,10 @@ import { verdictFor } from '../../lib/phaseTimeline'
 export function BackLink({ search }: { search: string }) {
   return (
     <Link
-      to={{ pathname: '/oracles', search }}
+      to={{ pathname: '/markets', search }}
       className="inline-block font-inter text-[14px] text-platinum underline decoration-hairline underline-offset-4 hover:text-lavender-phosphor focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
     >
-      ← All oracles
+      ← All markets
     </Link>
   )
 }

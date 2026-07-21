@@ -8,7 +8,6 @@ import Layout from './components/layout/Layout.tsx'
 // code) becomes its own lazily-loaded chunk, so the entry only ships the shell
 // (providers + NavBar) and the current route's chunk streams in on demand.
 const Landing = lazy(() => import('./pages/Landing.tsx'))
-const Oracles = lazy(() => import('./pages/Oracles.tsx'))
 const CreateOracle = lazy(() => import('./pages/CreateOracle/index.tsx'))
 const OracleDetail = lazy(() => import('./pages/OracleDetail/index.tsx'))
 const Markets = lazy(() => import('./pages/Markets.tsx'))
@@ -52,7 +51,10 @@ export default function App() {
         <Routes>
           <Route element={<Layout />}>
             <Route path="/" element={lazyRoute(<Landing />)} />
-            <Route path="/oracles" element={lazyRoute(<Oracles />)} />
+            {/* The oracle browse list merged into the unified `/markets` list —
+                keep the route alive as a redirect so bookmarks/links still land
+                somewhere real. */}
+            <Route path="/oracles" element={<Navigate to="/markets" replace />} />
             <Route path="/oracles/new" element={lazyRoute(<CreateOracle />)} />
             <Route path="/oracles/:pubkey" element={lazyRoute(<OracleDetail />)} />
             <Route path="/markets" element={lazyRoute(<Markets />)} />

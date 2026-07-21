@@ -5,10 +5,12 @@ import { useWalletMenu } from '../../lib/standardWallet'
 import { Button } from '../ui'
 import { useCluster, CLUSTER_LABELS, isGatewayMode, type Cluster } from '../../lib/cluster'
 
-// Left-side primary links: the two product routes, the Governance landing
-// section, and the (external) docs site.
+// Left-side primary links: the unified oracle+market browse list, the
+// Governance landing section, and the (external) docs site. Oracles and
+// markets used to be two separate product routes; they're now one combined
+// list at `/markets` (an oracle IS a market once it's funded), so there's
+// only one nav entry for it.
 const NAV_LINKS: { label: string; href: string; route?: boolean; external?: boolean }[] = [
-  { label: 'Oracles', href: '/oracles', route: true },
   { label: 'Markets', href: '/markets', route: true },
   { label: 'Governance', href: '/#why-kassandra' },
   { label: 'Docs', href: 'https://dodecahedr0x.github.io/kassandra/', external: true },

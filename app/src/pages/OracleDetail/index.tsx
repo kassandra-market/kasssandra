@@ -14,8 +14,9 @@ import { OracleActions } from '../../components/oracles/actions'
 import { isIndexerConfigured } from '../../data/indexer'
 import { useOracleDetail } from '../../hooks/useOracles'
 import { useOracleMeta } from '../../hooks/useOracleMeta'
-import { useMarkets } from '../../market/hooks/useMarkets'
-import { firstBoundMarketPubkey } from '../../market/lib/marketView'
+import { useOracleGroup } from '../../market/hooks/useOracleGroup'
+import { StatusChip } from '../../components/markets/StatusChip'
+import { formatKass, groupStatus } from '../../market/lib/marketView'
 import { OracleNotFoundError } from '../../data/oracles'
 import { CLUSTER_LABELS, useCluster } from '../../lib/cluster'
 import { RESOLVED_OPTION_NONE, relativeDeadline, windowLabel } from '../../lib/oracleView'
@@ -114,13 +115,14 @@ function OracleBody({
 
   // The prediction market(s) that resolve against THIS oracle (distinct from the
   // oracle's own challenge `market` above). A categorical oracle has one sub-market
-  // per outcome; link to the first — its detail page shows the whole group. Powers
-  // the reverse of the market page's "View oracle" link.
-  const { data: allMarkets } = useMarkets()
-  const predictionMarket = useMemo(
-    () => firstBoundMarketPubkey(allMarkets ?? [], pubkey),
-    [allMarkets, pubkey],
-  )
+  // per outcome, grouped here exactly like the unified `/markets` list does; link
+  // to the first — its detail page shows the whole group. Powers the reverse of
+  // the market page's "View oracle" link, plus an inline status + TVL readout so
+  // the bound market's headline state is visible without navigating away.
+  const group = useOracleGroup(pubkey)
+  const predictionMarket = group.siblings[0]?.pubkey
+  const marketStatus = group.siblings.length > 0 ? groupStatus(group.siblings) : undefined
+  const marketTvl = group.siblings.reduce((sum, m) => sum + m.market.totalContributed, 0n)
   const resolved = oracle.phase === Phase.Resolved
   const hasResolvedOption = resolved && oracle.resolvedOption !== RESOLVED_OPTION_NONE
   const votingOpen = oracle.phase === Phase.FactVoting
@@ -204,12 +206,16 @@ function OracleBody({
           <span>{relativeDeadline(oracle.deadline)}</span>
           <Truncated value={pubkey} copyable label="oracle address" />
           {predictionMarket ? (
-            <Link
-              to={`/markets/${predictionMarket}`}
-              className="rounded-sm font-inter text-[13px] font-medium text-aqua hover:text-coral focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
-            >
-              View prediction market →
-            </Link>
+            <>
+              {marketStatus !== undefined ? <StatusChip status={marketStatus} /> : null}
+              {marketTvl > 0n ? <span>{formatKass(marketTvl)} KASS TVL</span> : null}
+              <Link
+                to={`/markets/${predictionMarket}`}
+                className="rounded-sm font-inter text-[13px] font-medium text-aqua hover:text-coral focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
+              >
+                View prediction market →
+              </Link>
+            </>
           ) : null}
         </div>
         {meta?.uri && (
