@@ -31,7 +31,7 @@ rationale).
   Fix: require a shared-secret/bearer from the app proxy, reject pubkeys that
   aren't valid base58 or aren't present in `oracle_metadata`, cap rows per source.
 
-- [ ] **I2 (Medium) — Unauthenticated open RPC relay + read-triggered RPC amplification.**
+- [x] **I2 (Medium) — Unauthenticated open RPC relay + read-triggered RPC amplification.** _(done — `/rpc` now enforces a JSON-RPC method allowlist (single + batch, fail-closed), rejecting non-dApp methods with 403 so it can't be used as an open proxy; unit-tested. Per-IP rate-limiting and network isolation of `/rpc` + the amplifying `/api/*` reads remain a deployment-edge follow-up, noted below.)_
   `indexer/src/api.rs:83` (`/rpc`) and `indexer/src/market/api.rs:118,239,256,271`.
   `/rpc` forwards arbitrary JSON-RPC verbatim upstream with no method allowlist,
   auth, or rate limit (free open proxy to a paid RPC: `getProgramAccounts`,

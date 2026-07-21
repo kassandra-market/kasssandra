@@ -79,8 +79,66 @@ pub fn router(state: ApiState) -> Router {
         .with_state(state)
 }
 
-/// Forward a JSON-RPC request body to the upstream RPC and relay the response.
+/// The JSON-RPC methods the dApp's `@solana/web3.js` Connection legitimately
+/// issues through this gateway (reads, blockhash, confirm, send/simulate). The
+/// gateway is same-origin and unauthenticated, so WITHOUT this allowlist it is a
+/// free open proxy to the private (typically paid/rate-limited) upstream RPC:
+/// arbitrary `getBlock`/`getSignaturesForAddress` history dumps, `getLargestAccounts`,
+/// etc. Restricting to this set bounds the abuse to the same calls a browser
+/// client already makes. Keep in sync with the app's Connection usage.
+const RPC_METHOD_ALLOWLIST: &[&str] = &[
+    "getAccountInfo",
+    "getMultipleAccounts",
+    "getProgramAccounts",
+    "getBalance",
+    "getTokenAccountBalance",
+    "getTokenAccountsByOwner",
+    "getLatestBlockhash",
+    "isBlockhashValid",
+    "getSignatureStatuses",
+    "getSlot",
+    "getBlockHeight",
+    "getMinimumBalanceForRentExemption",
+    "getFeeForMessage",
+    "sendTransaction",
+    "simulateTransaction",
+    "getVersion",
+    "getHealth",
+    "getGenesisHash",
+    "getEpochInfo",
+];
+
+/// Whether every JSON-RPC call in `body` (a single request object OR a batch
+/// array) names an allowlisted method. A missing/non-string `method`, or any
+/// disallowed method, fails closed. An empty batch is rejected.
+fn rpc_body_is_allowed(body: &[u8]) -> bool {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return false;
+    };
+    let allowed = |call: &serde_json::Value| -> bool {
+        call.get("method")
+            .and_then(|m| m.as_str())
+            .is_some_and(|m| RPC_METHOD_ALLOWLIST.contains(&m))
+    };
+    match v {
+        serde_json::Value::Array(calls) => !calls.is_empty() && calls.iter().all(allowed),
+        obj => allowed(&obj),
+    }
+}
+
+/// Forward a JSON-RPC request body to the upstream RPC and relay the response —
+/// but ONLY for allowlisted methods (see [`RPC_METHOD_ALLOWLIST`]); anything else
+/// is rejected with 403 so the gateway can't be used as an open RPC proxy.
 async fn rpc_gateway(State(s): State<ApiState>, body: Bytes) -> impl IntoResponse {
+    if !rpc_body_is_allowed(&body) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "rpc method not allowed through this gateway"
+            })),
+        )
+            .into_response();
+    }
     match s
         .http
         .post(&s.rpc_url)
@@ -340,5 +398,43 @@ async fn oracles_meta(State(s): State<ApiState>, Query(q): Query<MetaQuery>) -> 
     match db::list_oracle_meta(&s.client, &oracles, 500).await {
         Ok(rows) => Json(serde_json::json!({ "count": rows.len(), "meta": rows })).into_response(),
         Err(e) => err(e).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod rpc_gateway_tests {
+    use super::rpc_body_is_allowed;
+
+    #[test]
+    fn allows_a_single_allowlisted_method() {
+        let b = br#"{"jsonrpc":"2.0","id":1,"method":"getAccountInfo","params":["Foo"]}"#;
+        assert!(rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn rejects_a_single_disallowed_method() {
+        // getSignaturesForAddress is a history dump — not on the allowlist.
+        let b = br#"{"jsonrpc":"2.0","id":1,"method":"getSignaturesForAddress","params":["Foo"]}"#;
+        assert!(!rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn allows_a_fully_allowlisted_batch() {
+        let b = br#"[{"method":"getAccountInfo"},{"method":"sendTransaction"}]"#;
+        assert!(rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn rejects_a_batch_with_any_disallowed_method() {
+        let b = br#"[{"method":"getAccountInfo"},{"method":"getBlock"}]"#;
+        assert!(!rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn rejects_empty_batch_missing_method_and_malformed() {
+        assert!(!rpc_body_is_allowed(b"[]"));
+        assert!(!rpc_body_is_allowed(br#"{"jsonrpc":"2.0","id":1}"#));
+        assert!(!rpc_body_is_allowed(br#"{"method":123}"#));
+        assert!(!rpc_body_is_allowed(b"not json"));
     }
 }
