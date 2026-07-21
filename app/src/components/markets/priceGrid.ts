@@ -1,4 +1,5 @@
 import type { CandleDto } from "../../market/lib/indexer";
+import { normalizeAcrossGroup } from "../../market/lib/marketView";
 
 /** One plotted point: bucket-start unix seconds + the value held over that bucket.
  *  `value` is `undefined` for a WHITESPACE point ({@link buildWindowedGrid}) — a
@@ -103,4 +104,45 @@ export function buildWindowedGrid(
  *  indexer fetch. */
 export function invertGrid(grid: GridPoint[]): GridPoint[] {
   return grid.map((p) => ({ time: p.time, value: p.value === undefined ? undefined : 1 - p.value }));
+}
+
+/**
+ * Apply {@link normalizeAcrossGroup} once PER TIME BUCKET across several
+ * already-built grids, so a categorical group's chart curves visibly move
+ * opposite each other as trades happen, instead of each option's raw
+ * (independent-pool) curve only ever moving on its own trades.
+ *
+ * PRECONDITION: every non-empty input grid shares the identical time axis
+ * (same length, same `time` at each index) — guaranteed by `PriceChart`
+ * calling {@link buildWindowedGrid} for every spec with the same
+ * `nowSec`/`step`/`maxBars` inputs in one `replot()` pass. A grid may also
+ * be entirely empty (a pubkey with zero candles ever — {@link buildWindowedGrid}
+ * returns `[]` for that case, never padded like a market merely younger
+ * than the window) — it stays empty in the output and, like a whitespace
+ * point, contributes nothing to any bucket's sum.
+ *
+ * At a bucket with fewer than two real (non-`null`) values, there is
+ * nothing to normalize AGAINST — dividing a lone value by itself would
+ * wrongly inflate it to 1 (100%) instead of leaving it as-is — so that
+ * bucket's real value(s) pass through unchanged rather than through
+ * {@link normalizeAcrossGroup}. This is what makes a single spec (or a
+ * spec that's currently the only one with real data at a given bucket) a
+ * no-op, matching {@link normalizeAcrossGroup}'s own binary-pair no-op.
+ */
+export function normalizeGridsAcrossGroup(grids: GridPoint[][]): GridPoint[][] {
+  const axisLength = grids.reduce((max, g) => Math.max(max, g.length), 0);
+  if (axisLength === 0) return grids;
+  const axisGrid = grids.find((g) => g.length === axisLength)!;
+  const out: GridPoint[][] = grids.map(() => []);
+  for (let i = 0; i < axisLength; i++) {
+    const time = axisGrid[i].time;
+    const raw = grids.map((g) => (g.length === axisLength ? (g[i].value ?? null) : null));
+    const realCount = raw.filter((v) => v !== null).length;
+    const normalized = realCount >= 2 ? normalizeAcrossGroup(raw) : raw;
+    grids.forEach((g, j) => {
+      if (g.length !== axisLength) return; // empty grid: stays empty, no bucket entries
+      out[j].push({ time, value: normalized[j] ?? undefined });
+    });
+  }
+  return out;
 }

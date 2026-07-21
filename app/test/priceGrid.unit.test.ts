@@ -14,6 +14,7 @@ import {
   gridBars,
   gridStep,
   invertGrid,
+  normalizeGridsAcrossGroup,
 } from "../src/components/markets/priceGrid";
 import type { CandleDto } from "../src/market/lib/indexer";
 
@@ -153,5 +154,62 @@ describe("invertGrid", () => {
 
   it("empty in, empty out", () => {
     expect(invertGrid([])).toEqual([]);
+  });
+});
+
+describe("normalizeGridsAcrossGroup", () => {
+  it("normalizes each bucket across all grids independently", () => {
+    const gridA = [
+      { time: 100, value: 0.6 },
+      { time: 101, value: 0.8 },
+    ];
+    const gridB = [
+      { time: 100, value: 0.4 },
+      { time: 101, value: 0.4 },
+    ];
+    const [normA, normB] = normalizeGridsAcrossGroup([gridA, gridB]);
+    // Bucket 100: 0.6/(0.6+0.4)=0.6, 0.4/(0.6+0.4)=0.4 (no-op, already summed to 1).
+    expect(normA[0]).toEqual({ time: 100, value: 0.6 });
+    expect(normB[0]).toEqual({ time: 100, value: 0.4 });
+    // Bucket 101: 0.8/(0.8+0.4) ≈ 0.667, 0.4/(0.8+0.4) ≈ 0.333.
+    expect(normA[1].value).toBeCloseTo(0.8 / 1.2);
+    expect(normB[1].value).toBeCloseTo(0.4 / 1.2);
+    // Times are preserved unchanged.
+    expect(normA[1].time).toBe(101);
+    expect(normB[1].time).toBe(101);
+  });
+
+  it("a whitespace point (undefined value) in one grid is excluded from that bucket's sum, not treated as 0", () => {
+    const gridA = [{ time: 100, value: 0.6 }];
+    const gridB: typeof gridA extends never ? never : { time: number; value?: number }[] = [
+      { time: 100, value: undefined },
+    ];
+    const [normA, normB] = normalizeGridsAcrossGroup([gridA, gridB]);
+    // Only gridA has real data at bucket 100 → normalizes to itself (sum = 0.6).
+    expect(normA[0].value).toBeCloseTo(0.6);
+    expect(normB[0].value).toBeUndefined();
+  });
+
+  it("an entirely empty grid (a pubkey with zero candles ever) is excluded at every bucket, others normalize among themselves", () => {
+    const gridA = [
+      { time: 100, value: 0.6 },
+      { time: 101, value: 0.5 },
+    ];
+    const gridEmpty: { time: number; value?: number }[] = [];
+    const [normA, normEmpty] = normalizeGridsAcrossGroup([gridA, gridEmpty]);
+    // Only one real grid → normalizing against itself is a no-op.
+    expect(normA[0].value).toBeCloseTo(0.6);
+    expect(normA[1].value).toBeCloseTo(0.5);
+    expect(normEmpty).toEqual([]);
+  });
+
+  it("all grids empty → all returned empty, unchanged", () => {
+    expect(normalizeGridsAcrossGroup([[], []])).toEqual([[], []]);
+  });
+
+  it("a single grid is always a no-op (nothing to normalize against)", () => {
+    const grid = [{ time: 100, value: 0.42 }];
+    const [result] = normalizeGridsAcrossGroup([grid]);
+    expect(result[0].value).toBeCloseTo(0.42);
   });
 });
