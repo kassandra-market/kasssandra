@@ -212,4 +212,29 @@ describe("normalizeGridsAcrossGroup", () => {
     const [result] = normalizeGridsAcrossGroup([grid]);
     expect(result[0].value).toBeCloseTo(0.42);
   });
+
+  it("oddsSpace: true normalizes in odds-space so a heavily-bought bucket approaches 1, not a linear-capped plateau", () => {
+    const gridA = [
+      { time: 0, value: 0.99 },
+      { time: 1, value: 0.99 },
+    ];
+    const gridB = [
+      { time: 0, value: 0.5 },
+      { time: 1, value: 0.5 },
+    ];
+    const gridC = [
+      { time: 0, value: 0.5 },
+      { time: 1, value: 0.5 },
+    ];
+    const [normA] = normalizeGridsAcrossGroup([gridA, gridB, gridC], true);
+    expect(normA[0].value!).toBeGreaterThan(0.9);
+    expect(normA[1].value!).toBeGreaterThan(0.9);
+  });
+
+  it("oddsSpace: false (default) keeps today's linear behavior — unchanged from existing tests above", () => {
+    const gridA = [{ time: 0, value: 0.99 }];
+    const gridB = [{ time: 0, value: 0.5 }];
+    const [normA] = normalizeGridsAcrossGroup([gridA, gridB]);
+    expect(normA[0].value!).toBeLessThan(0.7); // linear cap, not near 1
+  });
 });
