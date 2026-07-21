@@ -198,7 +198,7 @@ describe('CategoricalCard question/labels', () => {
     expect(html).toMatch(/<ul class="[^"]*max-h-64[^"]*overflow-y-auto[^"]*"/)
   })
 
-  it('outcome-row probabilities are normalized across the group, not each raw independent price', () => {
+  it('outcome-row probabilities are normalized across the group in odds-space, not each raw independent price', () => {
     // summary(outcomeIndex, pubkey) always uses reserves { base: 6n, quote: 4n }
     // (60% raw) per the existing helper — override two entries' reserves so
     // there's something genuine to rescale.
@@ -215,8 +215,10 @@ describe('CategoricalCard question/labels', () => {
       ],
     } as never
     const html = inRouter(<CategoricalCard group={group} meta={META} />)
-    expect(html).toContain('64%') // 0.7 / 1.1 ≈ 0.636 → 64%
-    expect(html).toContain('36%') // 0.4 / 1.1 ≈ 0.364 → 36%
+    // Odds-space (normalizeOddsAcrossGroup): odds = 0.7/0.3 ≈ 2.333 and
+    // 0.4/0.6 ≈ 0.667, summing to 3 → 2.333/3 ≈ 78%, 0.667/3 ≈ 22%.
+    expect(html).toContain('78%')
+    expect(html).toContain('22%')
     expect(html).not.toContain('70%')
     expect(html).not.toContain('40%')
   })
