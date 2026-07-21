@@ -10,7 +10,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useIndexer, type CandleDto } from "../../market/lib/indexer";
-import { normalizeAcrossGroup } from "../../market/lib/marketView";
+import { normalizeAcrossGroup, normalizeOddsAcrossGroup } from "../../market/lib/marketView";
 import {
   buildWindowedGrid,
   gridBars,
@@ -110,9 +110,15 @@ interface PubkeyState {
  */
 export function PriceChart({
   series,
+  isGroup,
   refreshKey,
 }: {
   series: ChartSeriesSpec[];
+  /** Whether these specs are genuinely independent categorical pools (N ≥ 2)
+   *  rather than a lone binary market's YES/NO pair — selects which
+   *  cross-normalization the chart's curves and the wall-clock roll-forward
+   *  use ({@link normalizeOddsAcrossGroup} vs {@link normalizeAcrossGroup}). */
+  isGroup: boolean;
   /** Change this to force an out-of-band candle reload (e.g. after a trade). */
   refreshKey?: string | number;
 }) {
@@ -168,7 +174,7 @@ export function PriceChart({
       // option 1 visibly pull option 2/3's curves down at the same moment,
       // instead of each option's raw (independent-pool) curve only ever
       // moving on its own trades.
-      const normalizedGrids = normalizeGridsAcrossGroup(invertedGrids);
+      const normalizedGrids = normalizeGridsAcrossGroup(invertedGrids, isGroup);
 
       // Whether ANY spec's grid has at least one REAL (non-whitespace) point.
       // `setVisibleRange` below throws (`TimeScale._internal_logicalRangeForTimeRange`
@@ -206,7 +212,7 @@ export function PriceChart({
         });
       }
     },
-    [windowSecs],
+    [windowSecs, isGroup],
   );
 
   // Grow every curve to the present: append one carried-forward point per elapsed
@@ -227,7 +233,7 @@ export function PriceChart({
       if (!st || st.carriedClose === null) return null;
       return spec.invert ? 1 - st.carriedClose : st.carriedClose;
     });
-    const normalizedBySpec = normalizeAcrossGroup(rawBySpec);
+    const normalizedBySpec = isGroup ? normalizeOddsAcrossGroup(rawBySpec) : normalizeAcrossGroup(rawBySpec);
 
     for (const [pubkey, st] of pubkeyStateRef.current) {
       if (st.carriedClose === null) continue;
@@ -243,7 +249,7 @@ export function PriceChart({
       }
       st.plottedStep = Math.max(st.plottedStep, b);
     }
-  }, [windowSecs]);
+  }, [windowSecs, isGroup]);
 
   // Create the chart shell once, themed from the resolved CSS variables.
   useEffect(() => {
