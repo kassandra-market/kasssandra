@@ -47,7 +47,7 @@ rationale).
   negative and corrupts the series/guard. Theoretical for real pools. Fix: store
   `NUMERIC(20)` or bound-check before cast.
 
-- [ ] **I4 (Low) — Runner SSRF on chain-controlled URIs.**
+- [x] **I4 (Low) — Runner SSRF on chain-controlled URIs.** _(done — ported the indexer resolved-IP guard into `HttpFactFetcher`: pre-fetch host resolution rejects internal/special-use IPs (incl. 169.254.169.254), plus a redirect policy blocking literal-internal redirects; opt-out flag for local tests; unit-tested.)_
   `runner/src/fetch/http.rs:77`, reused by `runner/src/cli/config.rs:152`.
   Fetcher enforces scheme/timeout/body-cap but has no resolved-IP guard, so a
   chain-created oracle with `uri = http://169.254.169.254/...` or an RFC1918

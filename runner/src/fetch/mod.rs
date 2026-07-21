@@ -56,13 +56,16 @@
 //! accumulated size would exceed the cap — so an unbounded or hostile body can't
 //! exhaust memory.
 //!
-//! **SSRF is NOT mitigated here.** The scheme allowlist (http/https) stops
-//! `file:`/`data:`/etc., but a fact `uri` may still resolve to an internal /
-//! link-local / loopback address (e.g. `http://169.254.169.254/...` or
-//! `http://10.0.0.5/...`), and redirects are followed within `reqwest`'s default
-//! cap. Treat fact URIs as untrusted: run the runner where it has no privileged
-//! network position, or add egress filtering / DNS-pinning at the deployment
-//! layer. This is a deliberate, documented limitation for v1.
+//! **SSRF is mitigated by a resolved-IP guard.** Beyond the scheme allowlist
+//! (http/https, which stops `file:`/`data:`/etc.), [`HttpFactFetcher`] resolves
+//! each fact `uri`'s host BEFORE the request and rejects it with
+//! [`FetchError::BlockedHost`] if it (or ANY resolved address) is an
+//! internal/special-use IP — loopback, RFC1918, link-local (incl.
+//! `169.254.169.254` cloud metadata), CGNAT, IPv6 ULA, etc. A custom redirect
+//! policy likewise refuses redirects to a literal internal IP. Residual gap: a
+//! hostname redirect that resolves internally is not re-checked (matching the
+//! indexer's `meta_fetch` guard), so a privileged deployment should STILL add
+//! egress filtering / DNS-pinning as defense-in-depth.
 //!
 //! # Batch policy (fail-fast)
 //!

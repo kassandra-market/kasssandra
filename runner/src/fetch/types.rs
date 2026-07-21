@@ -75,6 +75,17 @@ pub enum FetchError {
         /// The uri that was not found.
         uri: String,
     },
+    /// The `uri`'s host resolved to (or a redirect targeted) an internal /
+    /// special-use IP range — blocked as SSRF. A fact `uri` is chain-controlled,
+    /// so without this an attacker-created oracle could point the keeper at
+    /// `http://169.254.169.254/...` (cloud metadata) or an RFC1918 host and make
+    /// it issue internal requests (blind SSRF; content is hash-verified so it is
+    /// never reflected, but the request itself must not be made).
+    #[error("host of `{uri}` is a blocked (internal/special-use) address")]
+    BlockedHost {
+        /// The uri whose host was blocked.
+        uri: String,
+    },
 }
 
 /// A fact failed verification against its on-chain `content_hash`. Either the

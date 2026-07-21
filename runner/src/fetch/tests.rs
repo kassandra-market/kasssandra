@@ -135,7 +135,12 @@ async fn http_fetcher_rejects_oversize_body() {
         let _ = sock.flush().await;
     });
 
-    let fetcher = HttpFactFetcher::new().unwrap().with_max_body_bytes(100);
+    // allow_internal_hosts: the mock server is on 127.0.0.1, which the SSRF guard
+    // blocks by default; this test exercises the body-size cap, not the guard.
+    let fetcher = HttpFactFetcher::new()
+        .unwrap()
+        .with_max_body_bytes(100)
+        .with_allow_internal_hosts(true);
     let uri = format!("http://{addr}/big");
     let err = fetcher.fetch(&uri).await.unwrap_err();
     match err {
