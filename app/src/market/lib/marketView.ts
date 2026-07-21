@@ -346,6 +346,49 @@ export function normalizeAcrossGroup(values: (number | null)[]): (number | null)
 }
 
 /**
+ * Rescale a set of independently-priced probabilities in ODDS space
+ * (`p/(1-p)`) rather than raw-probability space, so one option's odds going
+ * to infinity (heavy buying pushing its own pool toward p=1) correctly
+ * drives its normalized share toward 1 regardless of untouched siblings'
+ * finite odds — unlike {@link normalizeAcrossGroup}'s linear
+ * `value / sum`, which caps well below 100% because untouched siblings'
+ * raw values never shrink on their own.
+ *
+ * Since `p = quote/(base+quote)`, `p/(1-p)` simplifies to `quote/base` — each
+ * pool's own reserve ratio — so this needs no new data, only a different
+ * combination of the same raw probabilities `normalizeAcrossGroup` takes.
+ *
+ * ONLY for genuinely independent categorical pools (N ≥ 2 separate AMM
+ * pools). A true binary YES/NO pair (same pool, NO ≡ 1-YES by construction)
+ * must keep using the linear {@link normalizeAcrossGroup}, which is a
+ * correct no-op there — this odds-space version is NOT a no-op for an
+ * already-complementary pair and would wrongly distort it.
+ *
+ * `null` stays `null`, degenerate all-zero input returns unchanged, and
+ * fewer than two non-null values is a no-op — all identical to
+ * {@link normalizeAcrossGroup}'s edge-case handling.
+ *
+ * A pool fully drained to exactly `p=1` has infinite odds; rather than
+ * `Infinity/Infinity → NaN`, certainty is split evenly among however many
+ * options are simultaneously at `p=1`, and every other option gets `0` —
+ * the correct limiting behavior.
+ */
+export function normalizeOddsAcrossGroup(values: (number | null)[]): (number | null)[] {
+  const nonNullCount = values.reduce<number>((count, v) => count + (v === null ? 0 : 1), 0);
+  if (nonNullCount < 2) return values;
+
+  const odds = values.map((v) => (v === null ? null : v >= 1 ? Infinity : v / (1 - v)));
+  const infiniteCount = odds.reduce<number>((count, o) => count + (o === Infinity ? 1 : 0), 0);
+  if (infiniteCount > 0) {
+    return odds.map((o) => (o === null ? null : o === Infinity ? 1 / infiniteCount : 0));
+  }
+
+  const sum = odds.reduce<number>((acc, o) => acc + (o ?? 0), 0);
+  if (sum <= 0) return values;
+  return odds.map((o) => (o === null ? null : o / sum));
+}
+
+/**
  * Resolution text for a categorical sub-market (YES = the oracle resolves to
  * `outcomeIndex`). `Resolved` → "YES won" when the oracle's winning option is
  * this outcome, else "NO won"; `InvalidDeadend` → "Voided"; otherwise the phase
