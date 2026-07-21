@@ -13,22 +13,42 @@
  * base58-look-alike string (most hand-typed look-alikes are the wrong decoded
  * byte length and throw).
  *
- * Covers, across `MOCK_MARKET_PUBKEYS`:
- *   - a pre-activation `Funding` market (partially funded, own binary oracle)
- *   - a pre-activation `Funding` market PAST its floor (funded, not yet
- *     activated, own binary oracle) — the market list card's "Launch market"
- *     CTA instead of a stake input
- *   - an `Active` market (own binary oracle, live) with populated cYES/cNO
- *     reserves so the trade UI + price chart have live-looking data
- *   - a `Resolved` market (own binary oracle, terminal, YES won)
- *   - a `Void` market (own binary oracle, `InvalidDeadend` — both legs paid)
- *   - a `Cancelled` market (never activated, own terminal `InvalidDeadend` oracle)
- *   - a 3-outcome CATEGORICAL group — one oracle (`optionsCount = 3`), three
- *     sub-markets at `outcomeIndex` 0/1/2 (`groupByOracle` collapses these into
- *     one `OracleGroup`; `isCategorical` is true since `optionsCount > 2`)
- *   - a second 3-outcome CATEGORICAL group, every outcome still `Funding` (none
- *     activated yet) — exercises the single cumulative funding bar + the
- *     group-only deposit action on a group that hasn't started resolving
+ * Covers, across `MOCK_MARKET_PUBKEYS` — every `MarketStatus` (Funding under
+ * floor, Funding past floor/"funded", Active, Resolved, Void, Cancelled), for
+ * BOTH a lone binary market and a 3-outcome categorical GROUP (`HAND_FIXTURES`,
+ * hand-authored — each tells a specific, curated story), plus two 9-outcome
+ * categorical groups (`makeCat9*Fixtures`, generated — mostly-repetitive
+ * boilerplate at that scale, parameterized just enough to vary realistically):
+ *
+ * Binary (own oracle each):
+ *   - `Funding`, under its 500,000 KASS floor
+ *   - `Funding`, PAST its floor ("funded", awaiting activation) — the market
+ *     list card's "Launch market" CTA instead of a stake input
+ *   - `Active`, live, populated cYES/cNO reserves for the trade UI + price chart
+ *   - `Resolved`, YES won (resolvedOption 0 == outcomeIndex 0)
+ *   - `Resolved`, NO won (resolvedOption 1 != outcomeIndex 0) — the
+ *     complementary resolution direction
+ *   - `Void` (`InvalidDeadend` AFTER activation — both legs redeem)
+ *   - `Cancelled` (`InvalidDeadend` BEFORE activation — refund path)
+ *
+ * 3-outcome categorical (one shared oracle per group, `optionsCount = 3`,
+ * `groupByOracle` collapses each into one `OracleGroup`; `isCategorical` is
+ * true since `optionsCount > 2`):
+ *   - every leg `Funding`, under floor
+ *   - every leg `Funding`, PAST floor ("funded", awaiting activation)
+ *   - every leg `Active`, oracle unresolved (no winner at all yet)
+ *   - a resolved group with a realistic "resolution pending" straggler: 2 legs
+ *     `Resolved` (1 winner, 1 loser), 1 leg still `Active` (its own
+ *     `resolve_market` crank hasn't run)
+ *   - every leg `Void` (activated, then the oracle dead-ended)
+ *   - every leg `Cancelled` (never activated, the oracle dead-ended first)
+ *
+ * 9-outcome categorical (`optionsCount = 9` — the "large group" case: does the
+ * list card / group liquidity panel / categorical detail page hold up at N=9,
+ * not just N=3?):
+ *   - every leg `Funding`, staggered under-floor amounts
+ *   - resolved to one winner, 7 losers, 1 still-`Active` pending straggler —
+ *     the same "resolution pending" realism as the 3-outcome version, at scale
  */
 import { Address } from "@solana/web3.js";
 import type { CandleDto, ConfigDto, ContributionDto, MarketDetailDto, MarketDto, OracleDto, ReservesDto } from "../../lib/indexer";
@@ -78,10 +98,17 @@ const O_FUNDING = fixturePubkey("oracle-funding");
 const O_FUNDED = fixturePubkey("oracle-funded");
 const O_ACTIVE = fixturePubkey("oracle-active");
 const O_RESOLVED = fixturePubkey("oracle-resolved");
+const O_RESOLVED_NO = fixturePubkey("oracle-resolved-no");
 const O_VOID = fixturePubkey("oracle-void");
 const O_CANCELLED = fixturePubkey("oracle-cancelled");
 const O_CATEGORICAL = fixturePubkey("oracle-categorical");
 const O_CATEGORICAL_FUNDING = fixturePubkey("oracle-categorical-funding");
+const O_CATEGORICAL_FUNDED = fixturePubkey("oracle-categorical-funded");
+const O_CATEGORICAL_ACTIVE = fixturePubkey("oracle-categorical-active");
+const O_CATEGORICAL_VOID = fixturePubkey("oracle-categorical-void");
+const O_CATEGORICAL_CANCELLED = fixturePubkey("oracle-categorical-cancelled");
+const O_CAT9_FUNDING = fixturePubkey("oracle-cat9-funding");
+const O_CAT9_RESOLVED = fixturePubkey("oracle-cat9-resolved");
 
 const ORACLES: Record<string, OracleDto> = {
   [O_FUNDING]: { optionsCount: 2, phase: 1 /* Proposal */, resolvedOption: 0 },
@@ -91,6 +118,9 @@ const ORACLES: Record<string, OracleDto> = {
   [O_FUNDED]: { optionsCount: 2, phase: 1 /* Proposal */, resolvedOption: 0 },
   [O_ACTIVE]: { optionsCount: 2, phase: 3 /* FactVoting */, resolvedOption: 0 },
   [O_RESOLVED]: { optionsCount: 2, phase: 7 /* Resolved */, resolvedOption: 0 /* YES (outcomeIndex 0) won */ },
+  // The complementary binary resolution: resolvedOption 1 != outcomeIndex 0, so
+  // NO wins (the only binary Resolved fixture above pays YES — this one pays NO).
+  [O_RESOLVED_NO]: { optionsCount: 2, phase: 7 /* Resolved */, resolvedOption: 1 /* NO won */ },
   [O_VOID]: { optionsCount: 2, phase: 8 /* InvalidDeadend */, resolvedOption: 0xff },
   [O_CANCELLED]: { optionsCount: 2, phase: 8 /* InvalidDeadend */, resolvedOption: 0xff },
   // Resolved with option 2 winning — CAT_2 pays YES, CAT_0/CAT_1 pay NO. CAT_1's
@@ -102,6 +132,26 @@ const ORACLES: Record<string, OracleDto> = {
   // group-only deposit action (no per-outcome contribute form) on a group that
   // hasn't started resolving at all yet.
   [O_CATEGORICAL_FUNDING]: { optionsCount: 3, phase: 1 /* Proposal */, resolvedOption: 0 },
+  // A categorical group where every outcome is past its OWN floor but none has
+  // been activated yet — the categorical analogue of O_FUNDED, exercising the
+  // group's "Launch market" affordance per outcome.
+  [O_CATEGORICAL_FUNDED]: { optionsCount: 3, phase: 1 /* Proposal */, resolvedOption: 0 },
+  // A categorical group with every outcome activated and trading, oracle still
+  // unresolved — the categorical analogue of O_ACTIVE (no winner yet at all).
+  [O_CATEGORICAL_ACTIVE]: { optionsCount: 3, phase: 3 /* FactVoting */, resolvedOption: 0 },
+  // A categorical group whose oracle dead-ended AFTER activation — every leg
+  // Void (both cYES/cNO redeem), the categorical analogue of O_VOID.
+  [O_CATEGORICAL_VOID]: { optionsCount: 3, phase: 8 /* InvalidDeadend */, resolvedOption: 0xff },
+  // A categorical group whose oracle dead-ended BEFORE any leg activated —
+  // every leg Cancelled (refund path), the categorical analogue of O_CANCELLED.
+  [O_CATEGORICAL_CANCELLED]: { optionsCount: 3, phase: 8 /* InvalidDeadend */, resolvedOption: 0xff },
+  // A 9-outcome group, every leg still Funding — the "large categorical" case,
+  // scaled up from the 3-outcome O_CATEGORICAL_FUNDING.
+  [O_CAT9_FUNDING]: { optionsCount: 9, phase: 1 /* Proposal */, resolvedOption: 0 },
+  // A 9-outcome group, resolved to option 4 — 8 legs settled (1 winner + 7
+  // losers), 1 leg's own `resolve_market` crank still pending (mirrors
+  // O_CATEGORICAL's "resolution pending" realism, at 9-outcome scale).
+  [O_CAT9_RESOLVED]: { optionsCount: 9, phase: 7 /* Resolved */, resolvedOption: 4 },
 };
 
 // --- markets -------------------------------------------------------------------
@@ -178,8 +228,21 @@ const MKT_CAT_2 = fixturePubkey("market-categorical-outcome-2");
 const MKT_CAT_FUNDING_0 = fixturePubkey("market-categorical-funding-outcome-0");
 const MKT_CAT_FUNDING_1 = fixturePubkey("market-categorical-funding-outcome-1");
 const MKT_CAT_FUNDING_2 = fixturePubkey("market-categorical-funding-outcome-2");
+const MKT_RESOLVED_NO = fixturePubkey("market-resolved-no-binary");
+const MKT_CAT_FUNDED_0 = fixturePubkey("market-categorical-funded-outcome-0");
+const MKT_CAT_FUNDED_1 = fixturePubkey("market-categorical-funded-outcome-1");
+const MKT_CAT_FUNDED_2 = fixturePubkey("market-categorical-funded-outcome-2");
+const MKT_CAT_ACTIVE_0 = fixturePubkey("market-categorical-active-outcome-0");
+const MKT_CAT_ACTIVE_1 = fixturePubkey("market-categorical-active-outcome-1");
+const MKT_CAT_ACTIVE_2 = fixturePubkey("market-categorical-active-outcome-2");
+const MKT_CAT_VOID_0 = fixturePubkey("market-categorical-void-outcome-0");
+const MKT_CAT_VOID_1 = fixturePubkey("market-categorical-void-outcome-1");
+const MKT_CAT_VOID_2 = fixturePubkey("market-categorical-void-outcome-2");
+const MKT_CAT_CANCELLED_0 = fixturePubkey("market-categorical-cancelled-outcome-0");
+const MKT_CAT_CANCELLED_1 = fixturePubkey("market-categorical-cancelled-outcome-1");
+const MKT_CAT_CANCELLED_2 = fixturePubkey("market-categorical-cancelled-outcome-2");
 
-const FIXTURES: MarketFixture[] = [
+const HAND_FIXTURES: MarketFixture[] = [
   {
     // Pre-activation, partially funded — below its 500,000 KASS floor.
     dto: makeMarket("funding", {
@@ -277,6 +340,38 @@ const FIXTURES: MarketFixture[] = [
     contributions: [
       makeContribution(MKT_RESOLVED, "resolved-a", 300_000, { claimed: true, slot: "1015" }),
       makeContribution(MKT_RESOLVED, "resolved-b", 200_000, { claimed: false, slot: "1020" }),
+    ],
+  },
+  {
+    // Terminal + resolved — NO won (resolvedOption 1 != outcomeIndex 0), the
+    // complementary case to MKT_RESOLVED (which pays YES).
+    dto: makeMarket("resolved-no", {
+      address: MKT_RESOLVED_NO,
+      oracle: O_RESOLVED_NO,
+      status: 2 /* Resolved */,
+      statusLabel: "Resolved",
+      totalContributed: kass(540_000),
+      openContributions: 1,
+      feeCollected: 1,
+      settled: 1,
+      question: fixturePubkey("resolved-no-question"),
+      vault: fixturePubkey("resolved-no-vault"),
+      yesMint: fixturePubkey("resolved-no-yes-mint"),
+      noMint: fixturePubkey("resolved-no-no-mint"),
+      amm: fixturePubkey("resolved-no-amm"),
+      lpMint: fixturePubkey("resolved-no-lp-mint"),
+      lpVault: fixturePubkey("resolved-no-lp-vault"),
+      lpTotal: kass(540_000),
+      activationLp: kass(540_000),
+      activationContributed: kass(540_000),
+      grossLpTotal: kass(540_000),
+      slot: "1021",
+    }),
+    oracle: ORACLES[O_RESOLVED_NO],
+    reserves: null,
+    contributions: [
+      makeContribution(MKT_RESOLVED_NO, "resolved-no-a", 340_000, { claimed: false, slot: "1016" }),
+      makeContribution(MKT_RESOLVED_NO, "resolved-no-b", 200_000, { claimed: true, slot: "1021" }),
     ],
   },
   {
@@ -460,6 +555,363 @@ const FIXTURES: MarketFixture[] = [
     reserves: null,
     contributions: [makeContribution(MKT_CAT_FUNDING_2, "cat-funding-2-a", 120_000, { slot: "1052" })],
   },
+  {
+    // Funded categorical outcome 0/3 — past its own 500,000 KASS floor,
+    // awaiting activation (the categorical analogue of MKT_FUNDED).
+    dto: makeMarket("cat-funded-0", {
+      address: MKT_CAT_FUNDED_0,
+      oracle: O_CATEGORICAL_FUNDED,
+      status: 0 /* Funding */,
+      statusLabel: "Funding",
+      outcomeIndex: 0,
+      totalContributed: kass(560_000),
+      openContributions: 1,
+      slot: "1060",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_FUNDED],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_FUNDED_0, "cat-funded-0-a", 560_000, { slot: "1060" })],
+  },
+  {
+    // Funded categorical outcome 1/3 — past its own floor.
+    dto: makeMarket("cat-funded-1", {
+      address: MKT_CAT_FUNDED_1,
+      oracle: O_CATEGORICAL_FUNDED,
+      status: 0 /* Funding */,
+      statusLabel: "Funding",
+      outcomeIndex: 1,
+      totalContributed: kass(510_000),
+      openContributions: 1,
+      slot: "1061",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_FUNDED],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_FUNDED_1, "cat-funded-1-a", 510_000, { slot: "1061" })],
+  },
+  {
+    // Funded categorical outcome 2/3 — past its own floor.
+    dto: makeMarket("cat-funded-2", {
+      address: MKT_CAT_FUNDED_2,
+      oracle: O_CATEGORICAL_FUNDED,
+      status: 0 /* Funding */,
+      statusLabel: "Funding",
+      outcomeIndex: 2,
+      totalContributed: kass(700_000),
+      openContributions: 1,
+      slot: "1062",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_FUNDED],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_FUNDED_2, "cat-funded-2-a", 700_000, { slot: "1062" })],
+  },
+  {
+    // Active categorical outcome 0/3 — activated, trading, oracle unresolved
+    // (the categorical analogue of MKT_ACTIVE — no winner determined at all yet,
+    // unlike O_CATEGORICAL which already has a resolvedOption).
+    dto: makeMarket("cat-active-0", {
+      address: MKT_CAT_ACTIVE_0,
+      oracle: O_CATEGORICAL_ACTIVE,
+      status: 1 /* Active */,
+      statusLabel: "Active",
+      outcomeIndex: 0,
+      totalContributed: kass(520_000),
+      openContributions: 1,
+      question: fixturePubkey("cat-active-0-question"),
+      vault: fixturePubkey("cat-active-0-vault"),
+      yesMint: fixturePubkey("cat-active-0-yes-mint"),
+      noMint: fixturePubkey("cat-active-0-no-mint"),
+      amm: fixturePubkey("cat-active-0-amm"),
+      lpMint: fixturePubkey("cat-active-0-lp-mint"),
+      lpVault: fixturePubkey("cat-active-0-lp-vault"),
+      lpTotal: kass(520_000),
+      activationLp: kass(520_000),
+      activationContributed: kass(520_000),
+      grossLpTotal: kass(520_000),
+      slot: "1070",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_ACTIVE],
+    reserves: { base: kass(300_000), quote: kass(220_000) },
+    contributions: [makeContribution(MKT_CAT_ACTIVE_0, "cat-active-0-a", 520_000, { slot: "1070" })],
+  },
+  {
+    // Active categorical outcome 1/3.
+    dto: makeMarket("cat-active-1", {
+      address: MKT_CAT_ACTIVE_1,
+      oracle: O_CATEGORICAL_ACTIVE,
+      status: 1 /* Active */,
+      statusLabel: "Active",
+      outcomeIndex: 1,
+      totalContributed: kass(500_000),
+      openContributions: 1,
+      question: fixturePubkey("cat-active-1-question"),
+      vault: fixturePubkey("cat-active-1-vault"),
+      yesMint: fixturePubkey("cat-active-1-yes-mint"),
+      noMint: fixturePubkey("cat-active-1-no-mint"),
+      amm: fixturePubkey("cat-active-1-amm"),
+      lpMint: fixturePubkey("cat-active-1-lp-mint"),
+      lpVault: fixturePubkey("cat-active-1-lp-vault"),
+      lpTotal: kass(500_000),
+      activationLp: kass(500_000),
+      activationContributed: kass(500_000),
+      grossLpTotal: kass(500_000),
+      slot: "1071",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_ACTIVE],
+    reserves: { base: kass(180_000), quote: kass(320_000) },
+    contributions: [makeContribution(MKT_CAT_ACTIVE_1, "cat-active-1-a", 500_000, { slot: "1071" })],
+  },
+  {
+    // Active categorical outcome 2/3.
+    dto: makeMarket("cat-active-2", {
+      address: MKT_CAT_ACTIVE_2,
+      oracle: O_CATEGORICAL_ACTIVE,
+      status: 1 /* Active */,
+      statusLabel: "Active",
+      outcomeIndex: 2,
+      totalContributed: kass(540_000),
+      openContributions: 1,
+      question: fixturePubkey("cat-active-2-question"),
+      vault: fixturePubkey("cat-active-2-vault"),
+      yesMint: fixturePubkey("cat-active-2-yes-mint"),
+      noMint: fixturePubkey("cat-active-2-no-mint"),
+      amm: fixturePubkey("cat-active-2-amm"),
+      lpMint: fixturePubkey("cat-active-2-lp-mint"),
+      lpVault: fixturePubkey("cat-active-2-lp-vault"),
+      lpTotal: kass(540_000),
+      activationLp: kass(540_000),
+      activationContributed: kass(540_000),
+      grossLpTotal: kass(540_000),
+      slot: "1072",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_ACTIVE],
+    reserves: { base: kass(260_000), quote: kass(280_000) },
+    contributions: [makeContribution(MKT_CAT_ACTIVE_2, "cat-active-2-a", 540_000, { slot: "1072" })],
+  },
+  {
+    // Void categorical outcome 0/3 — activated, then the oracle dead-ended:
+    // every leg pays (both cYES/cNO redeem), the categorical analogue of MKT_VOID.
+    dto: makeMarket("cat-void-0", {
+      address: MKT_CAT_VOID_0,
+      oracle: O_CATEGORICAL_VOID,
+      status: 3 /* Void */,
+      statusLabel: "Void",
+      outcomeIndex: 0,
+      totalContributed: kass(510_000),
+      openContributions: 1,
+      feeBps: 0,
+      feeCollected: 1,
+      settled: 1,
+      question: fixturePubkey("cat-void-0-question"),
+      vault: fixturePubkey("cat-void-0-vault"),
+      yesMint: fixturePubkey("cat-void-0-yes-mint"),
+      noMint: fixturePubkey("cat-void-0-no-mint"),
+      amm: fixturePubkey("cat-void-0-amm"),
+      lpMint: fixturePubkey("cat-void-0-lp-mint"),
+      lpVault: fixturePubkey("cat-void-0-lp-vault"),
+      lpTotal: kass(510_000),
+      activationLp: kass(510_000),
+      activationContributed: kass(510_000),
+      grossLpTotal: kass(510_000),
+      slot: "1080",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_VOID],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_VOID_0, "cat-void-0-a", 510_000, { slot: "1075" })],
+  },
+  {
+    // Void categorical outcome 1/3.
+    dto: makeMarket("cat-void-1", {
+      address: MKT_CAT_VOID_1,
+      oracle: O_CATEGORICAL_VOID,
+      status: 3 /* Void */,
+      statusLabel: "Void",
+      outcomeIndex: 1,
+      totalContributed: kass(505_000),
+      openContributions: 1,
+      feeBps: 0,
+      feeCollected: 1,
+      settled: 1,
+      question: fixturePubkey("cat-void-1-question"),
+      vault: fixturePubkey("cat-void-1-vault"),
+      yesMint: fixturePubkey("cat-void-1-yes-mint"),
+      noMint: fixturePubkey("cat-void-1-no-mint"),
+      amm: fixturePubkey("cat-void-1-amm"),
+      lpMint: fixturePubkey("cat-void-1-lp-mint"),
+      lpVault: fixturePubkey("cat-void-1-lp-vault"),
+      lpTotal: kass(505_000),
+      activationLp: kass(505_000),
+      activationContributed: kass(505_000),
+      grossLpTotal: kass(505_000),
+      slot: "1081",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_VOID],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_VOID_1, "cat-void-1-a", 505_000, { slot: "1076" })],
+  },
+  {
+    // Void categorical outcome 2/3.
+    dto: makeMarket("cat-void-2", {
+      address: MKT_CAT_VOID_2,
+      oracle: O_CATEGORICAL_VOID,
+      status: 3 /* Void */,
+      statusLabel: "Void",
+      outcomeIndex: 2,
+      totalContributed: kass(515_000),
+      openContributions: 1,
+      feeBps: 0,
+      feeCollected: 1,
+      settled: 1,
+      question: fixturePubkey("cat-void-2-question"),
+      vault: fixturePubkey("cat-void-2-vault"),
+      yesMint: fixturePubkey("cat-void-2-yes-mint"),
+      noMint: fixturePubkey("cat-void-2-no-mint"),
+      amm: fixturePubkey("cat-void-2-amm"),
+      lpMint: fixturePubkey("cat-void-2-lp-mint"),
+      lpVault: fixturePubkey("cat-void-2-lp-vault"),
+      lpTotal: kass(515_000),
+      activationLp: kass(515_000),
+      activationContributed: kass(515_000),
+      grossLpTotal: kass(515_000),
+      slot: "1082",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_VOID],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_VOID_2, "cat-void-2-a", 515_000, { slot: "1077" })],
+  },
+  {
+    // Cancelled categorical outcome 0/3 — never activated, cancelled once the
+    // oracle dead-ended; refunds pending (the categorical analogue of
+    // MKT_CANCELLED).
+    dto: makeMarket("cat-cancelled-0", {
+      address: MKT_CAT_CANCELLED_0,
+      oracle: O_CATEGORICAL_CANCELLED,
+      status: 4 /* Cancelled */,
+      statusLabel: "Cancelled",
+      outcomeIndex: 0,
+      totalContributed: kass(60_000),
+      openContributions: 1,
+      slot: "1090",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_CANCELLED],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_CANCELLED_0, "cat-cancelled-0-a", 60_000, { claimed: false, slot: "1090" })],
+  },
+  {
+    // Cancelled categorical outcome 1/3.
+    dto: makeMarket("cat-cancelled-1", {
+      address: MKT_CAT_CANCELLED_1,
+      oracle: O_CATEGORICAL_CANCELLED,
+      status: 4 /* Cancelled */,
+      statusLabel: "Cancelled",
+      outcomeIndex: 1,
+      totalContributed: kass(45_000),
+      openContributions: 1,
+      slot: "1091",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_CANCELLED],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_CANCELLED_1, "cat-cancelled-1-a", 45_000, { claimed: false, slot: "1091" })],
+  },
+  {
+    // Cancelled categorical outcome 2/3.
+    dto: makeMarket("cat-cancelled-2", {
+      address: MKT_CAT_CANCELLED_2,
+      oracle: O_CATEGORICAL_CANCELLED,
+      status: 4 /* Cancelled */,
+      statusLabel: "Cancelled",
+      outcomeIndex: 2,
+      totalContributed: kass(70_000),
+      openContributions: 1,
+      slot: "1092",
+    }),
+    oracle: ORACLES[O_CATEGORICAL_CANCELLED],
+    reserves: null,
+    contributions: [makeContribution(MKT_CAT_CANCELLED_2, "cat-cancelled-2-a", 70_000, { claimed: true, slot: "1092" })],
+  },
+];
+
+// --- large (9-option) categorical groups ----------------------------------
+//
+// Hand-writing 9 outcomes each would be almost entirely repetitive boilerplate
+// (unlike the 2/3-outcome groups above, each of which tells a specific,
+// curated story) — generated instead, parameterized just enough to vary
+// realistically across outcomes (staggered funding amounts, distinct reserve
+// splits, one still-Active straggler post-resolution).
+
+/** A 9-outcome group, every leg still Funding, staggered under-floor amounts
+ *  (10,000 .. 330,000 of a 500,000 floor) — the large-scale analogue of
+ *  O_CATEGORICAL_FUNDING. */
+function makeCat9FundingFixtures(): MarketFixture[] {
+  return Array.from({ length: 9 }, (_, i) => {
+    const address = fixturePubkey(`market-cat9-funding-outcome-${i}`);
+    const contributedWhole = 10_000 + i * 40_000; // 10k, 50k, 90k, ... 330k
+    const slot = String(1100 + i);
+    return {
+      dto: makeMarket(`cat9-funding-${i}`, {
+        address,
+        oracle: O_CAT9_FUNDING,
+        status: 0 /* Funding */,
+        statusLabel: "Funding",
+        outcomeIndex: i,
+        totalContributed: kass(contributedWhole),
+        openContributions: 1,
+        slot,
+      }),
+      oracle: ORACLES[O_CAT9_FUNDING],
+      reserves: null,
+      contributions: [makeContribution(address, `cat9-funding-${i}-a`, contributedWhole, { slot })],
+    };
+  });
+}
+
+/** A 9-outcome group resolved to option 4: outcomes 0-3 and 5-8 Resolved
+ *  (losers), outcome 4 Resolved (the winner), EXCEPT outcome 7 — its own
+ *  `resolve_market` crank hasn't run yet, so it's still `Active` — the
+ *  large-scale analogue of O_CATEGORICAL's "resolution pending" realism. */
+function makeCat9ResolvedFixtures(): MarketFixture[] {
+  const PENDING = 7;
+  return Array.from({ length: 9 }, (_, i) => {
+    const address = fixturePubkey(`market-cat9-resolved-outcome-${i}`);
+    const contributedWhole = 400_000 + i * 15_000; // mild spread, 400k..520k
+    const slot = String(1200 + i);
+    const pending = i === PENDING;
+    return {
+      dto: makeMarket(`cat9-resolved-${i}`, {
+        address,
+        oracle: O_CAT9_RESOLVED,
+        status: pending ? 1 /* Active */ : 2 /* Resolved */,
+        statusLabel: pending ? "Active" : "Resolved",
+        outcomeIndex: i,
+        totalContributed: kass(contributedWhole),
+        openContributions: 1,
+        feeCollected: pending ? 0 : 1,
+        settled: pending ? 0 : 1,
+        question: fixturePubkey(`cat9-resolved-${i}-question`),
+        vault: fixturePubkey(`cat9-resolved-${i}-vault`),
+        yesMint: fixturePubkey(`cat9-resolved-${i}-yes-mint`),
+        noMint: fixturePubkey(`cat9-resolved-${i}-no-mint`),
+        amm: fixturePubkey(`cat9-resolved-${i}-amm`),
+        lpMint: fixturePubkey(`cat9-resolved-${i}-lp-mint`),
+        lpVault: fixturePubkey(`cat9-resolved-${i}-lp-vault`),
+        lpTotal: kass(contributedWhole),
+        activationLp: kass(contributedWhole),
+        activationContributed: kass(contributedWhole),
+        grossLpTotal: kass(contributedWhole),
+        slot,
+      }),
+      oracle: ORACLES[O_CAT9_RESOLVED],
+      // Only the still-Active straggler carries live reserves — a Resolved leg
+      // has none (mirrors MKT_CAT_2 / cat0/cat2 above).
+      reserves: pending ? { base: kass(240_000), quote: kass(260_000) } : null,
+      contributions: [makeContribution(address, `cat9-resolved-${i}-a`, contributedWhole, { slot })],
+    };
+  });
+}
+
+const FIXTURES: MarketFixture[] = [
+  ...HAND_FIXTURES,
+  ...makeCat9FundingFixtures(),
+  ...makeCat9ResolvedFixtures(),
 ];
 
 const BY_PUBKEY = new Map<string, MarketFixture>(FIXTURES.map((f) => [f.dto.address, f]));
