@@ -202,6 +202,6 @@ logged, value parsing is bigint-exact throughout. Findings:
   can expire post-approval with no re-sign path. Fix: cap batch-sign to sequences
   landing within ~60s, else per-tx signing.
 
-- [ ] **F9 (Low) — Buy→Sell tab switch keeps the typed amount while the unit changes.**
+- [x] **F9 (Low) — Buy→Sell tab switch keeps the typed amount while the unit changes.** _(done — mode change clears the amount, like belief change.)_
   `TradePanel.tsx:270`: "100" silently flips from KASS to shares. Fix: clear the
   amount on mode change (belief change already does).

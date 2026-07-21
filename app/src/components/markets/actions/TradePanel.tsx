@@ -181,6 +181,15 @@ export function TradePanel({
     setDetailsOpen(false);
   };
 
+  // Buy measures KASS to spend; sell measures shares to unwind. Switching mode
+  // changes what the amount MEANS, so clear it (as belief-change does) rather than
+  // silently reinterpret e.g. "100" from KASS to shares.
+  const handleModeChange = (m: Mode) => {
+    setMode(m);
+    setAmount("");
+    setAmountError(undefined);
+  };
+
   const amountId = useId();
   const descId = `${amountId}-desc`;
 
@@ -279,7 +288,7 @@ export function TradePanel({
       </div>
 
       <div className="flex items-center justify-between">
-        <ModeTabs value={mode} onChange={setMode} />
+        <ModeTabs value={mode} onChange={handleModeChange} />
         <span
           className="rounded-tag border border-hairline px-2.5 py-1 font-inter text-[12px] text-silver"
           title="Trades execute at the current AMM price"
