@@ -98,7 +98,7 @@ slash/reward site. Scanner SOL-009/SOL-016 flags all confirmed false positives.
   (not attacker-directable). Fix (optional): outstanding-claims counter gating
   the sweep.
 
-- [ ] **O3 (Low) — Rent-grief via pre-funding predicted PDAs (`propose`/`submit_fact`/`vote_fact`/`open_challenge` escrow).**
+- [x] **O3 (Low) — Rent-grief via pre-funding predicted PDAs (`propose`/`submit_fact`/`vote_fact`/`open_challenge` escrow).** _(done — added `create_or_adopt_pda`/`create_or_adopt_token_account` to the oracle guards and applied them at all sites (incl. the open_challenge Market PDA); duplicate detection now keys on program-ownership; regression test + re-blessed CU snapshot.)_
   `processor/propose.rs:135`, `submit_fact.rs:125`, `vote_fact.rs:111`,
   `open_challenge/entry.rs:271-306`. Same class as markets M1: `CreateAccount`
   fails on an already-funded account, so 1 lamport blocks one specific

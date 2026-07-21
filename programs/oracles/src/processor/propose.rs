@@ -43,7 +43,7 @@ use crate::{
     clock::{now, require_phase},
     config::MAX_PROPOSERS,
     error::KassandraError,
-    processor::guards::{assert_key, assert_signer, create_pda, load_oracle},
+    processor::guards::{assert_key, assert_signer, create_or_adopt_pda, load_oracle},
     rent::minimum_rent,
     state::{AccountType, Oracle, Phase, Proposer, CLAIM_OPTION_NONE},
 };
@@ -123,16 +123,12 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         program_id,
     );
     assert_key(proposer_ai, &expected_proposer)?;
-    // An already-funded PDA means this authority already registered.
-    //
-    // KNOWN LIMITATION (deferred, same mechanism as submit_fact's duplicate
-    // check): an attacker can grief by pre-funding this predicted PDA with 1
-    // lamport, tripping this check before the real registration. It is NARROWER
-    // here — the PDA is keyed by `authority`, so it can only block one specific,
-    // known authority (not an arbitrary content_hash). The future fix is to
-    // allocate via system Allocate + Assign (which tolerates a pre-funded
-    // account) instead of CreateAccount; not worth it now.
-    if proposer_ai.lamports() != 0 || !proposer_ai.is_data_empty() {
+    // Duplicate detection by OWNERSHIP, not lamports: a program-owned proposer PDA
+    // means this authority already registered. A system-owned pre-funded account
+    // (an attacker's 1-lamport grief) is NOT program-owned, so `create_or_adopt_pda`
+    // below adopts it instead of letting the griefer permanently block this
+    // authority from proposing on this oracle.
+    if proposer_ai.owned_by(program_id) {
         return Err(KassandraError::DuplicateProposer.into());
     }
 
@@ -164,7 +160,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         Seed::from(authority_ai.address().as_ref()),
         Seed::from(&bump_seed),
     ];
-    create_pda(
+    create_or_adopt_pda(
         authority_ai,
         proposer_ai,
         &signer_seeds,

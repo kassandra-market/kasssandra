@@ -37,7 +37,7 @@ use pinocchio_token::instructions::Transfer;
 use crate::{
     clock::{now, require_before_end, require_phase},
     error::KassandraError,
-    processor::guards::{assert_key, assert_signer, create_pda, load_fact, load_oracle},
+    processor::guards::{assert_key, assert_signer, create_or_adopt_pda, load_fact, load_oracle},
     rent::minimum_rent,
     state::{AccountType, FactVote, Oracle, Phase, VOTE_APPROVE, VOTE_DUPLICATE},
 };
@@ -107,8 +107,11 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         program_id,
     );
     assert_key(fact_vote_ai, &expected_vote)?;
-    // An already-funded/initialized PDA means this voter already voted here.
-    if fact_vote_ai.lamports() != 0 || !fact_vote_ai.is_data_empty() {
+    // Duplicate detection by OWNERSHIP, not lamports: a program-owned fact_vote PDA
+    // means this voter already voted here. A system-owned pre-funded account (an
+    // attacker's 1-lamport grief) is NOT program-owned, so `create_or_adopt_pda`
+    // below adopts it instead of letting the griefer block this voter from voting.
+    if fact_vote_ai.owned_by(program_id) {
         return Err(KassandraError::DuplicateVote.into());
     }
 
@@ -121,7 +124,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         Seed::from(voter_ai.address().as_ref()),
         Seed::from(&bump_seed),
     ];
-    create_pda(
+    create_or_adopt_pda(
         voter_ai,
         fact_vote_ai,
         &signer_seeds,
