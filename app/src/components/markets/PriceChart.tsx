@@ -153,7 +153,7 @@ export function PriceChart({
       // grid AFTER inversion, which is what actually gets normalized across
       // specs and plotted.
       const preInvertGrids: GridPoint[][] = [];
-      const plottedGrids = specs.map((spec) => {
+      const invertedGrids = specs.map((spec) => {
         let st = pubkeyStateRef.current.get(spec.pubkey);
         if (!st) {
           st = { candles: [], plottedStep: 0, carriedClose: null };
@@ -168,7 +168,7 @@ export function PriceChart({
       // option 1 visibly pull option 2/3's curves down at the same moment,
       // instead of each option's raw (independent-pool) curve only ever
       // moving on its own trades.
-      const normalizedGrids = normalizeGridsAcrossGroup(plottedGrids);
+      const normalizedGrids = normalizeGridsAcrossGroup(invertedGrids);
 
       // Whether ANY spec's grid has at least one REAL (non-whitespace) point.
       // `setVisibleRange` below throws (`TimeScale._internal_logicalRangeForTimeRange`
