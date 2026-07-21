@@ -185,7 +185,7 @@ logged, value parsing is bigint-exact throughout. Findings:
   reserves from a raw `/api/account` read + client decode (as
   `useKassBalance`/`decodeAmmV04` already do) before setting a floor.
 
-- [ ] **F6 (Medium) — Sell flow shows no payout estimate and silently strands dust.**
+- [x] **F6 (Medium) — Sell flow shows no payout estimate and silently strands dust.** _(done — added `previewSell` (estimated KASS received + residual dust) and a sell-mode "You receive ≈" line that notes the unmerged conditional-token residual.)_
   `TradePanel.tsx:366-373` (preview buy-only) + `trade.ts:266-270`
   (`mergeAmount = min(remainder, slippage-floored swap out)` leaves the excess as
   unmerged cYES/cNO, unmentioned). Fix: add a sell preview from

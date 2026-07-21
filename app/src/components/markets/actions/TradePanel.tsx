@@ -6,6 +6,7 @@ import {
   buildSellIxs,
   marketRefs,
   previewBuy,
+  previewSell,
   buyPriceImpact,
   sellPriceImpact,
   DEFAULT_SLIPPAGE_BPS,
@@ -201,6 +202,12 @@ export function TradePanel({
   const buyMinReceived =
     buyPreview && parsed.value ? parsed.value + buyPreview.outputAmountMin : null;
 
+  const sellPreview =
+    mode === "sell" && parsed.value
+      ? previewSell(reserves, outcome, parsed.value, slippageBps)
+      : null;
+  const sellReceived = sellPreview && sellPreview.received > 0n ? sellPreview.received : null;
+
   const priceImpact = parsed.value
     ? mode === "buy"
       ? buyPriceImpact(reserves, outcome, parsed.value)
@@ -362,13 +369,30 @@ export function TradePanel({
             </div>
           </div>
 
-          {/* Live "you receive" estimate (buy only). */}
+          {/* Live "you receive" estimate (buy). */}
           {mode === "buy" && buyReceived !== null ? (
             <div className="flex items-baseline justify-between rounded-tag bg-liquid-deep px-3 py-2 font-inter text-[13px]">
               <span className="text-silver">You receive ≈</span>
               <span className="tabular-nums text-platinum">
                 {formatKass(buyReceived)} {outcome.toUpperCase()} shares
               </span>
+            </div>
+          ) : null}
+
+          {/* Live "you receive" estimate (sell): the KASS the unwind returns, plus
+              a note when the swap leaves a residual of conditional-token dust. */}
+          {mode === "sell" && sellReceived !== null ? (
+            <div className="flex flex-col gap-1 rounded-tag bg-liquid-deep px-3 py-2 font-inter text-[13px]">
+              <div className="flex items-baseline justify-between">
+                <span className="text-silver">You receive ≈</span>
+                <span className="tabular-nums text-platinum">{formatKass(sellReceived)} KASS</span>
+              </div>
+              {sellPreview && sellPreview.residual > 0n ? (
+                <p className="text-[11px] text-silver">
+                  ≈ {formatKass(sellPreview.residual)} {outcome.toUpperCase()} shares are left
+                  unmerged and stay in your wallet.
+                </p>
+              ) : null}
             </div>
           ) : null}
 

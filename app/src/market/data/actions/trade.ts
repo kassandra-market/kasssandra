@@ -241,6 +241,37 @@ export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstru
   return [setComputeUnitLimitIx(TRADE_COMPUTE_UNITS), ...ensure.instructions, ...buy.instructions];
 }
 
+/**
+ * The SELL preview: unwind `positionAmount` of the held leg by swapping the
+ * pool-optimal fraction toward the opposite leg (fee-adjusted, matching the swap
+ * {@link buildSellIxs} builds), then merging the balanced pair back to KASS.
+ * Returns the estimated KASS `received` (≈ the balanced merge = `min(remainder,
+ * feeAdjustedSwapOut)`), the swap's `outputAmountMin` floor, and the `residual`
+ * conditional-token dust the unwind leaves unmerged (`|remainder − swapOut|`).
+ * `null`/empty reserves or a position too small to unwind → all zero.
+ */
+export function previewSell(
+  reserves: AmmReserves | null | undefined,
+  outcome: Outcome,
+  positionAmount: bigint,
+  slippageBps: number = DEFAULT_SLIPPAGE_BPS,
+): { received: bigint; outputAmountMin: bigint; residual: bigint } {
+  const zero = { received: 0n, outputAmountMin: 0n, residual: 0n };
+  if (!reserves || positionAmount <= 1n) return zero;
+  const holdingYes = outcome === "yes";
+  const { inReserve, outReserve } = reservePair(reserves, !holdingYes);
+  const swapAmount = optimalUnwindSwap(positionAmount, inReserve, outReserve);
+  if (swapAmount <= 0n) return zero;
+  const swapOut = ammSwapOut(swapAmount, inReserve, outReserve);
+  const remainder = positionAmount - swapAmount;
+  // Merge the smaller balanced side → that many KASS; the larger side's excess is
+  // left as single-sided conditional-token dust.
+  const received = remainder < swapOut ? remainder : swapOut;
+  const residual = remainder < swapOut ? swapOut - remainder : remainder - swapOut;
+  const outputAmountMin = minOutFromSlippage(swapOut, slippageBps);
+  return { received, outputAmountMin, residual };
+}
+
 export interface BuildSellArgs extends TradeCommon {
   /** Units of the held leg to unwind back to KASS (raw base units, > 0). */
   positionAmount: bigint;
