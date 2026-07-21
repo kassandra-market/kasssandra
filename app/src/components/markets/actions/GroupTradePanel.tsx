@@ -33,11 +33,12 @@ function colorFor(index: number): string {
 }
 
 /** One non-interactive legend pill: color dot, belief label, live NORMALIZED
- *  probability (see {@link normalizeAcrossGroup} — rescaled so the group's
- *  pills always sum to ~100%, since each option is a genuinely independent
- *  AMM pool with no natural relationship to its siblings' raw price). Purely
- *  a readout — clicking it does nothing; the order ticket's dropdown (below)
- *  is the only selector. */
+ *  probability (see {@link normalizeOddsAcrossGroup} for a genuine categorical
+ *  group and {@link normalizeAcrossGroup} for the lone-binary-market fallback
+ *  — either way rescaled so the group's pills always sum to ~100%, since each
+ *  option is a genuinely independent AMM pool with no natural relationship to
+ *  its siblings' raw price). Purely a readout — clicking it does nothing; the
+ *  order ticket's dropdown (below) is the only selector. */
 function BeliefPill({
   belief,
   color,

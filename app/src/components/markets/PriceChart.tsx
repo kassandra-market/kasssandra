@@ -326,7 +326,7 @@ export function PriceChart({
     }
     replot(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [specKeys]);
+  }, [specKeys, isGroup]);
 
   // Load + poll candles at the window's step, once per unique pubkey; a
   // changed `refreshKey` reloads immediately (e.g. right after a trade). The
@@ -377,7 +377,7 @@ export function PriceChart({
       clearInterval(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [indexer, specKeys, windowSecs, refreshKey]);
+  }, [indexer, specKeys, windowSecs, refreshKey, isGroup]);
 
   // Grow every curve to the current second, every second, so each line advances
   // smoothly by wall-clock — not only when a trade lands.
