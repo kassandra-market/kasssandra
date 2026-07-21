@@ -21,7 +21,7 @@ rationale).
 
 ## Indexer / Runner
 
-- [ ] **I1 (Medium) — Unauthenticated `meta-json` write endpoint, no pubkey validation.**
+- [x] **I1 (Medium) — Unauthenticated `meta-json` write endpoint, no pubkey validation.** _(done — the POST is now authorized by the on-chain commitment: accepted only when the pubkey is an indexed oracle and the body's sha256 equals its on-chain `uri_hash`; 404 on unknown oracle, 409 on hash mismatch.)_
   `indexer/src/api.rs:224` (`post_oracle_meta_json`) → `indexer/src/db/oracle_meta.rs:84`.
   `POST /oracles/{pubkey}/meta-json` has no auth and never validates `{pubkey}`
   (any string becomes the PK). Enables (a) unbounded-row storage-exhaustion DoS,

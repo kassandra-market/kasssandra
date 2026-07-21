@@ -218,9 +218,16 @@ async fn oracle_accounts_detail(
     }
 }
 
-/// POST the extended metadata JSON for an oracle (raw JSON body). Stores it with
-/// its computed sha256; the serve path gates it against the on-chain uri_hash, so
-/// storing an unverified/pending blob is harmless.
+/// POST the extended metadata JSON for an oracle (raw JSON body). The write is
+/// authorized BY THE ON-CHAIN COMMITMENT, not a shared secret: it is accepted
+/// only when `pubkey` is an already-indexed oracle whose on-chain `uri_hash`
+/// equals the sha256 of the POSTed body. This is unauthenticated but not
+/// abusable — without those two gates the endpoint would let anyone (a) create
+/// unbounded rows under arbitrary pubkey strings (storage-exhaustion DoS) and
+/// (b) overwrite a legitimate oracle's stored JSON with junk that then fails the
+/// serve-time hash gate (metadata availability DoS). Requiring a hash match means
+/// only the party holding the exact bytes the oracle committed to on-chain can
+/// write, and only for a real oracle.
 async fn post_oracle_meta_json(
     State(s): State<ApiState>,
     Path(pubkey): Path<String>,
@@ -237,6 +244,37 @@ async fn post_oracle_meta_json(
         }
     };
     let sha256 = crate::meta_fetch::sha256_hex(json.as_bytes());
+    // Authorize against the on-chain commitment: the oracle must be indexed and
+    // its `uri_hash` must equal this body's sha256. A missing oracle → 404
+    // (rejects unbounded arbitrary-key writes); a hash mismatch → 409 (rejects
+    // junk that would displace the legitimate JSON).
+    let uri_hash = match db::get_oracle_uri_hash(&s.client, &pubkey).await {
+        Ok(v) => v,
+        Err(e) => return err(e).into_response(),
+    };
+    match uri_hash {
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": "oracle not indexed (or has no on-chain metadata) — cannot accept json"
+                })),
+            )
+                .into_response()
+        }
+        Some(h) if h != sha256 => {
+            return (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "error": "body sha256 does not match the on-chain uri_hash for this oracle",
+                    "expected": h,
+                    "got": sha256,
+                })),
+            )
+                .into_response()
+        }
+        Some(_) => {}
+    }
     match db::upsert_oracle_meta_json(&s.client, &pubkey, json, &sha256).await {
         Ok(()) => Json(serde_json::json!({ "ok": true, "sha256": sha256 })).into_response(),
         Err(e) => err(e).into_response(),
