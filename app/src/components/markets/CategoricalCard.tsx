@@ -76,12 +76,7 @@ export function CategoricalCard({
       }
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="flex items-center gap-2">
-          <span className="inline-flex items-center rounded-tag border border-hairline bg-liquid-deep px-2.5 py-1 font-inter text-[12px] font-medium text-silver">
-            Categorical · {optionsCount} outcomes
-          </span>
-          <StatusChip status={overallStatus} />
-        </span>
+        <StatusChip status={overallStatus} />
         <span className="font-inter text-[12px] text-silver" title={group.oracle}>
           Oracle {truncateMiddle(group.oracle, 4, 4)}
         </span>
@@ -103,7 +98,9 @@ export function CategoricalCard({
         </div>
       ) : null}
 
-      <ul className="mt-1 flex flex-col divide-y divide-hairline/60">
+      {/* Scrollable, not unbounded — a categorical oracle can have many options,
+          which would otherwise overflow the card (and stretch the whole grid row). */}
+      <ul className="mt-1 flex max-h-64 flex-col divide-y divide-hairline/60 overflow-y-auto">
         {outcomes.map((row) => (
           <li key={row.pubkey}>
             <Link

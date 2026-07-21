@@ -150,6 +150,27 @@ describe('CategoricalCard question/labels', () => {
     // least one outcome is, not "mostly Funding".
     expect(html).toContain('aria-label="Status: Active"')
   })
+
+  it('does not show a "Categorical · N outcomes" badge next to the status', () => {
+    const group = {
+      oracle: ORACLE,
+      optionsCount: 3,
+      markets: [summary(0, 'Ma0'), summary(1, 'Ma1'), summary(2, 'Ma2')],
+    } as never
+    const html = inRouter(<CategoricalCard group={group} meta={META} />)
+    expect(html).not.toContain('Categorical')
+    expect(html).not.toContain('outcomes</span>')
+  })
+
+  it("puts the option list in a scrollable, height-capped container", () => {
+    const group = {
+      oracle: ORACLE,
+      optionsCount: 2,
+      markets: [summary(0, 'Ma0'), summary(1, 'Ma1')],
+    } as never
+    const html = inRouter(<CategoricalCard group={group} meta={META} />)
+    expect(html).toMatch(/<ul class="[^"]*max-h-64[^"]*overflow-y-auto[^"]*"/)
+  })
 })
 
 describe('MarketDetail header question', () => {
