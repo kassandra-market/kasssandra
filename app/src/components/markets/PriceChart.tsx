@@ -10,7 +10,16 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useIndexer, type CandleDto } from "../../market/lib/indexer";
-import { buildWindowedGrid, gridBars, gridStep, invertGrid, MAX_POINTS } from "./priceGrid";
+import { normalizeAcrossGroup } from "../../market/lib/marketView";
+import {
+  buildWindowedGrid,
+  gridBars,
+  gridStep,
+  invertGrid,
+  MAX_POINTS,
+  normalizeGridsAcrossGroup,
+  type GridPoint,
+} from "./priceGrid";
 
 /** One plotted curve: which market to fetch, how to label/color it, and
  *  whether it's a binary market's NO side (plotted as `1 - YES` of the same
@@ -136,6 +145,31 @@ export function PriceChart({
     (fit: boolean) => {
       const step = gridStep(windowSecs);
       const nowSec = Math.floor(Date.now() / 1000);
+      const specs = seriesRef.current;
+
+      // Each spec's grid BEFORE inversion — bookkeeping (`plottedStep`/
+      // `carriedClose`, both keyed per-PUBKEY) must always reflect the raw
+      // YES value regardless of whether THIS spec inverts it — alongside the
+      // grid AFTER inversion, which is what actually gets normalized across
+      // specs and plotted.
+      const preInvertGrids: GridPoint[][] = [];
+      const plottedGrids = specs.map((spec) => {
+        let st = pubkeyStateRef.current.get(spec.pubkey);
+        if (!st) {
+          st = { candles: [], plottedStep: 0, carriedClose: null };
+          pubkeyStateRef.current.set(spec.pubkey, st);
+        }
+        const grid = buildWindowedGrid(st.candles, step, nowSec, gridBars(windowSecs));
+        preInvertGrids.push(grid);
+        return spec.invert ? invertGrid(grid) : grid;
+      });
+
+      // Normalize across specs PER TIME BUCKET — this is what makes buying
+      // option 1 visibly pull option 2/3's curves down at the same moment,
+      // instead of each option's raw (independent-pool) curve only ever
+      // moving on its own trades.
+      const normalizedGrids = normalizeGridsAcrossGroup(plottedGrids);
+
       // Whether ANY spec's grid has at least one REAL (non-whitespace) point.
       // `setVisibleRange` below throws (`TimeScale._internal_logicalRangeForTimeRange`
       // → "Value is null") if lightweight-charts has never had a single point
@@ -143,28 +177,28 @@ export function PriceChart({
       // before the async candle-load effect's first fetch has resolved (see
       // the series-recreation effect, which calls `replot(true)` synchronously
       // right after creating fresh series). Guard the fit so it only ever
-      // frames the chart once there's something real to frame.
+      // frames the chart once there's something real to frame. Computed from
+      // the RAW (pre-invert, pre-normalize) grid — normalizing a real value
+      // never turns it into `undefined`, and vice versa only when the raw
+      // was already `undefined`, so this is unaffected by normalization.
       let sawRealData = false;
-      for (const spec of seriesRef.current) {
-        const line = seriesRefs.current.get(spec.key);
-        if (!line) continue;
-        let st = pubkeyStateRef.current.get(spec.pubkey);
-        if (!st) {
-          st = { candles: [], plottedStep: 0, carriedClose: null };
-          pubkeyStateRef.current.set(spec.pubkey, st);
-        }
-        const grid = buildWindowedGrid(st.candles, step, nowSec, gridBars(windowSecs));
-        const plotted = spec.invert ? invertGrid(grid) : grid;
-        line.setData(
-          plotted.map((p) => ({ time: p.time as UTCTimestamp, value: p.value })) as Parameters<
-            ISeriesApi<"Line">["setData"]
-          >[0],
-        );
+      specs.forEach((spec, i) => {
+        const grid = preInvertGrids[i];
         if (grid.some((p) => p.value !== undefined)) sawRealData = true;
+        const st = pubkeyStateRef.current.get(spec.pubkey)!;
         const last = grid[grid.length - 1];
         st.plottedStep = last ? last.time : 0;
         st.carriedClose = last && last.value !== undefined ? last.value : null;
-      }
+
+        const line = seriesRefs.current.get(spec.key);
+        if (!line) return;
+        line.setData(
+          normalizedGrids[i].map((p) => ({ time: p.time as UTCTimestamp, value: p.value })) as Parameters<
+            ISeriesApi<"Line">["setData"]
+          >[0],
+        );
+      });
+
       if (fit && sawRealData) {
         chartRef.current?.timeScale().setVisibleRange({
           from: (nowSec - windowSecs) as UTCTimestamp,
@@ -182,17 +216,30 @@ export function PriceChart({
   const rollForward = useCallback(() => {
     const step = gridStep(windowSecs);
     const nowStep = Math.floor(Date.now() / 1000 / step) * step;
+    const specs = seriesRef.current;
+
+    // Snapshot every spec's current plotted (post-invert) value, then
+    // normalize ONCE across the whole group — this is what gets pushed for
+    // every new bucket this tick catches up on, since carriedClose itself
+    // doesn't change until the next real data refresh (replot).
+    const rawBySpec = specs.map((spec) => {
+      const st = pubkeyStateRef.current.get(spec.pubkey);
+      if (!st || st.carriedClose === null) return null;
+      return spec.invert ? 1 - st.carriedClose : st.carriedClose;
+    });
+    const normalizedBySpec = normalizeAcrossGroup(rawBySpec);
+
     for (const [pubkey, st] of pubkeyStateRef.current) {
       if (st.carriedClose === null) continue;
       let b = st.plottedStep;
-      const specsForPubkey = seriesRef.current.filter((s) => s.pubkey === pubkey);
       while (nowStep > b) {
         b += step;
-        for (const spec of specsForPubkey) {
-          const line = seriesRefs.current.get(spec.key);
-          const value = spec.invert ? 1 - st.carriedClose : st.carriedClose;
-          line?.update({ time: b as UTCTimestamp, value });
-        }
+        specs.forEach((spec, i) => {
+          if (spec.pubkey !== pubkey) return;
+          const value = normalizedBySpec[i];
+          if (value === null) return;
+          seriesRefs.current.get(spec.key)?.update({ time: b as UTCTimestamp, value });
+        });
       }
       st.plottedStep = Math.max(st.plottedStep, b);
     }
