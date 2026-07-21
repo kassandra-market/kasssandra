@@ -17,6 +17,23 @@ authority + derivation checks).
 Legend: `[ ]` open · `[x]` done (commit) · `[~]` won't-fix / accepted (with
 rationale).
 
+## Status — COMPLETE
+
+19 findings triaged; **0 open**. 16 fixed (each its own commit, with tests +
+build/typecheck verification), 3 accepted with documented rationale (O2, M2, F5 —
+deliberate design decision, bounded protocol-revenue risk, and a gateway-mode
+architectural constraint respectively).
+
+By severity: **2 High** (F1 challenge-swap fee floor, O1 emission-farming default)
+— both fixed. **5 Medium** (I1, I2, F3, F4, F6 fixed; F5 accepted). **12 Low**
+(all fixed except O2, M2 accepted). The Solana Security Standard scanner's 40
+SOL-009/SOL-016 flags were all confirmed false positives.
+
+Follow-ups noted inline (not code-fixable here): I2 per-IP rate-limiting +
+network isolation at the deployment edge; O1 deeper Sybil-resistance on the
+emission reward path once governance enables emission; M2 fee-basis snapshot at
+resolve; F5 enforced wallet simulation / indexer-independent reserve source.
+
 ---
 
 ## Indexer / Runner
@@ -90,7 +107,7 @@ slash/reward site. Scanner SOL-009/SOL-016 flags all confirmed false positives.
   reward path (non-trivial min_stake/quorum, or don't treat an uncontested
   single-proposer resolution as emission-reward-eligible).
 
-- [ ] **O2 (Low) — `sweep_oracle` forfeits unclaimed principal with no outstanding-claims guard.**
+- [~] **O2 (Low) — `sweep_oracle` forfeits unclaimed principal with no outstanding-claims guard.** _(accepted — this is a DELIBERATE, documented design decision: the 30-day grace makes an un-swept oracle abandonment, not a race, and funds route only to the validated DAO treasury (not attacker-directable). Changing it alters protocol economics and belongs to the team, not a security fix. Recommended future option if forfeiture is unacceptable: an outstanding-claims counter gating the sweep.)_
   `processor/sweep_oracle.rs:159-193` (`SWEEP_GRACE = 30 days`). After
   `phase_ends_at + 30 days`, anyone sweeps the entire residual `stake_vault` to
   the DAO treasury and closes the oracle; an unclaimed staker loses principal.
@@ -128,7 +145,7 @@ CPI re-derives and owner/key-checks its accounts).
   Fix: use the same top-up-to-rent + PDA-signed `Allocate`+`Assign` (+
   `InitializeAccount3` for escrow) create-or-adopt path.
 
-- [ ] **M2 (Low) — Protocol `fee_lp` manipulable by skewing AMM reserves before the permissionless `collect_fee` crank.**
+- [~] **M2 (Low) — Protocol `fee_lp` manipulable by skewing AMM reserves before the permissionless `collect_fee` crank.** _(accepted — bounded, one-directional, and self-costly: it affects only PROTOCOL revenue (≤ `fee_bps` ≤10% of profit), never claimant funds or `lp_total`/`lp_vault` conservation, and inflating or shrinking the fee costs the attacker real winning-token capital via genuine trades. The recommended fix (snapshot the fee basis at `resolve_market` instead of reading spot reserves in the separately-cranked `collect_fee`) requires a Market state-layout change; whether protecting bounded protocol revenue justifies that is a product decision, deferred to the team.)_
   `processor/collect_fee.rs:174-242`. `accrued`/`fee_lp` derive from live
   `Amm.base_amount`/`quote_amount` read at crank time; `collect_fee` is
   permissionless and `claim_lp` is blocked until it runs, so an LP holder can
@@ -176,7 +193,7 @@ logged, value parsing is bigint-exact throughout. Findings:
   `import.meta.env.DEV`, drop the env-var secret path (keep Playwright's
   `window.__E2E_WALLET_SECRET__` injection only).
 
-- [ ] **F5 (Medium) — Transactions built from unverified indexer JSON and relayed through the indexer.**
+- [~] **F5 (Medium) — Transactions built from unverified indexer JSON and relayed through the indexer.** _(accepted with follow-up — the residual risk is bounded: on-chain PDA constraints stop account substitution, so a compromised indexer can only bias the slippage FLOOR (never move funds to a wrong destination), and wallet simulation is the backstop before signing. The finding's "cheap fix" (re-derive reserves from a raw `/api/account` read + client decode) does NOT move the trust boundary in the app's GATEWAY mode, where `/api/account` also routes through the same indexer — both the computed reserves and the raw bytes come from one source. A genuine fix needs an indexer-INDEPENDENT reserve source (contradicts the deliberate gateway-mode design where "the browser never holds a Solana RPC endpoint") and/or enforced pre-send simulation. Recommended follow-ups: (1) ensure the wallet simulates value-moving txs before signing; (2) when a non-gateway RPC is configured, verify reserves via `decodeAmmReserves` on a raw account read before setting the floor.)_
   `app/src/market/lib/indexer.ts`, `market/data/markets.ts:100-174`,
   `market/data/send.ts:125-134`. Accounts, pool reserves (which set
   `outputAmountMin`), blockhash, and relay are all indexer-supplied with no client
