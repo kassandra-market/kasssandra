@@ -21,8 +21,8 @@ vi.mock("../src/components/markets/actions/TradePanel", () => ({
   ),
 }));
 vi.mock("../src/components/markets/PriceChart", () => ({
-  PriceChart: ({ series }: { series: { key: string; label: string; color: string }[] }) => (
-    <div data-testid="price-chart">
+  PriceChart: ({ series, isGroup }: { series: { key: string; label: string; color: string }[]; isGroup: boolean }) => (
+    <div data-testid="price-chart" data-is-group={isGroup ? "true" : "false"}>
       {series.map((s) => (
         <span key={s.key} data-testid="chart-series" data-color={s.color}>
           {s.label}
@@ -192,11 +192,31 @@ describe("GroupTradePanel", () => {
       summary(1, MarketStatus.Active, R), // R = 6M/4M → 40%
     ]);
     const html = render({ detail: d, group: g, options: ["Zero", "One"], refetch: () => {} });
-    // R2 alone would show 70%, R alone 40% — together they must be rescaled:
-    // 0.7/(0.7+0.4) = 0.636363... → rounds to 64%; 0.4/1.1 = 0.363636... → 36%.
-    expect(html).toContain("64%");
-    expect(html).toContain("36%");
+    // A real categorical group (isGroup: true) rescales in ODDS space
+    // ({@link normalizeOddsAcrossGroup}), not linearly: odds(0.7) = 0.7/0.3 =
+    // 2.333..., odds(0.4) = 0.4/0.6 = 0.666..., sum = 3 → 2.333/3 = 77.77...%
+    // rounds to 78%, 0.666/3 = 22.22...% rounds to 22%.
+    expect(html).toContain("78%");
+    expect(html).toContain("22%");
     expect(html).not.toContain("70%");
     expect(html).not.toContain("40%");
+  });
+
+  it("a lone Active market (isGroup: false) passes isGroup=false through to PriceChart", () => {
+    const d = detail("MarketA", 0, MarketStatus.Active, R);
+    const html = render({ detail: d, group: group([]), options: [], refetch: () => {} });
+    expect(html).toContain('data-is-group="false"');
+  });
+
+  it("a real categorical group (isGroup: true) passes isGroup=true through to PriceChart", () => {
+    const d = detail("MarketA", 0, MarketStatus.Active, R);
+    // `group()`'s `isGroup` is `active.length > 1` over the FULL siblings list
+    // for the oracle (mirroring `useOracleGroup`'s `siblings.length > 1`),
+    // which — per the existing "real categorical group" test above — includes
+    // a duplicate entry for the current outcome alongside its sibling(s), so
+    // this needs two entries (not one) to actually produce `isGroup: true`.
+    const siblings = [summary(0, MarketStatus.Active, R), summary(1, MarketStatus.Active, R2)];
+    const html = render({ detail: d, group: group(siblings), options: [], refetch: () => {} });
+    expect(html).toContain('data-is-group="true"');
   });
 });

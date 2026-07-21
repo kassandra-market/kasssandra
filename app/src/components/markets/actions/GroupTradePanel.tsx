@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { MarketStatus } from "@kassandra-market/markets";
 import type { MarketDetail as MarketDetailData, MarketSummary } from "../../../market/data/markets";
 import type { OracleGroupState } from "../../../market/hooks/useOracleGroup";
-import { formatProbability, normalizeAcrossGroup } from "../../../market/lib/marketView";
+import { formatProbability, normalizeAcrossGroup, normalizeOddsAcrossGroup } from "../../../market/lib/marketView";
 import { beliefProbability, computeBeliefs, defaultBeliefKey, type Belief } from "../../../market/lib/beliefs";
 import { PriceChart, type ChartSeriesSpec } from "../PriceChart";
 import { TradePanel } from "./TradePanel";
@@ -33,11 +33,12 @@ function colorFor(index: number): string {
 }
 
 /** One non-interactive legend pill: color dot, belief label, live NORMALIZED
- *  probability (see {@link normalizeAcrossGroup} — rescaled so the group's
- *  pills always sum to ~100%, since each option is a genuinely independent
- *  AMM pool with no natural relationship to its siblings' raw price). Purely
- *  a readout — clicking it does nothing; the order ticket's dropdown (below)
- *  is the only selector. */
+ *  probability (see {@link normalizeOddsAcrossGroup} for a genuine categorical
+ *  group and {@link normalizeAcrossGroup} for the lone-binary-market fallback
+ *  — either way rescaled so the group's pills always sum to ~100%, since each
+ *  option is a genuinely independent AMM pool with no natural relationship to
+ *  its siblings' raw price). Purely a readout — clicking it does nothing; the
+ *  order ticket's dropdown (below) is the only selector. */
 function BeliefPill({
   belief,
   color,
@@ -105,7 +106,9 @@ export function GroupTradePanel({
 
   if (beliefs.length === 0) return null;
 
-  const normalizedProbabilities = normalizeAcrossGroup(beliefs.map((b) => beliefProbability(b)));
+  const normalizedProbabilities = group.isGroup
+    ? normalizeOddsAcrossGroup(beliefs.map((b) => beliefProbability(b)))
+    : normalizeAcrossGroup(beliefs.map((b) => beliefProbability(b)));
 
   const series: ChartSeriesSpec[] = beliefs.map((b, i) => ({
     key: b.key,
@@ -131,7 +134,7 @@ export function GroupTradePanel({
             <BeliefPill key={b.key} belief={b} color={colorFor(i)} probability={normalizedProbabilities[i]} />
           ))}
         </div>
-        <PriceChart series={series} refreshKey={chartRefreshKey} />
+        <PriceChart series={series} isGroup={group.isGroup} refreshKey={chartRefreshKey} />
       </div>
       <TradePanel
         beliefs={beliefs}

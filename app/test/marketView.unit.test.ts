@@ -19,6 +19,7 @@ import {
   groupStatus,
   impliedYesProbability,
   normalizeAcrossGroup,
+  normalizeOddsAcrossGroup,
   poolValueKass,
   statusLabel,
   statusTone,
@@ -289,5 +290,62 @@ describe('normalizeAcrossGroup — rescale so a group\'s shown probabilities sum
 
   it('empty input → empty output', () => {
     expect(normalizeAcrossGroup([])).toEqual([])
+  })
+})
+
+describe('normalizeOddsAcrossGroup — odds-space rescale so a heavily-bought option approaches 100%', () => {
+  it('the regression case: one option pushed to near-certainty dominates regardless of untouched siblings', () => {
+    // 3 pools at a fresh 50/50 baseline; option 0 gets bought all the way to
+    // 0.99 raw. The OLD linear normalizeAcrossGroup caps this at ~50% (limit
+    // is 1/(1+0.5*(N-1))) no matter how much more is bought — this is the bug.
+    const result = normalizeOddsAcrossGroup([0.99, 0.5, 0.5])
+    expect(result[0]!).toBeGreaterThan(0.9)
+    expect(result[1]!).toBeLessThan(0.1)
+    expect(result[2]!).toBeLessThan(0.1)
+    expect(result[0]! + result[1]! + result[2]!).toBeCloseTo(1)
+  })
+
+  it('uniform baseline (all pools at 0.5) → each option gets exactly 1/N', () => {
+    const result = normalizeOddsAcrossGroup([0.5, 0.5, 0.5])
+    expect(result[0]!).toBeCloseTo(1 / 3)
+    expect(result[1]!).toBeCloseTo(1 / 3)
+    expect(result[2]!).toBeCloseTo(1 / 3)
+  })
+
+  it('a null entry (no data yet) stays null and is excluded from the odds sum', () => {
+    const result = normalizeOddsAcrossGroup([0.9, null, 0.5])
+    expect(result[1]).toBeNull()
+    expect(result[0]!).toBeGreaterThan(result[2]!)
+  })
+
+  it('zero-sum fallback: every value is 0 → returned unchanged, no divide-by-zero/NaN', () => {
+    const result = normalizeOddsAcrossGroup([0, 0, 0])
+    expect(result).toEqual([0, 0, 0])
+  })
+
+  it('exact p=1 (fully drained pool): the winner gets 1, everyone else gets 0', () => {
+    const result = normalizeOddsAcrossGroup([1, 0.5, 0.3])
+    expect(result).toEqual([1, 0, 0])
+  })
+
+  it('two simultaneous p=1 winners split certainty evenly, rest get 0', () => {
+    const result = normalizeOddsAcrossGroup([1, 1, 0.5])
+    expect(result).toEqual([0.5, 0.5, 0])
+  })
+
+  it('a single non-null value among otherwise-null siblings passes through unchanged', () => {
+    expect(normalizeOddsAcrossGroup([0.55, null, null])).toEqual([0.55, null, null])
+  })
+
+  it('a lone value with no nulls at all (singleton array) is also a no-op', () => {
+    expect(normalizeOddsAcrossGroup([0.42])).toEqual([0.42])
+  })
+
+  it('all null → all null', () => {
+    expect(normalizeOddsAcrossGroup([null, null])).toEqual([null, null])
+  })
+
+  it('empty input → empty output', () => {
+    expect(normalizeOddsAcrossGroup([])).toEqual([])
   })
 })

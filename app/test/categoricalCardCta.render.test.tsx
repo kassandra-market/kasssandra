@@ -110,3 +110,19 @@ describe("CategoricalCard — footer CTA (FundGroupCta)", () => {
     expect(html).not.toContain("Launch market");
   });
 });
+
+describe("CategoricalCard — outcome probability rows (odds-normalized)", () => {
+  it("buying one outcome heavily drives its row toward 100%, not a sub-50% plateau", () => {
+    const html = render([
+      market(0, MarketStatus.Active, 500_000_000_000n),
+      market(1, MarketStatus.Active, 500_000_000_000n),
+      market(2, MarketStatus.Active, 500_000_000_000n),
+    ].map((m, i) => ({
+      ...m,
+      reserves: i === 0 ? { base: 1n, quote: 99n } : { base: 6n, quote: 4n },
+    })) as unknown as OracleGroup["markets"]);
+    // Old linear normalizeAcrossGroup would cap outcome 0 well below 100%
+    // (siblings' raw 0.4 never shrinks). Odds-space must push it near 100%.
+    expect(html).toContain(">99%<");
+  });
+});

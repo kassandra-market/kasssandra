@@ -24,7 +24,7 @@ import {
   formatKass,
   formatProbability,
   groupStatus,
-  normalizeAcrossGroup,
+  normalizeOddsAcrossGroup,
   outcomeLabel,
   outcomeRow,
   truncateMiddle,
@@ -75,7 +75,7 @@ export function CategoricalCard({
   const outcomes = group.markets.map((summary) =>
     outcomeRow(summary, meta?.options?.[summary.market.outcomeIndex]),
   );
-  const normalizedProbabilities = normalizeAcrossGroup(outcomes.map((o) => o.probability));
+  const normalizedProbabilities = normalizeOddsAcrossGroup(outcomes.map((o) => o.probability));
   const optionsCount = group.optionsCount ?? group.markets.length;
   const tvl = group.markets.reduce((sum, m) => sum + m.market.totalContributed, 0n);
   const subject = meta?.subject?.trim();
