@@ -31,12 +31,15 @@ fn create_oracle_happy_path() {
     let mut ctx = TestCtx::new();
     let (_p, res) = ctx.init_protocol();
     assert!(res.is_ok(), "init_protocol should succeed: {res:?}");
+    // Emission is DISABLED at genesis (fail-safe); enable the recommended curve
+    // via governance so this test exercises the mint path.
+    ctx.enable_default_emission();
 
     let deadline = ctx.now() + 1_000;
     let twap_window = 600;
-    // Emission is ON by default: create mints `reward_emission` into the vault.
+    // Emission now enabled: create mints `reward_emission` into the vault.
     let emission = ctx.expected_creation_emission();
-    assert!(emission > 0, "default config emits at genesis supply");
+    assert!(emission > 0, "enabled config emits at genesis supply");
     let (oracle_pda, res) = ctx.create_oracle(7, 3, deadline, twap_window);
     assert!(res.is_ok(), "create_oracle should succeed: {res:?}");
 

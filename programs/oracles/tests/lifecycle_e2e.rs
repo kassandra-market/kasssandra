@@ -53,6 +53,11 @@ fn e2e_happy_uncontested_resolves() {
     let payer_kass = ctx.payer_kass;
     let kass_mint = ctx.kass_mint;
 
+    // Emission is DISABLED at genesis (fail-safe); enable the recommended curve
+    // before the first create so create_oracle mints into the vault as this test expects.
+    ctx.ensure_protocol();
+    ctx.enable_default_emission();
+
     // Genesis creation: fee_ema starts at 0, so the dynamic creation fee is 0.
     let bal_before = ctx.token_balance(payer_kass);
     let supply_before = ctx.mint_supply(kass_mint);
@@ -194,6 +199,11 @@ fn e2e_second_oracle_fee_is_burned() {
     let payer_kass = ctx.payer_kass;
     let kass_mint = ctx.kass_mint;
 
+    // Emission disabled at genesis (fail-safe); enable before the first create so
+    // both oracles mint the emission this test folds into its supply-delta math.
+    ctx.ensure_protocol();
+    ctx.enable_default_emission();
+
     // First (genesis) oracle: free.
     let _first = ctx.create_real_oracle(2, 600);
 
@@ -224,6 +234,11 @@ fn e2e_second_oracle_fee_is_burned() {
 fn e2e_dispute_through_dispute_core_to_resolved() {
     let mut ctx = TestCtx::new();
     let bond = 1_000u64;
+
+    // Emission disabled at genesis (fail-safe); enable before the first create so
+    // the vault holds the creation-time emission this test accounts for.
+    ctx.ensure_protocol();
+    ctx.enable_default_emission();
 
     // create_oracle → propose×2 (DISTINCT options) → finalize_proposals =>
     // FactProposal with dispute_bond_total set. Driven entirely by real ixs.

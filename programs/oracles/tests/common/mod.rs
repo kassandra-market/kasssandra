@@ -270,11 +270,12 @@ impl TestCtx {
         Mint::unpack(&acc.data).expect("not a mint").supply
     }
 
-    /// The `reward_emission` `create_oracle` would mint RIGHT NOW: `(cap −
-    /// supply)·EMISSION_NUM / EMISSION_DEN` (u128 floor), mirroring the program's
-    /// `compute_reward_emission`. Emission is ON by default, so create-oracle
-    /// tests use this to size the vault/pool/supply deltas. Call BEFORE the
-    /// create (supply changes after the mint).
+    /// The `reward_emission` `create_oracle` would mint RIGHT NOW with the
+    /// RECOMMENDED curve: `(cap − supply)·EMISSION_NUM / EMISSION_DEN` (u128 floor),
+    /// mirroring the program's `compute_reward_emission`. `init_protocol` defaults
+    /// emission OFF (fail-safe), so a test must first `enable_default_emission()`
+    /// for this to match the actual mint; used to size the vault/pool/supply
+    /// deltas. Call BEFORE the create (supply changes after the mint).
     pub fn expected_creation_emission(&self) -> u64 {
         let reservoir = TOTAL_SUPPLY_CAP.saturating_sub(self.kass_supply());
         ((reservoir as u128) * (EMISSION_NUM as u128) / (EMISSION_DEN as u128)) as u64

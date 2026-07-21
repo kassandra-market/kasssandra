@@ -33,12 +33,12 @@ fn admin_sets_governance_records_linkage_and_defaults() {
     assert_eq!(p0.governance_set, 0);
     assert_eq!(p0.dao_authority, [0u8; 32].into());
     assert_eq!(p0.kass_dao, [0u8; 32].into());
-    assert_eq!(p0.emission_num, kassandra_oracles_program::config::EMISSION_NUM);
+    // Emission is DISABLED at genesis (fail-safe): cap + num are 0, so no oracle
+    // mints emission until governance enables it via `set_config`. The recommended
+    // non-zero denominator is kept so the `set_config` `den > 0` invariant holds.
+    assert_eq!(p0.emission_num, 0);
     assert_eq!(p0.emission_den, kassandra_oracles_program::config::EMISSION_DEN);
-    assert_eq!(
-        p0.total_supply_cap,
-        kassandra_oracles_program::config::TOTAL_SUPPLY_CAP
-    );
+    assert_eq!(p0.total_supply_cap, 0);
     assert_eq!(
         p0.fee_ema_halflife,
         kassandra_oracles_program::config::FEE_EMA_HALFLIFE_SECS

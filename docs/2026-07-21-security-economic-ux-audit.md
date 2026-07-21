@@ -69,7 +69,7 @@ Unusually carefully engineered: type-tag discriminators, canonical-PDA pinning,
 `checked_*` math with u128 intermediates, conservation reasoning at each
 slash/reward site. Scanner SOL-009/SOL-016 flags all confirmed false positives.
 
-- [ ] **O1 (High) — Emission enabled by default, contradicting the documented "genesis disabled" intent; permissionless emission farming.**
+- [x] **O1 (High) — Emission enabled by default, contradicting the documented "genesis disabled" intent; permissionless emission farming.** _(done — `init_protocol` now defaults `total_supply_cap=0`/`emission_num=0`; enabling emission is a deliberate governance act. Deeper Sybil-resistance on the emission reward path flagged as a follow-up design item.)_
   `processor/init_protocol.rs:136-138`, `create_oracle.rs:187-219`,
   `finalize_proposals.rs:128-144`, `claims/proposer.rs:78-96`, `reward.rs:48-81`.
   `init_protocol` sets `emission_num=1`, `emission_den=1_000_000`,

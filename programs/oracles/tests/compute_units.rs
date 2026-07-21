@@ -66,6 +66,11 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
     let mut ctx = TestCtx::new();
     let bond = 1_000u64;
 
+    // Emission is disabled at genesis (fail-safe); enable the recommended curve so
+    // create_oracle meters the mint path this snapshot was blessed against.
+    ctx.ensure_protocol();
+    ctx.enable_default_emission();
+
     // init_protocol + create_oracle → propose×2 (DISTINCT options) →
     // finalize_proposals => FactProposal — driven with FIXED keypairs (via the
     // low-level `ctx.propose`, not the random `propose_real`) so every metered

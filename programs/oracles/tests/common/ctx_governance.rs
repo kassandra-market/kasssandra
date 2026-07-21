@@ -133,6 +133,24 @@ impl TestCtx {
         protocol_pda
     }
 
+    /// Enable KASS emission with the RECOMMENDED curve (`config.rs` consts) by
+    /// stamping the three emission fields directly onto the already-initialized
+    /// `Protocol` account — because `init_protocol` now defaults emission OFF
+    /// (fail-safe). Reproduces the pre-hardening genesis behavior for the tests
+    /// that exercise the mint path, WITHOUT the side effects of a real `set_config`
+    /// (it leaves fee params, reward weights, and the governance linkage untouched,
+    /// mirroring the harness's direct-account-seeding helpers like
+    /// [`TestCtx::force_governance`]). Requires the protocol to already exist;
+    /// `expected_creation_emission()` stays valid after this call.
+    pub fn enable_default_emission(&mut self) {
+        let (protocol_pda, _) = Self::protocol_pda(&self.program_id);
+        let mut p = self.protocol(protocol_pda);
+        p.total_supply_cap = TOTAL_SUPPLY_CAP;
+        p.emission_num = EMISSION_NUM;
+        p.emission_den = EMISSION_DEN;
+        self.set_program_account(protocol_pda, bytemuck::bytes_of(&p).to_vec());
+    }
+
     /// Send a real `SetConfig` instruction signed by `authority`, overwriting
     /// the `Protocol`-resident governable params with `params`. Returns the
     /// Protocol PDA + result so tests can assert success / the

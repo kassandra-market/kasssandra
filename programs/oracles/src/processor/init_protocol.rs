@@ -128,14 +128,19 @@ pub fn process(
     protocol.governance_set = 0;
     // dao_authority / kass_dao stay zeroed (set by `set_governance`).
     //
-    // Emission is ON by default (config consts). `create_oracle` mints
-    // `reward_emission = (total_supply_cap − kass_supply)·num/den` into each new
-    // oracle's stake_vault, program-signed by the mint-authority PDA (which MUST
-    // be the kass_mint's SPL authority). Resolved oracles distribute it to the
-    // correct proposer cohort; InvalidDeadend burns it back to the reservoir.
-    protocol.emission_num = crate::config::EMISSION_NUM;
+    // Emission is DISABLED at genesis (fail-safe default, matching the documented
+    // intent in `config.rs` and the stake-floor curve below): `total_supply_cap`
+    // and `emission_num` are 0, so `create_oracle`'s
+    // `reward_emission = (cap − kass_supply)·num/den` is 0 (no mint). The `EMISSION_*`
+    // consts are the RECOMMENDED values governance sets via `set_config` once the
+    // KASS mint-authority is the program PDA and the curve is chosen — enabling
+    // emission is a deliberate act, never the default (which would let anyone farm
+    // the per-oracle emission through a trivial single-proposer oracle). `emission_den`
+    // keeps the recommended non-zero denominator so the `set_config` `den > 0`
+    // invariant holds even before governance flips the switch.
+    protocol.emission_num = 0;
     protocol.emission_den = crate::config::EMISSION_DEN;
-    protocol.total_supply_cap = crate::config::TOTAL_SUPPLY_CAP;
+    protocol.total_supply_cap = 0;
     protocol.fee_ema_halflife = crate::config::FEE_EMA_HALFLIFE_SECS;
     protocol.fee_per_ema_unit = crate::config::FEE_PER_EMA_UNIT;
     protocol.fee_ema_increment = crate::config::FEE_EMA_INCREMENT;
