@@ -312,6 +312,33 @@ export function groupStatus(markets: Pick<MarketSummary, "market">[]): MarketSta
 }
 
 /**
+ * Rescale a set of independently-priced probabilities so they sum to ~100% —
+ * `value / sum of all non-null values`. Each option in a categorical group is
+ * a genuinely separate AMM pool, so their raw implied-YES probabilities have
+ * no natural relationship to each other (all three could independently read
+ * 60%/55%/40%, summing to 155%). This is the purely-DISPLAY fix: shown
+ * probabilities move opposite each other as trades happen, while every
+ * actual trade computation (price preview, price impact, slippage, the
+ * buy/sell instructions themselves) keeps reading each option's own real,
+ * un-normalized reserves.
+ *
+ * `null` (no data yet — an outcome that hasn't activated) stays `null` and
+ * is excluded from the sum, so an inactive sibling never drags the active
+ * ones down. A lone binary market's YES/NO pair is a no-op here — they
+ * already sum to exactly 1 by construction (NO ≡ 1 − YES of the same pool)
+ * — so this same function is safe to apply uniformly with no
+ * categorical-vs-binary branch anywhere it's called.
+ *
+ * Degenerate zero-sum case (every value is exactly 0): returned unchanged
+ * rather than dividing by zero.
+ */
+export function normalizeAcrossGroup(values: (number | null)[]): (number | null)[] {
+  const sum = values.reduce<number>((acc, v) => acc + (v ?? 0), 0);
+  if (sum <= 0) return values;
+  return values.map((v) => (v === null ? null : v / sum));
+}
+
+/**
  * Resolution text for a categorical sub-market (YES = the oracle resolves to
  * `outcomeIndex`). `Resolved` → "YES won" when the oracle's winning option is
  * this outcome, else "NO won"; `InvalidDeadend` → "Voided"; otherwise the phase

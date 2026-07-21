@@ -18,6 +18,7 @@ import {
   fundingProgress,
   groupStatus,
   impliedYesProbability,
+  normalizeAcrossGroup,
   poolValueKass,
   statusLabel,
   statusTone,
@@ -238,5 +239,43 @@ describe('groupStatus — a categorical group collapsed to ONE lifecycle status'
 
   it('a lone market just reports its own status', () => {
     expect(groupStatus([at(MarketStatus.Active)])).toBe(MarketStatus.Active)
+  })
+})
+
+describe('normalizeAcrossGroup — rescale so a group\'s shown probabilities sum to ~100%', () => {
+  it('divides each value by the sum of all values', () => {
+    // Three independent pools reading 60%/55%/40% raw — sums to 155%, not
+    // a coherent set of mutually-exclusive-outcome probabilities.
+    const result = normalizeAcrossGroup([0.6, 0.55, 0.4])
+    expect(result[0]).toBeCloseTo(0.6 / 1.55)
+    expect(result[1]).toBeCloseTo(0.55 / 1.55)
+    expect(result[2]).toBeCloseTo(0.4 / 1.55)
+    expect((result[0]! + result[1]! + result[2]!)).toBeCloseTo(1)
+  })
+
+  it('a null entry (no data yet) stays null and is excluded from the sum', () => {
+    const result = normalizeAcrossGroup([0.6, null, 0.4])
+    expect(result[1]).toBeNull()
+    expect(result[0]).toBeCloseTo(0.6)
+    expect(result[2]).toBeCloseTo(0.4)
+  })
+
+  it('a binary pair (YES + its complement NO) is a no-op — already sums to 1', () => {
+    const result = normalizeAcrossGroup([0.37, 0.63])
+    expect(result[0]).toBeCloseTo(0.37)
+    expect(result[1]).toBeCloseTo(0.63)
+  })
+
+  it('zero-sum fallback: every value is 0 → returned unchanged, no divide-by-zero/NaN', () => {
+    const result = normalizeAcrossGroup([0, 0, 0])
+    expect(result).toEqual([0, 0, 0])
+  })
+
+  it('all null → all null', () => {
+    expect(normalizeAcrossGroup([null, null])).toEqual([null, null])
+  })
+
+  it('empty input → empty output', () => {
+    expect(normalizeAcrossGroup([])).toEqual([])
   })
 })
