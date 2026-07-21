@@ -160,7 +160,7 @@ logged, value parsing is bigint-exact throughout. Findings:
   says "Pool not readable" but still lets the user swap with an unbounded floor —
   fully sandwichable. Fix: disable submit when `amm === null`.
 
-- [ ] **F3 (Medium) — Market BUY proceeds with unbounded slippage when reserves are missing.**
+- [x] **F3 (Medium) — Market BUY proceeds with unbounded slippage when reserves are missing.** _(done — `buildBuyIxs` throws a `ValidationError` without reserves, mirroring `buildSellIxs`.)_
   `app/src/market/data/actions/trade.ts:100-113` (`previewBuy` null branch →
   `outputAmountMin: 0n`; the "tx still guards" comment is wrong) +
   `components/markets/actions/TradePanel.tsx:221-256`. `buildSellIxs` correctly

@@ -98,7 +98,9 @@ function reservePair(
  * The BUY preview: split `kassAmount` into a 1:1 cYES+cNO pair, then swap the
  * whole unwanted leg (== `kassAmount`) into the wanted one. Returns the estimated
  * wanted-leg received (`kassAmount + swapOut`) and the swap's `outputAmountMin`
- * floor. `null` reserves → no estimate (`0n` min = unbounded, tx still guards).
+ * floor. `null` reserves → no estimate (`0n` min = UNBOUNDED, NOT a guard); callers
+ * that move value (`buildBuyIxs`) must refuse a buy without reserves, never rely
+ * on this `0n`.
  */
 export function previewBuy(
   reserves: AmmReserves | null | undefined,
@@ -210,6 +212,11 @@ export interface BuildBuyArgs extends TradeCommon {
 export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstruction[]> {
   const user = toAddress("Trader", args.user);
   if (args.kassAmount <= 0n) throw new ValidationError("Amount must be greater than zero.");
+  // Reserves are REQUIRED: without them previewBuy's floor collapses to 0n
+  // (unbounded → sandwichable), so refuse the buy exactly as buildSellIxs does.
+  if (!args.reserves) {
+    throw new ValidationError("Live pool reserves are required to buy — try again in a moment.");
+  }
 
   const { outputAmountMin } = previewBuy(
     args.reserves,
