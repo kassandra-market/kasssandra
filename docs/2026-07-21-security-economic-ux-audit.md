@@ -191,7 +191,7 @@ logged, value parsing is bigint-exact throughout. Findings:
   unmerged cYES/cNO, unmentioned). Fix: add a sell preview from
   `optimalUnwindSwap`+`ammSwapOut`, note/handle the residual.
 
-- [ ] **F7 (Low) — Quick-add chips round-trip the amount through JS float.**
+- [x] **F7 (Low) — Quick-add chips round-trip the amount through JS float.** _(done — `bump` now uses bigint base-unit math via `parseKassAmount` + `toPlainAmount`.)_
   `TradePanel.tsx:211-215`: `Number(amount) + n` after a bigint-exact "Max" can
   alter low-order decimals for balances ≳9M KASS. Fix: bump via `parseKassAmount`
   + bigint add + `toPlainAmount`.

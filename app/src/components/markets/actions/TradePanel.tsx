@@ -216,8 +216,13 @@ export function TradePanel({
   const priceImpactPct = Math.round(priceImpact * 1000) / 10;
 
   function bump(n: number) {
-    const cur = Number(amount);
-    setAmount(String((Number.isFinite(cur) ? cur : 0) + n));
+    // Bigint-exact: parse the current amount to base units, add n whole KASS, and
+    // reformat. Round-tripping through Number(amount) + n silently altered the
+    // low-order decimals (or emitted >9-dp strings) once a bigint-exact "Max"
+    // balance ≳9M KASS had been placed in the field.
+    const current = parseKassAmount(amount).value ?? 0n;
+    const delta = BigInt(n) * 10n ** BigInt(KASS_DECIMALS);
+    setAmount(toPlainAmount(current + delta));
     setAmountError(undefined);
   }
   function setMax() {
