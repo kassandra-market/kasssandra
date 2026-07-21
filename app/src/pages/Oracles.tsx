@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useInitialReveal } from '../hooks/useInitialReveal'
 import { Button, Card, SectionHeader } from '../components/ui'
 import { PhaseChip } from '../components/oracles/PhaseChip'
+import { OracleCardCta } from '../components/oracles/OracleCardCta'
 import { DashboardStats, OracleFilters } from '../components/oracles/DashboardStats'
 import { useOracles } from '../hooks/useOracles'
 import { useOracleMeta, type OracleMetaView } from '../hooks/useOracleMeta'
@@ -44,23 +45,29 @@ function OracleCard({
   const SHOWN = 6
 
   return (
-    <Link
-      to={{ pathname: `/oracles/${pubkey}`, search }}
-      className={`group block rounded-card ${focusRing}${stagger ? ' stagger-in' : ''}`}
+    <Card
+      className={`flex h-full flex-col gap-3 transition-[transform,border-color] duration-200 ease-out has-[a.oracle-card-link:hover]:-translate-y-0.5 has-[a.oracle-card-link:hover]:border-cyan-phosphor/40 motion-reduce:has-[a.oracle-card-link:hover]:translate-y-0${stagger ? ' stagger-in' : ''}`}
       style={
         stagger
           ? ({ '--stagger-delay': `${Math.min(enterIndex, 10) * 40}ms` } as CSSProperties)
           : undefined
       }
     >
-      <Card className="flex h-full flex-col gap-3 transition-[transform,border-color] duration-200 ease-out group-hover:-translate-y-0.5 group-hover:border-cyan-phosphor/40 group-active:scale-[0.99] motion-reduce:group-hover:translate-y-0">
-        <div className="flex items-center justify-between gap-2">
-          <PhaseChip phase={oracle.phase} />
-          <span className="font-inter text-[12px] text-silver">
-            {relativeDeadline(oracle.deadline)}
-          </span>
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <PhaseChip phase={oracle.phase} />
+        <span className="font-inter text-[12px] text-silver">
+          {relativeDeadline(oracle.deadline)}
+        </span>
+      </div>
 
+      {/* The card's own "go to this oracle" click target — everything else
+          (the management CTA below) sits OUTSIDE this Link: interactive
+          controls (the CTA is itself a link into a specific tab) can't validly
+          nest inside another anchor. */}
+      <Link
+        to={{ pathname: `/oracles/${pubkey}`, search }}
+        className={`oracle-card-link flex flex-1 flex-col gap-3 rounded-sm ${focusRing}`}
+      >
         {/* Subject (the question) near the top — the on-chain plaintext when the
             metadata has loaded, else the phase label. */}
         <h3 className="font-serif text-subheading font-light text-platinum">
@@ -106,8 +113,10 @@ function OracleCard({
               : 'Resolved · no valid option'}
           </p>
         ) : null}
-      </Card>
-    </Link>
+      </Link>
+
+      <OracleCardCta oracle={oracle} pubkey={pubkey} search={search} />
+    </Card>
   )
 }
 

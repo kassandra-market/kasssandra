@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { Phase } from '@kassandra-market/oracles'
 import { Button, Card, EyebrowTag, Tabs, TabPanel, type TabItem } from '../../components/ui'
 import { PhaseChip } from '../../components/oracles/PhaseChip'
@@ -164,8 +164,18 @@ function OracleBody({
     ]
   }, [facts.length, proposers.length, aiClaims.length, market, canAdvance])
 
-  const [tab, setTab] = useState('overview')
-  const activeTab = tabs.some((t) => t.id === tab) ? tab : 'overview'
+  // The active tab lives in the URL (`?tab=`) so a refresh (or a shared/deep
+  // link — e.g. an oracle-card CTA on the /oracles list) restores it, mirroring
+  // `MarketDetail`'s tab handling. `replace` keeps tab switches out of the
+  // history stack (Back leaves the page, not the tab).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const paramTab = searchParams.get('tab')
+  const activeTab = tabs.some((t) => t.id === paramTab) ? paramTab! : 'overview'
+  const setTab = (id: string) => {
+    const next = new URLSearchParams(searchParams)
+    next.set('tab', id)
+    setSearchParams(next, { replace: true })
+  }
 
   return (
     <>
