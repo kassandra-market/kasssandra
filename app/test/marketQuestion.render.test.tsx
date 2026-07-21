@@ -18,6 +18,31 @@ vi.mock('../src/hooks/useOracleMeta', () => ({
   useOracleMeta: () => new Map([[ORACLE, META]]),
 }))
 
+// CategoricalCard's FundGroupCta (rendered whenever any outcome is Funding)
+// reaches for indexer/wallet-modal context this structural test doesn't
+// provide — stub its hooks/ConnectGate to a disconnected pass-through,
+// matching the convention used for TradePanel's own tests.
+vi.mock('../src/market/hooks/useActionSequence', () => ({
+  useActionSequence: () => ({
+    statuses: [],
+    busy: false,
+    connected: false,
+    address: null,
+    allDone: false,
+    run: async () => {},
+  }),
+}))
+vi.mock('../src/market/hooks/useKassBalance', () => ({
+  useKassBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
+}))
+vi.mock('../src/market/lib/indexer', async (importOriginal) => ({
+  ...(await importOriginal()),
+  useIndexer: () => ({}),
+}))
+vi.mock('../src/components/markets/actions/ConnectGate', () => ({
+  ConnectGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
 const PUB0 = 'Market00000000000000000000000000000000000000'
 const detail = {
   pubkey: PUB0,
@@ -91,6 +116,7 @@ function summary(outcomeIndex: number, pubkey: string) {
       status: MarketStatus.Active,
       outcomeIndex,
       oracle: { toString: () => ORACLE },
+      kassMint: { toString: () => 'KassMint11111111111111111111111111111111' },
       totalContributed: 5n,
       minLiquidity: 10n,
     },

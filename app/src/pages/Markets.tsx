@@ -203,6 +203,7 @@ export default function Markets() {
                     group={group}
                     meta={metaMap.get(group.oracle)}
                     enterIndex={stagger ? i++ : undefined}
+                    onSuccess={refetchAfterWrite}
                   />
                 ) : (
                   group.markets.map((summary) => (
