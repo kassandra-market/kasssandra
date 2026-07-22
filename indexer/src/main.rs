@@ -18,6 +18,7 @@ mod market;
 mod meta_fetch;
 mod oracle_accounts;
 mod processor;
+mod ratelimit;
 mod reconcile;
 mod state;
 
@@ -104,6 +105,9 @@ async fn main() -> Result<()> {
             program_id: program_id_str(),
             rpc_url: rpc_url.clone(),
             http: reqwest::Client::new(),
+            // Bound gateway → upstream QPS: ~50/s sustained with a 100-request
+            // burst — comfortably above real dApp usage, a hard cap on amplification.
+            rpc_rate: std::sync::Arc::new(ratelimit::RateLimiter::new(100.0, 50.0)),
         };
         let market_state = market::api::AppState {
             client: client.clone(),

@@ -27,6 +27,10 @@ pub struct ApiState {
     /// backend (the app has no RPC endpoint of its own).
     pub rpc_url: String,
     pub http: reqwest::Client,
+    /// Global token-bucket bounding the QPS the `/rpc` gateway forwards upstream,
+    /// so the unauthenticated same-origin gateway can't amplify against the paid
+    /// RPC. Shared (`Arc`) so every cloned handler state hits the same bucket.
+    pub rpc_rate: Arc<crate::ratelimit::RateLimiter>,
 }
 
 #[derive(Deserialize)]
@@ -136,6 +140,15 @@ async fn rpc_gateway(State(s): State<ApiState>, body: Bytes) -> impl IntoRespons
             Json(serde_json::json!({
                 "error": "rpc method not allowed through this gateway"
             })),
+        )
+            .into_response();
+    }
+    // Bound the QPS forwarded upstream so the gateway can't amplify against the
+    // paid RPC (sendTransaction spam / bulk getProgramAccounts).
+    if !s.rpc_rate.try_acquire() {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({ "error": "rpc gateway rate limit exceeded" })),
         )
             .into_response();
     }
