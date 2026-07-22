@@ -180,9 +180,16 @@ async fn record_price_from_read(client: &Client, market: &str, slot: i64, base: 
     let Some(price) = crate::market::implied_yes_probability(base, quote) else {
         return;
     };
+    // BIGINT (i64) reserve columns: reject a reserve above i64::MAX (a `u64 as i64`
+    // would wrap negative and corrupt both the stored series and the change-guard
+    // below). Not a real pool — skip + log. Mirrors `price_subscribe::record`.
+    let (Ok(base_i), Ok(quote_i)) = (i64::try_from(base), i64::try_from(quote)) else {
+        log::warn!("[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample");
+        return;
+    };
     match crate::market::db::latest_price_reserves(client, market).await {
         // Unchanged reserves → nothing new to plot.
-        Ok(Some((b, q))) if b == base as i64 && q == quote as i64 => return,
+        Ok(Some((b, q))) if b == base_i && q == quote_i => return,
         Ok(_) => {}
         Err(e) => {
             log::warn!("[market-price] latest-read {market} failed: {e}");
@@ -194,8 +201,7 @@ async fn record_price_from_read(client: &Client, market: &str, slot: i64, base: 
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
     if let Err(e) =
-        crate::market::db::insert_price(client, market, slot, ts, base as i64, quote as i64, price)
-            .await
+        crate::market::db::insert_price(client, market, slot, ts, base_i, quote_i, price).await
     {
         log::warn!("[market-price] live insert {market} failed: {e}");
     }

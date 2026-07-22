@@ -9,7 +9,8 @@ use pinocchio_token::instructions::Transfer;
 use crate::{
     error::MarketError,
     processor::guards::{
-        assert_key, create_pda, load_contribution, rent_exempt_lamports, write_contribution,
+        assert_key, create_or_adopt_pda, load_contribution, rent_exempt_lamports,
+        write_contribution,
     },
     state::{AccountType, Contribution},
 };
@@ -46,7 +47,11 @@ pub fn record_contribution(
     // Move the KASS first (authority is the contributor signer).
     Transfer::new(src_ata_ai, escrow_ai, contributor_ai, amount).invoke()?;
 
-    if contribution_ai.lamports() == 0 && contribution_ai.is_data_empty() {
+    // Branch on OWNERSHIP, not lamports: an existing Contribution is program-owned
+    // and increments; anything else (a fresh slot OR an attacker-pre-funded,
+    // system-owned account) is stood up via create-or-adopt — so a 1-lamport
+    // transfer to the deterministic Contribution PDA can't brick create/contribute.
+    if !contribution_ai.owned_by(program_id) {
         let rent = rent_exempt_lamports(Contribution::LEN)?;
         let bump_seed = [bump];
         let seeds = [
@@ -55,7 +60,7 @@ pub fn record_contribution(
             Seed::from(contributor_ai.address().as_ref()),
             Seed::from(&bump_seed),
         ];
-        create_pda(
+        create_or_adopt_pda(
             payer_ai,
             contribution_ai,
             &seeds,

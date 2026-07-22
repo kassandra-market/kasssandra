@@ -57,6 +57,45 @@ fn create_market_happy_path() {
 }
 
 #[test]
+fn create_market_survives_prefunded_pdas() {
+    // Regression (M1): the market/escrow/contribution PDAs are deterministic, so
+    // an attacker could send 1 lamport to any of them to make a bare CreateAccount
+    // fail with "account already in use" and brick that (oracle, outcome) forever.
+    // create-or-adopt must tolerate the pre-funding and still stand the market up.
+    let (mut ctx, kass, _auth) = setup();
+    let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
+    let creator = Keypair::new();
+    ctx.svm_airdrop(&creator.pubkey());
+    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 500_000_000);
+
+    // Pre-fund ALL three deterministic PDAs with 1 lamport (below rent), as a
+    // griefer would, BEFORE anyone creates the sub-market.
+    let (market_pda, _) = kassandra_markets_sdk::pda::market(&oracle, 0);
+    let (escrow_pda, _) = kassandra_markets_sdk::pda::escrow(&market_pda);
+    let (contribution_pda, _) =
+        kassandra_markets_sdk::pda::contribution(&market_pda, &creator.pubkey());
+    ctx.prefund(&market_pda, 1);
+    ctx.prefund(&escrow_pda, 1);
+    ctx.prefund(&contribution_pda, 1);
+
+    // Creation still succeeds and lands a well-formed, funded market.
+    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, 200_000_000);
+    assert!(res.is_ok(), "pre-funded PDAs must not brick creation: {res:?}");
+    assert_eq!(market, market_pda);
+    let m: Market = ctx.read_pod(market);
+    assert_eq!(m.status, MarketStatus::Funding.as_u8());
+    assert_eq!(m.total_contributed, 200_000_000);
+    assert_eq!(m.open_contributions, 1);
+    assert_eq!(
+        ctx.token_balance(Pubkey::new_from_array(m.escrow_vault.to_bytes())),
+        200_000_000,
+        "escrow holds the seed despite the pre-funding"
+    );
+    let c: kassandra_markets_program::state::Contribution = ctx.read_pod(contribution_pda);
+    assert_eq!(c.amount, 200_000_000);
+}
+
+#[test]
 fn create_market_snapshots_configured_fee() {
     // A market snapshots the Config's fee_bps at creation (config-as-state), so it
     // is immune to later governance changes.

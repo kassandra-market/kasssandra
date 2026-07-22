@@ -6,6 +6,7 @@ import {
   buildSellIxs,
   marketRefs,
   previewBuy,
+  previewSell,
   buyPriceImpact,
   sellPriceImpact,
   DEFAULT_SLIPPAGE_BPS,
@@ -180,6 +181,15 @@ export function TradePanel({
     setDetailsOpen(false);
   };
 
+  // Buy measures KASS to spend; sell measures shares to unwind. Switching mode
+  // changes what the amount MEANS, so clear it (as belief-change does) rather than
+  // silently reinterpret e.g. "100" from KASS to shares.
+  const handleModeChange = (m: Mode) => {
+    setMode(m);
+    setAmount("");
+    setAmountError(undefined);
+  };
+
   const amountId = useId();
   const descId = `${amountId}-desc`;
 
@@ -201,6 +211,12 @@ export function TradePanel({
   const buyMinReceived =
     buyPreview && parsed.value ? parsed.value + buyPreview.outputAmountMin : null;
 
+  const sellPreview =
+    mode === "sell" && parsed.value
+      ? previewSell(reserves, outcome, parsed.value, slippageBps)
+      : null;
+  const sellReceived = sellPreview && sellPreview.received > 0n ? sellPreview.received : null;
+
   const priceImpact = parsed.value
     ? mode === "buy"
       ? buyPriceImpact(reserves, outcome, parsed.value)
@@ -209,8 +225,13 @@ export function TradePanel({
   const priceImpactPct = Math.round(priceImpact * 1000) / 10;
 
   function bump(n: number) {
-    const cur = Number(amount);
-    setAmount(String((Number.isFinite(cur) ? cur : 0) + n));
+    // Bigint-exact: parse the current amount to base units, add n whole KASS, and
+    // reformat. Round-tripping through Number(amount) + n silently altered the
+    // low-order decimals (or emitted >9-dp strings) once a bigint-exact "Max"
+    // balance ≳9M KASS had been placed in the field.
+    const current = parseKassAmount(amount).value ?? 0n;
+    const delta = BigInt(n) * 10n ** BigInt(KASS_DECIMALS);
+    setAmount(toPlainAmount(current + delta));
     setAmountError(undefined);
   }
   function setMax() {
@@ -267,7 +288,7 @@ export function TradePanel({
       </div>
 
       <div className="flex items-center justify-between">
-        <ModeTabs value={mode} onChange={setMode} />
+        <ModeTabs value={mode} onChange={handleModeChange} />
         <span
           className="rounded-tag border border-hairline px-2.5 py-1 font-inter text-[12px] text-silver"
           title="Trades execute at the current AMM price"
@@ -362,13 +383,30 @@ export function TradePanel({
             </div>
           </div>
 
-          {/* Live "you receive" estimate (buy only). */}
+          {/* Live "you receive" estimate (buy). */}
           {mode === "buy" && buyReceived !== null ? (
             <div className="flex items-baseline justify-between rounded-tag bg-liquid-deep px-3 py-2 font-inter text-[13px]">
               <span className="text-silver">You receive ≈</span>
               <span className="tabular-nums text-platinum">
                 {formatKass(buyReceived)} {outcome.toUpperCase()} shares
               </span>
+            </div>
+          ) : null}
+
+          {/* Live "you receive" estimate (sell): the KASS the unwind returns, plus
+              a note when the swap leaves a residual of conditional-token dust. */}
+          {mode === "sell" && sellReceived !== null ? (
+            <div className="flex flex-col gap-1 rounded-tag bg-liquid-deep px-3 py-2 font-inter text-[13px]">
+              <div className="flex items-baseline justify-between">
+                <span className="text-silver">You receive ≈</span>
+                <span className="tabular-nums text-platinum">{formatKass(sellReceived)} KASS</span>
+              </div>
+              {sellPreview && sellPreview.residual > 0n ? (
+                <p className="text-[11px] text-silver">
+                  ≈ {formatKass(sellPreview.residual)} {outcome.toUpperCase()} shares are left
+                  unmerged and stay in your wallet.
+                </p>
+              ) : null}
             </div>
           ) : null}
 

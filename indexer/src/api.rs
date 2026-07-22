@@ -79,8 +79,66 @@ pub fn router(state: ApiState) -> Router {
         .with_state(state)
 }
 
-/// Forward a JSON-RPC request body to the upstream RPC and relay the response.
+/// The JSON-RPC methods the dApp's `@solana/web3.js` Connection legitimately
+/// issues through this gateway (reads, blockhash, confirm, send/simulate). The
+/// gateway is same-origin and unauthenticated, so WITHOUT this allowlist it is a
+/// free open proxy to the private (typically paid/rate-limited) upstream RPC:
+/// arbitrary `getBlock`/`getSignaturesForAddress` history dumps, `getLargestAccounts`,
+/// etc. Restricting to this set bounds the abuse to the same calls a browser
+/// client already makes. Keep in sync with the app's Connection usage.
+const RPC_METHOD_ALLOWLIST: &[&str] = &[
+    "getAccountInfo",
+    "getMultipleAccounts",
+    "getProgramAccounts",
+    "getBalance",
+    "getTokenAccountBalance",
+    "getTokenAccountsByOwner",
+    "getLatestBlockhash",
+    "isBlockhashValid",
+    "getSignatureStatuses",
+    "getSlot",
+    "getBlockHeight",
+    "getMinimumBalanceForRentExemption",
+    "getFeeForMessage",
+    "sendTransaction",
+    "simulateTransaction",
+    "getVersion",
+    "getHealth",
+    "getGenesisHash",
+    "getEpochInfo",
+];
+
+/// Whether every JSON-RPC call in `body` (a single request object OR a batch
+/// array) names an allowlisted method. A missing/non-string `method`, or any
+/// disallowed method, fails closed. An empty batch is rejected.
+fn rpc_body_is_allowed(body: &[u8]) -> bool {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return false;
+    };
+    let allowed = |call: &serde_json::Value| -> bool {
+        call.get("method")
+            .and_then(|m| m.as_str())
+            .is_some_and(|m| RPC_METHOD_ALLOWLIST.contains(&m))
+    };
+    match v {
+        serde_json::Value::Array(calls) => !calls.is_empty() && calls.iter().all(allowed),
+        obj => allowed(&obj),
+    }
+}
+
+/// Forward a JSON-RPC request body to the upstream RPC and relay the response —
+/// but ONLY for allowlisted methods (see [`RPC_METHOD_ALLOWLIST`]); anything else
+/// is rejected with 403 so the gateway can't be used as an open RPC proxy.
 async fn rpc_gateway(State(s): State<ApiState>, body: Bytes) -> impl IntoResponse {
+    if !rpc_body_is_allowed(&body) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "rpc method not allowed through this gateway"
+            })),
+        )
+            .into_response();
+    }
     match s
         .http
         .post(&s.rpc_url)
@@ -218,9 +276,16 @@ async fn oracle_accounts_detail(
     }
 }
 
-/// POST the extended metadata JSON for an oracle (raw JSON body). Stores it with
-/// its computed sha256; the serve path gates it against the on-chain uri_hash, so
-/// storing an unverified/pending blob is harmless.
+/// POST the extended metadata JSON for an oracle (raw JSON body). The write is
+/// authorized BY THE ON-CHAIN COMMITMENT, not a shared secret: it is accepted
+/// only when `pubkey` is an already-indexed oracle whose on-chain `uri_hash`
+/// equals the sha256 of the POSTed body. This is unauthenticated but not
+/// abusable — without those two gates the endpoint would let anyone (a) create
+/// unbounded rows under arbitrary pubkey strings (storage-exhaustion DoS) and
+/// (b) overwrite a legitimate oracle's stored JSON with junk that then fails the
+/// serve-time hash gate (metadata availability DoS). Requiring a hash match means
+/// only the party holding the exact bytes the oracle committed to on-chain can
+/// write, and only for a real oracle.
 async fn post_oracle_meta_json(
     State(s): State<ApiState>,
     Path(pubkey): Path<String>,
@@ -237,6 +302,37 @@ async fn post_oracle_meta_json(
         }
     };
     let sha256 = crate::meta_fetch::sha256_hex(json.as_bytes());
+    // Authorize against the on-chain commitment: the oracle must be indexed and
+    // its `uri_hash` must equal this body's sha256. A missing oracle → 404
+    // (rejects unbounded arbitrary-key writes); a hash mismatch → 409 (rejects
+    // junk that would displace the legitimate JSON).
+    let uri_hash = match db::get_oracle_uri_hash(&s.client, &pubkey).await {
+        Ok(v) => v,
+        Err(e) => return err(e).into_response(),
+    };
+    match uri_hash {
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": "oracle not indexed (or has no on-chain metadata) — cannot accept json"
+                })),
+            )
+                .into_response()
+        }
+        Some(h) if h != sha256 => {
+            return (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({
+                    "error": "body sha256 does not match the on-chain uri_hash for this oracle",
+                    "expected": h,
+                    "got": sha256,
+                })),
+            )
+                .into_response()
+        }
+        Some(_) => {}
+    }
     match db::upsert_oracle_meta_json(&s.client, &pubkey, json, &sha256).await {
         Ok(()) => Json(serde_json::json!({ "ok": true, "sha256": sha256 })).into_response(),
         Err(e) => err(e).into_response(),
@@ -302,5 +398,43 @@ async fn oracles_meta(State(s): State<ApiState>, Query(q): Query<MetaQuery>) -> 
     match db::list_oracle_meta(&s.client, &oracles, 500).await {
         Ok(rows) => Json(serde_json::json!({ "count": rows.len(), "meta": rows })).into_response(),
         Err(e) => err(e).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod rpc_gateway_tests {
+    use super::rpc_body_is_allowed;
+
+    #[test]
+    fn allows_a_single_allowlisted_method() {
+        let b = br#"{"jsonrpc":"2.0","id":1,"method":"getAccountInfo","params":["Foo"]}"#;
+        assert!(rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn rejects_a_single_disallowed_method() {
+        // getSignaturesForAddress is a history dump — not on the allowlist.
+        let b = br#"{"jsonrpc":"2.0","id":1,"method":"getSignaturesForAddress","params":["Foo"]}"#;
+        assert!(!rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn allows_a_fully_allowlisted_batch() {
+        let b = br#"[{"method":"getAccountInfo"},{"method":"sendTransaction"}]"#;
+        assert!(rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn rejects_a_batch_with_any_disallowed_method() {
+        let b = br#"[{"method":"getAccountInfo"},{"method":"getBlock"}]"#;
+        assert!(!rpc_body_is_allowed(b));
+    }
+
+    #[test]
+    fn rejects_empty_batch_missing_method_and_malformed() {
+        assert!(!rpc_body_is_allowed(b"[]"));
+        assert!(!rpc_body_is_allowed(br#"{"jsonrpc":"2.0","id":1}"#));
+        assert!(!rpc_body_is_allowed(br#"{"method":123}"#));
+        assert!(!rpc_body_is_allowed(b"not json"));
     }
 }

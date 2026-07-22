@@ -9,7 +9,7 @@ use pinocchio::{
     instruction::InstructionAccount,
     ProgramResult,
 };
-use pinocchio_token::instructions::{InitializeAccount3, Transfer};
+use pinocchio_token::instructions::Transfer;
 use pinocchio_token::state::Account as TokenAccount;
 
 use crate::{
@@ -19,8 +19,9 @@ use crate::{
     error::KassandraError,
     price::kass_price,
     processor::guards::{
-        assert_key, assert_owned_by_program, assert_signer, assert_token_account, create_pda,
-        load_ai_claim, load_oracle, load_proposer, load_protocol, verify_oracle_pda,
+        assert_key, assert_owned_by_program, assert_signer, assert_token_account,
+        create_or_adopt_pda, create_or_adopt_token_account, load_ai_claim, load_oracle,
+        load_proposer, load_protocol, verify_oracle_pda,
     },
     rent::minimum_rent,
     state::{AccountType, Market, Oracle, Phase},
@@ -219,6 +220,9 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     )?;
 
     // --- create + populate the Market PDA (challenger pays) -----------------
+    // create-or-adopt: the Market PDA is deterministic (keyed by ai_claim), so an
+    // attacker could pre-fund it with 1 lamport to brick opening this challenge;
+    // adoption tolerates that where a bare CreateAccount would fail.
     let rent = minimum_rent(Market::LEN)?;
     let market_bump_seed = [market_bump];
     let market_seeds = [
@@ -226,7 +230,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         Seed::from(ai_claim_ai.address().as_ref()),
         Seed::from(&market_bump_seed),
     ];
-    create_pda(
+    create_or_adopt_pda(
         challenger_ai,
         market_ai,
         &market_seeds,
@@ -278,12 +282,10 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // create_oracle stands up `stake_vault`), then funded by the challenger's
     // signed Transfer. An under-funded challenger's source account makes the
     // SPL Transfer fail, rejecting the whole instruction.
-    // KNOWN LIMITATION (deferred, same mechanism as propose/submit_fact's PDA
-    // creation): an attacker could grief by pre-funding this predicted escrow PDA
-    // with 1 lamport so the `create_pda` CreateAccount fails. It is narrow — the
-    // PDA is keyed by `market`, which is itself keyed by `ai_claim`, so it can
-    // only block one specific, already-known challenge. The future fix is system
-    // Allocate + Assign (tolerates a pre-funded account); not worth it now.
+    // Pre-funding grief resistance: `create_or_adopt_token_account` tops up +
+    // `Allocate`+`Assign`+`InitializeAccount3`, tolerating an attacker's 1-lamport
+    // transfer to this predicted escrow PDA (a bare CreateAccount would have failed
+    // and blocked the challenge).
     let (expected_escrow, escrow_bump) = Pubkey::find_program_address(
         &[b"challenge_usdc", market_ai.address().as_ref()],
         program_id,
@@ -296,20 +298,14 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         Seed::from(market_ai.address().as_ref()),
         Seed::from(&escrow_bump_seed),
     ];
-    create_pda(
+    create_or_adopt_token_account(
         challenger_ai,
         escrow_vault_ai,
+        usdc_mint_ai,
+        oracle_ai.address(),
         &escrow_seeds,
         escrow_rent,
-        TokenAccount::LEN,
-        &pinocchio_token::ID,
     )?;
-    InitializeAccount3 {
-        account: escrow_vault_ai,
-        mint: usdc_mint_ai,
-        owner: oracle_ai.address(),
-    }
-    .invoke()?;
     Transfer::new(
         challenger_usdc_src_ai,
         escrow_vault_ai,

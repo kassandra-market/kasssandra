@@ -9,7 +9,8 @@ use pinocchio::{
     error::ProgramError,
     ProgramResult,
 };
-use pinocchio_system::instructions::CreateAccount;
+use pinocchio_system::instructions::{Allocate, Assign, CreateAccount, Transfer};
+use pinocchio_token::instructions::InitializeAccount3;
 use pinocchio_token::state::Account as TokenAccount;
 
 use crate::{
@@ -209,6 +210,93 @@ pub fn create_pda(
         owner,
     }
     .invoke_signed(&[signer])
+}
+
+/// Create-or-adopt a program-owned PDA DATA account, tolerating a pre-funded
+/// (system-owned) account that a bare [`create_pda`]/`CreateAccount` would reject.
+/// A PDA's address is deterministic, so an attacker can grief a specific
+/// registration (proposer/fact/vote) forever by sending 1 lamport to it first;
+/// adoption defeats that. Tops the balance up to rent-exempt (only if short), then
+/// PDA-signs `Allocate`+`Assign`. A system-owned pre-funded account carries no data
+/// and can only be `Allocate`d by the PDA signer, so adoption always succeeds.
+///
+/// The CALLER MUST first reject an ALREADY-registered account by OWNERSHIP
+/// (program-owned ⇒ duplicate); this only stands up an empty/system-owned slot.
+pub fn create_or_adopt_pda(
+    payer: &AccountInfo,
+    pda: &AccountInfo,
+    seeds: &[Seed],
+    lamports: u64,
+    space: usize,
+    owner: &Pubkey,
+) -> ProgramResult {
+    let current = pda.lamports();
+    if current < lamports {
+        Transfer {
+            from: payer,
+            to: pda,
+            lamports: lamports - current,
+        }
+        .invoke()?;
+    }
+    Allocate {
+        account: pda,
+        space: space as u64,
+    }
+    .invoke_signed(&[Signer::from(seeds)])?;
+    Assign { account: pda, owner }.invoke_signed(&[Signer::from(seeds)])?;
+    Ok(())
+}
+
+/// Create-or-adopt an SPL token account PDA whose token authority is `token_owner`
+/// on `mint` — the token-account sibling of [`create_or_adopt_pda`] (same
+/// pre-funding-grief resistance). If the account is ALREADY our initialized token
+/// account (token-program owned, matching mint + authority) this is a no-op; if it
+/// is token-program owned but NOT ours it is rejected. Otherwise: top up to
+/// rent-exempt, PDA-sign `Allocate`+`Assign` to the token program, then
+/// `InitializeAccount3`.
+pub fn create_or_adopt_token_account(
+    payer: &AccountInfo,
+    account: &AccountInfo,
+    mint: &AccountInfo,
+    token_owner: &Pubkey,
+    seeds: &[Seed],
+    rent: u64,
+) -> ProgramResult {
+    if account.owned_by(&pinocchio_token::ID) {
+        if let Ok(tok) = TokenAccount::from_account_view(account) {
+            if tok.mint() == mint.address() && tok.owner() == token_owner {
+                return Ok(());
+            }
+            return Err(KassandraError::InvalidAccount.into());
+        }
+    }
+    let current = account.lamports();
+    if current < rent {
+        Transfer {
+            from: payer,
+            to: account,
+            lamports: rent - current,
+        }
+        .invoke()?;
+    }
+    Allocate {
+        account,
+        space: TokenAccount::LEN as u64,
+    }
+    .invoke_signed(&[Signer::from(seeds)])?;
+    Assign {
+        account,
+        owner: &pinocchio_token::ID,
+    }
+    .invoke_signed(&[Signer::from(seeds)])?;
+    InitializeAccount3 {
+        account,
+        mint,
+        owner: token_owner,
+    }
+    .invoke()?;
+    Ok(())
 }
 
 /// Reject if `key` already appears in `prior` — enforces distinctness within a

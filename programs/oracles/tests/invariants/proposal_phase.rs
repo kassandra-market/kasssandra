@@ -58,9 +58,13 @@ fn run_proposal_phase(s: &ProposalScenario) -> Result<(), TestCaseError> {
     let all_equal = s.proposers.iter().all(|(o, _)| *o == first_option);
 
     let mut ctx = TestCtx::new();
+    // Emission is disabled at genesis (fail-safe); enable the recommended curve so
+    // this invariant exercises an emission-holding vault.
+    ctx.ensure_protocol();
+    ctx.enable_default_emission();
     let oracle = ctx.create_real_oracle(s.options_count, TWAP_WINDOW);
-    // Emission is ON by default: create_oracle mints `reward_emission` into the
-    // vault, so the vault holds Σ bonds PLUS the emission (never counted as stake).
+    // Emission enabled: create_oracle mints `reward_emission` into the vault, so
+    // the vault holds Σ bonds PLUS the emission (never counted as stake).
     let emission = ctx.oracle(oracle).reward_emission;
     for (option, bond) in &s.proposers {
         ctx.propose_real(oracle, *option, *bond);

@@ -6,9 +6,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ammSwapOut,
   buyPriceImpact,
   constantProductOut,
   optimalUnwindSwap,
+  previewSell,
   sellPriceImpact,
 } from "../src/market/data/actions/trade.ts";
 import type { AmmReserves } from "../src/market/data/markets.ts";
@@ -79,5 +81,33 @@ describe("sellPriceImpact", () => {
       Math.min(Math.max(1 - effective / spot, 0), 1),
       10,
     );
+  });
+});
+
+describe("previewSell", () => {
+  it("is zero for null reserves or a position too small to unwind", () => {
+    expect(previewSell(null, "yes", 100n)).toEqual({
+      received: 0n,
+      outputAmountMin: 0n,
+      residual: 0n,
+    });
+    expect(previewSell({ base: 10_000n, quote: 10_000n }, "yes", 1n).received).toBe(0n);
+  });
+
+  it("estimates KASS received as the balanced merge and reports the dust residual", () => {
+    const reserves: AmmReserves = { base: 1_000_000n, quote: 1_000_000n };
+    const positionAmount = 10_000n;
+    const p = previewSell(reserves, "yes", positionAmount, 100);
+    // Reconstruct the expected values from the same primitives buildSellIxs uses.
+    const swapAmount = optimalUnwindSwap(positionAmount, reserves.base, reserves.quote);
+    const swapOut = ammSwapOut(swapAmount, reserves.base, reserves.quote);
+    const remainder = positionAmount - swapAmount;
+    const expectedReceived = remainder < swapOut ? remainder : swapOut;
+    expect(p.received).toBe(expectedReceived);
+    expect(p.residual).toBe(remainder < swapOut ? swapOut - remainder : remainder - swapOut);
+    // The floor is derived from the fee-adjusted output and never exceeds it.
+    expect(p.outputAmountMin).toBeLessThanOrEqual(swapOut);
+    // Received is bounded by the position being unwound.
+    expect(p.received).toBeLessThan(positionAmount);
   });
 });

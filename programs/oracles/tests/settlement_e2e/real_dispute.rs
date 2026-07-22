@@ -28,6 +28,11 @@ struct Driven {
 /// folds it into `reward_pool` (Resolved) or burns it back (InvalidDeadend).
 fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
     let bond = 1_000u64;
+    // Emission is disabled at genesis (fail-safe); enable the recommended curve so
+    // the real create_oracle mints a `reward_emission` (folded on Resolved, burned
+    // on InvalidDeadend) as these settlement e2e tests expect.
+    ctx.ensure_protocol();
+    ctx.enable_default_emission();
     // create_oracle → propose×2 (DISTINCT options 0/1) → finalize_proposals.
     let oracle = ctx.dispute_via_real_flow(&[
         ProposerSpec { option: 0, bond },

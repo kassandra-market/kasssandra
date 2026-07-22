@@ -51,16 +51,18 @@ async fn record(client: &Client, market: &str, slot: i64, base: u64, quote: u64)
     let Some(price) = implied_yes_probability(base, quote) else {
         return;
     };
-    if let Err(e) = crate::market::db::insert_price(
-        client,
-        market,
-        slot,
-        unix_now(),
-        base as i64,
-        quote as i64,
-        price,
-    )
-    .await
+    // The `market_price` reserve columns are BIGINT (i64). A `u64 as i64` cast of a
+    // reserve above i64::MAX would wrap NEGATIVE and corrupt the stored series +
+    // the change-guard, so reject it with a checked conversion instead. A pool
+    // reserve above 2^63 base units is not a real market — skip + log rather than
+    // store garbage.
+    let (Ok(base_i), Ok(quote_i)) = (i64::try_from(base), i64::try_from(quote)) else {
+        log::warn!("[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample");
+        return;
+    };
+    if let Err(e) =
+        crate::market::db::insert_price(client, market, slot, unix_now(), base_i, quote_i, price)
+            .await
     {
         log::warn!("[market-price] insert {market} failed: {e}");
     }

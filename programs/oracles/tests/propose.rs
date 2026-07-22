@@ -99,6 +99,39 @@ fn propose_happy_path() {
 }
 
 #[test]
+fn propose_survives_prefunded_proposer_pda() {
+    // Regression (O3): the proposer PDA [b"proposer", oracle, authority] is
+    // deterministic, so an attacker could send 1 lamport to it to make a bare
+    // CreateAccount fail and permanently block this authority from proposing.
+    // create-or-adopt must tolerate the pre-funding and still register.
+    let mut ctx = TestCtx::new();
+    let oracle = setup(&mut ctx, 1, 3);
+    ctx.warp(DEADLINE_DELTA);
+
+    let authority = Keypair::new();
+    let (proposer_pda, _) = TestCtx::proposer_pda(&ctx.program_id, &oracle, &authority.pubkey());
+    // Griefer pre-funds the predicted PDA as a system account. Use the 0-byte
+    // rent-exempt minimum (a valid airdrop) — still BELOW the Proposer account's
+    // rent, so this exercises the adopt path's top-up.
+    let grief = ctx.svm.minimum_balance_for_rent_exemption(0);
+    ctx.svm.airdrop(&proposer_pda, grief).unwrap();
+
+    let (pda, res) = ctx.propose(oracle, &authority, 1, 5_000);
+    assert!(res.is_ok(), "pre-funded proposer PDA must not block propose: {res:?}");
+    assert_eq!(pda, proposer_pda);
+    let p = ctx.proposer(proposer_pda);
+    assert_eq!(p.authority, authority.pubkey().to_bytes().into());
+    assert_eq!(p.bond, 5_000);
+    // A genuine second registration by the same authority still fails Duplicate.
+    let (_pda, res2) = ctx.propose(oracle, &authority, 1, 5_000);
+    assert_eq!(
+        custom_code(&res2),
+        Some(KassandraError::DuplicateProposer as u32),
+        "second propose by same authority must still fail DuplicateProposer: {res2:?}"
+    );
+}
+
+#[test]
 fn propose_duplicate_authority_fails() {
     let mut ctx = TestCtx::new();
     let oracle = setup(&mut ctx, 1, 3);

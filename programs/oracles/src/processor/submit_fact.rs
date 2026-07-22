@@ -30,7 +30,7 @@ use pinocchio_token::instructions::Transfer;
 use crate::{
     clock::{now, require_before_end, require_phase},
     error::KassandraError,
-    processor::guards::{assert_key, assert_signer, create_pda, load_oracle},
+    processor::guards::{assert_key, assert_signer, create_or_adopt_pda, load_oracle},
     rent::minimum_rent,
     state::{AccountType, Fact, Oracle, Phase},
 };
@@ -115,14 +115,12 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         program_id,
     );
     assert_key(fact_ai, &expected_fact)?;
-    // An already-funded PDA means this content_hash was submitted before.
-    //
-    // KNOWN LIMITATION (deferred): an attacker can grief a specific
-    // content_hash by pre-funding its predicted PDA with 1 lamport, which
-    // trips this check before the real submitter creates it. The future fix is
-    // to allocate via system Allocate + Assign (which tolerates a pre-funded
-    // account) instead of CreateAccount; not worth it now.
-    if fact_ai.lamports() != 0 || !fact_ai.is_data_empty() {
+    // Duplicate detection by OWNERSHIP, not lamports: a program-owned fact PDA
+    // means this content_hash was already submitted. A system-owned pre-funded
+    // account (an attacker's 1-lamport grief) is NOT program-owned, so
+    // `create_or_adopt_pda` below adopts it instead of letting the griefer block
+    // this content_hash from ever being submitted.
+    if fact_ai.owned_by(program_id) {
         return Err(KassandraError::DuplicateFact.into());
     }
 
@@ -135,7 +133,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         Seed::from(args.content_hash.as_ref()),
         Seed::from(&bump_seed),
     ];
-    create_pda(
+    create_or_adopt_pda(
         submitter_ai,
         fact_ai,
         &signer_seeds,

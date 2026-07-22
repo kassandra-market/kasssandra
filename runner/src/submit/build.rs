@@ -10,6 +10,7 @@ use solana_message::Message;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
 use solana_transaction::Transaction;
+use zeroize::Zeroize;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 
@@ -75,27 +76,36 @@ pub fn build_submit_ai_claim_ix(
 /// Load a Solana CLI JSON keypair file (a 64-byte JSON array: 32 secret ++ 32
 /// public) into a [`Keypair`]. Clear errors on a missing file, non-array JSON,
 /// wrong length, or bad key bytes.
+///
+/// The intermediate buffers that hold the raw secret — the JSON `text` and the
+/// decoded `bytes` — are volatile-wiped ([`Zeroize`]) before returning, so the
+/// signing key does not linger in freed heap memory after this call.
 pub fn load_keypair(path: &Path) -> Result<Keypair, SubmitError> {
     let display = path.display().to_string();
-    let text = std::fs::read_to_string(path).map_err(|e| SubmitError::KeypairRead {
+    let mut text = std::fs::read_to_string(path).map_err(|e| SubmitError::KeypairRead {
         path: display.clone(),
         message: e.to_string(),
     })?;
-    let bytes: Vec<u8> =
+    let mut bytes: Vec<u8> =
         serde_json::from_str(&text).map_err(|e| SubmitError::KeypairMalformed {
             path: display.clone(),
             message: format!("expected a JSON array of 64 bytes: {e}"),
         })?;
+    text.zeroize();
     if bytes.len() != 64 {
+        let got = bytes.len();
+        bytes.zeroize();
         return Err(SubmitError::KeypairMalformed {
             path: display,
-            message: format!("expected 64 bytes, got {}", bytes.len()),
+            message: format!("expected 64 bytes, got {got}"),
         });
     }
-    Keypair::try_from(&bytes[..]).map_err(|e| SubmitError::KeypairMalformed {
+    let keypair = Keypair::try_from(&bytes[..]).map_err(|e| SubmitError::KeypairMalformed {
         path: display,
         message: format!("not a valid ed25519 keypair: {e}"),
-    })
+    });
+    bytes.zeroize();
+    keypair
 }
 
 /// Build a legacy [`Message`] (payer = the authority) for the `submit_ai_claim`

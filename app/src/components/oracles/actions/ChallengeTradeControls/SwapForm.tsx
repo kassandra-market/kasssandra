@@ -163,7 +163,10 @@ export function SwapForm({
           <SubmitButton
             verb="Swap"
             status={action.status}
-            disabled={parsed.value === undefined || Boolean(slip.error)}
+            // Block submit when the pool didn't decode: without reserves the
+            // slippage floor collapses to 0 (unbounded → sandwichable), so require
+            // a readable pool before allowing the swap.
+            disabled={parsed.value === undefined || Boolean(slip.error) || amm === null}
           />
         </div>
         <WriteStatusRegion status={action.status} successVerb="Swapped" />

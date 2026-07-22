@@ -98,7 +98,9 @@ function reservePair(
  * The BUY preview: split `kassAmount` into a 1:1 cYES+cNO pair, then swap the
  * whole unwanted leg (== `kassAmount`) into the wanted one. Returns the estimated
  * wanted-leg received (`kassAmount + swapOut`) and the swap's `outputAmountMin`
- * floor. `null` reserves → no estimate (`0n` min = unbounded, tx still guards).
+ * floor. `null` reserves → no estimate (`0n` min = UNBOUNDED, NOT a guard); callers
+ * that move value (`buildBuyIxs`) must refuse a buy without reserves, never rely
+ * on this `0n`.
  */
 export function previewBuy(
   reserves: AmmReserves | null | undefined,
@@ -210,6 +212,11 @@ export interface BuildBuyArgs extends TradeCommon {
 export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstruction[]> {
   const user = toAddress("Trader", args.user);
   if (args.kassAmount <= 0n) throw new ValidationError("Amount must be greater than zero.");
+  // Reserves are REQUIRED: without them previewBuy's floor collapses to 0n
+  // (unbounded → sandwichable), so refuse the buy exactly as buildSellIxs does.
+  if (!args.reserves) {
+    throw new ValidationError("Live pool reserves are required to buy — try again in a moment.");
+  }
 
   const { outputAmountMin } = previewBuy(
     args.reserves,
@@ -232,6 +239,37 @@ export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstru
   });
 
   return [setComputeUnitLimitIx(TRADE_COMPUTE_UNITS), ...ensure.instructions, ...buy.instructions];
+}
+
+/**
+ * The SELL preview: unwind `positionAmount` of the held leg by swapping the
+ * pool-optimal fraction toward the opposite leg (fee-adjusted, matching the swap
+ * {@link buildSellIxs} builds), then merging the balanced pair back to KASS.
+ * Returns the estimated KASS `received` (≈ the balanced merge = `min(remainder,
+ * feeAdjustedSwapOut)`), the swap's `outputAmountMin` floor, and the `residual`
+ * conditional-token dust the unwind leaves unmerged (`|remainder − swapOut|`).
+ * `null`/empty reserves or a position too small to unwind → all zero.
+ */
+export function previewSell(
+  reserves: AmmReserves | null | undefined,
+  outcome: Outcome,
+  positionAmount: bigint,
+  slippageBps: number = DEFAULT_SLIPPAGE_BPS,
+): { received: bigint; outputAmountMin: bigint; residual: bigint } {
+  const zero = { received: 0n, outputAmountMin: 0n, residual: 0n };
+  if (!reserves || positionAmount <= 1n) return zero;
+  const holdingYes = outcome === "yes";
+  const { inReserve, outReserve } = reservePair(reserves, !holdingYes);
+  const swapAmount = optimalUnwindSwap(positionAmount, inReserve, outReserve);
+  if (swapAmount <= 0n) return zero;
+  const swapOut = ammSwapOut(swapAmount, inReserve, outReserve);
+  const remainder = positionAmount - swapAmount;
+  // Merge the smaller balanced side → that many KASS; the larger side's excess is
+  // left as single-sided conditional-token dust.
+  const received = remainder < swapOut ? remainder : swapOut;
+  const residual = remainder < swapOut ? swapOut - remainder : remainder - swapOut;
+  const outputAmountMin = minOutFromSlippage(swapOut, slippageBps);
+  return { received, outputAmountMin, residual };
 }
 
 export interface BuildSellArgs extends TradeCommon {

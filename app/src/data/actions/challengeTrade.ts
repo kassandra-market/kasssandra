@@ -110,11 +110,25 @@ export async function poolMints(market: Market, pool: Pool): Promise<PoolMints> 
 
 
 /**
+ * The MetaDAO v0.4 AMM's LP swap fee, in basis points. The `amm` program
+ * (`AMMyu265…`) takes a 1% cut of the swap INPUT (Uniswap-v2 style:
+ * `in_after_fee = in·(1 - fee)`) BEFORE the constant-product curve. It is a
+ * program constant — not stored on the `Amm` account, not exported by the SDK —
+ * so it is pinned here, mirroring the market side's `AMM_FEE_BPS`
+ * (`app/src/market/data/actions/trade.ts`). CRITICAL: the `minAmountOut` floor
+ * MUST be computed off a FEE-ADJUSTED output ({@link ammSwapOut}); a fee-less
+ * estimate floored by only the slippage tolerance sits at/above real output and
+ * reverts every swap once the fee (1%) meets or exceeds the slippage.
+ */
+export const AMM_FEE_BPS = 100; // 1%
+
+/**
  * The constant-product output estimate for swapping `amountIn` of the INPUT
  * reserve into the OUTPUT reserve (`out = amountIn·outRes / (inRes + amountIn)`,
- * no fee — a preview only; the on-chain swap applies the real fee/curve). For a
- * BUY the input is quote, output base; for a SELL the reverse. Returns `0n` when
- * a reserve is empty (no meaningful quote).
+ * no fee — the pure curve, used for the price-impact reading). The
+ * revert-critical `minAmountOut` floor and the displayed "expected out" use
+ * {@link ammSwapOut} (fee-adjusted). For a BUY the input is quote, output base;
+ * for a SELL the reverse. Returns `0n` when a reserve is empty.
  */
 export function constantProductOut(
   amountIn: bigint,
@@ -126,11 +140,24 @@ export function constantProductOut(
 }
 
 /**
+ * The FEE-ADJUSTED swap output — the input reduced by {@link AMM_FEE_BPS} before
+ * the constant-product curve, matching the on-chain `amm::swap`. Used for the
+ * `minAmountOut` floor + the preview so both reflect what the pool actually pays.
+ * Returns `0n` on an empty pool / non-positive input.
+ */
+export function ammSwapOut(amountIn: bigint, inReserve: bigint, outReserve: bigint): bigint {
+  if (amountIn <= 0n || inReserve <= 0n || outReserve <= 0n) return 0n;
+  const inAfterFee = (amountIn * BigInt(10_000 - AMM_FEE_BPS)) / 10_000n;
+  return constantProductOut(inAfterFee, inReserve, outReserve);
+}
+
+/**
  * The expected out + the fraction of price impact for a swap against `amm`'s
  * decoded reserves — a pure preview the swap form renders (the on-chain swap is
- * the ultimate guard). `impact` is the relative move of the marginal price
- * `1 - (outReserve-out)·inReserve / ((inReserve+amountIn)·outReserve)`,
- * clamped `0..1`. `null` reserves / empty pool → a zero estimate.
+ * the ultimate guard). `expectedOut` is FEE-ADJUSTED ({@link ammSwapOut}) so the
+ * displayed figure and the derived `minAmountOut` floor match real output;
+ * `impact` is the pure-curve marginal-price move (fee excluded — the fixed fee is
+ * not price impact), clamped `0..1`. `null` reserves / empty pool → zero estimate.
  */
 export function swapEstimate(
   amm: AmmV04 | null,
@@ -141,13 +168,15 @@ export function swapEstimate(
   // Buy: in=quote, out=base. Sell: in=base, out=quote.
   const inReserve = side === "buy" ? amm.quoteAmount : amm.baseAmount;
   const outReserve = side === "buy" ? amm.baseAmount : amm.quoteAmount;
-  const expectedOut = constantProductOut(amountIn, inReserve, outReserve);
-  if (inReserve <= 0n || outReserve <= 0n || expectedOut <= 0n) {
+  const expectedOut = ammSwapOut(amountIn, inReserve, outReserve);
+  const grossOut = constantProductOut(amountIn, inReserve, outReserve);
+  if (inReserve <= 0n || outReserve <= 0n || grossOut <= 0n) {
     return { expectedOut, impact: 0 };
   }
-  // Spot (pre-trade) vs effective (out/in) execution price → price-impact fraction.
+  // Spot (pre-trade) vs effective (fee-less out/in) execution price → the pure
+  // price-impact fraction (the 1% fee is reported via the lower expectedOut).
   const spot = Number(outReserve) / Number(inReserve);
-  const effective = Number(expectedOut) / Number(amountIn);
+  const effective = Number(grossOut) / Number(amountIn);
   const impact = spot > 0 ? Math.min(Math.max(1 - effective / spot, 0), 1) : 0;
   return { expectedOut, impact };
 }

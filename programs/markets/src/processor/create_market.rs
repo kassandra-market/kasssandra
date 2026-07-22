@@ -31,7 +31,6 @@ use pinocchio::{
     account::AccountView, address::Address, cpi::Seed, error::ProgramError,
     sysvars::{clock::Clock, Sysvar}, ProgramResult,
 };
-use pinocchio_token::instructions::InitializeAccount3;
 
 use crate::{
     cpi::spl::SPL_TOKEN_ACCOUNT_LEN,
@@ -40,8 +39,8 @@ use crate::{
     processor::{
         contribution::record_contribution,
         guards::{
-            assert_key, assert_signer, create_pda, load_config, load_kassandra_oracle,
-            rent_exempt_lamports, write_config,
+            assert_key, assert_signer, create_or_adopt_pda, create_or_adopt_token_account,
+            load_config, load_kassandra_oracle, rent_exempt_lamports, write_config,
         },
     },
     state::{AccountType, Market, MarketStatus},
@@ -119,14 +118,21 @@ pub fn process(
         program_id,
     );
     assert_key(market_ai, &market_key)?;
-    if market_ai.lamports() != 0 || !market_ai.is_data_empty() {
+    // Re-init guard via OWNERSHIP, not lamports: a genuine second create for this
+    // (oracle, outcome) finds the market already owned by this program. An
+    // attacker-pre-funded-but-system-owned account is NOT program-owned, so the
+    // create-or-adopt below stands it up instead of bricking creation forever
+    // (the deterministic PDA would otherwise be permanently un-creatable after a
+    // 1-lamport transfer).
+    if market_ai.owned_by(program_id) {
         return Err(MarketError::InvalidAccount.into()); // one sub-market per (oracle, outcome)
     }
     let (escrow_key, escrow_bump) =
         Address::find_program_address(&[b"escrow", market_ai.address().as_ref()], program_id);
     assert_key(escrow_ai, &escrow_key)?;
 
-    // Allocate the market account (state written last).
+    // Create-or-adopt the market account (state written last), tolerating a
+    // pre-funded PDA that a bare CreateAccount would reject.
     let market_rent = rent_exempt_lamports(Market::LEN)?;
     let mbump = [market_bump];
     let market_seeds = [
@@ -135,7 +141,7 @@ pub fn process(
         Seed::from(&oidx),
         Seed::from(&mbump),
     ];
-    create_pda(
+    create_or_adopt_pda(
         creator_ai,
         market_ai,
         &market_seeds,
@@ -144,7 +150,7 @@ pub fn process(
         program_id,
     )?;
 
-    // Create the escrow token account owned by the market PDA.
+    // Create-or-adopt the escrow token account owned by the market PDA.
     let vault_rent = rent_exempt_lamports(SPL_TOKEN_ACCOUNT_LEN)?;
     let ebump = [escrow_bump];
     let escrow_seeds = [
@@ -152,20 +158,14 @@ pub fn process(
         Seed::from(market_ai.address().as_ref()),
         Seed::from(&ebump),
     ];
-    create_pda(
+    create_or_adopt_token_account(
         creator_ai,
         escrow_ai,
+        kass_mint_ai,
+        market_ai.address(),
         &escrow_seeds,
         vault_rent,
-        SPL_TOKEN_ACCOUNT_LEN,
-        &pinocchio_token::ID,
     )?;
-    InitializeAccount3 {
-        account: escrow_ai,
-        mint: kass_mint_ai,
-        owner: market_ai.address(),
-    }
-    .invoke()?;
 
     // Transfer the creator's seed into escrow and record their Contribution.
     record_contribution(

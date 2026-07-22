@@ -132,6 +132,10 @@ fn floor_slash(value: u64, num: u64, den: u64) -> u64 {
 /// burned by the terminal `finalize_oracle`. Snapshots supply + bond_pool just
 /// before the burn. The oracle ends in InvalidDeadend.
 fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
+    // Emission is disabled at genesis (fail-safe); enable the recommended curve so
+    // the real create_oracle mints a `reward_emission` this settlement e2e expects.
+    ctx.ensure_protocol();
+    ctx.enable_default_emission();
     // create_oracle → propose×2 (DISTINCT options 0/1) → finalize_proposals.
     let oracle = ctx.dispute_via_real_flow(&[
         ProposerSpec {
