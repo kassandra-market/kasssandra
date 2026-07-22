@@ -3,11 +3,12 @@
 //! mint-authority guard.
 //!
 //! `create_oracle` mints `reward_emission = (total_supply_cap − kass_supply) ·
-//! emission_num/den` into the new oracle's `stake_vault` AFTER the EMA fee burn
-//! (so burning boosts the same-tx reservoir), program-signed by the mint-
-//! authority PDA. On `Resolved`, `finalize_oracle` folds it into `reward_pool`;
-//! on `InvalidDeadend`, it burns it back. Emission is disabled (no mint) at
-//! genesis (`total_supply_cap == 0`) and enabled by governance via `set_config`.
+//! emission_num/den` into the new oracle's `stake_vault`, program-signed by the
+//! mint-authority PDA. The reward is computed on the CURRENT (pre-burn) supply and
+//! the SAME value drives the creation-fee recapture (see `crate::fee`). On
+//! `Resolved`, `finalize_oracle` folds it into `reward_pool`; on `InvalidDeadend`,
+//! it burns it back. Emission is ON by default (the recommended curve); these
+//! tests pin an exact `(cap, num, den)` via `set_config` for deterministic sizing.
 
 mod common;
 use common::*;
@@ -34,11 +35,10 @@ fn emission_for(supply: u64, cap: u64, num: u64, den: u64) -> u64 {
 }
 
 /// init_protocol + governance handoff (dao_authority = payer) + a `set_config`
-/// that OVERWRITES the emission params with a chosen `(cap, num, den)`.
-/// `init_protocol` defaults emission OFF (fail-safe); this helper enables it via a
-/// real governance `set_config`, letting a test pin an EXACT curve for
-/// deterministic emission sizing (or keep it DISABLED by passing `cap == 0` /
-/// `num == 0`).
+/// that OVERWRITES the emission params with a chosen `(cap, num, den)`. Emission is
+/// ON by default; this helper pins an EXACT curve for deterministic emission
+/// sizing (or DISABLES it by passing `cap == 0` / `num == 0` to exercise the
+/// no-mint path).
 fn enable_emission(ctx: &mut TestCtx, cap: u64, num: u64, den: u64) {
     let (_p, res) = ctx.init_protocol();
     assert!(res.is_ok(), "init_protocol: {res:?}");
@@ -87,7 +87,7 @@ fn create_oracle_mints_emission_into_vault() {
 }
 
 #[test]
-fn fee_burn_boosts_emission() {
+fn fee_burned_before_emission_computed_on_pre_burn_supply() {
     let mut ctx = TestCtx::new();
     enable_emission(&mut ctx, CAP, NUM, DEN);
 
@@ -106,17 +106,12 @@ fn fee_burn_boosts_emission() {
     assert!(fee > 0, "a second rapid creation burns a fee");
 
     let e1 = ctx.oracle(o1).reward_emission;
-    // Emission is computed on the POST-burn supply (`supply_pre − fee`): the burn
-    // enlarged the same-tx reservoir.
-    let expected_post = emission_for(supply_pre - fee, CAP, NUM, DEN);
-    assert_eq!(e1, expected_post, "emission uses the post-burn supply");
-    // Strictly more than the pre-burn reservoir would have yielded — proving the
-    // burn ran before the mint (else e1 would equal `expected_pre`).
-    let expected_pre = emission_for(supply_pre, CAP, NUM, DEN);
-    assert!(
-        e1 > expected_pre,
-        "burning first boosts the emission: {e1} <= {expected_pre}"
-    );
+    // Emission is computed on the CURRENT (pre-burn) supply and the SAME value is
+    // both what the recapture fee is derived from AND what is minted — computed
+    // once, before the burn (the fee depends on the reward, so the reward can't
+    // depend on the post-burn supply without a circular dependency).
+    let expected = emission_for(supply_pre, CAP, NUM, DEN);
+    assert_eq!(e1, expected, "emission uses the pre-burn supply");
 }
 
 #[test]

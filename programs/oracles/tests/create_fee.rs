@@ -6,7 +6,7 @@ mod common;
 use common::*;
 
 use kassandra_oracles_program::config::{FEE_EMA_HALFLIFE_SECS, FEE_EMA_INCREMENT, FEE_EMA_SCALE};
-use kassandra_oracles_program::fee::{bumped_fee_ema, decay_fee_ema, fee_for_ema};
+use kassandra_oracles_program::fee::{bumped_fee_ema, creation_fee, decay_fee_ema};
 
 /// Helper: create an oracle with a fresh future deadline and report
 /// `(fee_burned, emission_minted)`. The fee is measured from the creator's KASS
@@ -93,8 +93,9 @@ fn rapid_creates_fee_grows_and_burns() {
         );
     }
 
-    // The 2nd creation sees fee_ema == 1.0 unit → fee == FEE_PER_EMA_UNIT.
-    assert_eq!(fees[1], fee_for_ema(FEE_EMA_INCREMENT));
+    // The 2nd creation sees fee_ema == 1.0 unit → fee == the linear demand fee
+    // PLUS the emission-recapture on that create's reward (`creation_fee`).
+    assert_eq!(fees[1], creation_fee(emissions[1], FEE_EMA_INCREMENT));
 
     // Conservation: the creator balance dropped by Σ fees; the mint supply
     // dropped by Σ fees (the burns) but ROSE by Σ emissions (emission is ON by

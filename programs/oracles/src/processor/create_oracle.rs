@@ -64,7 +64,7 @@ use crate::{
     clock::now,
     config::MINT_AUTHORITY_SEED,
     error::KassandraError,
-    fee::{bumped_fee_ema, decay_fee_ema, fee_for_ema},
+    fee::{bumped_fee_ema, creation_fee, decay_fee_ema},
     processor::guards::{assert_key, assert_signer, create_pda, load_protocol},
     rent::minimum_rent,
     state::{AccountType, Oracle, Phase, Protocol},
@@ -127,12 +127,26 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         return Err(KassandraError::InvalidAccount.into());
     }
 
+    // --- reward emission for this creation (computed BEFORE the fee) --------
+    // The creation fee's recapture component scales with the reward this creation
+    // unlocks, so compute the emission first (on the current, pre-burn supply).
+    // The SAME value is minted into `stake_vault` further below — computed once.
+    let reward_emission = compute_reward_emission(
+        kass_mint_ai,
+        protocol.total_supply_cap,
+        protocol.emission_num,
+        protocol.emission_den,
+    )?;
+
     // --- dynamic EMA creation fee (burned in KASS) -------------------------
     // Decay the stored activity EMA toward 0 by the idle time since the last
-    // creation, charge a fee proportional to it, burn it, then record the bumped
-    // EMA + timestamp. Genesis (`fee_ema == 0`) decays to 0 → fee 0 → no burn.
+    // creation, charge the linear demand fee PLUS the emission-recapture fee
+    // (`crate::fee::creation_fee`), burn it, then record the bumped EMA +
+    // timestamp. Genesis (`fee_ema == 0`) decays to 0 → fee 0 → no burn, so a lone
+    // creator on a quiet network mints the full reward slowly; rapid creation
+    // drives the fee toward and past the reward, throttling emission farming.
     let decayed_ema = decay_fee_ema(protocol.fee_ema, protocol.last_creation_unix, now_ts);
-    let fee = fee_for_ema(decayed_ema);
+    let fee = creation_fee(reward_emission, decayed_ema);
     if fee > 0 {
         // The burn source must be a KASS token account; the SPL Burn additionally
         // proves the creator (signer) is its owner/delegate.
@@ -185,17 +199,10 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     .invoke()?;
 
     // --- emission minted at creation from the reservoir (Task S3) ----------
-    // Read the circulating supply AFTER the burn (so the burn boosts the same-tx
-    // reservoir), compute `reward_emission = (cap − supply)·num/den` (u128, floor;
-    // 0 when emission is disabled), and — if positive — mint it into stake_vault,
-    // program-signed by the mint-authority PDA. The PDA MUST be the kass_mint's
-    // SPL mint authority, else minting could be spoofed.
-    let reward_emission = compute_reward_emission(
-        kass_mint_ai,
-        protocol.total_supply_cap,
-        protocol.emission_num,
-        protocol.emission_den,
-    )?;
+    // `reward_emission` was computed up front (before the fee, on the pre-burn
+    // supply) and drives the recapture fee; mint that SAME amount into stake_vault,
+    // program-signed by the mint-authority PDA. The PDA MUST be the kass_mint's SPL
+    // mint authority, else minting could be spoofed. (0 when emission is disabled.)
     if reward_emission > 0 {
         // Verify + derive the mint-authority PDA, then assert it is the kass_mint's
         // SPL mint authority (the bootstrapping requirement).
