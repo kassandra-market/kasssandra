@@ -84,28 +84,41 @@ pub const MARKET_THRESHOLD_NUM: u128 = 1;
 pub const MARKET_THRESHOLD_DEN: u128 = 10;
 
 // ---------------------------------------------------------------------------
-// Dynamic creation fee (KASS, burned) — Task H2 / design §8.
+// Dynamic creation fee (KASS, burned) — Task H2 / design §8 + emission recapture.
 // ---------------------------------------------------------------------------
 //
-// The oracle-creation fee is paid in KASS and BURNED. It is proportional to an
-// exponentially-decaying moving average ("EMA") of recent creation activity:
+// The oracle-creation fee is paid in KASS and BURNED. It has TWO components,
+// both driven by the same exponentially-decaying moving average ("EMA") of
+// recent creation activity (`Protocol.fee_ema`, a fixed-point accumulator scaled
+// by [`FEE_EMA_SCALE`] — `fee_ema == FEE_EMA_SCALE` means "1.0 creation units of
+// recent activity"):
 //
-//   fee = FEE_PER_EMA_UNIT * (decayed_fee_ema / FEE_EMA_SCALE)
+//   linear_demand = FEE_PER_EMA_UNIT * (decayed_fee_ema / FEE_EMA_SCALE)
+//   recapture     = reward_emission * decayed_fee_ema
+//                                   / (decayed_fee_ema + FEE_RECAPTURE_HALF_ACTIVITY)
+//   fee           = linear_demand + recapture
 //
-// `Protocol.fee_ema` is a fixed-point accumulator scaled by [`FEE_EMA_SCALE`]
-// (so `fee_ema == FEE_EMA_SCALE` means "1.0 creation units of recent activity").
-// On every creation we (1) decay the stored EMA toward 0 by the time elapsed
-// since the last creation, (2) charge a fee proportional to that decayed value,
-// then (3) bump the EMA by [`FEE_EMA_INCREMENT`] and stamp `last_creation_unix`.
+// On every creation we (1) decay the stored EMA by the time elapsed since the
+// last creation, (2) charge `fee`, burn it, then (3) bump the EMA by
+// [`FEE_EMA_INCREMENT`] and stamp `last_creation_unix`.
 //
-// Consequences (design §8 "fee monotonicity"):
-//   * Genesis: `fee_ema == 0` → decayed 0 → fee 0 (free bootstrap).
-//   * Demand: rapid creations stack [`FEE_EMA_INCREMENT`] faster than decay can
-//     erase it → EMA grows → fee grows.
-//   * Idle: no creations → the EMA decays exponentially toward 0 → fee shrinks
-//     back to 0.
-// The fee is never negative and moves only as a function of the creation-rate
-// EMA. All fee math is done in `u128` intermediates and is overflow-safe.
+// # Why the recapture term (the emission-farming throttle)
+// Emission mints `reward_emission` KASS per `create_oracle` (see the emission
+// section below) that a SINGLE uncontested proposer can claim. Without a fee that
+// scales with that reward, an attacker could create oracles in a rapid burst and
+// farm the emission for ~0 cost (the linear term alone is small relative to the
+// reward). The `recapture` term ties the creation cost to the reward it unlocks:
+//   * Quiet network (`fee_ema ≈ 0`) → recapture ≈ 0 → a lone creator keeps
+//     ~all of `reward_emission` and mints it SLOWLY. This is the intended
+//     distribution channel: emission is ON by default and a single uncontested
+//     participant can steadily mint.
+//   * Rapid creation → `fee_ema` spikes → recapture → `reward_emission` AND the
+//     linear term pushes the total fee ABOVE the reward → net minting is throttled
+//     to a slow drip (net-NEGATIVE for aggressive bursts). So the full supply can
+//     NOT be minted right away.
+// The recapture is proportional to the (shrinking) reward, so the throttle keeps
+// its shape for the whole life of the reservoir without retuning. All fee math is
+// done in `u128` intermediates and is overflow-safe; the fee is never negative.
 
 /// Fixed-point scale for [`crate::state::Protocol::fee_ema`]. `fee_ema` of this
 /// value represents 1.0 "creation units" of recent activity.
@@ -120,9 +133,19 @@ pub const FEE_EMA_HALFLIFE_SECS: i64 = 86_400;
 pub const FEE_EMA_INCREMENT: u64 = FEE_EMA_SCALE as u64;
 
 /// KASS base units charged per 1.0 of EMA activity (i.e. per `FEE_EMA_SCALE` of
-/// `fee_ema`). KASS has 9 decimals, so this is 1 KASS per unit of EMA.
-/// Governance-tunable.
+/// `fee_ema`) — the LINEAR demand-fee component. KASS has 9 decimals, so this is
+/// 1 KASS per unit of EMA. Governance-tunable.
 pub const FEE_PER_EMA_UNIT: u64 = 1_000_000_000;
+
+/// The activity EMA at which the EMISSION-RECAPTURE fee component recaptures HALF
+/// of the creation's `reward_emission` (`recapture = emission·ema/(ema+this)`).
+/// ≈ 15 creation units ≈ 10 oracles/day of sustained activity (matching
+/// [`STAKE_FLOOR_EMA_THRESHOLD`]). Below it a lone creator keeps most of the
+/// reward and mints slowly; above it the recapture — together with the linear
+/// term — drives the fee toward and past the reward, throttling burst minting.
+/// A protocol shape constant (not per-`Protocol` state); the linear term and the
+/// EMA half-life/increment remain the governance-tunable fee levers.
+pub const FEE_RECAPTURE_HALF_ACTIVITY: u64 = 15_000_000_000;
 
 // ── Activity-scaled minimum-stake floor (bootstrapping) ─────────────────────────
 // The minimum stake for propose / submit_fact / vote_fact starts at 0 and ramps

@@ -5,7 +5,10 @@
 //! tunable constants. Kept in its own module so the EMA decay can be unit-tested
 //! without an on-chain harness.
 
-use crate::config::{FEE_EMA_HALFLIFE_SECS, FEE_EMA_INCREMENT, FEE_EMA_SCALE, FEE_PER_EMA_UNIT};
+use crate::config::{
+    FEE_EMA_HALFLIFE_SECS, FEE_EMA_INCREMENT, FEE_EMA_SCALE, FEE_PER_EMA_UNIT,
+    FEE_RECAPTURE_HALF_ACTIVITY,
+};
 
 /// Exponentially decay the fixed-point activity EMA toward 0 by the time
 /// elapsed since the last creation.
@@ -57,6 +60,41 @@ pub fn decay_fee_ema(fee_ema: u64, last_unix: i64, now: i64) -> u64 {
 pub fn fee_for_ema(decayed_fee_ema: u64) -> u64 {
     let scaled = (FEE_PER_EMA_UNIT as u128).saturating_mul(decayed_fee_ema as u128) / FEE_EMA_SCALE;
     u64::try_from(scaled).unwrap_or(u64::MAX)
+}
+
+/// The EMISSION-RECAPTURE fee component: the fraction of this creation's
+/// `reward_emission` recaptured (burned) as a function of recent creation
+/// activity — `emission · ema / (ema + FEE_RECAPTURE_HALF_ACTIVITY)` (u128,
+/// floor).
+///
+/// Properties (the emission-farming throttle):
+/// * `ema == 0` (quiet / genesis) → 0: a lone creator keeps the full reward and
+///   mints it slowly (the intended distribution channel).
+/// * strictly `< emission` for any finite `ema` (the ratio is `< 1`), so the
+///   recapture ALONE never fully erases the reward — a single uncontested
+///   participant can always still mint. The linear demand term is what pushes the
+///   TOTAL fee past the reward under heavy activity.
+/// * monotonic non-decreasing in `ema` → `emission` as `ema → ∞`.
+pub fn emission_recapture_fee(emission: u64, decayed_fee_ema: u64) -> u64 {
+    if emission == 0 || decayed_fee_ema == 0 {
+        return 0;
+    }
+    let ema = decayed_fee_ema as u128;
+    // emission ≤ u64::MAX and ema ≤ u64::MAX, so the product ≤ 2^128 − … fits u128.
+    let recaptured = (emission as u128) * ema / (ema + FEE_RECAPTURE_HALF_ACTIVITY as u128);
+    recaptured as u64 // recaptured < emission ≤ u64::MAX
+}
+
+/// The TOTAL creation fee burned on `create_oracle`: the linear demand fee
+/// ([`fee_for_ema`]) PLUS the emission-recapture fee
+/// ([`emission_recapture_fee`]), saturating to `u64`.
+///
+/// At `decayed_fee_ema == 0` (genesis / quiet) this is 0. As activity rises the
+/// linear term grows without bound and the recapture term approaches
+/// `reward_emission`, so the total can EXCEED the reward — making a rapid emission
+/// farm net-negative while leaving a lone slow creator's fee ≈ 0.
+pub fn creation_fee(reward_emission: u64, decayed_fee_ema: u64) -> u64 {
+    fee_for_ema(decayed_fee_ema).saturating_add(emission_recapture_fee(reward_emission, decayed_fee_ema))
 }
 
 /// The EMA value to store after a creation: the decayed EMA plus one creation
@@ -150,5 +188,80 @@ mod tests {
             bumped_fee_ema(FEE_EMA_SCALE as u64),
             2 * FEE_EMA_SCALE as u64
         );
+    }
+
+    // ---- emission-recapture fee + combined creation fee ---------------------
+
+    const EMISSION: u64 = 1_000_000_000_000; // 1000 KASS, ≈ a genesis per-oracle reward
+
+    #[test]
+    fn recapture_is_zero_at_genesis_or_no_emission() {
+        // Quiet network (ema 0) → a lone creator keeps the whole reward.
+        assert_eq!(emission_recapture_fee(EMISSION, 0), 0);
+        // No emission → nothing to recapture.
+        assert_eq!(emission_recapture_fee(0, 5 * FEE_EMA_SCALE as u64), 0);
+    }
+
+    #[test]
+    fn recapture_is_half_at_the_half_activity_point() {
+        // At ema == FEE_RECAPTURE_HALF_ACTIVITY the fee recaptures exactly half.
+        let got = emission_recapture_fee(EMISSION, FEE_RECAPTURE_HALF_ACTIVITY);
+        assert_eq!(got, EMISSION / 2);
+    }
+
+    #[test]
+    fn recapture_is_always_below_emission_so_a_lone_miner_can_always_mint() {
+        // The ratio ema/(ema+H) < 1 for every finite ema, so recapture < emission
+        // — a single uncontested participant always nets something positive from
+        // the recapture component alone.
+        for units in [1u64, 5, 10, 100, 1_000, 1_000_000] {
+            let ema = units.saturating_mul(FEE_EMA_SCALE as u64);
+            assert!(
+                emission_recapture_fee(EMISSION, ema) < EMISSION,
+                "recapture must stay below the reward at {units} units"
+            );
+        }
+    }
+
+    #[test]
+    fn recapture_monotonic_non_decreasing_and_approaches_emission() {
+        let mut prev = emission_recapture_fee(EMISSION, 0);
+        for units in 1..=2_000u64 {
+            let ema = units * FEE_EMA_SCALE as u64;
+            let cur = emission_recapture_fee(EMISSION, ema);
+            assert!(cur >= prev, "recapture must be non-decreasing at {units} units");
+            prev = cur;
+        }
+        // Deep into heavy activity the recapture is within 1% of the full reward.
+        assert!(prev > EMISSION - EMISSION / 100);
+    }
+
+    #[test]
+    fn combined_fee_zero_at_genesis() {
+        // Genesis: no activity → free creation → the lone creator mints the full
+        // reward (slow distribution).
+        assert_eq!(creation_fee(EMISSION, 0), 0);
+    }
+
+    #[test]
+    fn combined_fee_exceeds_reward_under_heavy_activity() {
+        // The whole point: sustained rapid creation drives the fee ABOVE the
+        // reward, so an emission farm at that activity level is net-NEGATIVE.
+        // 200 creation units ≈ a heavy burst.
+        let ema = 200 * FEE_EMA_SCALE as u64;
+        let fee = creation_fee(EMISSION, ema);
+        assert!(
+            fee > EMISSION,
+            "fee ({fee}) must exceed the reward ({EMISSION}) under heavy activity"
+        );
+    }
+
+    #[test]
+    fn combined_fee_leaves_a_lone_slow_creator_net_positive() {
+        // A lone creator on a quiet network (ema ≈ a fraction of a unit) pays a
+        // fee far below the reward and nets most of it — the intended slow mint.
+        let ema = FEE_EMA_SCALE as u64 / 10; // 0.1 units of recent activity
+        let fee = creation_fee(EMISSION, ema);
+        assert!(fee < EMISSION / 10, "quiet-network fee ({fee}) should be a small fraction of the reward");
     }
 }

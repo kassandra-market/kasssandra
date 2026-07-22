@@ -34,6 +34,43 @@ network isolation at the deployment edge; O1 deeper Sybil-resistance on the
 emission reward path once governance enables emission; M2 fee-basis snapshot at
 resolve; F5 enforced wallet simulation / indexer-independent reserve source.
 
+## Follow-up pass — 2026-07-22 (branch `audit/emission-economics-followups`)
+
+Addressed the follow-ups above; emission redesigned per product direction
+(emission ON by default, throttled by economics not by a disabled default).
+
+- **O1 emission economics — REDESIGNED (done).** Emission is now ON by default
+  (the intended KASS distribution channel: a single uncontested proposer can
+  steadily mint). The permissionless-farming vector is closed by ECONOMICS: the
+  creation fee gains an **emission-recapture** component,
+  `recapture = reward·fee_ema/(fee_ema + FEE_RECAPTURE_HALF_ACTIVITY)`, added to
+  the existing linear demand fee. Quiet network → fee ≈ 0 → a lone creator mints
+  the reward slowly; rapid creation → the fee rises to and past the reward, so a
+  burst is net-negative and the full supply can't be minted quickly. The recapture
+  scales with the (shrinking) reward, holding its shape for the reservoir's whole
+  life. `create_oracle` computes the reward once up front and derives the fee from
+  it; `init_protocol` restores the recommended emission defaults. (fee.rs unit
+  tests + updated integration tests; full oracle suite green.)
+- **I2 rate-limiting — done (in-process layer).** Added a dependency-free global
+  token-bucket on the `/rpc` gateway (~50 req/s, 100 burst) returning 429 over the
+  limit, bounding amplification against the paid upstream. Per-IP limiting +
+  network isolation remain a deployment-edge concern (the indexer sees the proxy's
+  single IP), so this is defense-in-depth.
+- **F5 reserve trust — done (defense-in-depth).** The trade builders now re-decode
+  reserves from a RAW AMM account read (`decodeAmmReserves`) at build time,
+  preferring them over the indexer's computed value (fallback on failure). Raises
+  the bar to forging raw account bytes; wallet simulation remains the ultimate
+  backstop (gateway mode shares the indexer).
+- **M2 fee-basis snapshot — evaluated, kept ACCEPTED.** The snapshot-at-resolve
+  fix requires adding accounts to `resolve_market`'s interface (a contract change
+  rippling through both SDKs, the app, and ~10 test files) plus an on-chain Market
+  state-layout change — disproportionate to a Low, bounded, one-directional,
+  self-costly, protocol-revenue-only finding. Kept accepted; revisit if a
+  resolve-side account addition is undertaken for another reason.
+- **O2 sweep forfeiture — kept ACCEPTED.** Deliberate 30-day-abandonment design
+  (funds to the validated DAO treasury only); the optional claims-counter guard
+  changes protocol economics and belongs to the team.
+
 ---
 
 ## Indexer / Runner

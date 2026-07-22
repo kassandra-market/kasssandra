@@ -133,15 +133,16 @@ impl TestCtx {
         protocol_pda
     }
 
-    /// Enable KASS emission with the RECOMMENDED curve (`config.rs` consts) by
-    /// stamping the three emission fields directly onto the already-initialized
-    /// `Protocol` account — because `init_protocol` now defaults emission OFF
-    /// (fail-safe). Reproduces the pre-hardening genesis behavior for the tests
-    /// that exercise the mint path, WITHOUT the side effects of a real `set_config`
-    /// (it leaves fee params, reward weights, and the governance linkage untouched,
-    /// mirroring the harness's direct-account-seeding helpers like
-    /// [`TestCtx::force_governance`]). Requires the protocol to already exist;
-    /// `expected_creation_emission()` stays valid after this call.
+    /// Stamp the RECOMMENDED emission curve (`config.rs` consts) directly onto the
+    /// already-initialized `Protocol` account. `init_protocol` already defaults
+    /// emission ON with exactly these values, so this is effectively a no-op for a
+    /// freshly-init'd protocol — kept as an EXPLICIT re-enable for tests that first
+    /// disable emission (or pin a different curve) and want the recommended one
+    /// back, without the side effects of a real `set_config` (it leaves fee params,
+    /// reward weights, and the governance linkage untouched, mirroring the
+    /// harness's direct-account-seeding helpers like [`TestCtx::force_governance`]).
+    /// Requires the protocol to already exist; `expected_creation_emission()` stays
+    /// valid after this call.
     pub fn enable_default_emission(&mut self) {
         let (protocol_pda, _) = Self::protocol_pda(&self.program_id);
         let mut p = self.protocol(protocol_pda);

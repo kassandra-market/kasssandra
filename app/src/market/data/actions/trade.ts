@@ -17,13 +17,37 @@
  * smaller balanced side. See {@link optimalUnwindSwap}.
  */
 import { type TransactionInstruction } from "@solana/web3.js";
-import { flows } from "@kassandra-market/markets";
+import { flows, metadao } from "@kassandra-market/markets";
 import type { flows as flowsNs } from "@kassandra-market/markets";
 import type { IndexerReads } from "../../lib/indexer";
 import type { AmmReserves } from "../markets";
 import { ValidationError } from "../writeAction";
 import { setComputeUnitLimitIx } from "./compute";
 import { toAddress, type AddressInput } from "./ata";
+
+/**
+ * Re-derive the pool reserves from a RAW AMM account read + client-side SDK decode
+ * ({@link metadao.decodeAmmReserves}), rather than trusting the indexer's
+ * pre-COMPUTED `ReservesDto`. Reduces the trust surface (F5): a compromised
+ * indexer that biases the reserves — and thus the slippage floor — would have to
+ * forge raw account bytes (a higher bar, inconsistent with every other on-chain
+ * decode) rather than just return a wrong number; the value is also fresh at build
+ * time. Returns `null` on a read/decode failure so callers fall back to the
+ * indexer-supplied reserves. In gateway mode the raw read still routes through the
+ * indexer, so this is defense-in-depth, not an independent oracle.
+ */
+async function decodeReservesFromChain(
+  indexer: IndexerReads,
+  amm: AddressInput,
+): Promise<AmmReserves | null> {
+  try {
+    const acct = await indexer.getAccount(toAddress("amm", amm).toString());
+    if (!acct) return null;
+    return metadao.decodeAmmReserves(acct.data);
+  } catch {
+    return null;
+  }
+}
 
 /** Which leg a trader wants exposure to (`"yes"` / `"no"`) — the flow's `Outcome`. */
 export type Outcome = flowsNs.Outcome;
@@ -212,14 +236,17 @@ export interface BuildBuyArgs extends TradeCommon {
 export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstruction[]> {
   const user = toAddress("Trader", args.user);
   if (args.kassAmount <= 0n) throw new ValidationError("Amount must be greater than zero.");
+  // Prefer reserves re-decoded from the raw AMM account at build time over the
+  // indexer's pre-computed value (F5); fall back to the passed reserves.
+  const reserves = (await decodeReservesFromChain(args.indexer, args.refs.amm)) ?? args.reserves;
   // Reserves are REQUIRED: without them previewBuy's floor collapses to 0n
   // (unbounded → sandwichable), so refuse the buy exactly as buildSellIxs does.
-  if (!args.reserves) {
+  if (!reserves) {
     throw new ValidationError("Live pool reserves are required to buy — try again in a moment.");
   }
 
   const { outputAmountMin } = previewBuy(
-    args.reserves,
+    reserves,
     args.outcome,
     args.kassAmount,
     args.slippageBps ?? DEFAULT_SLIPPAGE_BPS,
@@ -288,13 +315,16 @@ export interface BuildSellArgs extends TradeCommon {
 export async function buildSellIxs(args: BuildSellArgs): Promise<TransactionInstruction[]> {
   const user = toAddress("Trader", args.user);
   if (args.positionAmount <= 0n) throw new ValidationError("Amount must be greater than zero.");
-  if (!args.reserves) {
+  // Prefer reserves re-decoded from the raw AMM account at build time over the
+  // indexer's pre-computed value (F5); fall back to the passed reserves.
+  const reserves = (await decodeReservesFromChain(args.indexer, args.refs.amm)) ?? args.reserves;
+  if (!reserves) {
     throw new ValidationError("Live pool reserves are required to sell — try again in a moment.");
   }
 
   // Holding YES: swap cYES(base) → cNO(quote). Holding NO: swap cNO(quote) → cYES(base).
   const holdingYes = args.outcome === "yes";
-  const { inReserve, outReserve } = reservePair(args.reserves, !holdingYes);
+  const { inReserve, outReserve } = reservePair(reserves, !holdingYes);
   const swapAmount = optimalUnwindSwap(args.positionAmount, inReserve, outReserve);
   if (swapAmount <= 0n) throw new ValidationError("Position is too small to unwind.");
 
