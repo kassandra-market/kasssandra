@@ -1,4 +1,4 @@
-import { Phase, type Oracle } from '@kassandra-market/oracles'
+import { Phase, type AiOracleFeed, type Oracle } from '@kassandra-market/oracles'
 import { Card } from '../../ui'
 import { phaseView } from '../../../lib/oracleView'
 import { recallNonce } from '../../../lib/nonceStore'
@@ -13,6 +13,7 @@ import {
 import { ProposeForm } from './ProposeForm'
 import { SubmitFactForm } from './SubmitFactForm'
 import { SubmitAiClaimForm } from './SubmitAiClaimForm'
+import { ApplyExternalAiClaimForm } from './ApplyExternalAiClaimForm'
 import { FinalizeControl } from './FinalizeControl'
 import { SweepControl } from './SweepControl'
 
@@ -43,6 +44,7 @@ export function OracleActions({
   refetch,
   proposers = [],
   facts = [],
+  aiFeed,
 }: {
   pubkey: string
   oracle: Oracle
@@ -51,6 +53,8 @@ export function OracleActions({
   proposers?: string[]
   /** Fact-PDA pubkeys (the finalize-facts tail). */
   facts?: string[]
+  /** Latest attested feed, if a pusher has written one. */
+  aiFeed?: { pubkey: string; feed: AiOracleFeed }
 }) {
   const kassMint = oracle.kassMint
   // The full-set finalizes overflow a legacy tx past MAX_LEGACY_TAIL proposers.
@@ -119,6 +123,7 @@ export function OracleActions({
       return (
         <div className="flex flex-col gap-4">
           <SubmitAiClaimForm pubkey={pubkey} oracle={oracle} refetch={refetch} />
+          <ApplyExternalAiClaimForm pubkey={pubkey} feed={aiFeed} refetch={refetch} />
           <FinalizeControl
             title="Finalize AI claims"
             description="Once the AI-claim window has closed, finalize the submitted claims and crank the oracle into the challenge round."

@@ -4,9 +4,9 @@
  * against the program and guarded by `test/parity.test.ts` (a mismatch fails CI
  * = drift guard). Sources:
  *
- *   - `programs/markets/src/instruction.rs` — {@link Ix} discriminants (0..=10)
- *   - `programs/markets/src/state.rs`       — {@link AccountType} (0..=3), {@link MarketStatus} (0..=4)
- *   - `programs/markets/src/error.rs`       — {@link MarketError} (0..=21)
+ *   - `programs/markets/src/instruction.rs` — {@link Ix} discriminants (0..=14)
+ *   - `programs/markets/src/state.rs`       — {@link AccountType} (0..=4), {@link MarketStatus} (0..=4)
+ *   - `programs/markets/src/error.rs`       — {@link MarketError} (0..=24)
  *   - `programs/markets/tests/state_layout.rs` — {@link ACCOUNT_SIZES}
  *   - `sdks/oracles/rust/src/{metadao,lib}.rs`                  — external program IDs
  */
@@ -50,6 +50,9 @@ export enum Ix {
   CollectFee = 9,
   CloseMarket = 10,
   AddLiquidity = 11,
+  DelegateMarket = 12,
+  CommitMarket = 13,
+  UndelegateMarket = 14,
 }
 
 /**
@@ -62,6 +65,7 @@ export enum AccountType {
   Config = 1,
   Market = 2,
   Contribution = 3,
+  ErSession = 4,
 }
 
 /**
@@ -79,7 +83,7 @@ export enum MarketStatus {
 
 /**
  * Program error codes surfaced to clients as `ProgramError::Custom(u32)`.
- * Mirror of `MarketError` in `error.rs` (0..=22). STABLE PUBLIC CONTRACT.
+ * Mirror of `MarketError` in `error.rs` (0..=24). STABLE PUBLIC CONTRACT.
  */
 export enum MarketError {
   InvalidAccount = 0,
@@ -106,6 +110,8 @@ export enum MarketError {
   NotSettled = 21,
   /** `init_config` caller is not the program's on-chain upgrade authority. */
   NotUpgradeAuthority = 22,
+  AlreadyDelegated = 23,
+  NotDelegated = 24,
 }
 
 /** Governance guardrail: max protocol `fee_bps` (10% = 1000 bps). Mirror of `state::MAX_FEE_BPS`. */
@@ -159,6 +165,10 @@ export const MARKET_ERROR_MESSAGES: Record<MarketError, string> = {
     "The market is not in a terminal (Resolved/Void/Cancelled) status, so it cannot be closed.",
   [MarketError.NotUpgradeAuthority]:
     "The signer is not the program's on-chain upgrade authority.",
+  [MarketError.AlreadyDelegated]:
+    "delegate_market was called on a market whose ErSession is already delegated.",
+  [MarketError.NotDelegated]:
+    "commit_market / undelegate_market ran against an ErSession that is not currently delegated.",
 };
 
 /**
@@ -181,7 +191,13 @@ export const ACCOUNT_SIZES = {
   Config: 160,
   Market: 424,
   Contribution: 96,
+  ErSession: 96,
 } as const;
+
+/** `ErSession.status`: account is on the base layer (not delegated). */
+export const ER_STATUS_UNDELEGATED = 0;
+/** `ErSession.status`: account is delegated to an Ephemeral Rollup validator. */
+export const ER_STATUS_DELEGATED = 1;
 
 /**
  * External program IDs the kassandra-market MetaDAO composition binds to.

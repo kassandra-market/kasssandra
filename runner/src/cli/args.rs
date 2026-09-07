@@ -10,8 +10,8 @@ use crate::provider::{AiProvider, MockProvider};
 use crate::submit::ConfirmOptions;
 
 use crate::cli::{
-    build_model_config, resolve_config, resolve_submit_target, run_core, submit_claim, use_mock,
-    verify_core, SubmittedClaim,
+    build_model_config, push_feed, resolve_config, resolve_push_feed_target, resolve_submit_target,
+    run_core, submit_claim, use_mock, verify_core, SubmittedClaim,
 };
 
 // --- clap -------------------------------------------------------------------
@@ -83,10 +83,17 @@ pub struct RunArgs {
     #[arg(long)]
     pub submit: bool,
     /// Path to the Solana CLI keypair JSON (a 64-byte array) that signs the
-    /// `submit_ai_claim` transaction in `--submit` mode. This keypair MUST be
-    /// the proposer's registered `authority`.
+    /// `submit_ai_claim` transaction in `--submit` / `--push-feed` mode. For
+    /// `--submit` this MUST be the proposer's registered `authority`; for
+    /// `--push-feed` it MUST be `AiOracleConfig.authority`.
     #[arg(long)]
     pub keypair: Option<PathBuf>,
+    /// Keeper mode: after producing the claim, SIGN + SEND + CONFIRM a
+    /// `PushAiOracleFeed` transaction (writes the protocol AI feed). Requires
+    /// `--keypair` and `--rpc-url`; the signer MUST be the configured pusher.
+    /// Can be combined with `--submit` (in-house claim fallback).
+    #[arg(long)]
+    pub push_feed: bool,
 }
 
 /// `verify` arguments.
@@ -128,6 +135,12 @@ pub async fn run_cli() -> anyhow::Result<()> {
             // --keypair / --rpc-url / oracle fails fast.
             let submit_target =
                 resolve_submit_target(&args.common, args.submit, args.keypair.as_deref(), &config)?;
+            let push_target = resolve_push_feed_target(
+                &args.common,
+                args.push_feed,
+                args.keypair.as_deref(),
+                &config,
+            )?;
             let model_config = build_model_config(args.common.model, args.common.max_tokens);
             let fetcher = HttpFactFetcher::new()?;
             let provider = build_provider(args.common.mock)?;
@@ -147,6 +160,20 @@ pub async fn run_cli() -> anyhow::Result<()> {
                 )
                 .await?;
                 out.submission = Some(submission);
+            }
+
+            if let Some(target) = push_target {
+                let authority = crate::submit::load_keypair(&target.keypair_path)?;
+                let rpc = crate::rpc::HttpJsonRpc::new(target.rpc_url.clone())?;
+                let feed = push_feed(
+                    &rpc,
+                    &target.oracle,
+                    &authority,
+                    &out.submit_ai_claim_payload,
+                    ConfirmOptions::default(),
+                )
+                .await?;
+                out.feed_submission = Some(feed);
             }
 
             println!("{}", serde_json::to_string_pretty(&out)?);

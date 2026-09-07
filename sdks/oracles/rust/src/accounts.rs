@@ -8,8 +8,10 @@
 use bytemuck::PodCastError;
 
 pub use kassandra_oracles_program::state::{
-    AccountType, AiClaim, Fact, FactVote, Market, Oracle, Phase, Proposer, Protocol,
-    CLAIM_OPTION_NONE, VOTE_APPROVE, VOTE_DUPLICATE,
+    AccountType, AiClaim, AiOracleConfig, AiOracleFeed, ErSession, Fact, FactVote, Market, Oracle,
+    Phase, Proposer, Protocol, AI_ORACLE_SOURCE_EXTERNAL, AI_ORACLE_SOURCE_MAGICBLOCK,
+    AI_ORACLE_SOURCE_SWITCHBOARD, CLAIM_OPTION_NONE, ER_STATUS_DELEGATED, ER_STATUS_UNDELEGATED,
+    VOTE_APPROVE, VOTE_DUPLICATE,
 };
 
 /// Decode a byte buffer as a reference to `T` (zero-copy). Requires the buffer to
@@ -45,6 +47,17 @@ decoder!(decode_fact, Fact, "Decode a `Fact` account.");
 decoder!(decode_fact_vote, FactVote, "Decode a `FactVote` account.");
 decoder!(decode_ai_claim, AiClaim, "Decode an `AiClaim` account.");
 decoder!(decode_market, Market, "Decode a `Market` account.");
+decoder!(decode_er_session, ErSession, "Decode an `ErSession` companion PDA.");
+decoder!(
+    decode_ai_oracle_config,
+    AiOracleConfig,
+    "Decode the protocol `AiOracleConfig` singleton."
+);
+decoder!(
+    decode_ai_oracle_feed,
+    AiOracleFeed,
+    "Decode a per-oracle `AiOracleFeed` account."
+);
 
 /// The parsed `oracle_meta` account — the plaintext subject + option labels + the
 /// off-chain-JSON `uri`/`uri_hash`. NOT a Pod struct (variable length), so it is

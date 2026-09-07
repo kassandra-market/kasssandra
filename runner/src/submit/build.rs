@@ -73,6 +73,43 @@ pub fn build_submit_ai_claim_ix(
     )
 }
 
+/// Build the `PushAiOracleFeed` instruction from the runner's 97-byte claim
+/// payload (`model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option`). The
+/// on-wire feed payload is `option ++ hashes ++ attestation[64]`.
+pub fn build_push_ai_oracle_feed_ix(
+    oracle: &Pubkey,
+    authority: &Pubkey,
+    payload: &[u8; SUBMIT_AI_CLAIM_PAYLOAD_LEN],
+    attestation: &[u8; 64],
+) -> Instruction {
+    let mut model_id = [0u8; 32];
+    let mut params_hash = [0u8; 32];
+    let mut io_hash = [0u8; 32];
+    model_id.copy_from_slice(&payload[0..32]);
+    params_hash.copy_from_slice(&payload[32..64]);
+    io_hash.copy_from_slice(&payload[64..96]);
+    let option = payload[96];
+    let program_id = program_id();
+    let config = kassandra_oracles_sdk::pda::ai_oracle_config(&program_id).0;
+    let feed = kassandra_oracles_sdk::pda::ai_oracle_feed(&program_id, oracle).0;
+    kassandra_oracles_sdk::ix::push_ai_oracle_feed(
+        &program_id,
+        config,
+        *oracle,
+        feed,
+        *authority,
+        option,
+        &model_id,
+        &params_hash,
+        &io_hash,
+        attestation,
+    )
+}
+
+/// Discriminant of `PushAiOracleFeed` (Ix 28).
+pub const PUSH_AI_ORACLE_FEED_DISCRIMINANT: u8 =
+    kassandra_oracles_sdk::Ix::PushAiOracleFeed as u8;
+
 /// Load a Solana CLI JSON keypair file (a 64-byte JSON array: 32 secret ++ 32
 /// public) into a [`Keypair`]. Clear errors on a missing file, non-array JSON,
 /// wrong length, or bad key bytes.

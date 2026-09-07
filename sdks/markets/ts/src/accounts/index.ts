@@ -12,3 +12,4 @@ export * from "./config.js";
 export * from "./market.js";
 export * from "./contribution.js";
 export * from "./oracle.js";
+export * from "./erSession.js";

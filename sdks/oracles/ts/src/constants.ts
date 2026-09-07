@@ -4,9 +4,9 @@
  * program and guarded by `test/parity.test.ts` (a mismatch fails CI = drift
  * guard). Sources:
  *
- *   - `programs/oracles/src/instruction.rs` — {@link Ix} discriminants (0..=22)
- *   - `programs/oracles/src/state.rs`       — {@link AccountType} (0..=7)
- *   - `programs/oracles/src/error.rs`       — {@link KassandraError} (0..=35)
+ *   - `programs/oracles/src/instruction.rs` — {@link Ix} discriminants (0..=29)
+ *   - `programs/oracles/src/state.rs`       — {@link AccountType} (0..=11)
+ *   - `programs/oracles/src/error.rs`       — {@link KassandraError} (0..=41)
  *   - `programs/oracles/tests/state_layout.rs` — {@link ACCOUNT_SIZES}
  *   - `programs/oracles/src/config.rs`      — protocol consts
  *   - `programs/oracles/src/cpi/{metadao,metadao_v06}.rs` — external program IDs
@@ -59,6 +59,12 @@ export enum Ix {
   CloseMarket = 21,
   SweepOracle = 22,
   WriteOracleMeta = 23,
+  DelegateOracle = 24,
+  CommitOracle = 25,
+  UndelegateOracle = 26,
+  SetAiOracleConfig = 27,
+  PushAiOracleFeed = 28,
+  ApplyExternalAiClaim = 29,
 }
 
 /**
@@ -76,6 +82,9 @@ export enum AccountType {
   Market = 6,
   Protocol = 7,
   OracleMeta = 8,
+  ErSession = 9,
+  AiOracleConfig = 10,
+  AiOracleFeed = 11,
 }
 
 /**
@@ -96,10 +105,12 @@ export enum Phase {
 }
 
 /**
- * Pinned on-chain ABI sizes (bytes) of the 7 Pod accounts, from
+ * Pinned on-chain ABI sizes (bytes) of the Pod accounts, from
  * `tests/state_layout.rs` (`account_sizes_are_stable`). Each carries an 8-byte
  * header (`account_type: u8` + `_pad_hdr[7]`) at offset 0. The D2 decoders read
  * exactly this many bytes; the parity guard asserts these against the program.
+ * `Oracle` (368) and `Protocol` (392) are NOT resized — ER + AI-oracle state
+ * lives on companion PDAs.
  */
 export const ACCOUNT_SIZES = {
   Protocol: 392,
@@ -109,6 +120,9 @@ export const ACCOUNT_SIZES = {
   FactVote: 88,
   AiClaim: 208,
   Market: 416,
+  ErSession: 96,
+  AiOracleConfig: 48,
+  AiOracleFeed: 248,
 } as const;
 
 /**
@@ -153,6 +167,11 @@ export enum KassandraError {
   GovernanceNotSet = 34,
   InvalidTreasury = 35,
   BelowMinStake = 36,
+  AlreadyDelegated = 37,
+  NotDelegated = 38,
+  StaleAiOracle = 39,
+  AiOracleDisabled = 40,
+  AiOracleMismatch = 41,
 }
 
 /** Human-readable message per {@link KassandraError} (condensed from error.rs docs). */
@@ -194,6 +213,11 @@ const ERROR_MESSAGES: Record<KassandraError, string> = {
   [KassandraError.GovernanceNotSet]: "sweep_oracle was called while the Protocol has no DAO linkage (governance_set == 0); the treasury ATA does not exist yet.",
   [KassandraError.InvalidTreasury]: "sweep_oracle was given a dao_treasury that is not the canonical KASS ATA(dao_authority, kass_mint).",
   [KassandraError.BelowMinStake]: "The stake was below the oracle's activity-scaled min_stake floor (0 at genesis / low activity; grows with creation activity).",
+  [KassandraError.AlreadyDelegated]: "delegate_oracle was called on an oracle whose ErSession is already delegated.",
+  [KassandraError.NotDelegated]: "commit_oracle / undelegate_oracle ran against an ErSession that is not currently delegated.",
+  [KassandraError.StaleAiOracle]: "apply_external_ai_claim read an AiOracleFeed older than AiOracleConfig.max_staleness_slots.",
+  [KassandraError.AiOracleDisabled]: "The external AI oracle is disabled; use submit_ai_claim instead.",
+  [KassandraError.AiOracleMismatch]: "apply_external_ai_claim was given a feed whose oracle pubkey does not match the instruction's oracle.",
 };
 
 /**
@@ -224,7 +248,28 @@ export const EXTERNAL_PROGRAM_IDS = {
   meteoraDammV2: new Address("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG"),
   /** Squads v4. `metadao_v06.rs::SQUADS_V4_ID`. */
   squadsV4: new Address("SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf"),
+  /** MagicBlock Delegation Program (`cpi/magicblock.rs::DELEGATION_PROGRAM_ID`). */
+  magicblockDelegation: new Address("DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"),
+  /** MagicBlock Magic Program (`cpi/magicblock.rs::MAGIC_PROGRAM_ID`). */
+  magicblockMagic: new Address("Magic11111111111111111111111111111111111111"),
+  /** Magic Context account (`cpi/magicblock.rs::MAGIC_CONTEXT_ID`). */
+  magicblockContext: new Address("MagicContext1111111111111111111111111111111"),
 } as const;
+
+/** `ErSession.status`: account is on the base layer (not delegated). */
+export const ER_STATUS_UNDELEGATED = 0;
+/** `ErSession.status`: account is delegated to an Ephemeral Rollup validator. */
+export const ER_STATUS_DELEGATED = 1;
+
+/** `AiOracleConfig.source`: generic external pusher (runner, chain-pusher, …). */
+export const AI_ORACLE_SOURCE_EXTERNAL = 0;
+/** `AiOracleConfig.source`: MagicBlock oracle pusher. */
+export const AI_ORACLE_SOURCE_MAGICBLOCK = 1;
+/** `AiOracleConfig.source`: Switchboard on-demand (reserved). */
+export const AI_ORACLE_SOURCE_SWITCHBOARD = 2;
+
+/** Default MagicBlock commit frequency when `commit_frequency_ms == 0` (30s). */
+export const ER_DEFAULT_COMMIT_FREQUENCY_MS = 30_000;
 
 /**
  * Protocol-global config consts the SDK exposes (defaults from `config.rs`;

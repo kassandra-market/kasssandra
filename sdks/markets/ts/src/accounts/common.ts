@@ -37,6 +37,11 @@ export function readU16LE(dv: DataView, offset: number): number {
   return dv.getUint16(offset, true);
 }
 
+/** Read a little-endian unsigned 32-bit integer at `offset`. */
+export function readU32LE(dv: DataView, offset: number): number {
+  return dv.getUint32(offset, true);
+}
+
 /** Read a little-endian unsigned 64-bit integer at `offset` as a `bigint`. */
 export function readU64LE(dv: DataView, offset: number): bigint {
   return dv.getBigUint64(offset, true);

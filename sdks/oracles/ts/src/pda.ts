@@ -111,6 +111,21 @@ export function challengeUsdcVault(marketAddr: AddressInput, programId?: Address
   return derive([enc.encode("challenge_usdc"), pubkeyBytes(marketAddr)], programId);
 }
 
+/** ER-session companion PDA — seeds `[b"er_session", oracle]`. */
+export function erSession(oracleAddr: AddressInput, programId?: Address): Promise<Pda> {
+  return derive([enc.encode("er_session"), pubkeyBytes(oracleAddr)], programId);
+}
+
+/** External AI-oracle config singleton — seeds `[b"ai_oracle_config"]`. */
+export function aiOracleConfig(programId?: Address): Promise<Pda> {
+  return derive([enc.encode("ai_oracle_config")], programId);
+}
+
+/** Per-oracle AI feed PDA — seeds `[b"ai_feed", oracle]`. */
+export function aiOracleFeed(oracleAddr: AddressInput, programId?: Address): Promise<Pda> {
+  return derive([enc.encode("ai_feed"), pubkeyBytes(oracleAddr)], programId);
+}
+
 /**
  * SPL associated-token-account address — seeds `[owner, TOKEN_PROGRAM, mint]`
  * under the {@link ATA_PROGRAM_ID}. `sweep_oracle`'s DAO treasury is

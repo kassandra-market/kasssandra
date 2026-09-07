@@ -2,7 +2,7 @@
 id: spec-market-program
 title: Market program spec
 tags: [spec, market, program, onchain, metadao]
-updated: 2026-07-10
+updated: 2026-09-07
 source: programs/markets/src/{instruction.rs,state.rs,processor/}
 ---
 
@@ -27,6 +27,10 @@ composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
 | 8 | ResolveMarket | Resolve to the winning outcome |
 | 9 | CollectFee | Protocol fee collection |
 | 10 | CloseMarket | Reap a settled market (account closes) |
+| 11 | AddLiquidity | Add KASS liquidity to an Active cYES/cNO pool |
+| 12 | DelegateMarket | Create/update per-market `ErSession`; optional MagicBlock CPI |
+| 13 | CommitMarket | Stamp last-commit slot; optional Magic Program commit CPI |
+| 14 | UndelegateMarket | Mark undelegated; optional commit-and-undelegate CPI |
 
 ## Accounts
 
@@ -34,6 +38,7 @@ composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
 - `Market` — status (Funding/Active/…; `status` byte at offset 154, Active == 1),
   min_liquidity, total_contributed, KASS/USDC vaults, outcome index, settled flag.
 - `Contribution` — per-LP contribution amount.
+- `ErSession` (96 B, tag 4) — `[b"er_session", market]` MagicBlock delegation record.
 
 ## Lifecycle
 

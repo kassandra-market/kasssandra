@@ -6,7 +6,7 @@
 //! REUSED from `kassandra_markets_program::state` — one source of truth.
 
 use carbon_core::account::{AccountDecoder, DecodedAccount};
-use kassandra_markets_program::state::{AccountType, Config, Contribution, Market};
+use kassandra_markets_program::state::{AccountType, Config, Contribution, ErSession, Market};
 use solana_pubkey::Pubkey;
 
 /// A decoded kassandra-market account. (The Pod layouts don't derive `Debug`,
@@ -22,6 +22,7 @@ pub enum KassandraAccount {
     Config(Config),
     Market(Market),
     Contribution(Contribution),
+    ErSession(ErSession),
 }
 
 pub struct KassandraAccountDecoder {
@@ -60,6 +61,10 @@ impl<'a> AccountDecoder<'a> for KassandraAccountDecoder {
             (data.len() == Contribution::LEN)
                 .then(|| bytemuck::pod_read_unaligned::<Contribution>(&data[..Contribution::LEN]))
                 .map(KassandraAccount::Contribution)?
+        } else if tag == AccountType::ErSession.as_u8() {
+            (data.len() == ErSession::LEN)
+                .then(|| bytemuck::pod_read_unaligned::<ErSession>(&data[..ErSession::LEN]))
+                .map(KassandraAccount::ErSession)?
         } else {
             return None;
         };

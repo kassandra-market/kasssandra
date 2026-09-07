@@ -40,12 +40,13 @@ mod confirm;
 mod error;
 
 pub use build::{
-    build_signed_transaction, build_submit_ai_claim_ix, derive_ai_claim_pda, derive_proposer_pda,
-    encode_transaction, load_keypair, program_id, SUBMIT_AI_CLAIM_DISCRIMINANT,
+    build_push_ai_oracle_feed_ix, build_signed_transaction, build_submit_ai_claim_ix,
+    derive_ai_claim_pda, derive_proposer_pda, encode_transaction, load_keypair, program_id,
+    PUSH_AI_ORACLE_FEED_DISCRIMINANT, SUBMIT_AI_CLAIM_DISCRIMINANT,
 };
 pub use confirm::{
-    confirm, get_latest_blockhash, send_transaction, submit_and_confirm, ConfirmOptions,
-    Confirmation,
+    confirm, get_latest_blockhash, push_feed_and_confirm, send_transaction, submit_and_confirm,
+    ConfirmOptions, Confirmation,
 };
 pub use error::SubmitError;
 

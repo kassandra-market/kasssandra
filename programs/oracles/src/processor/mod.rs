@@ -14,10 +14,13 @@ use pinocchio::{
 use crate::instruction::Ix;
 
 pub mod advance_phase;
+pub mod apply_external_ai_claim;
 pub mod claims;
 pub mod close_ai_claim;
 pub mod close_market;
+pub mod commit_oracle;
 pub mod create_oracle;
+pub mod delegate_oracle;
 pub mod finalize_ai_claims;
 pub mod finalize_facts;
 pub mod finalize_oracle;
@@ -27,13 +30,17 @@ pub mod init_protocol;
 pub mod kass_price;
 pub mod open_challenge;
 pub mod propose;
+pub mod push_ai_oracle_feed;
 pub mod resolve_deadend;
+pub mod set_ai_oracle_config;
 pub mod set_config;
 pub mod set_governance;
 pub mod settle_challenge;
 pub mod submit_ai_claim;
 pub mod submit_fact;
 pub mod sweep_oracle;
+pub mod undelegate_callback;
+pub mod undelegate_oracle;
 pub mod vote_fact;
 pub mod write_oracle_meta;
 
@@ -69,5 +76,11 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], data: &[u8]) -
         Ix::CloseMarket => close_market::process(program_id, accounts, payload),
         Ix::SweepOracle => sweep_oracle::process(program_id, accounts, payload),
         Ix::WriteOracleMeta => write_oracle_meta::process(program_id, accounts, payload),
+        Ix::DelegateOracle => delegate_oracle::process(program_id, accounts, payload),
+        Ix::CommitOracle => commit_oracle::process(program_id, accounts, payload),
+        Ix::UndelegateOracle => undelegate_oracle::process(program_id, accounts, payload),
+        Ix::SetAiOracleConfig => set_ai_oracle_config::process(program_id, accounts, payload),
+        Ix::PushAiOracleFeed => push_ai_oracle_feed::process(program_id, accounts, payload),
+        Ix::ApplyExternalAiClaim => apply_external_ai_claim::process(program_id, accounts, payload),
     }
 }

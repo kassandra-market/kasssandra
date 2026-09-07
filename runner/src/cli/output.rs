@@ -41,6 +41,9 @@ pub struct RunOutput {
     /// mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub submission: Option<SubmissionOutput>,
+    /// The result of `--push-feed` (writes `AiOracleFeed` via `PushAiOracleFeed`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feed_submission: Option<FeedSubmissionOutput>,
     /// The exact 97-byte `submit_ai_claim` payload as raw bytes — the SAME bytes
     /// as [`Self::submit_ai_claim_payload_hex`]. Carried (not re-serialized) so
     /// the `--submit` path signs the runner's OWN payload verbatim rather than
@@ -61,6 +64,21 @@ pub struct SubmissionOutput {
     /// The derived Proposer PDA (`[b"proposer", oracle, authority]`, base58).
     pub proposer: String,
     /// The signing authority = the `--keypair` pubkey (base58).
+    pub authority: String,
+}
+
+/// The on-chain feed-push result appended to a `--push-feed` run.
+#[derive(Clone, Debug, Serialize)]
+pub struct FeedSubmissionOutput {
+    /// The confirmed transaction signature (base58).
+    pub signature: String,
+    /// The reached confirmation status (`confirmed` / `finalized`).
+    pub confirmation_status: String,
+    /// The oracle the feed was written for (base58).
+    pub oracle: String,
+    /// The `AiOracleFeed` PDA (base58).
+    pub feed: String,
+    /// The signing authority = the `--keypair` pubkey (must be `AiOracleConfig.authority`).
     pub authority: String,
 }
 

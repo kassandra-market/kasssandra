@@ -44,3 +44,8 @@ pub fn market_cno(market: &Pubkey) -> (Pubkey, u8) {
 pub fn lp_vault(market: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"lp_vault", market.as_ref()], &PROGRAM_ID)
 }
+
+/// ER-session companion PDA: `[b"er_session", market]`.
+pub fn er_session(market: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"er_session", market.as_ref()], &PROGRAM_ID)
+}

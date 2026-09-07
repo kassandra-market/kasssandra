@@ -11,12 +11,17 @@ fn account_sizes_are_stable() {
     assert_eq!(size_of::<AiClaim>(), AiClaim::LEN);
     assert_eq!(size_of::<Market>(), Market::LEN);
     assert_eq!(size_of::<Protocol>(), Protocol::LEN);
+    assert_eq!(size_of::<ErSession>(), ErSession::LEN);
+    assert_eq!(size_of::<AiOracleConfig>(), AiOracleConfig::LEN);
+    assert_eq!(size_of::<AiOracleFeed>(), AiOracleFeed::LEN);
 
     // Absolute pinned on-chain ABI sizes. Changing a struct's layout must
     // be a deliberate, visible break of these constants. Each carries an
     // 8-byte header (account_type: u8 + _pad_hdr: [u8;7]) at offset 0.
     // Oracle 360→368 and Protocol 368→392 grew by the bootstrapping stake-floor
     // fields (Oracle.min_stake; Protocol.stake_floor_ema_threshold/cap/max).
+    // ErSession / AiOracleConfig / AiOracleFeed are companion PDAs (ER + external
+    // AI oracle) — they do NOT resize Oracle/Protocol.
     assert_eq!(Oracle::LEN, 368);
     assert_eq!(Proposer::LEN, 96);
     assert_eq!(Fact::LEN, 336);
@@ -24,6 +29,9 @@ fn account_sizes_are_stable() {
     assert_eq!(AiClaim::LEN, 208);
     assert_eq!(Market::LEN, 416);
     assert_eq!(Protocol::LEN, 392);
+    assert_eq!(ErSession::LEN, 96);
+    assert_eq!(AiOracleConfig::LEN, 48);
+    assert_eq!(AiOracleFeed::LEN, 248);
 }
 
 #[test]
@@ -145,6 +153,27 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Protocol, stake_floor_ema_threshold), 368);
     assert_eq!(offset_of!(Protocol, stake_floor_ema_cap), 376);
     assert_eq!(offset_of!(Protocol, stake_floor_max), 384);
+
+    // Companion PDAs (ER + external AI oracle). `oracle` sits at offset 8 so
+    // the indexer's child-account gpa filter stays a single memcmp.
+    assert_eq!(offset_of!(ErSession, account_type), 0);
+    assert_eq!(offset_of!(ErSession, oracle), 8);
+    assert_eq!(offset_of!(ErSession, validator), 40);
+    assert_eq!(offset_of!(ErSession, commit_frequency_ms), 72);
+    assert_eq!(offset_of!(ErSession, delegated_at), 80);
+    assert_eq!(offset_of!(ErSession, last_commit_slot), 88);
+
+    assert_eq!(offset_of!(AiOracleConfig, account_type), 0);
+    assert_eq!(offset_of!(AiOracleConfig, authority), 8);
+    assert_eq!(offset_of!(AiOracleConfig, max_staleness_slots), 40);
+
+    assert_eq!(offset_of!(AiOracleFeed, account_type), 0);
+    assert_eq!(offset_of!(AiOracleFeed, oracle), 8);
+    assert_eq!(offset_of!(AiOracleFeed, slot), 40);
+    assert_eq!(offset_of!(AiOracleFeed, timestamp), 48);
+    assert_eq!(offset_of!(AiOracleFeed, model_id), 56);
+    assert_eq!(offset_of!(AiOracleFeed, attestation), 152);
+    assert_eq!(offset_of!(AiOracleFeed, updated_by), 216);
 }
 
 #[test]

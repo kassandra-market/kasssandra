@@ -226,4 +226,54 @@ fn pdas_match_documented_seeds() {
         )
         .0
     );
+    assert_eq!(
+        pda::er_session(&PROGRAM_ID, &oracle).0,
+        Pubkey::find_program_address(&[b"er_session", oracle.as_ref()], &PROGRAM_ID).0
+    );
+    assert_eq!(
+        pda::ai_oracle_config(&PROGRAM_ID).0,
+        Pubkey::find_program_address(&[b"ai_oracle_config"], &PROGRAM_ID).0
+    );
+    assert_eq!(
+        pda::ai_oracle_feed(&PROGRAM_ID, &oracle).0,
+        Pubkey::find_program_address(&[b"ai_feed", oracle.as_ref()], &PROGRAM_ID).0
+    );
+}
+
+#[test]
+fn delegate_oracle_payload_is_nonce_freq_validator() {
+    let ix = ix::delegate_oracle(&PROGRAM_ID, pk(1), pk(2), pk(3), 42, 1_000, &pk(4));
+    assert_eq!(ix.data[0], Ix::DelegateOracle as u8);
+    assert_eq!(ix.data.len(), 1 + 44);
+    assert_eq!(&ix.data[1..9], &42u64.to_le_bytes());
+    assert_eq!(&ix.data[9..13], &1_000u32.to_le_bytes());
+    assert_eq!(&ix.data[13..45], pk(4).as_ref());
+    assert_eq!(ix.accounts.len(), 4);
+}
+
+#[test]
+fn apply_external_ai_claim_has_empty_payload() {
+    let ix = ix::apply_external_ai_claim(&PROGRAM_ID, pk(1), pk(2), pk(3), pk(4), pk(5), pk(6));
+    assert_eq!(ix.data, vec![Ix::ApplyExternalAiClaim as u8]);
+    assert_eq!(ix.accounts.len(), 7);
+}
+
+#[test]
+fn push_ai_oracle_feed_payload_is_161_plus_disc() {
+    let ix = ix::push_ai_oracle_feed(
+        &PROGRAM_ID,
+        pk(1),
+        pk(2),
+        pk(3),
+        pk(4),
+        1,
+        &[0x11; 32],
+        &[0x22; 32],
+        &[0x33; 32],
+        &[0x44; 64],
+    );
+    assert_eq!(ix.data[0], Ix::PushAiOracleFeed as u8);
+    assert_eq!(ix.data.len(), 1 + 161);
+    assert_eq!(ix.data[1], 1);
+    assert_eq!(ix.accounts.len(), 5);
 }

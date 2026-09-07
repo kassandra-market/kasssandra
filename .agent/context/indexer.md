@@ -2,7 +2,7 @@
 id: context-indexer
 title: The indexer (indexer/)
 tags: [context, indexer, postgres, carbon]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # The indexer (`indexer/`)
@@ -15,9 +15,12 @@ Postgres** + one **axum** read API. Postgres-native (JSONB, threaded
 
 - **Oracle side** — crawls program **transactions** (instruction/event log) via
   the RPC transaction-crawler datasource; serves per-account activity history.
+  Account mirror child tags include ErSession (9) and AiOracleFeed (11) (parent
+  pubkey still at offset 8).
 - **Market side** — indexes **accounts** (gpa snapshot + program-subscribe live
   tail) + a per-pool **websocket price subscriber** (`accountSubscribe`) that
-  records candle points. A short getProgramAccounts reconcile keeps accounts fresh.
+  records candle points. A short getProgramAccounts reconcile keeps accounts
+  fresh. Also indexes per-market `ErSession` (tag 4).
 
 ## Dependency stance
 

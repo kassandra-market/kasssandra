@@ -2,7 +2,7 @@
 id: context-sdks
 title: Client SDKs
 tags: [context, sdk, rust, typescript]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # Client SDKs
@@ -28,8 +28,8 @@ there is no cross-crate drift.
   `solana-sdk = "2"` + `spl-token = "6"` directly, NOT via the workspace (which is
   on the granular v3 client stack). Both majors coexist. Don't "unify" it.
   ([`../memories/markets-rust-v2-island.md`](../memories/markets-rust-v2-island.md))
-- Main modules: `pda`, `ix` (folder module split by instruction family),
-  `accounts` (decoders), `metadao` (markets).
+- Main modules: `pda`, `ix` (folder module split by instruction family, including
+  `er` + `ai_oracle`), `accounts` (decoders), `metadao` (markets).
 
 ## TS SDKs
 

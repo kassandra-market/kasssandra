@@ -53,6 +53,10 @@ pub async fn persist(
             db::TYPE_CONTRIBUTION,
             Some(bs58::encode(c.market).into_string()),
         ),
+        KassandraAccount::ErSession(s) => (
+            db::TYPE_ER_SESSION,
+            Some(bs58::encode(s.market).into_string()),
+        ),
     };
     if let Err(e) = db::upsert_account(
         client,

@@ -2,7 +2,7 @@
 id: skill-running-verifying
 title: "Skill: build, test & verify reliably"
 tags: [skill, testing, verification]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # Skill: build, test & verify reliably
@@ -25,6 +25,9 @@ cargo test --workspace                  # THE way to run tests (never -p)
   instruction data").
 - Clippy baseline (pre-existing, OK): `kassandra-oracles-sdk` lib+lib-test (1),
   `kassandra-runner` lib+lib-test (needless-borrows). Anything else is yours to fix.
+- Adding `Ix` variants shifts CU on *every* existing ix. Re-bless with
+  `BLESS_CU=1 cargo test --workspace --test compute_units` (never `-p`). See
+  [cu-snapshot-rebless.md](../memories/cu-snapshot-rebless.md).
 
 ## TypeScript SDKs
 

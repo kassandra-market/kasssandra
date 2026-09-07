@@ -17,6 +17,9 @@ fn ix_discriminants_match_sdk() {
     assert_eq!(Ix::CollectFee as u8, sdk::IX_COLLECT_FEE);
     assert_eq!(Ix::CloseMarket as u8, sdk::IX_CLOSE_MARKET);
     assert_eq!(Ix::AddLiquidity as u8, sdk::IX_ADD_LIQUIDITY);
+    assert_eq!(Ix::DelegateMarket as u8, sdk::IX_DELEGATE_MARKET);
+    assert_eq!(Ix::CommitMarket as u8, sdk::IX_COMMIT_MARKET);
+    assert_eq!(Ix::UndelegateMarket as u8, sdk::IX_UNDELEGATE_MARKET);
 }
 
 #[test]

@@ -19,6 +19,8 @@ pub enum AccountType {
     Config = 1,
     Market = 2,
     Contribution = 3,
+    /// Companion PDA recording MagicBlock ER delegation for one market.
+    ErSession = 4,
 }
 impl AccountType {
     pub fn as_u8(self) -> u8 {
@@ -159,4 +161,33 @@ pub struct Contribution {
 }
 impl Contribution {
     pub const LEN: usize = core::mem::size_of::<Self>();
+}
+
+/// `ErSession.status`: not delegated.
+pub const ER_STATUS_UNDELEGATED: u8 = 0;
+/// `ErSession.status`: delegated to an Ephemeral Rollup validator.
+pub const ER_STATUS_DELEGATED: u8 = 1;
+
+/// Per-market ER-delegation record. PDA `[b"er_session", market]`. `size_of == 96`.
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct ErSession {
+    pub account_type: u8, // AccountType::ErSession
+    pub bump: u8,
+    pub status: u8,
+    pub _pad: [u8; 5],
+    pub market: Pubkey,
+    pub validator: Pubkey,
+    pub commit_frequency_ms: u32,
+    pub _pad2: [u8; 4],
+    pub delegated_at: i64,
+    pub last_commit_slot: u64,
+}
+impl ErSession {
+    pub const LEN: usize = core::mem::size_of::<Self>();
+    pub const SEED_PREFIX: &'static [u8] = b"er_session";
+
+    pub fn is_delegated(&self) -> bool {
+        self.status == ER_STATUS_DELEGATED
+    }
 }

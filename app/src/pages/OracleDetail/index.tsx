@@ -4,6 +4,8 @@ import { Phase } from '@kassandra-market/oracles'
 import { Button, Card, EyebrowTag, Tabs, TabPanel, type TabItem } from '../../components/ui'
 import { PhaseChip } from '../../components/oracles/PhaseChip'
 import { PhaseTimeline } from '../../components/oracles/PhaseTimeline'
+import { ErSessionBadge } from '../../components/oracles/ErSessionBadge'
+import { ErAiOraclePanel } from '../../components/oracles/ErAiOraclePanel'
 import { OracleEconomics } from '../../components/oracles/OracleEconomics'
 import { ChallengeMarketPanel } from '../../components/oracles/ChallengeMarketPanel'
 import { ChallengeControl } from '../../components/oracles/actions/ChallengeControl'
@@ -107,7 +109,7 @@ function OracleBody({
   detail: NonNullable<ReturnType<typeof useOracleDetail>['data']>
   refetch: () => void
 }) {
-  const { pubkey, oracle, facts, proposers, aiClaims, market } = detail
+  const { pubkey, oracle, facts, proposers, aiClaims, market, erSession, aiFeed } = detail
   // On-chain plaintext subject + option labels (indexed from oracle_meta).
   const metaItems = useMemo(() => [pubkey], [pubkey])
   const meta = useOracleMeta(metaItems).get(pubkey)
@@ -203,6 +205,7 @@ function OracleBody({
         )}
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 font-inter text-[13px] text-silver">
           <PhaseChip phase={oracle.phase} />
+          <ErSessionBadge session={erSession?.session} />
           <span>{relativeDeadline(oracle.deadline)}</span>
           <Truncated value={pubkey} copyable label="oracle address" />
           {predictionMarket ? (
@@ -256,6 +259,7 @@ function OracleBody({
       >
         <VerdictBanner oracle={oracle} />
         <PhaseTimeline oracle={oracle} />
+        <ErAiOraclePanel session={erSession} feed={aiFeed} />
         <OracleEconomics oracle={oracle} proposers={proposers.map((p) => p.proposer)} />
       </TabPanel>
 
@@ -295,6 +299,7 @@ function OracleBody({
           refetch={refetch}
           proposers={proposers.map((p) => p.pubkey)}
           facts={facts.map((f) => f.pubkey)}
+          aiFeed={aiFeed}
         />
         {market ? (
           <>

@@ -9,6 +9,8 @@ fn account_sizes_are_stable() {
     assert_eq!(Config::LEN, 160);
     assert_eq!(Market::LEN, 424);
     assert_eq!(Contribution::LEN, 96);
+    assert_eq!(size_of::<ErSession>(), ErSession::LEN);
+    assert_eq!(ErSession::LEN, 96);
 }
 
 #[test]
@@ -65,4 +67,11 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Contribution, claimed), 80);
     // Per-contributor post-activation LP, appended 8-aligned after the former tail.
     assert_eq!(offset_of!(Contribution, late_lp), 88);
+
+    assert_eq!(offset_of!(ErSession, account_type), 0);
+    assert_eq!(offset_of!(ErSession, market), 8);
+    assert_eq!(offset_of!(ErSession, validator), 40);
+    assert_eq!(offset_of!(ErSession, commit_frequency_ms), 72);
+    assert_eq!(offset_of!(ErSession, delegated_at), 80);
+    assert_eq!(offset_of!(ErSession, last_commit_slot), 88);
 }

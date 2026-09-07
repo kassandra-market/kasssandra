@@ -2,7 +2,7 @@
 id: context-programs
 title: On-chain programs
 tags: [context, programs, solana, pinocchio]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # On-chain programs
@@ -20,26 +20,30 @@ discriminant, and `overflow-checks = true` on release.
 - The oracle program CPIs into external **MetaDAO** programs (conditional vault,
   AMM v0.4, futarchy v0.6) — those `.so` fixtures live under
   `programs/oracles/tests/fixtures/` for LiteSVM and are excluded from the
-  published crate (`exclude = ["tests/"]`).
+  published crate (`exclude = ["tests/"]`). MagicBlock ER CPIs are hand-rolled in
+  `cpi/magicblock.rs` (do not depend on `ephemeral-rollups-pinocchio`).
 - Program IDs are declared in-crate and are **independent of the crate name** —
   the oracles/markets rename did not change deployed addresses.
 
 ## Oracle program
 
-- Instructions: `Ix` enum in `programs/oracles/src/instruction.rs` (discriminants 0–23).
+- Instructions: `Ix` enum in `programs/oracles/src/instruction.rs` (discriminants 0–29).
 - Accounts (`AccountType` tag @ byte 0): `Oracle`, `Proposer`, `Fact`, `FactVote`,
-  `AiClaim`, `Market`, `Protocol`, `OracleMeta`. Layouts in `programs/oracles/src/state.rs`.
+  `AiClaim`, `Market`, `Protocol`, `OracleMeta`, plus companion `ErSession` (9),
+  `AiOracleConfig` (10), `AiOracleFeed` (11). Layouts in `programs/oracles/src/state/`.
 - Phase machine (`Phase`): Created → Proposal → FactProposal → FactVoting →
   AiClaim → Challenge → FinalRecompute → Resolved (or InvalidDeadend).
 - Oracle subject + option labels live on-chain in a companion **`oracle_meta`**
   PDA (`WriteOracleMeta`, Ix 23); extended JSON is off-chain bound by `uri_hash`.
+- ER + AI-oracle: [`../specs/ephemeral-rollups-and-ai-oracle.md`](../specs/ephemeral-rollups-and-ai-oracle.md).
 - Full detail: [`../specs/oracle-program.md`](../specs/oracle-program.md).
 
 ## Market program
 
-- Instructions: `Ix` in `programs/markets/src/instruction.rs` (0–10): InitConfig,
+- Instructions: `Ix` in `programs/markets/src/instruction.rs` (0–14): InitConfig,
   UpdateConfig, CreateMarket, Contribute, Cancel, Refund, Activate, ClaimLp,
-  ResolveMarket, CollectFee, CloseMarket.
+  ResolveMarket, CollectFee, CloseMarket, AddLiquidity, DelegateMarket,
+  CommitMarket, UndelegateMarket.
 - A market funds in KASS, then **composes** a MetaDAO question / conditional vault
   / AMM and **activates** into a live cYES/cNO pool; resolution pays winners.
 - Full detail: [`../specs/market-program.md`](../specs/market-program.md).

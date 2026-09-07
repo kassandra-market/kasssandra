@@ -88,6 +88,11 @@ export function lpVault(marketAddr: AddressInput, programId?: Address): Promise<
   return derive([enc.encode("lp_vault"), pubkeyBytes(marketAddr)], programId);
 }
 
+/** ER-session companion PDA — seeds `[b"er_session", market]`. */
+export function erSession(marketAddr: AddressInput, programId?: Address): Promise<Pda> {
+  return derive([enc.encode("er_session"), pubkeyBytes(marketAddr)], programId);
+}
+
 /**
  * SPL associated-token-account address — seeds `[owner, TOKEN_PROGRAM, mint]`
  * under the {@link ATA_PROGRAM_ID}. NOTE: derived under the ATA program, NOT the

@@ -11,6 +11,7 @@ pub mod collect_fee;
 pub mod contribute;
 pub mod contribution;
 pub mod create_market;
+pub mod er;
 pub mod guards;
 pub mod init_config;
 pub mod refund;
@@ -21,7 +22,8 @@ pub fn process(program_id: &Address, accounts: &mut [AccountView], data: &[u8]) 
     let (&disc, payload) = data
         .split_first()
         .ok_or(ProgramError::InvalidInstructionData)?;
-    match Ix::from_u8(disc).ok_or(ProgramError::InvalidInstructionData)? {
+    let ix = Ix::from_u8(disc).ok_or(ProgramError::InvalidInstructionData)?;
+    match ix {
         Ix::InitConfig => init_config::process(program_id, accounts, payload),
         Ix::UpdateConfig => update_config::process(program_id, accounts, payload),
         Ix::CreateMarket => create_market::process(program_id, accounts, payload),
@@ -34,5 +36,8 @@ pub fn process(program_id: &Address, accounts: &mut [AccountView], data: &[u8]) 
         Ix::CollectFee => collect_fee::process(program_id, accounts, payload),
         Ix::CloseMarket => close_market::process(program_id, accounts, payload),
         Ix::AddLiquidity => add_liquidity::process(program_id, accounts, payload),
+        Ix::DelegateMarket | Ix::CommitMarket | Ix::UndelegateMarket => {
+            er::process(program_id, accounts, payload, ix)
+        }
     }
 }

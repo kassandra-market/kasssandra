@@ -11,8 +11,10 @@ use solana_instruction::{AccountMeta, Instruction};
 use solana_pubkey::Pubkey;
 
 mod ai_claim;
+mod ai_oracle;
 mod challenge;
 mod claims;
+mod er;
 mod facts;
 mod governance;
 mod lifecycle;
@@ -21,8 +23,10 @@ mod proposals;
 mod setup;
 
 pub use ai_claim::*;
+pub use ai_oracle::*;
 pub use challenge::*;
 pub use claims::*;
+pub use er::*;
 pub use facts::*;
 pub use governance::*;
 pub use lifecycle::*;

@@ -16,6 +16,9 @@ pub enum Ix {
     CollectFee = 9,
     CloseMarket = 10,
     AddLiquidity = 11,
+    DelegateMarket = 12,
+    CommitMarket = 13,
+    UndelegateMarket = 14,
 }
 
 impl Ix {
@@ -33,6 +36,9 @@ impl Ix {
             9 => Some(Ix::CollectFee),
             10 => Some(Ix::CloseMarket),
             11 => Some(Ix::AddLiquidity),
+            12 => Some(Ix::DelegateMarket),
+            13 => Some(Ix::CommitMarket),
+            14 => Some(Ix::UndelegateMarket),
             _ => None,
         }
     }

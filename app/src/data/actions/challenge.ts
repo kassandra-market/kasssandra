@@ -31,7 +31,13 @@
  * caller already composed, and submit_ai_claim only writes the claim PDA.
  */
 import { Address, type TransactionInstruction } from "@solana/web3.js";
-import { openChallenge, pda, settleChallenge, submitAiClaim } from "@kassandra-market/oracles";
+import {
+  applyExternalAiClaim,
+  openChallenge,
+  pda,
+  settleChallenge,
+  submitAiClaim,
+} from "@kassandra-market/oracles";
 import { ValidationError, type AddressInput } from "../actions";
 
 /** Coerce an {@link AddressInput} into an `Address`, re-typing a parse failure as a field error. */
@@ -278,3 +284,28 @@ export async function buildSubmitAiClaimIxs(
   });
   return [ix];
 }
+
+// ---------------------------------------------------------------------------
+// apply_external_ai_claim — stamps the proposer's AiClaim from the attested feed.
+// ---------------------------------------------------------------------------
+export interface BuildApplyExternalAiClaimArgs {
+  oracle: AddressInput;
+  /** Proposer authority (the connected wallet, or a cranked proposer's authority). */
+  proposerAuthority: AddressInput;
+  /** Fee payer (signer). */
+  payer: AddressInput;
+  programId?: Address;
+}
+
+export async function buildApplyExternalAiClaimIxs(
+  args: BuildApplyExternalAiClaimArgs,
+): Promise<TransactionInstruction[]> {
+  const ix = await applyExternalAiClaim({
+    oracle: addr("oracle", args.oracle),
+    proposerAuthority: addr("proposerAuthority", args.proposerAuthority),
+    payer: addr("payer", args.payer),
+    programId: args.programId,
+  });
+  return [ix];
+}
+

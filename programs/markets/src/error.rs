@@ -27,6 +27,12 @@ pub enum MarketError {
     NotSettled = 21,
     /// `init_config` caller is not the program's on-chain upgrade authority.
     NotUpgradeAuthority = 22,
+    /// `delegate_market` was called on a market whose `ErSession` is already
+    /// delegated.
+    AlreadyDelegated = 23,
+    /// `commit_market` / `undelegate_market` ran against a session that is not
+    /// currently delegated.
+    NotDelegated = 24,
 }
 
 impl From<MarketError> for ProgramError {

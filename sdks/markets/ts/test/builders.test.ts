@@ -32,6 +32,9 @@ import {
   refund,
   resolveMarket,
   updateConfig,
+  delegateMarket,
+  commitMarket,
+  undelegateMarket,
 } from "../src/instructions/market/index.js";
 import {
   A,
@@ -387,5 +390,37 @@ describe("closeMarket (Ix 10)", () => {
       b58(lpVault.address),
       b58(TOKEN_PROGRAM_ID),
     ]);
+  });
+});
+
+describe("delegateMarket / commitMarket / undelegateMarket (Ix 12–14)", () => {
+  it("delegateMarket: 36-byte payload + 4 accounts", async () => {
+    const market = await pda.market(ORACLE, 0);
+    const session = await pda.erSession(market.address);
+    const ix = await delegateMarket({
+      market: market.address,
+      payer: PAYER,
+      commitFrequencyMs: 30_000,
+    });
+    expect(ix.data[0]).toBe(Ix.DelegateMarket);
+    expect(ix.data.length).toBe(1 + 36);
+    expect(ix.keys.length).toBe(4);
+    expect(flags(ix.keys)).toBe("WWSr");
+    expect(addrsOf(ix.keys)).toEqual([
+      b58(market.address),
+      b58(session.address),
+      b58(PAYER),
+      b58(SYSTEM_PROGRAM_ID),
+    ]);
+  });
+
+  it("commitMarket / undelegateMarket: empty payload", async () => {
+    const market = await pda.market(ORACLE, 0);
+    const session = await pda.erSession(market.address);
+    const commit = await commitMarket({ market: market.address });
+    const undelegate = await undelegateMarket({ market: market.address });
+    expect(commit.data).toEqual(new Uint8Array([Ix.CommitMarket]));
+    expect(undelegate.data).toEqual(new Uint8Array([Ix.UndelegateMarket]));
+    expect(addrsOf(commit.keys)).toEqual([b58(market.address), b58(session.address)]);
   });
 });

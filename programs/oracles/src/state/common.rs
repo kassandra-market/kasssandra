@@ -14,6 +14,19 @@ pub const VOTE_APPROVE: u8 = 0;
 /// `FactVote.kind`: duplicate vote.
 pub const VOTE_DUPLICATE: u8 = 1;
 
+/// `ErSession.status`: account is on the base layer (not delegated).
+pub const ER_STATUS_UNDELEGATED: u8 = 0;
+/// `ErSession.status`: account is delegated to an Ephemeral Rollup validator.
+pub const ER_STATUS_DELEGATED: u8 = 1;
+
+/// `AiOracleConfig.source`: generic external pusher (runner, MagicBlock chain
+/// pusher, or any other attested writer).
+pub const AI_ORACLE_SOURCE_EXTERNAL: u8 = 0;
+/// `AiOracleConfig.source`: MagicBlock oracle pusher.
+pub const AI_ORACLE_SOURCE_MAGICBLOCK: u8 = 1;
+/// `AiOracleConfig.source`: Switchboard on-demand (reserved).
+pub const AI_ORACLE_SOURCE_SWITCHBOARD: u8 = 2;
+
 /// On-chain account-type discriminator. Stored as the FIRST byte of every Pod
 /// account (each struct's `account_type` field) so processors can reject
 /// type-confusion: an attacker cannot pass a `Fact` where an `Oracle` is
@@ -31,6 +44,12 @@ pub enum AccountType {
     Market = 6,
     Protocol = 7,
     OracleMeta = 8,
+    /// Companion PDA recording MagicBlock ER delegation for one oracle.
+    ErSession = 9,
+    /// Protocol singleton: which authority may push the external AI feed.
+    AiOracleConfig = 10,
+    /// Latest attested external-AI answer for one oracle.
+    AiOracleFeed = 11,
 }
 
 impl AccountType {

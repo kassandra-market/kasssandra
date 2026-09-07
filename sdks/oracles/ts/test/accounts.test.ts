@@ -23,6 +23,9 @@ import {
   decodeOracle,
   decodeProposer,
   decodeProtocol,
+  decodeErSession,
+  decodeAiOracleConfig,
+  decodeAiOracleFeed,
   VoteKind,
 } from "../src/accounts/index.js";
 import { Buf, key32, key32Addr } from "./helpers/accounts.js";
@@ -329,6 +332,61 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
     expect(m.challengerUsdc).toBe(8_888n);
     expect(m.settled).toBe(true);
     expect(m.bump).toBe(229);
+  });
+
+  it("decodes ErSession (96)", () => {
+    const b = new Buf(ACCOUNT_SIZES.ErSession, AccountType.ErSession)
+      .u8(1, 255)
+      .u8(2, 1)
+      .raw(8, key32(80))
+      .raw(40, key32(81))
+      .u32(72, 30_000)
+      .i64(80, 1_700_000_000n)
+      .u64(88, 42n);
+    const s = decodeErSession(b.bytes);
+    expect(s.accountType).toBe(AccountType.ErSession);
+    expect(s.bump).toBe(255);
+    expect(s.status).toBe(1);
+    expect(s.oracle.toString()).toBe(key32Addr(80));
+    expect(s.validator.toString()).toBe(key32Addr(81));
+    expect(s.commitFrequencyMs).toBe(30_000);
+    expect(s.delegatedAt).toBe(1_700_000_000n);
+    expect(s.lastCommitSlot).toBe(42n);
+  });
+
+  it("decodes AiOracleConfig (48)", () => {
+    const b = new Buf(ACCOUNT_SIZES.AiOracleConfig, AccountType.AiOracleConfig)
+      .u8(1, 254)
+      .u8(2, 1)
+      .u8(3, 0)
+      .raw(8, key32(90))
+      .u64(40, 64n);
+    const c = decodeAiOracleConfig(b.bytes);
+    expect(c.enabled).toBe(true);
+    expect(c.source).toBe(0);
+    expect(c.authority.toString()).toBe(key32Addr(90));
+    expect(c.maxStalenessSlots).toBe(64n);
+  });
+
+  it("decodes AiOracleFeed (248)", () => {
+    const b = new Buf(ACCOUNT_SIZES.AiOracleFeed, AccountType.AiOracleFeed)
+      .u8(1, 253)
+      .u8(2, 1)
+      .raw(8, key32(91))
+      .u64(40, 99n)
+      .i64(48, 1_800_000_000n)
+      .raw(56, new Uint8Array(32).fill(0xaa))
+      .raw(88, new Uint8Array(32).fill(0xbb))
+      .raw(120, new Uint8Array(32).fill(0xcc))
+      .raw(152, new Uint8Array(64).fill(0xdd))
+      .raw(216, key32(92));
+    const f = decodeAiOracleFeed(b.bytes);
+    expect(f.option).toBe(1);
+    expect(f.oracle.toString()).toBe(key32Addr(91));
+    expect(f.slot).toBe(99n);
+    expect(f.modelId[0]).toBe(0xaa);
+    expect(f.attestation[0]).toBe(0xdd);
+    expect(f.updatedBy.toString()).toBe(key32Addr(92));
   });
 });
 

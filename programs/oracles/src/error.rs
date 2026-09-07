@@ -169,6 +169,21 @@ pub enum KassandraError {
     /// stake (incl. 0) is accepted; this fires only once activity has raised the
     /// floor and the caller under-staked.
     BelowMinStake = 36,
+    /// `delegate_oracle` was called on an oracle whose `ErSession` is already
+    /// `ER_STATUS_DELEGATED`. Commit or undelegate first.
+    AlreadyDelegated = 37,
+    /// `commit_oracle` / `undelegate_oracle` / the MagicBlock undelegate callback
+    /// ran against an `ErSession` that is not currently delegated.
+    NotDelegated = 38,
+    /// `apply_external_ai_claim` read an `AiOracleFeed` whose stamped slot is
+    /// older than `AiOracleConfig.max_staleness_slots` relative to `Clock.slot`.
+    StaleAiOracle = 39,
+    /// `apply_external_ai_claim` was called while `AiOracleConfig.enabled == 0`
+    /// (or the config PDA has not been initialized). Use `submit_ai_claim`.
+    AiOracleDisabled = 40,
+    /// `apply_external_ai_claim` was given a feed whose `oracle` pubkey does not
+    /// match the instruction's oracle account.
+    AiOracleMismatch = 41,
 }
 
 impl From<KassandraError> for ProgramError {

@@ -58,7 +58,7 @@ test('MarketDetail renders the line chart from indexed data', async ({ page }) =
 
   // The Trade tab holds the price chart + the order ticket (Active market).
   await page.getByRole('tab', { name: /Trade/ }).click()
-  await expect(page.getByRole('heading', { name: 'Price history' })).toBeVisible()
+  await expect(page.getByText('Share price · history')).toBeVisible()
 
   // The chart mounted and loaded data: the container is not in its empty state, and
   // lightweight-charts painted a canvas inside it.

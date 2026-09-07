@@ -25,7 +25,7 @@ import {
 import { resolveQuestion, splitTokens } from "../src/metadao/vault.js";
 import { addLiquidity } from "../src/metadao/amm.js";
 
-describe("parity guard: Ix discriminants (instruction.rs 0..=11)", () => {
+describe("parity guard: Ix discriminants (instruction.rs 0..=14)", () => {
   // Pinned from programs/markets/src/instruction.rs.
   const PINNED: Record<string, number> = {
     InitConfig: 0,
@@ -40,6 +40,9 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=11)", () => {
     CollectFee: 9,
     CloseMarket: 10,
     AddLiquidity: 11,
+    DelegateMarket: 12,
+    CommitMarket: 13,
+    UndelegateMarket: 14,
   };
 
   it("matches every Ix by name and value", () => {
@@ -48,20 +51,21 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=11)", () => {
     }
   });
 
-  it("has exactly 12 instructions (0..=11), no more, no fewer", () => {
+  it("has exactly 15 instructions (0..=14), no more, no fewer", () => {
     const numericValues = Object.values(Ix).filter((v) => typeof v === "number");
     expect(numericValues.sort((a, b) => (a as number) - (b as number))).toEqual(
-      Array.from({ length: 12 }, (_, i) => i),
+      Array.from({ length: 15 }, (_, i) => i),
     );
   });
 });
 
-describe("parity guard: AccountType (state.rs 0..=3)", () => {
+describe("parity guard: AccountType (state.rs 0..=4)", () => {
   const PINNED: Record<string, number> = {
     Uninitialized: 0,
     Config: 1,
     Market: 2,
     Contribution: 3,
+    ErSession: 4,
   };
 
   it("matches every AccountType by name and value", () => {
@@ -93,6 +97,7 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
     Config: 160,
     Market: 424,
     Contribution: 96,
+    ErSession: 96,
   } as const;
 
   it("matches every pinned account size", () => {
@@ -100,7 +105,7 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
   });
 });
 
-describe("parity guard: MarketError (error.rs 0..=22)", () => {
+describe("parity guard: MarketError (error.rs 0..=24)", () => {
   // Pinned from programs/markets/src/error.rs.
   const PINNED: Record<string, number> = {
     InvalidAccount: 0,
@@ -126,6 +131,8 @@ describe("parity guard: MarketError (error.rs 0..=22)", () => {
     ContributionsOpen: 20,
     NotSettled: 21,
     NotUpgradeAuthority: 22,
+    AlreadyDelegated: 23,
+    NotDelegated: 24,
   };
 
   it("matches every MarketError by name and value", () => {
@@ -134,9 +141,9 @@ describe("parity guard: MarketError (error.rs 0..=22)", () => {
     }
   });
 
-  it("has exactly 23 errors (0..=22)", () => {
+  it("has exactly 25 errors (0..=24)", () => {
     const numericValues = Object.values(MarketError).filter((v) => typeof v === "number");
-    expect(numericValues.length).toBe(23);
+    expect(numericValues.length).toBe(25);
   });
 
   it("decodeError round-trips known codes", () => {

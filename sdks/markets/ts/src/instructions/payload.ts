@@ -11,12 +11,12 @@
 import { Address } from "@solana/web3.js";
 import type { AccountMeta } from "@solana/web3.js";
 
-import { concatBytes, i64LE, u16LE, u64LE, u8 } from "../bytes.js";
+import { concatBytes, i64LE, u16LE, u32LE, u64LE, u8 } from "../bytes.js";
 import { Ix } from "../constants.js";
 import type { AddressInput } from "../pda.js";
 
 // Re-exported for the instruction builders that import them from here.
-export { u8, u16LE, u64LE, i64LE, concatBytes };
+export { u8, u16LE, u32LE, u64LE, i64LE, concatBytes };
 
 /** Coerce an `AddressInput` into a web3.js `Address`. */
 export function addr(a: AddressInput): Address {
