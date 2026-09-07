@@ -26,7 +26,7 @@ pub fn claim_proposer(
     }
     let nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
 
-    let [oracle_ai, proposer_ai, dest_kass_ai, stake_vault_ai, rent_recipient_ai, token_prog_ai, ..] =
+    let [oracle_ai, proposer_ai, dest_base_ai, stake_vault_ai, rent_recipient_ai, token_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -40,16 +40,16 @@ pub fn claim_proposer(
 
     // Load + bind the proposer (type guard + this-oracle membership).
     let proposer = load_proposer_checked(proposer_ai, program_id, oracle_ai.address())?;
-    assert_token_account(dest_kass_ai, &oracle.kass_mint, &proposer.authority)?;
+    assert_token_account(dest_base_ai, &oracle.base_mint, &proposer.authority)?;
     assert_key(rent_recipient_ai, &proposer.authority)?;
 
     // Base return per proposer:
     //  * DISQUALIFIED → 0: a disqualified proposer FORFEITS the whole bond. It has
     //    been fully distributed already — into `bond_pool` (`slashed_amount`) AND,
-    //    on a CHALLENGE disqualify, a `kass_fee = bond − slashed_amount` was paid
+    //    on a CHALLENGE disqualify, a `base_fee = bond − slashed_amount` was paid
     //    out of `stake_vault` to the challenger by `settle_challenge`. So
     //    `bond − slashed_amount` would over-pay the fraudster exactly that
-    //    already-gone `kass_fee` → vault shortfall for the last claimant. Forfeit
+    //    already-gone `base_fee` → vault shortfall for the last claimant. Forfeit
     //    everything. (No-show / no-facts dead-end set `slashed_amount == bond`, so
     //    this is a no-op there; it corrects only the challenge-disqualify row.)
     //  * SURVIVOR → `bond − slashed_amount`. Any survivor slash (flip) already
@@ -98,7 +98,7 @@ pub fn claim_proposer(
     payout_and_close(
         oracle_ai,
         stake_vault_ai,
-        dest_kass_ai,
+        dest_base_ai,
         proposer_ai,
         rent_recipient_ai,
         nonce,

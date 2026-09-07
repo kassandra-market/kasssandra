@@ -28,7 +28,7 @@ import {
   type SeedCtx,
   createOracleReal,
   fetchAccount,
-  fundKass,
+  fundBase,
   runnerClaim,
   sendIx,
 } from './seed-core.ts'
@@ -79,7 +79,7 @@ export async function advancePastPhaseEnd(ctx: SeedCtx, oracle: Address): Promis
 /**
  * Propose `option` with `bond` from `authority` (a caller-supplied keypair —
  * pass the funded browser wallet to make it a locked-in proposer). Funds the
- * authority's KASS bond source.
+ * authority's SOL bond source.
  */
 export async function proposeAs(
   ctx: SeedCtx,
@@ -89,13 +89,13 @@ export async function proposeAs(
   bond: bigint,
 ): Promise<Address> {
   await ctx.harness.airdrop(authority.publicKey.toString(), 2_000_000_000)
-  const authorityKass = await fundKass(ctx, authority.publicKey.toString(), bond * 10n)
+  const authorityBase = await fundBase(ctx, authority.publicKey.toString(), bond * 10n)
   await sendIx(
     ctx,
     await propose({
       oracle: oracle.toString(),
       authority: authority.publicKey.toString(),
-      authorityKass,
+      authorityBase,
       option,
       bond,
     }),
@@ -126,13 +126,13 @@ export async function submitOneFact(ctx: SeedCtx, oracle: Address): Promise<Addr
   const contentHash = new Uint8Array(32).fill(0x07)
   const submitter = await Keypair.generate()
   await ctx.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000)
-  const submitterKass = await fundKass(ctx, submitter.publicKey.toString(), 1_000_000n)
+  const submitterBase = await fundBase(ctx, submitter.publicKey.toString(), 1_000_000n)
   await sendIx(
     ctx,
     await submitFact({
       oracle: oracle.toString(),
       submitter: submitter.publicKey.toString(),
-      submitterKass,
+      submitterBase,
       contentHash,
       stake: 100n,
       uri: 'ipfs://seeded-fact',
@@ -152,14 +152,14 @@ export async function advanceToFactVoting(ctx: SeedCtx, oracle: Address): Promis
 export async function approveVote(ctx: SeedCtx, oracle: Address, fact: Address): Promise<void> {
   const voter = await Keypair.generate()
   await ctx.harness.airdrop(voter.publicKey.toString(), 2_000_000_000)
-  const voterKass = await fundKass(ctx, voter.publicKey.toString(), 10_000n)
+  const voterBase = await fundBase(ctx, voter.publicKey.toString(), 10_000n)
   await sendIx(
     ctx,
     await voteFact({
       oracle: oracle.toString(),
       fact: fact.toString(),
       voter: voter.publicKey.toString(),
-      voterKass,
+      voterBase,
       kind: VOTE_APPROVE,
       stake: 2_000n,
     }),
@@ -172,7 +172,7 @@ export async function advanceToAiClaim(ctx: SeedCtx, oracle: Address, nonce: big
   await advancePastPhaseEnd(ctx, oracle)
   await sendIx(
     ctx,
-    await finalizeFacts({ nonce, kassMint: ctx.kassMint.publicKey.toString(), tail: [fact.toString()] }),
+    await finalizeFacts({ nonce, baseMint: ctx.baseMint.publicKey.toString(), tail: [fact.toString()] }),
   )
 }
 
@@ -219,7 +219,7 @@ export async function finalizeToTerminal(
     ctx,
     await finalizeOracle({
       nonce,
-      kassMint: ctx.kassMint.publicKey.toString(),
+      baseMint: ctx.baseMint.publicKey.toString(),
       proposers: proposers.map(String),
     }),
   )
@@ -234,13 +234,13 @@ export async function submitFactAs(
 ): Promise<Address> {
   const contentHash = new Uint8Array(32).fill(0x5a)
   await ctx.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000)
-  const submitterKass = await fundKass(ctx, submitter.publicKey.toString(), stake * 10n)
+  const submitterBase = await fundBase(ctx, submitter.publicKey.toString(), stake * 10n)
   await sendIx(
     ctx,
     await submitFact({
       oracle: oracle.toString(),
       submitter: submitter.publicKey.toString(),
-      submitterKass,
+      submitterBase,
       contentHash,
       stake,
       uri: 'ipfs://wallet-fact',
@@ -259,14 +259,14 @@ export async function voteFactAs(
   stake: bigint,
 ): Promise<void> {
   await ctx.harness.airdrop(voter.publicKey.toString(), 2_000_000_000)
-  const voterKass = await fundKass(ctx, voter.publicKey.toString(), stake * 10n)
+  const voterBase = await fundBase(ctx, voter.publicKey.toString(), stake * 10n)
   await sendIx(
     ctx,
     await voteFact({
       oracle: oracle.toString(),
       fact: fact.toString(),
       voter: voter.publicKey.toString(),
-      voterKass,
+      voterBase,
       kind: VOTE_APPROVE,
       stake,
     }),

@@ -26,7 +26,7 @@ In Kassandra that shape is explicit and encoded as a phase machine:
 
 <Steps>
   <Step title="Someone proposes an answer, backed by a bond">
-    A proposer posts a categorical value plus a KASS **bond** — no proofs, no evidence.
+    A proposer posts a categorical value plus a SOL **bond** — no proofs, no evidence.
     The bond is what makes the claim credible: it can be slashed.
   </Step>
   <Step title="If nobody disagrees, that answer stands">
@@ -41,7 +41,7 @@ In Kassandra that shape is explicit and encoded as a phase machine:
   </Step>
 </Steps>
 
-The dispute path is genuinely costly (it takes time, KASS, and USDC), and that cost is
+The dispute path is genuinely costly (it takes time, SOL, and USDC), and that cost is
 the point: it deters frivolous disagreement while guaranteeing that a real one gets an
 objective, adversarial resolution. See
 [Why optimistic oracles](/guide/why-optimistic-oracles) for the full rationale.
@@ -91,7 +91,7 @@ the AI ran a particular model, and no trusted enclave attesting to inference. Ho
 enforced by two mechanisms working together:
 
 <CardGroup cols={2}>
-  <Card title="Economic — KASS staking and slashing" icon="coins">
+  <Card title="Economic — SOL staking and slashing" icon="coins">
     Every claim is backed by a bond or stake. Bad facts, abandoned disputes, and
     disqualified claims are **slashed** into a bond pool that rewards honest participants,
     so dishonesty is engineered to be net-negative. See [Economics](/concepts/economics).
@@ -121,7 +121,7 @@ strictly-highest count wins (`plurality.rs`). A tie has no winner and sends the 
 an [Invalid dead-end](/concepts/dead-end-settlement) rather than guessing.
 
 <Note>
-  "One proposer, one vote" — plurality is **not** stake-weighted. A proposer's KASS bond
+  "One proposer, one vote" — plurality is **not** stake-weighted. A proposer's SOL bond
   is what they risk, not the weight of their vote. This keeps the final resolution robust
   to a single well-capitalized actor buying the outcome.
 </Note>

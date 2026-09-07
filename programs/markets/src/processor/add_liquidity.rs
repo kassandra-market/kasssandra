@@ -1,11 +1,11 @@
-//! `add_liquidity` (Ix 11): deposit KASS into an already-`Active` market's live
+//! `add_liquidity` (Ix 11): deposit SOL into an already-`Active` market's live
 //! cYES/cNO AMM, minting pooled LP into the Market-PDA-owned `lp_vault` so it is
 //! claimable pro-rata alongside the original funders.
 //!
 //! # Flow (program-signed, mirroring `activate`)
 //! The Market PDA is the authority for both MetaDAO CPIs, using the same account
 //! wiring `activate` already proves out:
-//! 1. Depositor-signed SPL `Transfer` of `amount` KASS → `escrow_vault`.
+//! 1. Depositor-signed SPL `Transfer` of `amount` SOL → `escrow_vault`.
 //! 2. Program-signed `conditional_vault::split_tokens(amount)`: `escrow_vault →
 //!    market_cyes`/`market_cno` (drains escrow back to its prior residual).
 //! 3. Program-signed `amm::add_liquidity(quote_amount, max_base_amount, 0)` at the
@@ -110,12 +110,12 @@ pub fn process(
     assert_key(lp_mint_ai, &market.lp_mint)?;
     assert_key(lp_vault_ai, &market.lp_vault)?;
 
-    // The vault's underlying (KASS) ATA + mint binding.
+    // The vault's underlying (SOL) ATA + mint binding.
     {
         let d = vault_ai.try_borrow()?;
         let v_underlying = metadao::read_pubkey(&d, metadao::VAULT_UNDERLYING_MINT_OFFSET)?;
         let v_underlying_acct = metadao::read_pubkey(&d, metadao::VAULT_UNDERLYING_ACCOUNT_OFFSET)?;
-        if v_underlying != market.kass_mint || &v_underlying_acct != vault_underlying_ai.address() {
+        if v_underlying != market.base_mint || &v_underlying_acct != vault_underlying_ai.address() {
             return Err(MarketError::InvalidAccount.into());
         }
     }
@@ -148,13 +148,13 @@ pub fn process(
     assert_key(depositor_cyes_ai, &expect_dep_cyes)?;
     assert_key(depositor_cno_ai, &expect_dep_cno)?;
 
-    // --- (1) depositor-signed KASS transfer into escrow ---------------------
+    // --- (1) depositor-signed SOL transfer into escrow ---------------------
     Transfer::new(depositor_kass_ai, escrow_ai, depositor_ai, amount).invoke()?;
 
     // --- market-PDA signer seeds (shared by every program-signed CPI) -------
     market_signer_seeds!(market, oidx, mbump, market_seeds);
 
-    // --- (2) program-signed split: escrow KASS -> cYES/cNO ------------------
+    // --- (2) program-signed split: escrow SOL -> cYES/cNO ------------------
     let split_data = metadao::split_tokens_data(amount);
     let split_metas = [
         InstructionAccount::readonly(question_ai.address()),
@@ -243,7 +243,7 @@ pub fn process(
     if lp_new == 0 {
         // A no-op add (no LP minted) would still have consumed the split with nothing
         // to show for it — reject so the whole tx unwinds and the depositor keeps
-        // their KASS.
+        // their SOL.
         return Err(MarketError::InvalidAccount.into());
     }
 
@@ -275,7 +275,7 @@ pub fn process(
         .checked_add(lp_new)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     // Conservative: the returned remainder is one-sided conditional tokens with no
-    // clean KASS value until resolution, so we credit the FULL split. This can only
+    // clean SOL value until resolution, so we credit the FULL split. This can only
     // under-state `accrued` in `collect_fee` (under-collect the protocol fee) — never
     // a safety issue, and it does not touch claim fairness (claims use gross LP).
     m.total_contributed = m
@@ -313,8 +313,8 @@ fn return_leftover(
 }
 
 /// Create-or-increment the depositor's `Contribution`, adding `lp_new` to `late_lp`
-/// (KASS `amount` untouched — the escrow funding here backs LP, not a funding
-/// stake). Mirrors `record_contribution`'s create/adopt shape without the KASS move.
+/// (SOL `amount` untouched — the escrow funding here backs LP, not a funding
+/// stake). Mirrors `record_contribution`'s create/adopt shape without the SOL move.
 fn record_late_lp(
     program_id: &Address,
     market_key: &Address,

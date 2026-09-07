@@ -58,7 +58,7 @@ fn seed() -> (TestCtx, Pubkey, Pubkey) {
 fn submit_one(ctx: &mut TestCtx, oracle: Pubkey, vault: Pubkey, tag: u8) -> Pubkey {
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_kass(&submitter, 1_000_000);
+    let submitter_kass = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [tag; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     let ix = submit_fact_ix(
@@ -87,7 +87,7 @@ fn advance_to_voting(ctx: &mut TestCtx, oracle: Pubkey) {
 fn cast_vote(ctx: &mut TestCtx, oracle: Pubkey, vault: Pubkey, fact: Pubkey, kind: u8, stake: u64) {
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_kass(&voter, stake);
+    let voter_kass = ctx.fund_base(&voter, stake);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     let ix = vote_fact_ix(
         ctx,

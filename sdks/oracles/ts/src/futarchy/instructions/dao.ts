@@ -25,7 +25,7 @@ export interface InitializeDaoArgs {
   daoCreator: AddressInput;
   /** Rent payer + signer. */
   payer: AddressInput;
-  /** DAO base token mint (e.g. KASS). */
+  /** DAO base token mint (e.g. SOL). */
   baseMint: AddressInput;
   /** DAO quote token mint (must be 6-decimal, e.g. USDC). */
   quoteMint: AddressInput;

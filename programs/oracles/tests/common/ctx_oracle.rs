@@ -2,7 +2,7 @@ use super::*;
 
 impl TestCtx {
     /// Send a real `CreateOracle` instruction with `creator == payer`, using the
-    /// harness KASS/USDC mints and the protocol singleton. Returns the Oracle PDA
+    /// harness SOL/USDC mints and the protocol singleton. Returns the Oracle PDA
     /// derived from `nonce`. `init_protocol` must have been called first. The
     /// returned [`TransactionResult`] lets tests assert success or the various
     /// rejection paths.
@@ -21,7 +21,7 @@ impl TestCtx {
             deadline,
             twap_window,
             oracle_pda,
-            self.kass_mint,
+            self.base_mint,
             self.usdc_mint,
         );
         let res = self.send(ix, &[]);
@@ -52,7 +52,7 @@ impl TestCtx {
     }
 
     /// Build a `CreateOracle` instruction. Exposes the oracle account and the
-    /// KASS/USDC mints as parameters so tests can pass deliberately wrong values
+    /// SOL/USDC mints as parameters so tests can pass deliberately wrong values
     /// (mint spoof, etc.). Creator = payer (fee payer signs, pays rent).
     #[allow(clippy::too_many_arguments)]
     pub fn create_oracle_ix(
@@ -62,7 +62,7 @@ impl TestCtx {
         deadline: i64,
         twap_window: i64,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         usdc_mint: Pubkey,
     ) -> Instruction {
         kassandra_oracles_sdk::ix::create_oracle(
@@ -72,16 +72,16 @@ impl TestCtx {
             deadline,
             twap_window,
             oracle,
-            kass_mint,
+            base_mint,
             usdc_mint,
             self.payer.pubkey(),
-            self.payer_kass,
+            self.payer_base,
         )
     }
 
     /// Send a real `Propose` instruction registering `authority`'s proposal
-    /// (`option` + KASS `bond`) against `oracle`. Airdrops the authority SOL for
-    /// rent and funds it a KASS token account holding `bond` (the bond source).
+    /// (`option` + SOL `bond`) against `oracle`. Airdrops the authority SOL for
+    /// rent and funds it a SOL token account holding `bond` (the bond source).
     /// `authority` co-signs. Returns the Proposer PDA + result. The oracle must
     /// already be in [`Phase::Proposal`] (i.e. created via `create_oracle`).
     #[allow(clippy::result_large_err)]
@@ -92,13 +92,13 @@ impl TestCtx {
         option: u8,
         bond: u64,
     ) -> (Pubkey, TransactionResult) {
-        // Fund the authority: SOL for the Proposer-PDA rent, and a KASS account
+        // Fund the authority: SOL for the Proposer-PDA rent, and a SOL account
         // holding the bond. Fund at least 1 base unit so the bond==0 path still
         // has a valid source account.
         self.svm
             .airdrop(&authority.pubkey(), 1_000_000_000)
             .unwrap();
-        let authority_kass = self.fund_kass(authority, bond.max(1));
+        let authority_kass = self.fund_base(authority, bond.max(1));
         let (proposer_pda, _) = Self::proposer_pda(&self.program_id, &oracle, &authority.pubkey());
         let (vault, _) = Self::stake_vault_pda(&self.program_id, &oracle);
         let ix = self.propose_ix(
@@ -115,7 +115,7 @@ impl TestCtx {
     }
 
     /// Build a `Propose` instruction with the locked-in account order. Exposes
-    /// the proposer/authority-KASS/vault accounts so tests can pass deliberately
+    /// the proposer/authority-SOL/vault accounts so tests can pass deliberately
     /// wrong values.
     #[allow(clippy::too_many_arguments)]
     pub fn propose_ix(
@@ -197,7 +197,7 @@ impl TestCtx {
     }
 
     /// Real-flow proposer registration: funds a fresh authority and sends a real
-    /// `propose` (`option` + KASS `bond`) against `oracle`. Records the proposer
+    /// `propose` (`option` + SOL `bond`) against `oracle`. Records the proposer
     /// in the oracle's bookkeeping (so [`TestCtx::proposers`] and
     /// [`TestCtx::finalize_proposals_real`] see the full set) and returns the
     /// authority keypair + Proposer PDA. Panics if the propose fails.

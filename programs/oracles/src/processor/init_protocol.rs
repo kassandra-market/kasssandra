@@ -1,8 +1,8 @@
 //! `init_protocol`: one-time creation of the [`Protocol`] singleton.
 //!
 //! Creates the `[b"protocol"]` PDA recording the admin and the canonical
-//! KASS/USDC mints (so a later `create_oracle` fee-burn cannot be spoofed with a
-//! fake KASS mint), with the fee-EMA state zeroed (genesis is free; the dynamic
+//! SOL/USDC mints (so a later `create_oracle` fee-burn cannot be spoofed with a
+//! fake SOL mint), with the fee-EMA state zeroed (genesis is free; the dynamic
 //! fee is Task H2).
 //!
 //! # Bootstrap-DoS resistance: create-or-adopt (Allocate + Assign)
@@ -27,7 +27,7 @@
 //! # Accounts
 //! 0. protocol PDA   — writable; created-or-adopted here, signs via its seeds
 //! 1. admin          — signer, writable; tops up rent, recorded as `admin`
-//! 2. kass_mint      — canonical KASS mint (owned by the SPL token program)
+//! 2. base_mint      — canonical SOL mint (owned by the SPL token program)
 //! 3. usdc_mint      — canonical USDC mint (owned by the SPL token program)
 //! 4. system program
 //!
@@ -56,7 +56,7 @@ pub fn process(
     accounts: &mut [AccountInfo],
     _payload: &[u8],
 ) -> ProgramResult {
-    let [protocol_ai, admin_ai, kass_mint_ai, usdc_mint_ai, system_prog_ai, ..] = accounts else {
+    let [protocol_ai, admin_ai, base_mint_ai, usdc_mint_ai, system_prog_ai, ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -82,7 +82,7 @@ pub fn process(
 
     // Cheap defense-in-depth: the recorded mints must be SPL token-program
     // accounts (not arbitrary keys), so H1/H2 can trust them as canonical mints.
-    if !kass_mint_ai.owned_by(&pinocchio_token::ID) || !usdc_mint_ai.owned_by(&pinocchio_token::ID)
+    if !base_mint_ai.owned_by(&pinocchio_token::ID) || !usdc_mint_ai.owned_by(&pinocchio_token::ID)
     {
         return Err(KassandraError::InvalidAccount.into());
     }
@@ -119,28 +119,20 @@ pub fn process(
     let mut protocol = Protocol::zeroed();
     protocol.account_type = AccountType::Protocol.as_u8();
     protocol.admin = *admin_ai.address();
-    protocol.kass_mint = *kass_mint_ai.address();
+    protocol.base_mint = *base_mint_ai.address();
     protocol.usdc_mint = *usdc_mint_ai.address();
     protocol.fee_ema = 0;
     protocol.last_creation_unix = 0;
     protocol.bump = bump;
     // Governance linkage unset until the one-time `set_governance` handoff.
     protocol.governance_set = 0;
-    // dao_authority / kass_dao stay zeroed (set by `set_governance`).
+    // dao_authority / spot_dao stay zeroed (set by `set_governance`).
     //
-    // Emission is ON by default (the `config.rs` recommended curve): `create_oracle`
-    // mints `reward_emission = (total_supply_cap − kass_supply)·num/den` into each
-    // new oracle's stake_vault, which a single uncontested proposer can claim —
-    // this IS the KASS distribution channel. Emission farming is throttled NOT by
-    // disabling emission but by the ECONOMICS: the creation fee's recapture
-    // component (`crate::fee::creation_fee`) scales with the reward and the global
-    // creation-activity EMA, so a lone creator on a quiet network mints the reward
-    // slowly (fee ≈ 0) while a rapid burst pays a fee at/above the reward (net
-    // minting throttled to a slow drip). The mint requires the KASS mint-authority
-    // to be the program's `[b"mint_authority"]` PDA (asserted at first emission).
-    protocol.emission_num = crate::config::EMISSION_NUM;
+    // No native-token minting: emission knobs stay in the Pod layout (pinned)
+    // but default to disabled. `create_oracle` never mints SOL/USDC.
+    protocol.emission_num = 0;
     protocol.emission_den = crate::config::EMISSION_DEN;
-    protocol.total_supply_cap = crate::config::TOTAL_SUPPLY_CAP;
+    protocol.total_supply_cap = 0;
     protocol.fee_ema_halflife = crate::config::FEE_EMA_HALFLIFE_SECS;
     protocol.fee_per_ema_unit = crate::config::FEE_PER_EMA_UNIT;
     protocol.fee_ema_increment = crate::config::FEE_EMA_INCREMENT;
@@ -168,8 +160,8 @@ pub fn process(
     // Challenge-fee config (C1): default to the config consts (1/100 each).
     protocol.challenge_fail_usdc_fee_num = crate::config::CHALLENGE_FAIL_USDC_FEE_NUM;
     protocol.challenge_fail_usdc_fee_den = crate::config::CHALLENGE_FAIL_USDC_FEE_DEN;
-    protocol.challenge_success_kass_fee_num = crate::config::CHALLENGE_SUCCESS_KASS_FEE_NUM;
-    protocol.challenge_success_kass_fee_den = crate::config::CHALLENGE_SUCCESS_KASS_FEE_DEN;
+    protocol.challenge_success_base_fee_num = crate::config::CHALLENGE_SUCCESS_BASE_FEE_NUM;
+    protocol.challenge_success_base_fee_den = crate::config::CHALLENGE_SUCCESS_BASE_FEE_DEN;
     // Activity-scaled stake-floor curve (bootstrapping): default the threshold/cap
     // to the recommended shape and the magnitude to 0 = disabled (participation
     // always free) until governance activates it via `set_config`.

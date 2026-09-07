@@ -27,7 +27,7 @@ kassandra-oracles-sdk = { git = "https://github.com/Dodecahedr0x/kassandra", pac
   `ix::close_*`, `ix::sweep_oracle`.
 - **`kassandra_oracles_sdk::pda::*`** — return `(Pubkey, u8)`: `pda::oracle(&PROGRAM_ID, nonce)`,
   `pda::proposer(&PROGRAM_ID, &oracle, &authority)`, `pda::stake_vault`, `pda::fact`, `pda::vote`,
-  `pda::ai_claim`, `pda::protocol`, `pda::mint_authority`, `pda::challenge_usdc_vault`, `pda::kass_ata`.
+  `pda::ai_claim`, `pda::protocol`, `pda::mint_authority`, `pda::challenge_usdc_vault`, `pda::base_ata`.
 - **`kassandra_oracles_sdk::accounts`** — the layout structs (`Oracle`, `Proposer`, `Fact`, `FactVote`,
   `AiClaim`, `Market`, `Protocol`) + `decode::<T>` (zero-copy, aligned) and `read::<T>` (owned
   copy, unaligned-safe — use this for RPC buffers), plus sentinels `CLAIM_OPTION_NONE`,

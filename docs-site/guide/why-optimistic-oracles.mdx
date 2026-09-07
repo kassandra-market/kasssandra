@@ -17,7 +17,7 @@ actually disagrees. So Kassandra inverts the cost:
 
 <CardGroup cols={2}>
   <Card title="Happy path — nearly free" icon="feather">
-    A proposer posts a value and a KASS bond. If the proposal window closes with everyone
+    A proposer posts a value and a SOL bond. If the proposal window closes with everyone
     in agreement, `finalize_proposals` resolves the oracle directly to that value
     (`finalize_proposals.rs`). No AI runs. No market opens. Bonds are returned. The only
     unavoidable cost was the burned creation fee.
@@ -74,7 +74,7 @@ recorded in an `AiClaim` account.
 ### 3. Markets are the final arbiter, not a human vote
 
 If an AI claim is wrong, anyone who can reproduce the runner opens a **MetaDAO decision
-market** against it (`open_challenge`). The proposer's already-locked KASS bond is the
+market** against it (`open_challenge`). The proposer's already-locked SOL bond is the
 conditional collateral; the challenger posts USDC. Traders push a **fail-vs-pass TWAP**,
 and settlement reads that TWAP after a window: disqualify iff
 `fail_twap * DEN > pass_twap * (DEN + NUM)` (strict, in `u128`;

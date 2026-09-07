@@ -14,7 +14,7 @@ import {
   DAO_CREATOR,
   DISC,
   FUTARCHY_ID,
-  KASS_MINT,
+  BASE_MINT,
   METADAO_ADMIN,
   METADAO_MULTISIG_VAULT,
   METEORA_DAMM_V2_ID,
@@ -75,11 +75,11 @@ describe("Squads v4 builders", () => {
 });
 
 describe("bootstrapGovernance composer", () => {
-  it("composes [initialize_dao, set_governance] with vault==dao_authority, kass_dao==dao", async () => {
+  it("composes [initialize_dao, set_governance] with vault==dao_authority, spot_dao==dao", async () => {
     const r = await futarchy.bootstrapGovernance({
       payer: PAYER,
       daoCreator: DAO_CREATOR,
-      kassMint: KASS_MINT,
+      baseMint: BASE_MINT,
       usdcMint: USDC_MINT,
       squadsProgramConfigTreasury: TREASURY,
       nonce: 42n,
@@ -107,13 +107,13 @@ describe("bootstrapGovernance composer", () => {
     expect(r.instructions[0].programId.toString()).toBe(FUTARCHY_ID.toString());
     expect(r.instructions[0].keys[0].pubkey.toString()).toBe(dao.toString());
 
-    // ix[1] = set_governance whose payload dao_authority==vault, kass_dao==dao.
-    const handoff = await setGovernance({ authority: ADMIN, daoAuthority: vault, kassDao: dao });
+    // ix[1] = set_governance whose payload dao_authority==vault, spot_dao==dao.
+    const handoff = await setGovernance({ authority: ADMIN, daoAuthority: vault, spotDao: dao });
     expect(hex(r.instructions[1].data)).toBe(hex(handoff.data));
-    // payload = [disc, dao_authority[32], kass_dao[32]]
+    // payload = [disc, dao_authority[32], spot_dao[32]]
     expect(hex(r.instructions[1].data.slice(1, 33))).toBe(hex(vault.toBytes()));
     expect(hex(r.instructions[1].data.slice(33, 65))).toBe(hex(dao.toBytes()));
-    expect(r.instructions[1].keys[2].pubkey.toString()).toBe(dao.toString()); // kass_dao account
+    expect(r.instructions[1].keys[2].pubkey.toString()).toBe(dao.toString()); // spot_dao account
   });
 
   it("the permissionless multisig member id is pinned", () => {
@@ -144,7 +144,7 @@ describe("collect_meteora_damm_fees (F2a — pinned v0.6.1 wire format)", () => 
       position: POSITION,
       tokenAVault: TOKEN_A_VAULT,
       tokenBVault: TOKEN_B_VAULT,
-      tokenAMint: KASS_MINT,
+      tokenAMint: BASE_MINT,
       tokenBMint: USDC_MINT,
       positionNftAccount: POSITION_NFT_ACCOUNT,
       owner: OWNER,
@@ -166,7 +166,7 @@ describe("collect_meteora_damm_fees (F2a — pinned v0.6.1 wire format)", () => 
       [enc.encode("__event_authority")],
       METEORA_DAMM_V2_ID,
     );
-    const tokenAAccount = await ata(METADAO_MULTISIG_VAULT, KASS_MINT);
+    const tokenAAccount = await ata(METADAO_MULTISIG_VAULT, BASE_MINT);
     const tokenBAccount = await ata(METADAO_MULTISIG_VAULT, USDC_MINT);
 
     const ix = await collectMeteoraDammFees({
@@ -176,7 +176,7 @@ describe("collect_meteora_damm_fees (F2a — pinned v0.6.1 wire format)", () => 
       position: POSITION,
       tokenAVault: TOKEN_A_VAULT,
       tokenBVault: TOKEN_B_VAULT,
-      tokenAMint: KASS_MINT,
+      tokenAMint: BASE_MINT,
       tokenBMint: USDC_MINT,
       positionNftAccount: POSITION_NFT_ACCOUNT,
       owner: OWNER,
@@ -200,7 +200,7 @@ describe("collect_meteora_damm_fees (F2a — pinned v0.6.1 wire format)", () => 
       [tokenBAccount.toString(), false, true],
       [TOKEN_A_VAULT, false, true],
       [TOKEN_B_VAULT, false, true],
-      [KASS_MINT, false, false],
+      [BASE_MINT, false, false],
       [USDC_MINT, false, false],
       [POSITION_NFT_ACCOUNT, false, false],
       [OWNER, false, false],

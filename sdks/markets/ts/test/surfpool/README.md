@@ -26,7 +26,7 @@ agree over a wire, not just against dumped fixtures.
 
 ## Input state is fabricated; OUTCOMES flow through the real programs
 
-The KASS mint, user token accounts, and the Kassandra `Oracle` account are
+The SOL mint, user token accounts, and the Kassandra `Oracle` account are
 `surfnet_setAccount`-fabricated (the market only *reads* the oracle — owner
 `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY`, 392 bytes, `account_type=1`@0,
 `options_count`@160, `phase`@161, `resolved_option`@197). Everything the

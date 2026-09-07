@@ -1,6 +1,6 @@
 /**
  * Decoder for the `Market` account (`state.rs::Market`, 400 bytes) — one binary
- * KASS prediction market bound to a Kassandra oracle. Records the funding-phase
+ * SOL prediction market bound to a Kassandra oracle. Records the funding-phase
  * escrow/accounting fields plus the Phase-2 MetaDAO composition bindings
  * (question / vault / cYES / cNO / amm / lp) written at `activate`.
  * Field offsets pinned in `programs/markets/tests/state_layout.rs`.
@@ -25,13 +25,13 @@ export interface Market {
   oracle: Address;
   /** Creator (seeded the first contribution). */
   creator: Address;
-  /** Canonical KASS mint (== `config.kass_mint`). */
-  kassMint: Address;
-  /** Market-PDA-owned KASS escrow holding all contributions. */
+  /** Canonical SOL mint (== `config.base_mint`). */
+  baseMint: Address;
+  /** Market-PDA-owned SOL escrow holding all contributions. */
   escrowVault: Address;
   /** Funding-target floor snapshotted from `config.min_liquidity`. */
   minLiquidity: bigint;
-  /** Running total of KASS contributed so far. */
+  /** Running total of SOL contributed so far. */
   totalContributed: bigint;
   /**
    * Count of live `Contribution` accounts (`open_contributions`, u16 @152).
@@ -49,7 +49,7 @@ export interface Market {
   // ---- Phase-2 MetaDAO bindings (zeroed until `activate`) --------------------
   /** MetaDAO Question (resolver == this market PDA). */
   question: Address;
-  /** KASS conditional vault. */
+  /** SOL conditional vault. */
   vault: Address;
   /** cYES conditional mint (idx 0). */
   yesMint: Address;
@@ -97,7 +97,7 @@ export function decodeMarket(data: Uint8Array): Market {
     accountType: AccountType.Market,
     oracle: readPubkey(data, 8),
     creator: readPubkey(data, 40),
-    kassMint: readPubkey(data, 72),
+    baseMint: readPubkey(data, 72),
     escrowVault: readPubkey(data, 104),
     minLiquidity: readU64LE(dv, 136),
     totalContributed: readU64LE(dv, 144),

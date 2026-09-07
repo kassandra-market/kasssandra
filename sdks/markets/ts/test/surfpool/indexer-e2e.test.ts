@@ -33,10 +33,10 @@ const ENABLED = process.env.KASSANDRA_MARKET_E2E === "1" && surfpoolReady();
 const SURF_PORT = 18981; // RPC (ws = 18982)
 const INDEXER_PORT = 19081;
 
-const MIN_LIQ = 1_000_000_000n; // 1 KASS floor
+const MIN_LIQ = 1_000_000_000n; // 1 SOL floor
 const PRESEED = 600_000_000n; // creator seed (below floor → market stays Funding)
 const WALLET_KASS = 10n ** 15n;
-const RELAY_CONTRIB = 50_000_000_000n; // 50 KASS contributed THROUGH the indexer relay
+const RELAY_CONTRIB = 50_000_000_000n; // 50 SOL contributed THROUGH the indexer relay
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(here, "../../../");
@@ -74,7 +74,7 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
 
   // Seeded handles for the assertions.
   let wallet: Keypair;
-  let kassMint: string;
+  let baseMint: string;
   let market: string;
   let oracle: string;
   let walletKassAta: string;
@@ -87,15 +87,15 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
     await h.airdrop(wallet.publicKey.toString(), 50_000_000_000);
     // The wallet pays init_config, so it must be the program's upgrade authority.
     await h.setUpgradeAuthority(wallet.publicKey);
-    const kass = await h.createMint(9, wallet.publicKey);
-    kassMint = kass.toString();
-    const ata = await h.fundTokenAccount(kass, wallet.publicKey, WALLET_KASS);
+    const base = await h.createMint(9, wallet.publicKey);
+    baseMint = base.toString();
+    const ata = await h.fundTokenAccount(base, wallet.publicKey, WALLET_KASS);
     walletKassAta = ata.toString();
-    const feeDestination = await h.createTokenAccount(kass, wallet.publicKey, 0n);
+    const feeDestination = await h.createTokenAccount(base, wallet.publicKey, 0n);
     await h.sendIx(wallet, [
       await initConfig({
         payer: wallet.publicKey,
-        kassMint: kass,
+        baseMint: base,
         authority: wallet.publicKey,
         minLiquidity: MIN_LIQ,
         feeBps: 100,
@@ -111,8 +111,8 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
       await createMarket({
         creator: wallet.publicKey,
         oracle: oracleAddr,
-        kassMint: kass,
-        creatorKassAta: ata,
+        baseMint: base,
+        creatorBaseAta: ata,
         seedAmount: PRESEED,
         outcomeIndex: 0,
       }),
@@ -168,11 +168,11 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
   });
 
   it("GET /api/config reflects the seeded Config", async () => {
-    const cfg = await pollJson<{ kassMint: string; minLiquidity: string; feeBps: number }>(
+    const cfg = await pollJson<{ baseMint: string; minLiquidity: string; feeBps: number }>(
       "/api/config",
-      (c) => c.kassMint === kassMint,
+      (c) => c.baseMint === baseMint,
     );
-    expect(cfg.kassMint).toBe(kassMint);
+    expect(cfg.baseMint).toBe(baseMint);
     expect(cfg.minLiquidity).toBe(MIN_LIQ.toString());
     expect(cfg.feeBps).toBe(100);
   }, 30_000);
@@ -213,7 +213,7 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
   }, 30_000);
 
   it("GET /api/account/:pubkey returns an existing account and 404s a missing one", async () => {
-    const present = await getJson<{ owner: string; data: string }>(`/api/account/${kassMint}`);
+    const present = await getJson<{ owner: string; data: string }>(`/api/account/${baseMint}`);
     expect(present.status).toBe(200);
     expect(present.body.owner).toBeTruthy();
     expect(present.body.data.length).toBeGreaterThan(0);

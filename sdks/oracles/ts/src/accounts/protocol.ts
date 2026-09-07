@@ -24,8 +24,8 @@ export interface Protocol {
   accountType: AccountType.Protocol;
   /** The initializer; gates the one-time `set_governance`. */
   admin: Address;
-  /** Canonical KASS mint (oracles must match this). */
-  kassMint: Address;
+  /** Canonical SOL mint (oracles must match this). */
+  baseMint: Address;
   /** Canonical USDC mint (oracles must match this). */
   usdcMint: Address;
   /** Fixed-point EMA accumulator of recent oracle-creation activity. */
@@ -38,12 +38,12 @@ export interface Protocol {
   governanceSet: boolean;
   /** Squads v4 multisig vault PDA gating `set_config`/`resolve_deadend` (zero until set). */
   daoAuthority: Address;
-  /** Futarchy `Dao` account whose embedded AMM is the KASS price source (zero until set). */
-  kassDao: Address;
+  /** Futarchy `Dao` account whose embedded AMM is the SOL price source (zero until set). */
+  spotDao: Address;
   /** Emission rate fraction `emission_num/emission_den`. */
   emissionNum: bigint;
   emissionDen: bigint;
-  /** Hard cap on circulating KASS supply (0 = disabled). */
+  /** Hard cap on circulating SOL supply (0 = disabled). */
   totalSupplyCap: bigint;
   /** Fee-EMA params mirrored from `config.rs`. */
   feeEmaHalflife: bigint;
@@ -71,9 +71,9 @@ export interface Protocol {
   /** USDC fee on a FAILED challenge (→ proposer). */
   challengeFailUsdcFeeNum: bigint;
   challengeFailUsdcFeeDen: bigint;
-  /** KASS fee on a SUCCESSFUL challenge (→ challenger). */
-  challengeSuccessKassFeeNum: bigint;
-  challengeSuccessKassFeeDen: bigint;
+  /** SOL fee on a SUCCESSFUL challenge (→ challenger). */
+  challengeSuccessBaseFeeNum: bigint;
+  challengeSuccessBaseFeeDen: bigint;
   /** Activity-scaled stake-floor curve (bootstrapping). fee-EMA below which the
    * floor is 0; at which it reaches the max; and the max floor (0 = disabled). */
   stakeFloorEmaThreshold: bigint;
@@ -91,14 +91,14 @@ export function decodeProtocol(data: Uint8Array): Protocol {
   return {
     accountType: AccountType.Protocol,
     admin: readPubkey(data, 8),
-    kassMint: readPubkey(data, 40),
+    baseMint: readPubkey(data, 40),
     usdcMint: readPubkey(data, 72),
     feeEma: readU64LE(dv, 104),
     lastCreationUnix: readI64LE(dv, 112),
     bump: readU8(dv, 120),
     governanceSet: readBool(dv, 121),
     daoAuthority: readPubkey(data, 128),
-    kassDao: readPubkey(data, 160),
+    spotDao: readPubkey(data, 160),
     emissionNum: readU64LE(dv, 192),
     emissionDen: readU64LE(dv, 200),
     totalSupplyCap: readU64LE(dv, 208),
@@ -119,8 +119,8 @@ export function decodeProtocol(data: Uint8Array): Protocol {
     rewardFactWeight: readU64LE(dv, 328),
     challengeFailUsdcFeeNum: readU64LE(dv, 336),
     challengeFailUsdcFeeDen: readU64LE(dv, 344),
-    challengeSuccessKassFeeNum: readU64LE(dv, 352),
-    challengeSuccessKassFeeDen: readU64LE(dv, 360),
+    challengeSuccessBaseFeeNum: readU64LE(dv, 352),
+    challengeSuccessBaseFeeDen: readU64LE(dv, 360),
     stakeFloorEmaThreshold: readU64LE(dv, 368),
     stakeFloorEmaCap: readU64LE(dv, 376),
     stakeFloorMax: readU64LE(dv, 384),

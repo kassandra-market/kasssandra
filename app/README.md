@@ -98,21 +98,21 @@ wallet **and** the oracle's current phase. Every action wraps a pure `build*Ixs`
 (`src/data/actions/*.ts` + `src/data/actions.ts`) and sends via wallet-adapter's `sendTransaction`.
 
 **Create** (`/oracles/new`, linked from the list): a question (hashed to the on-chain
-`prompt_hash`) + options count + deadline + KASS/USDC mints (defaulted from the Protocol) → a new
+`prompt_hash`) + options count + deadline + SOL/USDC mints (defaulted from the Protocol) → a new
 oracle; navigates to its detail on success.
 
 **Participate** (the detail page's Participate surface + per-fact controls):
-- **Propose** (Proposal phase): pick an option + escrow a **KASS** bond.
+- **Propose** (Proposal phase): pick an option + escrow a **SOL** bond.
 - **Submit fact** (FactProposal phase): a content hash (hash pasted text, or paste a 32-byte hex
-  hash) + an off-chain URI (≤200 bytes) + a KASS stake.
-- **Vote** (FactVoting phase): Approve or flag Duplicate on each fact + a KASS stake.
+  hash) + an off-chain URI (≤200 bytes) + a SOL stake.
+- **Vote** (FactVoting phase): Approve or flag Duplicate on each fact + a SOL stake.
 
-Each of these three staking forms shows the connected wallet's **KASS balance** (`Your KASS: …`,
+Each of these three staking forms shows the connected wallet's **SOL balance** (`Your SOL: …`,
 raw base units) below the bond/stake input and **gates the submit** when the entered amount exceeds
-that balance (or the wallet holds no KASS) — an inline message instead of a doomed on-chain tx.
+that balance (or the wallet holds no SOL) — an inline message instead of a doomed on-chain tx.
 The check is additive to the existing client-side validation and never hard-blocks on a still-loading
 balance (the tx remains the ultimate guard); the balance refetches after a successful bond/stake
-(`src/hooks/useKassBalance.ts` over `src/data/balance.ts`).
+(`src/hooks/useSolBalance.ts` over `src/data/balance.ts`).
 
 **Crank / finalize** (permissionless, one per pre-Resolved phase): finalize proposals → advance →
 finalize facts → finalize AI claims → finalize oracle, advancing the oracle toward Resolved.
@@ -128,11 +128,11 @@ fallback.
   trade/crank/settle + CLIENT-SIDE compose→open**:
   - **Open a challenge — no runner JSON.** A real form
     (`components/oracles/actions/ChallengeComposeForm.tsx`) composes the entire MetaDAO v0.4 market
-    from the browser: the binary question → KASS + USDC conditional vaults → the challenger's +
+    from the browser: the binary question → SOL + USDC conditional vaults → the challenger's +
     oracle-holder ATAs → `split_tokens` (into pass/fail conditional tokens) → 2× `create_amm` +
     `add_liquidity` (seed) → `open_challenge`. The choreography far exceeds one transaction, so it
     runs as an **ordered, staged sequence** of wallet-signed txs with **per-step progress**
-    (Question ✓ → KASS vault ✓ → USDC vault ✓ → Fund + split ✓ → Pass pool ✓ → Fail pool ✓ → Open
+    (Question ✓ → SOL vault ✓ → USDC vault ✓ → Fund + split ✓ → Pass pool ✓ → Fail pool ✓ → Open
     ✓) and **retry-from-the-failed-step** on a mid-sequence failure (the idempotent ATA-creates +
     deterministic PDAs make a resume safe). The seed/TWAP math mirrors the proven recipe
     (`twap_initial_observation = quote·1e12/base`, max-change `(2^64−1)·1e12`, start-delay 0).
@@ -140,21 +140,21 @@ fallback.
   - **Settle — ONE CLICK, no JSON paste.** Once the market's TWAP window closes, the permissionless
     settle is a single button: the full 15-account settle set is **derived client-side from the
     decoded Market + Oracle** (`data/actions/challengeSettle.ts::buildSettleFromMarketIxs`) — 8
-    accounts are Market fields (aiClaim / proposer / question / pass+fail AMM / kassVault / oracle
-    pass+fail KASS holders) and 7 are derived (pass/fail conditional-KASS mints, the KASS vault
+    accounts are Market fields (aiClaim / proposer / question / pass+fail AMM / baseVault / oracle
+    pass+fail SOL holders) and 7 are derived (pass/fail conditional-SOL mints, the SOL vault
     underlying ATA, the conditional-vault event authority, and the proposer-USDC / challenger-USDC /
-    challenger-KASS payout ATAs). The challenger-USDC **destination** is the challenger's own USDC
+    challenger-SOL payout ATAs). The challenger-USDC **destination** is the challenger's own USDC
     ATA (`ATA(market.challenger, usdc_mint)`), distinct from the Market's SDK-derived USDC escrow.
     The three payout ATAs are idempotently created before settle so an absent destination never
     fails the crank. After SD1 the **challenge UI has NO JSON paste anywhere**.
 
 **Claim / close / sweep** (Resolved/InvalidDeadend phase): on each card, a **Claim** control
-(shown only to the owning wallet — `authority == connected`) pays a participant's KASS reward/refund
+(shown only to the owning wallet — `authority == connected`) pays a participant's SOL reward/refund
 and closes the account; permissionless **Close** (AI claim / settled market) and a grace-gated,
 governance-checked **Sweep** (residual → the DAO treasury; rent → the creator) finish cleanup.
 
-Every staking action **requires KASS** — the bond/stake is escrowed to the oracle's stake vault (amounts
-are raw base units, matching the read view; a missing KASS ATA is created idempotently on the
+Every staking action **requires SOL** — the bond/stake is escrowed to the oracle's stake vault (amounts
+are raw base units, matching the read view; a missing SOL ATA is created idempotently on the
 first action). Forms wrap the pure WF1 action layer (`src/data/actions.ts` `build*Ixs`) and send
 via wallet-adapter's `sendTransaction`; `src/hooks/useWriteAction.ts` + `src/data/writeAction.ts`
 drive the status **idle → building → signing (wallet prompt) → confirming → success/error**.

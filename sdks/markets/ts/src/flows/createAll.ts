@@ -12,7 +12,7 @@
  * exists, so a re-run skips already-created outcomes).
  *
  * One shared `seedAmount` applies to every outcome; the creator funds
- * `optionsCount × seed` KASS in total.
+ * `optionsCount × seed` SOL in total.
  */
 import { Address, type TransactionInstruction } from "@solana/web3.js";
 
@@ -27,11 +27,11 @@ export interface CreateAllParams {
   optionsCount: number;
   /** Creator authority (the signer): pays rent + seeds each contribution. */
   creator: AddressInput;
-  /** Canonical KASS mint (== `config.kass_mint`). */
-  kassMint: AddressInput;
-  /** Creator's KASS token account each seed transfers from. */
-  creatorKassAta: AddressInput;
-  /** KASS seeded into each outcome's escrow (raw base units); charged per outcome. */
+  /** Canonical SOL mint (== `config.base_mint`). */
+  baseMint: AddressInput;
+  /** Creator's SOL token account each seed transfers from. */
+  creatorBaseAta: AddressInput;
+  /** SOL seeded into each outcome's escrow (raw base units); charged per outcome. */
   seedAmount: bigint | number;
   /** Override the program id (defaults to the SDK's `MARKET_PROGRAM_ID`). */
   programId?: Address;
@@ -59,8 +59,8 @@ export async function createAllOutcomeMarkets(
     oracle,
     optionsCount,
     creator,
-    kassMint,
-    creatorKassAta,
+    baseMint,
+    creatorBaseAta,
     seedAmount,
     programId,
   } = params;
@@ -75,8 +75,8 @@ export async function createAllOutcomeMarkets(
       const instruction = await createMarket({
         creator,
         oracle,
-        kassMint,
-        creatorKassAta,
+        baseMint,
+        creatorBaseAta,
         seedAmount,
         outcomeIndex,
         programId,

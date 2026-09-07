@@ -77,7 +77,7 @@ fn settle_last_block_swap_does_not_flip_outcome() {
     let (mut ctx, f) = fixture(QUOTE_LOW, QUOTE_LOW);
 
     // Large BUY on the fail pool (quote in, base out) — drives fail price up.
-    // Fund the payer with fail-USDC and a fail-KASS receive account.
+    // Fund the payer with fail-USDC and a fail-SOL receive account.
     let payer = ctx.payer.pubkey();
     let user_base = ata(&payer, &f.m.fail_mint);
     let user_quote = ata(&payer, &f.m.fail_usdc);

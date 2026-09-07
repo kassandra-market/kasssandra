@@ -21,7 +21,7 @@ pub fn ix_name(disc: u8) -> &'static str {
         13 => "set_governance",
         14 => "set_config",
         15 => "resolve_deadend",
-        16 => "kass_price",
+        16 => "spot_price",
         17 => "claim_proposer",
         18 => "claim_fact",
         19 => "claim_fact_vote",

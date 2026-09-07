@@ -82,7 +82,7 @@ conditional_vault `VLTX1ish…`, Squads v4 `SQDS4ep6…`).
    (which atomically creates the `Dao` + the Squads multisig with
    `create_key==Dao` + vault; the Squads `ProgramConfig.treasury` is fetched LIVE
    from the on-chain account) then the **G1-hardened `set_governance`** handoff.
-   Asserts on-chain `governanceSet==1`, `daoAuthority==vault`, `kassDao==dao` —
+   Asserts on-chain `governanceSet==1`, `daoAuthority==vault`, `spotDao==dao` —
    i.e. G1's hardened linkage check validated against the REAL Squads vault /
    futarchy DAO (owner==`FUTARCHY_ID` + Dao discriminator; `dao_authority` == the
    vault PDA derived `create_key==Dao → multisig → vault 0`).
@@ -106,7 +106,7 @@ conditional_vault `VLTX1ish…`, Squads v4 `SQDS4ep6…`).
    on-chain `Protocol.total_supply_cap` == the sentinel; **second arm:** the
    dead-ended oracle is now `Phase::Resolved` with the governance-chosen
    `resolved_option`.
-6. **Live `kass_price` (real Dao).** Reads the futarchy spot TWAP from the REAL
+6. **Live `spot_price` (real Dao).** Reads the futarchy spot TWAP from the REAL
    `Dao` (not a fabricated blob) and asserts it is > 0.
 
 ### How to run
@@ -139,7 +139,7 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
    verdict itself all execute through the real futarchy / Squads / Kassandra
    programs. Do not mistake input-fabrication for a faked result — the inputs are
    fabricated, the outcomes are real.
-3. **`kass_price` is read via `simulateTransaction`.** The live `kass_price` value
+3. **`spot_price` is read via `simulateTransaction`.** The live `spot_price` value
    is a **read-only price query** (the instruction's return data, fetched through
    `simulateTransaction`), NOT part of the verdict / execution path. It confirms a
    real on-chain DAO's spot TWAP is readable; it does not gate the proposal.
@@ -152,12 +152,12 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
   proposal → swap-driven TWAP verdict → Squads `vault_transaction_execute` →
   Kassandra `set_config` + `resolve_deadend` applied on-chain, end to end — see
   "Full futarchy governance" above (incl. the three honesty notes: thin pass
-  margin, fabricated-inputs-vs-real-outcomes, `kass_price`-via-simulate).
-- **Live `kass_price` from the REAL futarchy Dao (G3).** Read via
+  margin, fabricated-inputs-vs-real-outcomes, `spot_price`-via-simulate).
+- **Live `spot_price` from the REAL futarchy Dao (G3).** Read via
   `simulateTransaction` return data from the genuine on-chain `Dao` (no fabricated
   `Dao` blob) — a read-only query, not the verdict path.
 - **The G1-hardened `set_governance` handoff, validated live (G3).** The
-  on-chain linkage check (`kass_dao` owned by `FUTARCHY_ID` + Dao discriminator;
+  on-chain linkage check (`spot_dao` owned by `FUTARCHY_ID` + Dao discriminator;
   `dao_authority` == the derived Squads vault) is exercised against the REAL
   Squads vault / futarchy DAO produced by `bootstrapGovernance`.
 
@@ -173,7 +173,7 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
     `setOption(N)`) `→ submitAiClaimFromRunner → finalizeAiClaims →
     finalizeOracle` ⇒ Oracle `Resolved` with the AI's option, and the on-chain
     `AiClaim` decodes to the runner's exact model_id/params_hash/io_hash/option.
-  - The only fabricated state is SPL plumbing (mints + funded KASS token
+  - The only fabricated state is SPL plumbing (mints + funded SOL token
     accounts), packed as canonical SPL bytes; the program's own SPL CPIs run
     against the real Token program. Phase windows are crossed with
     `surfnet_timeTravel` (it moves the Clock `unix_timestamp` at ~0.4 s/slot, the
@@ -189,27 +189,27 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
     match) — far past "program not found".
   - **A challenge is OPENED.** The full dispute core is driven to `Challenge`,
     the MetaDAO market is COMPOSED over RPC (real `initialize_question` +
-    KASS/USDC `initialize_conditional_vault` CPIs), and the Kassandra
+    SOL/USDC `initialize_conditional_vault` CPIs), and the Kassandra
     `openChallenge` instruction is sent. Its **program-signed `split_tokens`
     CPI runs against the forked conditional-vault**, physically splitting the
-    proposer's KASS bond into pass/fail conditional KASS (each == bond, underlying
+    proposer's SOL bond into pass/fail conditional SOL (each == bond, underlying
     in the vault). Asserted: `Market` PDA created + bound, `ai_claim.challenged`
     flipped, USDC escrow funded with the on-chain-computed amount,
     `open_challenge_count == 1`.
   - **`settle_challenge` END-TO-END, both arms, REAL swap-driven v0.4 AMM TWAP
     (CS2).** After opening, the test builds the **real** pass/fail v0.4 AMM pools
     on the fork (`ammV04.createAmm` + `addLiquidity` on this market's conditional
-    KASS/USDC mint pairs), then drives a **genuine TWAP** (no seeded/forced
+    SOL/USDC mint pairs), then drives a **genuine TWAP** (no seeded/forced
     aggregator) and settles:
     - **DISQUALIFY (challenge succeeds):** the PASS pool is left neutral; a real
       `ammV04.swap` BUY pushes the FAIL pool's price up, and two
       `ammV04.crankThatTwap` cranks ≥150 slots apart fold the post-swap price
       into the slot-weighted TWAP — decoded over RPC, `fail_twap (≈2.4e9) × DEN >
       pass_twap (1.0e9) × (DEN+NUM)`, clearing the 10% margin. `settleChallenge`
-      then resolves the question FAIL-side `[0,1]`, carves `kass_fee = bond/100`
-      to the challenger, redeems `bond − kass_fee` into `stake_vault`, returns the
+      then resolves the question FAIL-side `[0,1]`, carves `base_fee = bond/100`
+      to the challenger, redeems `bond − base_fee` into `stake_vault`, returns the
       full USDC escrow to the challenger, and records the slash
-      (`slashed_amount == bond − kass_fee`, `bond_pool += that`, `surviving_count
+      (`slashed_amount == bond − base_fee`, `bond_pool += that`, `surviving_count
       − 1`) — all asserted from on-chain accounts.
     - **SURVIVE (challenge fails):** both pools are cranked neutral (both TWAPs
       real + non-zero, the margin holds). `settleChallenge` resolves PASS-side
@@ -323,7 +323,7 @@ on-chain IDL (see `sdk/src/futarchy/NOTES.md`, "G3 ADDENDUM"). Skips cleanly
   (`bootstrapGovernance` calls the real `initialize_dao` + `set_governance`); the
   on-chain `initialize_dao` Borsh stub stays unused.
 - **Live-cluster / mainnet deployment with real funds.** No devnet/mainnet
-  submission of the real KASS DAO with real funds; no real (non-mock) Anthropic
+  submission of the real SOL DAO with real funds; no real (non-mock) Anthropic
   call (the runner's live test already exists, `#[ignore]`).
 - **Making the suite part of the default `pnpm test`** — it is intentionally
   gated (heavier + network for the forks).

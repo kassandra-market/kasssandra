@@ -1,7 +1,7 @@
 /**
- * A tiny read hook over {@link fetchKassBalance} for the staking forms.
+ * A tiny read hook over {@link fetchSolBalance} for the staking forms.
  *
- * {@link useKassBalance} resolves the connected wallet's KASS balance (raw base
+ * {@link useSolBalance} resolves the connected wallet's SOL balance (raw base
  * units) for a given mint, mirroring the unmount-guarded `useEffect`+nonce
  * pattern in `useOracles` (TanStack Query is NOT a dep). It reads the RPC
  * `Connection` from FA1's `useConnection()` and the connected `publicKey` from
@@ -10,7 +10,7 @@
  * `balance` is `null` while disconnected, still loading, or after a transient
  * fetch error — the caller must NOT hard-block a form on a `null` balance (the
  * on-chain tx remains the ultimate guard). A resolved `0n` means the wallet
- * genuinely holds no KASS (absent ATA), which the form MAY gate on.
+ * genuinely holds no SOL (absent ATA), which the form MAY gate on.
  *
  * Mock mode: the `ClusterProvider` connection stays real (a dead RPC under
  * `?mock`), so — exactly like `useWriteAction` — this hook swaps in the
@@ -22,18 +22,18 @@ import { useWallet } from '@solana/wallet-adapter-react'
 import { useConnection } from '../lib/cluster'
 import { isMockMode } from '../data/mockOracles'
 import { mockWriteConnection } from '../lib/mockWrite'
-import { fetchKassBalance } from '../data/balance'
+import { fetchSolBalance } from '../data/balance'
 
-export interface KassBalanceState {
-  /** Raw base-unit KASS balance, or `null` (disconnected / loading / transient error). */
+export interface SolBalanceState {
+  /** Raw base-unit SOL balance, or `null` (disconnected / loading / transient error). */
   balance: bigint | null
   /** True while a fetch is in flight. */
   loading: boolean
-  /** Re-run the fetch (e.g. after a successful bond/stake spends KASS). */
+  /** Re-run the fetch (e.g. after a successful bond/stake spends SOL). */
   refetch: () => void
 }
 
-export function useKassBalance(kassMint: string): KassBalanceState {
+export function useSolBalance(baseMint: string): SolBalanceState {
   const { connection: liveConnection } = useConnection()
   const mock = isMockMode()
   // Under mock mode the live ConnectionProvider points at a dead RPC; swap in
@@ -75,7 +75,7 @@ export function useKassBalance(kassMint: string): KassBalanceState {
           const res = await read()
           return res?.value ? BigInt(res.value.amount) : 0n
         })()
-      : fetchKassBalance(connectionRef.current, owner, kassMint)
+      : fetchSolBalance(connectionRef.current, owner, baseMint)
     task.then(
       (value) => {
         if (!active) return
@@ -93,7 +93,7 @@ export function useKassBalance(kassMint: string): KassBalanceState {
     return () => {
       active = false
     }
-  }, [owner, kassMint, connection, mock, nonce])
+  }, [owner, baseMint, connection, mock, nonce])
 
   return { balance, loading, refetch }
 }

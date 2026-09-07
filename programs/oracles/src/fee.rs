@@ -1,6 +1,6 @@
 //! Dynamic creation-fee math (Task H2 / design §8).
 //!
-//! Pure, overflow-safe integer routines for the KASS creation fee that is
+//! Pure, overflow-safe integer routines for the SOL creation fee that is
 //! BURNED on every `create_oracle`. See [`crate::config`] for the model and the
 //! tunable constants. Kept in its own module so the EMA decay can be unit-tested
 //! without an on-chain harness.
@@ -53,7 +53,7 @@ pub fn decay_fee_ema(fee_ema: u64, last_unix: i64, now: i64) -> u64 {
     decayed as u64 // decayed <= base <= fee_ema, so it fits in u64
 }
 
-/// KASS base units to burn for a creation given the already-decayed EMA.
+/// SOL base units to burn for a creation given the already-decayed EMA.
 ///
 /// `fee = FEE_PER_EMA_UNIT * decayed_fee_ema / FEE_EMA_SCALE`, saturating to
 /// `u64`. Zero when `decayed_fee_ema == 0` (genesis is free).
@@ -192,7 +192,7 @@ mod tests {
 
     // ---- emission-recapture fee + combined creation fee ---------------------
 
-    const EMISSION: u64 = 1_000_000_000_000; // 1000 KASS, ≈ a genesis per-oracle reward
+    const EMISSION: u64 = 1_000_000_000_000; // 1000 SOL, ≈ a genesis per-oracle reward
 
     #[test]
     fn recapture_is_zero_at_genesis_or_no_emission() {

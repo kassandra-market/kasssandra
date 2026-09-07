@@ -11,8 +11,8 @@
  * Arms (each only asserts what GENUINELY happens on the fork):
  *   1. BOOTSTRAP — real `initialize_dao` (creates the Dao + the Squads multisig
  *      with create_key==Dao + vault atomically; treasury fetched live) → the
- *      G1-hardened `set_governance(kass_dao=Dao, dao_authority=vault)`. Asserts
- *      `governanceSet==1`, `daoAuthority==vault`, `kassDao==dao` on-chain.
+ *      G1-hardened `set_governance(spot_dao=Dao, dao_authority=vault)`. Asserts
+ *      `governanceSet==1`, `daoAuthority==vault`, `spotDao==dao` on-chain.
  *   2. STAGE + PROPOSAL + LAUNCH + VERDICT + EXECUTE — see
  *      `futarchy-governance2-e2e.test.ts`.
  *
@@ -54,7 +54,7 @@ describe.skipIf(!ENABLED)("surfpool FULL futarchy governance loop on FORKED Meta
     const boot = await futarchy.bootstrapGovernance({
       payer: f.payer.publicKey,
       daoCreator: f.payer.publicKey,
-      kassMint: f.kassMint.publicKey,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
       squadsProgramConfigTreasury: treasury,
       nonce,
@@ -85,7 +85,7 @@ describe.skipIf(!ENABLED)("surfpool FULL futarchy governance loop on FORKED Meta
     const p = decodeProtocol(await fetchAccount(f, protocol));
     expect(p.governanceSet).toBe(true);
     expect(p.daoAuthority.toString()).toBe(f.vault.toString());
-    expect(p.kassDao.toString()).toBe(f.dao.toString());
+    expect(p.spotDao.toString()).toBe(f.dao.toString());
 
     // Sanity: the Dao really exists, owned by futarchy, with the Dao disc.
     const daoInfo = await f.harness.connection.getAccountInfo(f.dao);

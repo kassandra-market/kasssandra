@@ -1,13 +1,13 @@
 ---
 title: "Kassandra Market"
-description: "A KASS-denominated AMM prediction market on Solana — a thin Pinocchio wrapper over MetaDAO's v0.4 conditional vault + AMM that defers resolution to the Kassandra oracle."
+description: "A SOL-denominated AMM prediction market on Solana — a thin Pinocchio wrapper over MetaDAO's v0.4 conditional vault + AMM that defers resolution to the Kassandra oracle."
 ---
 
-**Kassandra Market** is a KASS-denominated AMM prediction market on Solana. Anyone
+**Kassandra Market** is a SOL-denominated AMM prediction market on Solana. Anyone
 can pre-create a market for a Kassandra oracle question below the liquidity floor;
 others **crowdfund** it to a minimum; once funded it **activates** into a live
 cYES/cNO AMM built on MetaDAO's v0.4 `conditional_vault` + `amm` primitives. When
-the oracle resolves, the market settles, a protocol fee is cut to the KASS
+the oracle resolves, the market settles, a protocol fee is cut to the SOL
 futarchy, and liquidity providers claim their pro-rata share. Every phase after
 creation is a **permissionless crank** — there is no privileged operator.
 
@@ -66,7 +66,7 @@ flowchart LR
 
 <Steps>
   <Step title="Create + crowdfund (Funding)">
-    A creator seeds any amount of KASS, even below the floor; anyone contributes
+    A creator seeds any amount of SOL, even below the floor; anyone contributes
     toward `min_liquidity`. See [Crowdfunding](/market/crowdfunding).
   </Step>
   <Step title="Activate">

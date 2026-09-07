@@ -23,9 +23,9 @@ definitions these mirror, see [Program PDAs](/protocol/pdas).
 | Helper | Signature | Derives | Seeds |
 | --- | --- | --- | --- |
 | `protocol` | `(programId?)` | Protocol singleton | `[b"protocol"]` |
-| `mintAuthority` | `(programId?)` | KASS mint-authority PDA | `[b"mint_authority"]` |
+| `mintAuthority` | `(programId?)` | SOL mint-authority PDA | `[b"mint_authority"]` |
 | `oracle` | `(nonce: bigint \| number, programId?)` | Oracle | `[b"oracle", nonce_u64_le]` |
-| `stakeVault` | `(oracleAddr, programId?)` | Oracle KASS stake vault | `[b"vault", oracle]` |
+| `stakeVault` | `(oracleAddr, programId?)` | Oracle SOL stake vault | `[b"vault", oracle]` |
 | `proposer` | `(oracleAddr, authority, programId?)` | Proposer | `[b"proposer", oracle, authority]` |
 | `fact` | `(oracleAddr, contentHash: Uint8Array, programId?)` | Fact | `[b"fact", oracle, content_hash]` |
 | `factVote` | `(factAddr, voter, programId?)` | FactVote | `[b"vote", fact, voter]` |
@@ -35,11 +35,11 @@ definitions these mirror, see [Program PDAs](/protocol/pdas).
 | `associatedTokenAccount` | `(owner, mint)` | Owner's ATA (SPL) | `[owner, TOKEN_PROGRAM, mint]` under `ATA_PROGRAM_ID` |
 
 <Note>
-`stakeVault` derives the oracle's KASS token account (holding all bonds + stakes).
+`stakeVault` derives the oracle's SOL token account (holding all bonds + stakes).
 `challengeUsdcVault` derives the market-owned USDC escrow SPL account holding a challenger's
 staked USDC. `associatedTokenAccount` has **no** `programId` override — it is fixed under
 `ATA_PROGRAM_ID`; `sweep_oracle` uses it to derive the DAO treasury ATA
-(`associatedTokenAccount(dao_authority, kass_mint)`).
+(`associatedTokenAccount(dao_authority, base_mint)`).
 </Note>
 
 The `type AddressInput` and `interface Pda` are also exported from this module.

@@ -7,8 +7,8 @@
  *
  *   - the STEP order + ids + grouping (7 steps in the exact choreography order);
  *   - the key ixs byte-for-byte (`data` + `keys`) against the SDK builders for the
- *     SAME derived inputs — initializeQuestion / initializeConditionalVault (KASS
- *     + USDC) / splitTokens (KASS + USDC) / createAmm / addLiquidity / openChallenge;
+ *     SAME derived inputs — initializeQuestion / initializeConditionalVault (SOL
+ *     + USDC) / splitTokens (SOL + USDC) / createAmm / addLiquidity / openChallenge;
  *   - the PDA / ATA derivations (oracle / question / vaults / conditional mints /
  *     amm / oracle-owned holder ATAs / challenger conditional ATAs);
  *   - the twap_initial_observation + seed-liquidity math (mirror buildPool);
@@ -40,7 +40,7 @@ describe("compose — the step sequence + grouping", () => {
     const { steps } = await build();
     expect(steps.map((s) => s.id)).toEqual([
       "question",
-      "kass-vault",
+      "base-vault",
       "usdc-vault",
       "fund-split",
       "pass-pool",
@@ -69,9 +69,9 @@ describe("compose — PDA / ATA derivations", () => {
       oracleNonce: f.nonce,
       proposer: f.proposer,
       challenger: f.challenger,
-      kassMint: f.kassMint,
+      baseMint: f.baseMint,
       usdcMint: f.usdcMint,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
     });
 
     const oracle = (await pda.oracle(f.nonce)).address;
@@ -80,15 +80,15 @@ describe("compose — PDA / ATA derivations", () => {
     const question = (await futarchy.pda.question(DEFAULT_QUESTION_ID, oracle, 2)).address;
     expect(composed.question.toString()).toBe(question.toString());
 
-    const kassVault = (await futarchy.pda.conditionalVault(question, f.kassMint)).address;
+    const baseVault = (await futarchy.pda.conditionalVault(question, f.baseMint)).address;
     const usdcVault = (await futarchy.pda.conditionalVault(question, f.usdcMint)).address;
-    expect(composed.kassVault.toString()).toBe(kassVault.toString());
+    expect(composed.baseVault.toString()).toBe(baseVault.toString());
     expect(composed.usdcVault.toString()).toBe(usdcVault.toString());
 
     // conditional-token mints [b"conditional_token", vault, index].
     for (const [vault, idx, got] of [
-      [kassVault, 0, composed.passKassMint],
-      [kassVault, 1, composed.failKassMint],
+      [baseVault, 0, composed.passBaseMint],
+      [baseVault, 1, composed.failBaseMint],
       [usdcVault, 0, composed.passUsdcMint],
       [usdcVault, 1, composed.failUsdcMint],
     ] as const) {
@@ -100,17 +100,17 @@ describe("compose — PDA / ATA derivations", () => {
     }
 
     // pool PDAs = amm(condKass, condUsdc) for each side.
-    const passAmm = (await ammV04.pda.amm(composed.passKassMint, composed.passUsdcMint)).address;
-    const failAmm = (await ammV04.pda.amm(composed.failKassMint, composed.failUsdcMint)).address;
+    const passAmm = (await ammV04.pda.amm(composed.passBaseMint, composed.passUsdcMint)).address;
+    const failAmm = (await ammV04.pda.amm(composed.failBaseMint, composed.failUsdcMint)).address;
     expect(composed.passAmm.toString()).toBe(passAmm.toString());
     expect(composed.failAmm.toString()).toBe(failAmm.toString());
 
-    // oracle-owned pass/fail KASS holders = ATA(oracle, condKassMint).
+    // oracle-owned pass/fail SOL holders = ATA(oracle, condBaseMint).
     expect(composed.oraclePassKass.toString()).toBe(
-      (await associatedTokenAccount(oracle, composed.passKassMint)).address.toString(),
+      (await associatedTokenAccount(oracle, composed.passBaseMint)).address.toString(),
     );
     expect(composed.oracleFailKass.toString()).toBe(
-      (await associatedTokenAccount(oracle, composed.failKassMint)).address.toString(),
+      (await associatedTokenAccount(oracle, composed.failBaseMint)).address.toString(),
     );
     // challenger USDC source = ATA(challenger, usdcMint).
     expect(composed.challengerUsdcSrc.toString()).toBe(
@@ -126,9 +126,9 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
       oracleNonce: f.nonce,
       proposer: f.proposer,
       challenger: f.challenger,
-      kassMint: f.kassMint,
+      baseMint: f.baseMint,
       usdcMint: f.usdcMint,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
     });
     const expected = await futarchy.initializeQuestion({
       questionId: DEFAULT_QUESTION_ID,
@@ -139,21 +139,21 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
     expectIxMatches(steps[0].ixs[0], expected);
   });
 
-  it("steps 2/3 == futarchy.initializeConditionalVault(KASS) / (USDC)", async () => {
+  it("steps 2/3 == futarchy.initializeConditionalVault(SOL) / (USDC)", async () => {
     const f = await fixture();
     const { steps } = await build({
       oracleNonce: f.nonce,
       proposer: f.proposer,
       challenger: f.challenger,
-      kassMint: f.kassMint,
+      baseMint: f.baseMint,
       usdcMint: f.usdcMint,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
     });
     const oracle = (await pda.oracle(f.nonce)).address;
     const question = (await futarchy.pda.question(DEFAULT_QUESTION_ID, oracle, 2)).address;
     const expKass = await futarchy.initializeConditionalVault({
       question,
-      underlyingMint: f.kassMint,
+      underlyingMint: f.baseMint,
       payer: f.challenger,
       numOutcomes: 2,
     });
@@ -167,30 +167,30 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
     expectIxMatches(steps[2].ixs[0], expUsdc);
   });
 
-  it("step 4 splits == futarchy.splitTokens(KASS baseReserve) / (USDC quoteReserve)", async () => {
+  it("step 4 splits == futarchy.splitTokens(SOL baseReserve) / (USDC quoteReserve)", async () => {
     const f = await fixture();
     const { steps, composed } = await build({
       oracleNonce: f.nonce,
       proposer: f.proposer,
       challenger: f.challenger,
-      kassMint: f.kassMint,
+      baseMint: f.baseMint,
       usdcMint: f.usdcMint,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
     });
     const fundSplit = steps.find((s) => s.id === "fund-split")!;
     // The two split ixs are the last two of the group.
     const [splitKass, splitUsdc] = fundSplit.ixs.slice(-2);
 
-    const challengerKass = (await associatedTokenAccount(f.challenger, f.kassMint)).address;
-    const challengerPassKass = (await associatedTokenAccount(f.challenger, composed.passKassMint)).address;
-    const challengerFailKass = (await associatedTokenAccount(f.challenger, composed.failKassMint)).address;
+    const challengerKass = (await associatedTokenAccount(f.challenger, f.baseMint)).address;
+    const challengerPassKass = (await associatedTokenAccount(f.challenger, composed.passBaseMint)).address;
+    const challengerFailKass = (await associatedTokenAccount(f.challenger, composed.failBaseMint)).address;
     const expSplitKass = await futarchy.splitTokens({
       question: composed.question,
-      vault: composed.kassVault,
-      vaultUnderlying: composed.kassVaultUnderlying,
+      vault: composed.baseVault,
+      vaultUnderlying: composed.baseVaultUnderlying,
       authority: f.challenger,
       userUnderlying: challengerKass,
-      conditionalMints: [composed.passKassMint, composed.failKassMint],
+      conditionalMints: [composed.passBaseMint, composed.failBaseMint],
       userConditionalAccounts: [challengerPassKass, challengerFailKass],
       amount: DEFAULT_BASE_RESERVE,
     });
@@ -217,17 +217,17 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
       oracleNonce: f.nonce,
       proposer: f.proposer,
       challenger: f.challenger,
-      kassMint: f.kassMint,
+      baseMint: f.baseMint,
       usdcMint: f.usdcMint,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
     });
     const initialObs = twapInitialObservation(DEFAULT_BASE_RESERVE, DEFAULT_QUOTE_RESERVE);
     // buildPool: initialObs = quote·1e12/base.
     expect(initialObs).toBe((DEFAULT_QUOTE_RESERVE * PRICE_SCALE) / DEFAULT_BASE_RESERVE);
 
     for (const [side, base, quote, poolIxs] of [
-      ["pass", composed.passKassMint, composed.passUsdcMint, steps.find((s) => s.id === "pass-pool")!.ixs],
-      ["fail", composed.failKassMint, composed.failUsdcMint, steps.find((s) => s.id === "fail-pool")!.ixs],
+      ["pass", composed.passBaseMint, composed.passUsdcMint, steps.find((s) => s.id === "pass-pool")!.ixs],
+      ["fail", composed.failBaseMint, composed.failUsdcMint, steps.find((s) => s.id === "fail-pool")!.ixs],
     ] as const) {
       const expCreate = await ammV04.createAmm({
         payer: f.challenger,
@@ -259,9 +259,9 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
       oracleNonce: f.nonce,
       proposer: f.proposer,
       challenger: f.challenger,
-      kassMint: f.kassMint,
+      baseMint: f.baseMint,
       usdcMint: f.usdcMint,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
     });
     const cvEventAuthority = (await futarchy.pda.vaultEventAuthority()).address;
     const [expOpen] = await buildOpenChallengeIxs({
@@ -269,17 +269,17 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
       proposer: f.proposer,
       challenger: f.challenger,
       question: composed.question,
-      kassVault: composed.kassVault,
+      baseVault: composed.baseVault,
       usdcVault: composed.usdcVault,
       passAmm: composed.passAmm,
       failAmm: composed.failAmm,
-      kassVaultUnderlying: composed.kassVaultUnderlying,
-      passKassMint: composed.passKassMint,
-      failKassMint: composed.failKassMint,
+      baseVaultUnderlying: composed.baseVaultUnderlying,
+      passBaseMint: composed.passBaseMint,
+      failBaseMint: composed.failBaseMint,
       oraclePassKass: composed.oraclePassKass,
       oracleFailKass: composed.oracleFailKass,
       cvEventAuthority,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
       usdcMint: f.usdcMint,
       challengerUsdcSrc: composed.challengerUsdcSrc,
     });
@@ -323,15 +323,15 @@ describe("compose — the seed math", () => {
       oracleNonce: f.nonce,
       proposer: f.proposer,
       challenger: f.challenger,
-      kassMint: f.kassMint,
+      baseMint: f.baseMint,
       usdcMint: f.usdcMint,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
       baseReserve,
       quoteReserve,
     });
     const expCreate = await ammV04.createAmm({
       payer: f.challenger,
-      baseMint: composed.passKassMint,
+      baseMint: composed.passBaseMint,
       quoteMint: composed.passUsdcMint,
       twapInitialObservation: twapInitialObservation(baseReserve, quoteReserve),
       twapMaxObservationChangePerUpdate: MAX_OBSERVATION_CHANGE,

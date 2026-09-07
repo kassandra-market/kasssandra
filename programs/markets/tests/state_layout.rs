@@ -17,7 +17,7 @@ fn account_sizes_are_stable() {
 fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Config, account_type), 0);
     assert_eq!(offset_of!(Config, authority), 8);
-    assert_eq!(offset_of!(Config, kass_mint), 40);
+    assert_eq!(offset_of!(Config, base_mint), 40);
     assert_eq!(offset_of!(Config, min_liquidity), 72);
     // Fee config appended after `bump` (@80); Phase-1 offsets above unchanged.
     assert_eq!(offset_of!(Config, fee_bps), 82);
@@ -32,7 +32,7 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Market, account_type), 0);
     assert_eq!(offset_of!(Market, oracle), 8);
     assert_eq!(offset_of!(Market, creator), 40);
-    assert_eq!(offset_of!(Market, kass_mint), 72);
+    assert_eq!(offset_of!(Market, base_mint), 72);
     assert_eq!(offset_of!(Market, escrow_vault), 104);
     assert_eq!(offset_of!(Market, min_liquidity), 136);
     assert_eq!(offset_of!(Market, total_contributed), 144);

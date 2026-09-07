@@ -24,7 +24,7 @@ import {
   encodeSetConfigParams,
   finalizeProposals,
   initProtocol,
-  kassPrice,
+  spotPrice,
   propose,
   resolveDeadend,
   setConfig,
@@ -36,11 +36,11 @@ import { decodeOracleMeta } from "../src/accounts/index.js";
 import {
   ADMIN,
   AUTHORITY,
-  AUTHORITY_KASS,
+  AUTHORITY_BASE,
   CREATOR,
   CREATOR_KASS,
-  KASS_DAO,
-  KASS_MINT,
+  SPOT_DAO,
+  BASE_MINT,
   ORACLE,
   PROGRAM_ID,
   USDC_MINT,
@@ -52,7 +52,7 @@ import {
 
 describe("D3a instruction builders — data bytes + account metas", () => {
   it("initProtocol: empty payload, 5 accounts in order", async () => {
-    const ix = await initProtocol({ admin: ADMIN, kassMint: KASS_MINT, usdcMint: USDC_MINT });
+    const ix = await initProtocol({ admin: ADMIN, baseMint: BASE_MINT, usdcMint: USDC_MINT });
     const protocol = await pda.protocol();
 
     expect(ix.programId.toString()).toBe(PROGRAM_ID);
@@ -60,7 +60,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
     expect(metaTriples(ix.keys)).toEqual([
       [protocol.address.toString(), false, true],
       [ADMIN, true, true],
-      [KASS_MINT, false, false],
+      [BASE_MINT, false, false],
       [USDC_MINT, false, false],
       [SYSTEM_PROGRAM_ID.toString(), false, false],
     ]);
@@ -78,8 +78,8 @@ describe("D3a instruction builders — data bytes + account metas", () => {
       deadline,
       twapWindow,
       creator: CREATOR,
-      creatorKassToken: CREATOR_KASS,
-      kassMint: KASS_MINT,
+      creatorBaseToken: CREATOR_KASS,
+      baseMint: BASE_MINT,
       usdcMint: USDC_MINT,
     });
 
@@ -102,7 +102,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
       [oracle.address.toString(), false, true],
       [stakeVault.address.toString(), false, true],
       [CREATOR, true, true],
-      [KASS_MINT, false, true],
+      [BASE_MINT, false, true],
       [USDC_MINT, false, false],
       [TOKEN_PROGRAM_ID.toString(), false, false],
       [SYSTEM_PROGRAM_ID.toString(), false, false],
@@ -156,7 +156,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
     const ix = await propose({
       oracle: ORACLE,
       authority: AUTHORITY,
-      authorityKass: AUTHORITY_KASS,
+      authorityBase: AUTHORITY_BASE,
       option,
       bond,
     });
@@ -169,7 +169,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
       [ORACLE, false, true],
       [proposer.address.toString(), false, true],
       [AUTHORITY, true, true],
-      [AUTHORITY_KASS, false, true],
+      [AUTHORITY_BASE, false, true],
       [stakeVault.address.toString(), false, true],
       [TOKEN_PROGRAM_ID.toString(), false, false],
       [SYSTEM_PROGRAM_ID.toString(), false, false],
@@ -177,7 +177,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
   });
 
   it("finalizeProposals: empty payload, oracle(w) + read-only proposer tail", async () => {
-    const proposers = [AUTHORITY, CREATOR, KASS_MINT];
+    const proposers = [AUTHORITY, CREATOR, BASE_MINT];
     const ix = await finalizeProposals({ oracle: ORACLE, proposers });
 
     expect(ix.data).toEqual(bytesOf(Ix.FinalizeProposals));
@@ -185,7 +185,7 @@ describe("D3a instruction builders — data bytes + account metas", () => {
       [ORACLE, false, true],
       [AUTHORITY, false, false],
       [CREATOR, false, false],
-      [KASS_MINT, false, false],
+      [BASE_MINT, false, false],
     ]);
   });
 
@@ -195,21 +195,21 @@ describe("D3a instruction builders — data bytes + account metas", () => {
     expect(metaTriples(ix.keys)).toEqual([[ORACLE, false, true]]);
   });
 
-  it("setGovernance: dao_authority[32] ++ kass_dao[32] + protocol(w), authority(ro signer), kass_dao(ro)", async () => {
+  it("setGovernance: dao_authority[32] ++ spot_dao[32] + protocol(w), authority(ro signer), spot_dao(ro)", async () => {
     const daoAuthority = AUTHORITY;
-    const kassDao = KASS_DAO;
-    const ix = await setGovernance({ authority: ADMIN, daoAuthority, kassDao });
+    const spotDao = SPOT_DAO;
+    const ix = await setGovernance({ authority: ADMIN, daoAuthority, spotDao });
 
     const daoBytes = Array.from(new Address(daoAuthority).toBytes());
-    const kassDaoBytes = Array.from(new Address(kassDao).toBytes());
-    expect(ix.data).toEqual(bytesOf(Ix.SetGovernance, [...daoBytes, ...kassDaoBytes]));
+    const spotDaoBytes = Array.from(new Address(spotDao).toBytes());
+    expect(ix.data).toEqual(bytesOf(Ix.SetGovernance, [...daoBytes, ...spotDaoBytes]));
     expect(ix.data.length).toBe(1 + 64);
 
     const protocol = await pda.protocol();
     expect(metaTriples(ix.keys)).toEqual([
       [protocol.address.toString(), false, true],
       [ADMIN, true, false],
-      [KASS_DAO, false, false],
+      [SPOT_DAO, false, false],
     ]);
   });
 
@@ -236,8 +236,8 @@ describe("D3a instruction builders — data bytes + account metas", () => {
       rewardFactWeight: 117n,
       challengeFailUsdcFeeNum: 118n,
       challengeFailUsdcFeeDen: 119n,
-      challengeSuccessKassFeeNum: 120n,
-      challengeSuccessKassFeeDen: 121n,
+      challengeSuccessBaseFeeNum: 120n,
+      challengeSuccessBaseFeeDen: 121n,
       stakeFloorEmaThreshold: 122n,
       stakeFloorEmaCap: 123n,
       stakeFloorMax: 124n,
@@ -266,8 +266,8 @@ describe("D3a instruction builders — data bytes + account metas", () => {
       params.rewardFactWeight,
       params.challengeFailUsdcFeeNum,
       params.challengeFailUsdcFeeDen,
-      params.challengeSuccessKassFeeNum,
-      params.challengeSuccessKassFeeDen,
+      params.challengeSuccessBaseFeeNum,
+      params.challengeSuccessBaseFeeDen,
       params.stakeFloorEmaThreshold,
       params.stakeFloorEmaCap,
       params.stakeFloorMax,
@@ -303,14 +303,14 @@ describe("D3a instruction builders — data bytes + account metas", () => {
     ]);
   });
 
-  it("kassPrice: empty payload, protocol(ro) + kass_dao(ro)", async () => {
-    const ix = await kassPrice({ kassDao: KASS_DAO });
-    expect(ix.data).toEqual(bytesOf(Ix.KassPrice));
+  it("spotPrice: empty payload, protocol(ro) + spot_dao(ro)", async () => {
+    const ix = await spotPrice({ spotDao: SPOT_DAO });
+    expect(ix.data).toEqual(bytesOf(Ix.SpotPrice));
 
     const protocol = await pda.protocol();
     expect(metaTriples(ix.keys)).toEqual([
       [protocol.address.toString(), false, false],
-      [KASS_DAO, false, false],
+      [SPOT_DAO, false, false],
     ]);
   });
 

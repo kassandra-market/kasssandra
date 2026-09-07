@@ -11,7 +11,7 @@ evidence is real and relevant* (objective) rather than *what the evidence means*
 (subjective). An AI applies that fixed interpretation to an agreed fact set, and a
 MetaDAO-style decision market is the ultimate arbiter that can override a faulty AI claim.
 
-No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashing) and by
+No zkTLS, no TEEs. Honesty is enforced **economically** (SOL staking and slashing) and by
 **markets** (the final arbiter of truth).
 
 > **Full documentation** lives in [`docs-site/`](./docs-site) — an extensive Mintlify site
@@ -22,8 +22,8 @@ No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashi
 ## How an oracle resolves
 
 1. **Create** — a creator posts a prompt, immutable interpretation rules, categorical
-   options, and a deadline, and pays a dynamic KASS creation fee (burned).
-2. **Propose** — after the deadline, proposers submit a categorical value plus a KASS bond,
+   options, and a deadline, and pays a dynamic SOL creation fee (burned).
+2. **Propose** — after the deadline, proposers submit a categorical value plus a SOL bond,
    no proofs. If everyone agrees, the oracle **resolves** immediately — no AI, no markets.
 3. **Dispute** (only on conflict) — two or more distinct values lock the proposers in and
    open a **fact proposal** window, then a disjoint **fact voting** window that freezes the
@@ -34,14 +34,14 @@ No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashi
    decision market, and a fail-vs-pass TWAP decides whether the claim is disqualified.
 6. **Resolve or dead-end** — after the last market settles, the final plurality over
    surviving proposers is computed. If nothing survives (or a tie), the oracle reaches an
-   **Invalid dead-end**, resolvable only by KASS governance.
+   **Invalid dead-end**, resolvable only by SOL governance.
 
 ## Two products, one repo
 
 This monorepo hosts **two** on-chain programs and the shared surface around them:
 
 - **Kassandra** — the AI-assisted optimistic oracle described above.
-- **[Kassandra Market](./programs/markets)** — a KASS-denominated **AMM
+- **[Kassandra Market](./programs/markets)** — a SOL-denominated **AMM
   prediction market** that wraps MetaDAO v0.4 `conditional_vault` + `amm` and defers
   resolution to the oracle. Program ID `FEGNHWAB7kc7VC9CCwbvVPsv4Jykz2r2WQ758V4xCT9S`.
 
@@ -136,20 +136,21 @@ See each package's README for details:
   instruction dispatch (no macros/IDL). CPI into MetaDAO's Anchor programs is constructed
   by hand (8-byte sighash discriminators + account metas + Borsh args). The trade-off: more
   manual serialization in exchange for a smaller, cheaper, dependency-light program.
-- **On-chain:** request config, all stakes/bonds (KASS) and market collateral (USDC), the
+- **On-chain:** request config, all stakes/bonds (SOL) and market collateral (USDC), the
   fact set & approvals, AI-claim metadata, plurality result, market triggers, emissions,
   and dynamic-fee state.
 - **Off-chain:** model inference, private to each runner. No raw AI output on-chain — only
   the categorical claim and verifiable metadata.
-- **Trust model:** economic + market-based. KASS slashing for bad facts/claims; MetaDAO
+- **Trust model:** economic + market-based. SOL slashing for bad facts/claims; MetaDAO
   decision markets as the ultimate arbiter over a faulty AI claim.
 
 ## Tokens
 
-- **KASS** — the SPL token for staking, slashing, and decision-market collateral. No
-  presale; fair-launch via participation emissions. Required to propose, to stake on facts,
-  and (as a proposer) it is your conditional-market collateral.
-- **USDC** — a challenger's stake when opening a decision market.
+- **SOL** (wrapped, 9 decimals) — bonds, fact stakes, market funding/LP, and
+  in-app protocol fees. There is no native Kassandra token and no participation
+  minting; honesty is still enforced by slashing SOL bonds and by markets.
+- **USDC** (6 decimals) — a challenger's stake when opening a decision market,
+  and the quote side of the pass/fail AMMs.
 
 ## Status
 

@@ -12,7 +12,7 @@ import {
 import { useComposeSequence, type StepStatus } from '../../../hooks/useComposeSequence'
 import { useConnection } from '../../../lib/cluster'
 import { isMockMode } from '../../../data/mockOracles'
-import { KASS_DECIMALS, USDC_DECIMALS, formatUnits } from '../../../lib/oracleView'
+import { SOL_DECIMALS, USDC_DECIMALS, formatUnits } from '../../../lib/oracleView'
 import { parseAmount } from './amount'
 import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
@@ -35,10 +35,10 @@ function parseReserve(
   return { value: parsed.value! }
 }
 
-/** A KASS-DAO override (needed for the escrow's kass_price); empty is invalid. */
+/** A SOL-DAO override (needed for the escrow's spot_price); empty is invalid. */
 function parseAddress(raw: string): { value?: string; error?: string } {
   const t = raw.trim()
-  if (t === '') return { error: 'The KASS DAO address is required (kass_price source).' }
+  if (t === '') return { error: 'The SOL DAO address is required (spot_price source).' }
   return { value: t }
 }
 
@@ -94,7 +94,7 @@ function StepRow({ label, status }: { label: string; status: StepStatus | undefi
 /**
  * CU3 — the CLIENT-SIDE "Open a challenge" form (replaces the RF4 JSON-paste open
  * path). The challenger sets the seed-liquidity params (sane defaults), then a
- * STAGED compose→open runs step by step — question → KASS vault → USDC vault →
+ * STAGED compose→open runs step by step — question → SOL vault → USDC vault →
  * fund+split → pass pool → fail pool → open challenge — each a wallet-signed tx
  * with per-step progress. A mid-sequence failure is shown inline and can be
  * RETRIED from the failed step (the idempotent ATA-creates + deterministic PDAs
@@ -110,7 +110,7 @@ export function ChallengeComposeForm({
 }: {
   /** The oracle PDA (base58). */
   oraclePubkey: string
-  /** The decoded oracle (its KASS/USDC mints seed the vaults). */
+  /** The decoded oracle (its SOL/USDC mints seed the vaults). */
   oracle: Oracle
   /** Refetch the oracle detail once the market opens. */
   refetch: () => void
@@ -119,12 +119,12 @@ export function ChallengeComposeForm({
   const seq = useComposeSequence(refetch)
   const [baseRaw, setBaseRaw] = useState('')
   const [quoteRaw, setQuoteRaw] = useState('')
-  const [daoRaw, setDaoRaw] = useState(useParam('kassDao'))
+  const [daoRaw, setDaoRaw] = useState(useParam('spotDao'))
   const [proposerRaw, setProposerRaw] = useState(useParam('proposer'))
   const [steps, setSteps] = useState<ComposeStep[] | null>(null)
   const [buildError, setBuildError] = useState<string | undefined>()
 
-  const base = parseReserve(baseRaw, DEFAULT_BASE_RESERVE, KASS_DECIMALS)
+  const base = parseReserve(baseRaw, DEFAULT_BASE_RESERVE, SOL_DECIMALS)
   const quote = parseReserve(quoteRaw, DEFAULT_QUOTE_RESERVE, USDC_DECIMALS)
   const dao = parseAddress(daoRaw)
   const proposer = parseProposer(proposerRaw)
@@ -137,7 +137,7 @@ export function ChallengeComposeForm({
     ? steps.map((s) => s.label)
     : [
         'Create question',
-        'Create KASS vault',
+        'Create SOL vault',
         'Create USDC vault',
         'Fund + split conditional tokens',
         'Seed pass pool',
@@ -155,9 +155,9 @@ export function ChallengeComposeForm({
         // the connected wallet is only the challenger/funder.
         proposer: proposer.value!,
         challenger: address,
-        kassMint: oracle.kassMint,
+        baseMint: oracle.baseMint,
         usdcMint: oracle.usdcMint,
-        kassDao: dao.value!,
+        spotDao: dao.value!,
         baseReserve: base.value,
         quoteReserve: quote.value,
       })
@@ -166,7 +166,7 @@ export function ChallengeComposeForm({
     [
       oraclePubkey,
       connection,
-      oracle.kassMint,
+      oracle.baseMint,
       oracle.usdcMint,
       proposer.value,
       dao.value,
@@ -223,15 +223,15 @@ export function ChallengeComposeForm({
         <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field
-              label="Seed base (conditional-KASS)"
-              hint={`Per pool, in KASS. Default ${formatUnits(DEFAULT_BASE_RESERVE, KASS_DECIMALS)}.`}
+              label="Seed base (conditional-SOL)"
+              hint={`Per pool, in SOL. Default ${formatUnits(DEFAULT_BASE_RESERVE, SOL_DECIMALS)}.`}
               error={base.error}
             >
               {(ids) => (
                 <TextInput
                   ids={ids}
                   inputMode="decimal"
-                  placeholder={formatUnits(DEFAULT_BASE_RESERVE, KASS_DECIMALS)}
+                  placeholder={formatUnits(DEFAULT_BASE_RESERVE, SOL_DECIMALS)}
                   value={baseRaw}
                   onChange={(e) => setBaseRaw(e.target.value)}
                 />
@@ -270,8 +270,8 @@ export function ChallengeComposeForm({
           </Field>
 
           <Field
-            label="KASS DAO address"
-            hint="The futarchy Dao (protocol.kass_dao) — the escrow's kass_price source."
+            label="SOL DAO address"
+            hint="The futarchy Dao (protocol.spot_dao) — the escrow's spot_price source."
             error={dao.error && daoRaw !== '' ? dao.error : undefined}
           >
             {(ids) => (

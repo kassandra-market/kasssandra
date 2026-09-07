@@ -80,7 +80,7 @@ extend the window without changing the phase.
 | `InvalidDeadend` only | `resolve_deadend` (15) |
 
 Instructions with no phase gate on an oracle: `init_protocol` (9), `create_oracle` (10),
-`set_governance` (13), `set_config` (14), and `kass_price` (16) act on the Protocol singleton or
+`set_governance` (13), `set_config` (14), and `spot_price` (16) act on the Protocol singleton or
 create a fresh oracle. A phase-gated instruction called in the wrong phase returns `WrongPhase`; a
 window guard that has not elapsed / has already closed returns `WindowNotElapsed` / `WindowClosed`.
 

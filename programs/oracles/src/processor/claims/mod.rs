@@ -2,12 +2,12 @@
 //! PHYSICAL payouts of the staker-settlement layer.
 //!
 //! Each is a PERMISSIONLESS, per-staker PULL: anyone may crank a claim for one
-//! account, but the KASS lands in the claimant-owner's token account. A claim
+//! account, but the SOL lands in the claimant-owner's token account. A claim
 //! (1) requires the oracle to be TERMINAL ([`Phase::Resolved`] or
 //! [`Phase::InvalidDeadend`]); (2) loads + type-checks the claimant account and
 //! binds it to this oracle; (3) computes the entitlement from the matrix below;
-//! (4) transfers exactly that KASS from `stake_vault` (program-signed by the
-//! oracle PDA) to the claimant-owner's KASS account; and (5) CLOSES the claimant
+//! (4) transfers exactly that SOL from `stake_vault` (program-signed by the
+//! oracle PDA) to the claimant-owner's SOL account; and (5) CLOSES the claimant
 //! account, draining its rent lamports to the owner. Idempotent BY CLOSURE — a
 //! second claim finds the account gone (zero lamports → reaped) and fails the
 //! owner/type guard.
@@ -16,7 +16,7 @@
 //! Every payout is sourced from the real `stake_vault` balance + the per-account
 //! `slashed_amount` ledger + the resolution-time stamps (`reward_pool`,
 //! `total_correct_proposer_stake`, `total_approved_fact_stake`). NOTHING reads
-//! `total_oracle_stake` (an idealized accumulator, NOT physical KASS — a
+//! `total_oracle_stake` (an idealized accumulator, NOT physical SOL — a
 //! successful challenge / external donation can desync it). Σ entitlements ≤
 //! `stake_vault` balance; the floor-division dust stays in the vault.
 //!
@@ -60,7 +60,7 @@
 //! 0. oracle           — read-only; owned by this program, re-derived from the
 //!    payload nonce; the SPL authority of `stake_vault` (signs the payout).
 //! 1. claimant         — writable; the `Proposer`/`Fact` account, CLOSED here.
-//! 2. dest_kass        — writable; KASS token account, `mint == oracle.kass_mint`
+//! 2. dest_base        — writable; SOL token account, `mint == oracle.base_mint`
 //!    and `owner == claimant.authority` (proposer.authority / fact.proposer).
 //! 3. stake_vault      — writable; `== oracle.stake_vault` (the payout source).
 //! 4. rent_recipient   — writable; `== claimant.authority` (reclaimed rent).
@@ -68,7 +68,7 @@
 //!
 //! `claim_fact_vote` inserts the fact at index 2 and shifts the rest:
 //! 0. oracle, 1. fact_vote(w, closed), 2. fact(w — its running voter-stake
-//!    total is decremented, NOT closed), 3. dest_kass(w), 4. stake_vault(w),
+//!    total is decremented, NOT closed), 3. dest_base(w), 4. stake_vault(w),
 //! 5. rent_recipient(w == fact_vote.voter), 6. token program.
 //!
 //! # Fact-close ordering (no griefing)

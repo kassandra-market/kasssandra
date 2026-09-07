@@ -53,7 +53,7 @@ fn no_facts_deadend_burns_bonds_and_emission_full_drain() {
 
     let vault = ctx.seeded(oracle).stake_vault;
     let nonce = ctx.seeded(oracle).nonce;
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     assert_eq!(ctx.token_balance(vault), total_bonds + emission);
 
     ctx.warp(WINDOW + 1);
@@ -69,7 +69,7 @@ fn no_facts_deadend_burns_bonds_and_emission_full_drain() {
     );
     // The bond_pool (= Σ bonds) AND the emission were BURNED: supply drops by both.
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before - total_bonds - emission,
         "bonds + emission burned back to the reservoir"
     );
@@ -86,7 +86,7 @@ fn no_facts_deadend_burns_bonds_and_emission_full_drain() {
         let p = ctx.proposer(*pda);
         assert!(p.disqualified != 0 && p.slashed != 0);
         assert_eq!(p.slashed_amount, p.bond, "no-facts slash == full bond");
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         ctx.send(
             ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey()),
             &[],
@@ -107,10 +107,10 @@ fn no_facts_deadend_burns_bonds_and_emission_full_drain() {
 // bond − slashed_amount, the slashed bond_pool is burned, the vault drains.
 // ---------------------------------------------------------------------------
 
-/// Seed a 3-proposer dispute where P0 was challenge-disqualified (kass_fee left
+/// Seed a 3-proposer dispute where P0 was challenge-disqualified (base_fee left
 /// the vault), P1 is a flip-slashed SURVIVOR, P2 is an honest survivor, and the
 /// two survivors claim DISTINCT options → the surviving plurality ties →
-/// InvalidDeadend. Returns `(ctx, oracle, pdas, auths, flip_slash, kass_fee)`.
+/// InvalidDeadend. Returns `(ctx, oracle, pdas, auths, flip_slash, base_fee)`.
 fn seed_tie_with_slashes() -> (TestCtx, Pubkey, Vec<Pubkey>, Vec<Keypair>, u64, u64) {
     let mut ctx = TestCtx::new();
     let oracle = ctx.seed_disputed_oracle(&[
@@ -134,9 +134,9 @@ fn seed_tie_with_slashes() -> (TestCtx, Pubkey, Vec<Pubkey>, Vec<Keypair>, u64, 
         .map(|p| p.authority.insecure_clone())
         .collect();
 
-    // P0: challenge-disqualified (kass_fee=100 left the vault; slashed 900).
-    let kass_fee = 100u64;
-    ctx.seed_challenge_disqualify(oracle, pdas[0], kass_fee);
+    // P0: challenge-disqualified (base_fee=100 left the vault; slashed 900).
+    let base_fee = 100u64;
+    ctx.seed_challenge_disqualify(oracle, pdas[0], base_fee);
     // P1: flip-slashed but SURVIVING (slash 400 into bond_pool).
     let flip_slash = 400u64;
     ctx.set_proposer_prior_slash(oracle, pdas[1], flip_slash);
@@ -144,23 +144,23 @@ fn seed_tie_with_slashes() -> (TestCtx, Pubkey, Vec<Pubkey>, Vec<Keypair>, u64, 
     ctx.set_proposer_claim_option(pdas[1], 0);
     ctx.set_proposer_claim_option(pdas[2], 1);
     ctx.set_phase(oracle, Phase::Challenge);
-    (ctx, oracle, pdas, auths, flip_slash, kass_fee)
+    (ctx, oracle, pdas, auths, flip_slash, base_fee)
 }
 
 #[test]
 fn tie_deadend_with_slashes_burns_bond_pool_full_drain() {
-    let (mut ctx, oracle, pdas, auths, flip_slash, kass_fee) = seed_tie_with_slashes();
+    let (mut ctx, oracle, pdas, auths, flip_slash, base_fee) = seed_tie_with_slashes();
     let emission = 333u64;
     ctx.set_reward_emission(oracle, emission);
 
     let vault = ctx.seeded(oracle).stake_vault;
     let nonce = ctx.seeded(oracle).nonce;
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     let bond_pool = ctx.oracle(oracle).bond_pool;
     // bond_pool = P0 slash (900) + P1 flip slash (400).
-    assert_eq!(bond_pool, (1_000 - kass_fee) + flip_slash);
-    // Vault = Σ bonds (5000) − kass_fee (100) + emission.
-    assert_eq!(ctx.token_balance(vault), 5_000 - kass_fee + emission);
+    assert_eq!(bond_pool, (1_000 - base_fee) + flip_slash);
+    // Vault = Σ bonds (5000) − base_fee (100) + emission.
+    assert_eq!(ctx.token_balance(vault), 5_000 - base_fee + emission);
 
     ctx.warp(WINDOW + 1);
     ctx.send(ctx.finalize_oracle_ix(oracle, &pdas), &[])
@@ -172,12 +172,12 @@ fn tie_deadend_with_slashes_burns_bond_pool_full_drain() {
     assert_eq!(o.reward_pool, 0, "no reward distribution out of a dead-end");
     // Both the slashed bond_pool AND the emission were burned.
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before - bond_pool - emission,
         "slashed bond_pool + emission burned"
     );
     // Vault now holds EXACTLY the survivors' returnable principal:
-    //   P1: 2000 − 400 (flip) = 1600 ; P2: 2000. (P0's 900 burned; kass_fee gone.)
+    //   P1: 2000 − 400 (flip) = 1600 ; P2: 2000. (P0's 900 burned; base_fee gone.)
     let returnable = (2_000 - flip_slash) + 2_000;
     assert_eq!(ctx.token_balance(vault), returnable);
 
@@ -195,7 +195,7 @@ fn tie_deadend_with_slashes_burns_bond_pool_full_drain() {
             1 => assert_eq!(expected, 2_000 - flip_slash, "flip survivor: bond − slash"),
             _ => assert_eq!(expected, 2_000, "honest survivor: full bond"),
         }
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         ctx.send(
             ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey()),
             &[],
@@ -218,13 +218,13 @@ fn tie_deadend_with_slashes_burns_bond_pool_full_drain() {
 
 #[test]
 fn governance_resolved_deadend_pays_identically_and_drains() {
-    let (mut ctx, oracle, pdas, auths, flip_slash, _kass_fee) = seed_tie_with_slashes();
+    let (mut ctx, oracle, pdas, auths, flip_slash, _base_fee) = seed_tie_with_slashes();
     // Hand governance off to a signable DAO keypair (mirrors resolve_deadend.rs).
     ctx.ensure_protocol();
     let dao = Keypair::new();
     ctx.airdrop(&dao, 1_000_000_000);
-    let (_da, kass_dao) = TestCtx::stand_in_governance(0x44);
-    ctx.force_governance(dao.pubkey(), kass_dao);
+    let (_da, spot_dao) = TestCtx::stand_in_governance(0x44);
+    ctx.force_governance(dao.pubkey(), spot_dao);
 
     let vault = ctx.seeded(oracle).stake_vault;
     let nonce = ctx.seeded(oracle).nonce;
@@ -274,7 +274,7 @@ fn governance_resolved_deadend_pays_identically_and_drains() {
                 "correct-option survivor still gets only its bond"
             );
         }
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         ctx.send(
             ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey()),
             &[],

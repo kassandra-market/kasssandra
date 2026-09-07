@@ -33,8 +33,8 @@ The form wraps the pure action layer at `app/src/data/actions/create.ts`, which 
   instruction payload.
 </ParamField>
 
-<ParamField path="KASS / USDC mints" type="address">
-  The staking and quote mints, defaulted from the Protocol singleton. KASS is the
+<ParamField path="SOL / USDC mints" type="address">
+  The staking and quote mints, defaulted from the Protocol singleton. SOL is the
   bond/stake asset; USDC is the challenge-market quote asset.
 </ParamField>
 
@@ -53,14 +53,14 @@ The metadata (subject + option labels + `uri`/`uri_hash`) is written by a second
 The **nonce** is the oracle's identity: the Oracle PDA is derived as `[b"oracle", nonce_u64_le]` (`sdk/src/pda.ts` `oracle`). Because the nonce is not stored on-chain but is needed later by finalize-facts, finalize-oracle, and the claim/close/sweep instructions, the app persists it per-browser at create time (`app/src/lib/nonceStore.ts`).
 
 <Note>
-Every staking action across the lifecycle requires **KASS** and is denominated in
-**raw base units**. A missing KASS associated-token account is created idempotently
+Every staking action across the lifecycle requires **SOL** and is denominated in
+**raw base units**. A missing SOL associated-token account is created idempotently
 on the first action.
 </Note>
 
-## Creation fee (burned KASS)
+## Creation fee (burned SOL)
 
-Creating an oracle carries a KASS creation fee. See the economics concept page for how the fee and the rest of the token flows work.
+Creating an oracle carries a SOL creation fee. See the economics concept page for how the fee and the rest of the token flows work.
 
 <CardGroup cols={2}>
   <Card title="Oracles & questions" icon="circle-question" href="/concepts/oracles-and-questions">

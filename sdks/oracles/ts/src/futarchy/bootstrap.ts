@@ -1,14 +1,14 @@
 /**
  * Off-chain governance bootstrap (Task G2).
  *
- * Composes the instruction sequence that stands up a real futarchy KASS DAO and
+ * Composes the instruction sequence that stands up a real futarchy SOL DAO and
  * hands Kassandra's governance to it:
  *   1. futarchy `initialize_dao` — creates the `Dao` AND (via an internal CPI)
  *      the Squads v4 multisig with `create_key == Dao` + vault index 0
  *      (see ./NOTES.md — CONFIRMED). No separate multisig-create step is needed.
  *   2. derive the multisig + vault PDAs from the Dao PDA.
  *   3. Kassandra G1-hardened `set_governance` with `dao_authority = vault`,
- *      `kass_dao = Dao` (the on-chain handoff re-derives + validates this exact
+ *      `spot_dao = Dao` (the on-chain handoff re-derives + validates this exact
  *      linkage).
  *
  * Returns the created/derived addresses + the composed `TransactionInstruction`s.
@@ -29,8 +29,8 @@ export interface BootstrapGovernanceArgs {
   payer: AddressInput;
   /** Signer that seeds the Dao PDA and becomes its config authority. */
   daoCreator: AddressInput;
-  /** DAO base mint (KASS) — recorded as `Dao.base_mint`. */
-  kassMint: AddressInput;
+  /** DAO base mint (SOL) — recorded as `Dao.base_mint`. */
+  baseMint: AddressInput;
   /** DAO quote mint (USDC, 6-decimal) — recorded as `Dao.quote_mint`. */
   usdcMint: AddressInput;
   /** Squads `ProgramConfig.treasury` (read from the on-chain ProgramConfig in G3). */
@@ -53,7 +53,7 @@ export interface BootstrapGovernanceArgs {
 }
 
 export interface BootstrapGovernanceResult {
-  /** The futarchy `Dao` PDA (== Squads multisig `create_key` == Kassandra `kass_dao`). */
+  /** The futarchy `Dao` PDA (== Squads multisig `create_key` == Kassandra `spot_dao`). */
   dao: Address;
   /** The Squads multisig PDA (`create_key == dao`). */
   multisig: Address;
@@ -79,7 +79,7 @@ export async function bootstrapGovernance(
   const initIx = await initializeDao({
     daoCreator: a.daoCreator,
     payer: a.payer,
-    baseMint: a.kassMint,
+    baseMint: a.baseMint,
     quoteMint: a.usdcMint,
     squadsProgramConfigTreasury: a.squadsProgramConfigTreasury,
     twapInitialObservation: a.twapInitialObservation,
@@ -96,7 +96,7 @@ export async function bootstrapGovernance(
   const handoffIx = await setGovernance({
     authority: a.admin,
     daoAuthority: vault,
-    kassDao: dao,
+    spotDao: dao,
     programId: a.kassandraProgramId,
   });
 

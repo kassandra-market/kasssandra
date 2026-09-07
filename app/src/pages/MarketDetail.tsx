@@ -22,7 +22,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import {
   contributorLp,
   detailView,
-  formatKass,
+  formatSol,
   impliedYesProbability,
   phaseLabel,
   outcomeResolutionText,
@@ -140,7 +140,7 @@ function ContribTag({ kind }: { kind: "funding" | "liquidity" }) {
  * the connected wallet's share once a pool exists (activated); before
  * activation it degrades to funding progress + the wallet's stake (there is no
  * LP yet). Shows each side's actual reserve amount rather than a single
- * KASS-denominated "pool value" — the latter is a mark-to-market figure that
+ * SOL-denominated "pool value" — the latter is a mark-to-market figure that
  * moves with the trade itself, so it reads as an odd, unstable headline number.
  *
  * Pre-activation on a GROUPED market (`group.isGroup`), the bar + "Raised"
@@ -162,13 +162,13 @@ function LiquidityOverview({ detail, group }: { detail: MarketDetailData; group:
     const yourLp = mine ? contributorLp(mine.contribution, market) : 0n;
     return (
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatTile label="cYES" value={reserves ? formatKass(reserves.base) : "—"} />
-        <StatTile label="cNO" value={reserves ? formatKass(reserves.quote) : "—"} />
-        <StatTile label="LP supply" value={`${formatKass(market.grossLpTotal)} shares`} />
+        <StatTile label="cYES" value={reserves ? formatSol(reserves.base) : "—"} />
+        <StatTile label="cNO" value={reserves ? formatSol(reserves.quote) : "—"} />
+        <StatTile label="LP supply" value={`${formatSol(market.grossLpTotal)} shares`} />
         <StatTile
           label="Your share"
           value={address ? percentOf(yourLp, market.grossLpTotal) : "—"}
-          sub={address ? `${formatKass(yourLp)} LP` : "Connect a wallet to see your share"}
+          sub={address ? `${formatSol(yourLp)} LP` : "Connect a wallet to see your share"}
         />
       </div>
     );
@@ -188,11 +188,11 @@ function LiquidityOverview({ detail, group }: { detail: MarketDetailData; group:
     <div className="flex flex-col gap-4">
       <FundingBar market={fundingMarket} />
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <StatTile label="Raised" value={`${formatKass(fundingMarket.totalContributed)} KASS`} />
+        <StatTile label="Raised" value={`${formatSol(fundingMarket.totalContributed)} SOL`} />
         <StatTile
           label="Your stake"
           value={address ? percentOf(yourStake, fundingMarket.totalContributed) : "—"}
-          sub={address ? `${formatKass(yourStake)} KASS` : "Connect a wallet to see your stake"}
+          sub={address ? `${formatSol(yourStake)} SOL` : "Connect a wallet to see your stake"}
         />
       </div>
     </div>
@@ -202,7 +202,7 @@ function LiquidityOverview({ detail, group }: { detail: MarketDetailData; group:
 /**
  * The contributions ledger, latest-first (the data layer sorts by the
  * Contribution PDA's last-write slot). Each contribution expands into up to two
- * tagged rows — the initial Funding stake (KASS) and any post-activation
+ * tagged rows — the initial Funding stake (SOL) and any post-activation
  * Liquidity added (LP) — with the LP row (always the later action) above the
  * funding row for the same contributor.
  */
@@ -230,7 +230,7 @@ function ContributionsLedger({
         key: `${pubkey}:lp`,
         contributor,
         kind: "liquidity",
-        amount: `${formatKass(c.lateLp)} LP`,
+        amount: `${formatSol(c.lateLp)} LP`,
         claimed: c.claimed,
       });
     if (c.amount > 0n)
@@ -238,7 +238,7 @@ function ContributionsLedger({
         key: `${pubkey}:fund`,
         contributor,
         kind: "funding",
-        amount: `${formatKass(c.amount)} KASS`,
+        amount: `${formatSol(c.amount)} SOL`,
         claimed: c.claimed,
       });
     // A degenerate all-zero contribution still gets one row so it isn't dropped.
@@ -247,7 +247,7 @@ function ContributionsLedger({
         key: `${pubkey}:fund`,
         contributor,
         kind: "funding",
-        amount: "0 KASS",
+        amount: "0 SOL",
         claimed: c.claimed,
       });
   }
@@ -442,13 +442,13 @@ function DetailBody({
               <dl className="flex flex-col gap-1.5 font-inter text-[13px]">
                 <ReserveFigure
                   label={`From funding (${percentOf(fundingLp, grossLp)})`}
-                  value={`${formatKass(fundingLp)} LP`}
+                  value={`${formatSol(fundingLp)} LP`}
                 />
                 <ReserveFigure
                   label={`From independent LPs (${percentOf(independentLp, grossLp)})`}
-                  value={`${formatKass(independentLp)} LP`}
+                  value={`${formatSol(independentLp)} LP`}
                 />
-                <ReserveFigure label="Total LP" value={`${formatKass(grossLp)} LP`} />
+                <ReserveFigure label="Total LP" value={`${formatSol(grossLp)} LP`} />
               </dl>
             </div>
           ) : null}
@@ -459,13 +459,13 @@ function DetailBody({
               <p className="font-inter text-[12px] font-medium uppercase tracking-[0.06em] text-silver">
                 Pool composition
                 <InfoTip label="Pool composition">
-                  The AMM holds a pair of conditional tokens: cYES pays 1 KASS if the outcome
-                  resolves YES, cNO pays 1 KASS if it resolves NO. Their reserves set the price.
+                  The AMM holds a pair of conditional tokens: cYES pays 1 SOL if the outcome
+                  resolves YES, cNO pays 1 SOL if it resolves NO. Their reserves set the price.
                 </InfoTip>
               </p>
               <dl className="flex flex-col gap-1.5 font-inter text-[13px]">
-                <ReserveFigure label="cYES (pays 1 KASS on YES)" value={formatKass(reserves.base)} />
-                <ReserveFigure label="cNO (pays 1 KASS on NO)" value={formatKass(reserves.quote)} />
+                <ReserveFigure label="cYES (pays 1 SOL on YES)" value={formatSol(reserves.base)} />
+                <ReserveFigure label="cNO (pays 1 SOL on NO)" value={formatSol(reserves.quote)} />
               </dl>
             </div>
           ) : null}
@@ -475,13 +475,13 @@ function DetailBody({
             <div className="flex gap-1">
               <dt className="text-silver">Raised</dt>
               <dd className="font-medium tabular-nums text-platinum">
-                {formatKass(market.totalContributed)} KASS
+                {formatSol(market.totalContributed)} SOL
               </dd>
             </div>
             <div className="flex gap-1">
               <dt className="text-silver">Floor</dt>
               <dd className="font-medium tabular-nums text-platinum">
-                {formatKass(market.minLiquidity)} KASS
+                {formatSol(market.minLiquidity)} SOL
               </dd>
             </div>
             <div className="flex gap-1">
@@ -603,7 +603,7 @@ function DetailBody({
           <div className="divide-y divide-hairline/60">
             <AddressRow label="Oracle" address={market.oracle} />
             <AddressRow label="Creator" address={market.creator} />
-            <AddressRow label="KASS mint" address={market.kassMint} />
+            <AddressRow label="SOL mint" address={market.baseMint} />
             <AddressRow label="Escrow vault" address={market.escrowVault} />
             <AddressRow label="Question" address={market.question} />
             <AddressRow label="Conditional vault" address={market.vault} />

@@ -1,8 +1,8 @@
 //! Activity-scaled minimum-funding floor for a new market — mirrors
 //! `programs/oracles/src/stake_floor.rs`'s activity-scaled stake floor, applied
-//! here to `min_liquidity` instead: the KASS a market must raise before it can
+//! here to `min_liquidity` instead: the SOL a market must raise before it can
 //! `activate` starts at a BASE (governance's `Config.min_liquidity` — sane even
-//! at genesis, e.g. "1 KASS is fine with almost no markets") and ramps UP with
+//! at genesis, e.g. "1 SOL is fine with almost no markets") and ramps UP with
 //! recent market-CREATION demand, so a busy protocol requires proportionally
 //! more skin in the game before a market goes live. See `crate::config` for the
 //! EMA model and the tunable constants. Kept in its own module (pure, no
@@ -66,7 +66,7 @@ pub fn bumped_market_ema(decayed_ema: u64) -> u64 {
     decayed_ema.saturating_add(MARKET_EMA_INCREMENT)
 }
 
-/// The min-liquidity floor (KASS base units) for a market created when the
+/// The min-liquidity floor (SOL base units) for a market created when the
 /// (already-decayed) EMA was `ema`, given the governable curve params
 /// (`threshold`, `cap`, `base`, `max`). Piecewise linear from `base` to `max`.
 /// Returns `base` when disabled (`max <= base`), degenerate (`cap <=
@@ -170,8 +170,8 @@ mod tests {
 
     const THRESHOLD: u64 = 15_000_000_000; // ≈10 markets/day
     const CAP: u64 = 1_443_000_000_000; // ≈1000 markets/day
-    const BASE: u64 = 1_000_000_000; // 1 KASS
-    const MAX: u64 = 10_000_000_000; // 10 KASS
+    const BASE: u64 = 1_000_000_000; // 1 SOL
+    const MAX: u64 = 10_000_000_000; // 10 SOL
 
     #[test]
     fn stays_at_base_at_or_below_threshold() {

@@ -9,7 +9,7 @@ use super::build;
 use crate::{SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
 
 // ===================================================================== Ix 0
-/// `SubmitFact` (Ix 0) — post a candidate fact with a KASS stake.
+/// `SubmitFact` (Ix 0) — post a candidate fact with a SOL stake.
 #[allow(clippy::too_many_arguments)]
 pub fn submit_fact(
     program_id: &Pubkey,
@@ -84,7 +84,7 @@ pub fn vote_fact(
 pub fn finalize_facts(
     program_id: &Pubkey,
     oracle: Pubkey,
-    kass_mint: Pubkey,
+    base_mint: Pubkey,
     stake_vault: Pubkey,
     nonce: u64,
     tail: &[Pubkey],
@@ -94,7 +94,7 @@ pub fn finalize_facts(
     data.extend_from_slice(&nonce.to_le_bytes());
     let mut accounts = Vec::with_capacity(4 + tail.len());
     accounts.push(AccountMeta::new(oracle, false));
-    accounts.push(AccountMeta::new(kass_mint, false));
+    accounts.push(AccountMeta::new(base_mint, false));
     accounts.push(AccountMeta::new(stake_vault, false));
     accounts.push(AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false));
     for k in tail {

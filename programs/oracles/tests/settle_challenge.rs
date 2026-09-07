@@ -3,7 +3,7 @@
 //! conditional-vault question — all driven against the real programs in LiteSVM.
 //!
 //! Each test composes the MetaDAO market exactly like `open_challenge.rs` (a
-//! binary question whose resolver is the Kassandra oracle PDA + KASS/USDC
+//! binary question whose resolver is the Kassandra oracle PDA + SOL/USDC
 //! conditional vaults), then builds GENUINE pass/fail AMM pools via the real
 //! `create_amm` + `add_liquidity` + `crank_that_twap` instructions so the TWAP
 //! `settle_challenge` reads is produced by the real binary — not fabricated.

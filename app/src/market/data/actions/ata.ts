@@ -1,10 +1,10 @@
 /**
  * Shared helpers for the funding-phase action builders (pure, NO React).
  *
- * The kassandra-market instructions transfer KASS out of / into the caller's
+ * The kassandra-market instructions transfer SOL out of / into the caller's
  * Associated Token Account. The SDK builders take that ATA address but do NOT
  * create it, so a first-time participant needs the account created in the same
- * transaction. {@link ensureKassAta} derives `ATA(owner, kassMint)` and, when the
+ * transaction. {@link ensureKassAta} derives `ATA(owner, baseMint)` and, when the
  * account is absent, returns an idempotent create-ATA instruction to PREPEND.
  *
  * The create ix is the SDK's shared leaf builder (the ATA program's
@@ -35,7 +35,7 @@ export function toAddress(field: string, a: AddressInput): Address {
  * Derive `ATA(owner, mint)` and, when the account is absent (`indexer.getAccount`
  * null), return an idempotent create-ATA ix to prepend (payer == owner). The
  * returned `createIx` is `undefined` when the ATA already exists, so callers
- * write `createIx ? [createIx, ix] : [ix]`. Used for the KASS escrow source and
+ * write `createIx ? [createIx, ix] : [ix]`. Used for the SOL escrow source and
  * the LP claim destination alike (any mint).
  */
 export async function ensureAta(
@@ -51,11 +51,11 @@ export async function ensureAta(
   return { ata, createIx };
 }
 
-/** {@link ensureAta} specialised to the KASS mint (the funding-form call sites). */
+/** {@link ensureAta} specialised to the SOL mint (the funding-form call sites). */
 export function ensureKassAta(
   indexer: IndexerReads,
   owner: Address,
-  kassMint: Address,
+  baseMint: Address,
 ): Promise<{ ata: Address; createIx?: TransactionInstruction }> {
-  return ensureAta(indexer, owner, kassMint);
+  return ensureAta(indexer, owner, baseMint);
 }

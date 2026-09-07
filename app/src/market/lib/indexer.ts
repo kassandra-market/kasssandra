@@ -15,7 +15,7 @@ import { base64ToBytes } from "../../lib/base64";
 export interface ConfigDto {
   address: string;
   authority: string;
-  kassMint: string;
+  baseMint: string;
   minLiquidity: string;
   bump: number;
   feeBps: number;
@@ -40,7 +40,7 @@ export interface MarketDto {
   statusLabel: string;
   oracle: string;
   creator: string;
-  kassMint: string;
+  baseMint: string;
   escrowVault: string;
   minLiquidity: string;
   totalContributed: string;
@@ -205,7 +205,7 @@ export class IndexerClient {
   /**
    * `GET /api/account/{pubkey}` → a raw account read (base64 → bytes), or `null`
    * when the account does not exist (404). Powers ATA-existence, step-landed, the
-   * oracle read, and the KASS-balance decode.
+   * oracle read, and the SOL-balance decode.
    */
   async getAccount(pubkey: string): Promise<AccountRead | null> {
     const res = await fetch(`${this.base}/account/${pubkey}`);

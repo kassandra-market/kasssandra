@@ -1,22 +1,22 @@
 /**
  * CU2 — the challenge-market TRADE / CRANK action layer (pure ix-builders, NO
  * React). A challenge round runs over an externally-composed MetaDAO v0.4
- * market: two pass/fail standalone AMMs, each trading a conditional-KASS (base)
+ * market: two pass/fail standalone AMMs, each trading a conditional-SOL (base)
  * against a conditional-USDC (quote). CU1 decodes those pools (read); CU2 lets a
  * connected wallet TRADE against a pool (swap) and permissionlessly CRANK its
  * TWAP oracle — the two writes that MOVE the swap-driven verdict `settle` reads.
  *
  * Neither pool address nor the trade mints are stored in a form here: they are
- * DERIVED client-side from the decoded {@link Market} (its `kassVault` /
+ * DERIVED client-side from the decoded {@link Market} (its `baseVault` /
  * `usdcVault`) exactly as the challenge-market composition does —
  *
  *   conditional mint = PDA `[b"conditional_token", vault, index]` under the
  *                      MetaDAO conditional-vault program (`VLTX…`), index 0 =
  *                      pass, index 1 = fail (mirrors `composeVault`);
  *   amm PDA          = `ammV04.pda.amm(baseMint, quoteMint)` = `[b"amm__",
- *                      base, quote]` (base = conditional-KASS, quote =
+ *                      base, quote]` (base = conditional-SOL, quote =
  *                      conditional-USDC — the SAME base/quote order the pools
- *                      were built with, `buildPool(kass, usdc)`);
+ *                      were built with, `buildPool(base, usdc)`);
  *   vault ATAs       = `ammV04.pda.ata(amm, mint)`; user ATAs = `ata(user, mint)`.
  *
  * `buildSwapIxs` idempotently create-ATAs the USER's base+quote conditional
@@ -37,7 +37,7 @@ import type { AmmV04 } from "../ammV04";
 
 /** Which pass/fail pool of the market to trade / crank. */
 export type Pool = "pass" | "fail";
-/** Trade direction: `buy` = quote(USDC)→base(KASS); `sell` = base→quote. */
+/** Trade direction: `buy` = quote(USDC)→base(SOL); `sell` = base→quote. */
 export type Side = "buy" | "sell";
 
 /** The conditional-token index for a pool (mirrors `composeVault`: 0=pass,1=fail). */
@@ -86,23 +86,23 @@ export async function conditionalTokenMint(
   return (await futarchy.pda.conditionalTokenMint(vault, index)).address;
 }
 
-/** The base (conditional-KASS) + quote (conditional-USDC) mints of a market pool. */
+/** The base (conditional-SOL) + quote (conditional-USDC) mints of a market pool. */
 export interface PoolMints {
-  /** Conditional-KASS mint (`[b"conditional_token", market.kassVault, idx]`). */
+  /** Conditional-SOL mint (`[b"conditional_token", market.baseVault, idx]`). */
   base: Address;
   /** Conditional-USDC mint (`[b"conditional_token", market.usdcVault, idx]`). */
   quote: Address;
 }
 
 /**
- * Derive a pool's base/quote conditional-token mints off the market's KASS/USDC
- * vaults (index by pass/fail). Base = conditional-KASS, quote = conditional-USDC
- * — the SAME order the pool AMM was created with (`amm(kassMint, usdcMint)`).
+ * Derive a pool's base/quote conditional-token mints off the market's SOL/USDC
+ * vaults (index by pass/fail). Base = conditional-SOL, quote = conditional-USDC
+ * — the SAME order the pool AMM was created with (`amm(baseMint, usdcMint)`).
  */
 export async function poolMints(market: Market, pool: Pool): Promise<PoolMints> {
   const idx = poolIndex(requirePool(pool));
   const [base, quote] = await Promise.all([
-    conditionalTokenMint(market.kassVault, idx),
+    conditionalTokenMint(market.baseVault, idx),
     conditionalTokenMint(market.usdcVault, idx),
   ]);
   return { base, quote };

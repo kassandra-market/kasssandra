@@ -25,7 +25,7 @@ and begins with an 8-byte header whose first byte is an `AccountType` tag (rejec
 | --- | --- | --- |
 | `Protocol` | 7 | Global singleton — canonical mints, fee EMA, governable params. |
 | `Oracle` | 1 | A single dispute/question, its phase, and a frozen snapshot of governable params. |
-| `Proposer` | 2 | One participant's option + KASS bond within an oracle. |
+| `Proposer` | 2 | One participant's option + SOL bond within an oracle. |
 | `Fact` | 3 | A submitted supporting fact and its vote tallies. |
 | `FactVote` | 4 | One stake-weighted vote on a fact. |
 | `AiClaim` | 5 | A proposer's pinned-model AI claim + reproducibility metadata. |
@@ -40,7 +40,7 @@ the variant; the rest is a per-instruction payload.
 
 | Group | Instructions |
 | --- | --- |
-| Init / config / governance | `InitProtocol` (9), `CreateOracle` (10), `SetGovernance` (13), `SetConfig` (14), `KassPrice` (16) |
+| Init / config / governance | `InitProtocol` (9), `CreateOracle` (10), `SetGovernance` (13), `SetConfig` (14), `SpotPrice` (16) |
 | Proposal lifecycle | `Propose` (11), `FinalizeProposals` (12), `AdvancePhase` (7) |
 | Fact phase | `SubmitFact` (0), `VoteFact` (1), `FinalizeFacts` (2) |
 | AI claim | `SubmitAiClaim` (3), `FinalizeAiClaims` (8) |

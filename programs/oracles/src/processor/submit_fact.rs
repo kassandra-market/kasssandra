@@ -1,6 +1,6 @@
 //! `submit_fact`: propose a supporting fact during the `FactProposal` window.
 //!
-//! Creates a per-`content_hash` [`Fact`] PDA, escrows the submitter's KASS
+//! Creates a per-`content_hash` [`Fact`] PDA, escrows the submitter's SOL
 //! stake into the oracle's stake vault, and bumps the oracle's fact bookkeeping.
 //!
 //! # Fact PDA seeds (CONTRACT)
@@ -15,7 +15,7 @@
 //! 0. oracle           — writable, owned by this program
 //! 1. fact PDA         — writable, uninitialized (created here)
 //! 2. submitter        — signer, writable (funds rent + stake authority)
-//! 3. submitter KASS   — writable token account, source of the stake
+//! 3. submitter SOL   — writable token account, source of the stake
 //! 4. stake vault      — writable token account; must equal `oracle.stake_vault`
 //! 5. token program
 //! 6. system program

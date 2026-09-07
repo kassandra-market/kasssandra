@@ -46,7 +46,7 @@ let marketsData: unknown[] = [
       outcomeIndex: 0,
       totalContributed: 500_000_000_000n,
       minLiquidity: 100_000_000_000n,
-      kassMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
+      baseMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
       oracle: { toString: () => HAS_MARKET_ORACLE },
     },
     reserves: { base: 6n, quote: 4n },
@@ -75,8 +75,8 @@ vi.mock("../src/market/hooks/useWriteAction", () => ({
 vi.mock("../src/market/hooks/useActionSequence", () => ({
   useActionSequence: () => ({ statuses: [], busy: false, connected: false, address: null, allDone: false, run: async () => {}, reset: () => {} }),
 }));
-vi.mock("../src/market/hooks/useKassBalance", () => ({
-  useKassBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
+vi.mock("../src/market/hooks/useSolBalance", () => ({
+  useSolBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
 }));
 vi.mock("../src/market/lib/indexer", () => ({
   useIndexer: () => ({}),
@@ -151,7 +151,7 @@ describe("unified /markets list — empty states", () => {
           outcomeIndex: 0,
           totalContributed: 500_000_000_000n,
           minLiquidity: 100_000_000_000n,
-          kassMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
+          baseMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
           oracle: { toString: () => HAS_MARKET_ORACLE },
         },
         reserves: { base: 6n, quote: 4n },

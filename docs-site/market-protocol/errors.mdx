@@ -23,7 +23,7 @@ helper and per-code messages (`sdks/markets/ts/src/constants.ts`).
 | 9 | `NotCancelled` | Market is not `Cancelled` (required by `refund`). |
 | 10 | `OracleResolved` | The oracle already resolved; `create_market`/`activate` no longer permitted. |
 | 11 | `NotBinary` | **Reserved/unused** discriminant. |
-| 12 | `WrongMint` | A supplied mint does not match the expected mint (KASS mint / fee destination). |
+| 12 | `WrongMint` | A supplied mint does not match the expected mint (SOL mint / fee destination). |
 | 13 | `NotFunded` | `activate` before `total_contributed >= min_liquidity`. |
 | 14 | `PoolNotEmpty` | `activate` against a non-empty AMM pool (would corrupt the 50/50 seed). |
 | 15 | `NotActive` | Market is not in the `Active`/terminal status this instruction requires. |

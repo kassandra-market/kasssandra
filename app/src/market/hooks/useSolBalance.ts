@@ -1,20 +1,20 @@
 /**
- * A tiny read hook over the connected wallet's KASS ATA balance.
+ * A tiny read hook over the connected wallet's SOL ATA balance.
  *
- * {@link useKassBalance} resolves the connected wallet's KASS balance (raw base
+ * {@link useSolBalance} resolves the connected wallet's SOL balance (raw base
  * units) for a given mint, mirroring the unmount-guarded `useEffect`+nonce
- * pattern in {@link useAsync} (TanStack Query is NOT a dep). It reads the KASS ATA
+ * pattern in {@link useAsync} (TanStack Query is NOT a dep). It reads the SOL ATA
  * via the {@link IndexerReads} and the connected `publicKey` from wallet-adapter,
  * so switching wallet re-runs the fetch automatically.
  *
- * The KASS mint comes from the on-chain `Config` (`useConfig().data.kassMint`) —
+ * The SOL mint comes from the on-chain `Config` (`useConfig().data.baseMint`) —
  * the caller passes it in once it has loaded, and passes `undefined` until then
  * (which keeps the balance `null`).
  *
  * `balance` is `null` while disconnected, still loading, mint-unknown, or after a
  * transient fetch error — callers must NOT hard-block a form on a `null` balance
  * (the on-chain tx remains the ultimate guard). A resolved `0n` means the wallet
- * genuinely holds no KASS (absent ATA), which a form MAY gate on.
+ * genuinely holds no SOL (absent ATA), which a form MAY gate on.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
@@ -26,33 +26,33 @@ import type { IndexerReads } from "../lib/indexer";
 const TOKEN_ACCOUNT_AMOUNT_OFFSET = 64;
 
 /**
- * The owner's KASS balance in raw base units, or `0n` when the ATA is absent
+ * The owner's SOL balance in raw base units, or `0n` when the ATA is absent
  * (`indexer.getAccount` 404 → null). Reads the SPL token account's `amount`
  * (`u64` LE @64) straight off the raw bytes. Throws only on a genuinely
  * unexpected/transient indexer failure.
  */
-async function fetchKassBalance(
+async function fetchSolBalance(
   indexer: IndexerReads,
   owner: string,
-  kassMint: string,
+  baseMint: string,
 ): Promise<bigint> {
-  const ata = (await pda.associatedTokenAccount(owner, kassMint)).address;
+  const ata = (await pda.associatedTokenAccount(owner, baseMint)).address;
   const acct = await indexer.getAccount(ata.toString());
   if (!acct || acct.data.length < TOKEN_ACCOUNT_AMOUNT_OFFSET + 8) return 0n;
   const dv = new DataView(acct.data.buffer, acct.data.byteOffset, acct.data.byteLength);
   return dv.getBigUint64(TOKEN_ACCOUNT_AMOUNT_OFFSET, true);
 }
 
-export interface KassBalanceState {
-  /** Raw base-unit KASS balance, or `null` (disconnected / loading / mint-unknown / transient error). */
+export interface SolBalanceState {
+  /** Raw base-unit SOL balance, or `null` (disconnected / loading / mint-unknown / transient error). */
   balance: bigint | null;
   /** True while a fetch is in flight. */
   loading: boolean;
-  /** Re-run the fetch (e.g. after a successful contribute/refund spends/returns KASS). */
+  /** Re-run the fetch (e.g. after a successful contribute/refund spends/returns SOL). */
   refetch: () => void;
 }
 
-export function useKassBalance(kassMint: string | undefined): KassBalanceState {
+export function useSolBalance(baseMint: string | undefined): SolBalanceState {
   const indexer = useIndexer();
   const { publicKey, connected } = useWallet();
   const owner = connected && publicKey ? publicKey.toBase58() : null;
@@ -67,14 +67,14 @@ export function useKassBalance(kassMint: string | undefined): KassBalanceState {
   indexerRef.current = indexer;
 
   useEffect(() => {
-    if (!owner || !kassMint) {
+    if (!owner || !baseMint) {
       setBalance(null);
       setLoading(false);
       return;
     }
     let active = true;
     setLoading(true);
-    fetchKassBalance(indexerRef.current, owner, kassMint).then(
+    fetchSolBalance(indexerRef.current, owner, baseMint).then(
       (value) => {
         if (!active) return;
         setBalance(value);
@@ -91,9 +91,9 @@ export function useKassBalance(kassMint: string | undefined): KassBalanceState {
     return () => {
       active = false;
     };
-  }, [owner, kassMint, indexer, nonce]);
+  }, [owner, baseMint, indexer, nonce]);
 
   return { balance, loading, refetch };
 }
 
-export default useKassBalance;
+export default useSolBalance;

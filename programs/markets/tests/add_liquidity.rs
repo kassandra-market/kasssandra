@@ -1,4 +1,4 @@
-//! Integration tests for `add_liquidity` (Ix 11): deposit KASS into an already
+//! Integration tests for `add_liquidity` (Ix 11): deposit SOL into an already
 //! `Active` market's live cYES/cNO AMM. Drives the real MetaDAO v0.4 binaries in
 //! LiteSVM. Covers the balanced pool (no remainder), a skewed pool (remainder
 //! returned to the depositor), the accounting fields, and the status/oracle guards.
@@ -10,40 +10,40 @@ use kassandra_markets_sdk::metadao::SwapType;
 use solana_sdk::{pubkey::Pubkey, signature::{Keypair, Signer}};
 
 const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
-const MIN_LIQ: u64 = 1_000_000_000; // 1 KASS (9 dp)
+const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 const SEED_A: u64 = 600_000_000;
 const SEED_B: u64 = 400_000_000;
 
-/// Fund + activate a binary market. Returns (ctx, kass, oracle, market, refs).
+/// Fund + activate a binary market. Returns (ctx, base, oracle, market, refs).
 fn active_market() -> (TestCtx, Pubkey, Pubkey, Pubkey, MetaDaoRefs) {
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "init_config: {res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "create_market: {res:?}");
     let c2 = Keypair::new();
     ctx.svm_airdrop(&c2.pubkey());
-    let c2_ata = ctx.create_token_account(kass, c2.pubkey(), 5_000_000_000);
+    let c2_ata = ctx.create_token_account(base, c2.pubkey(), 5_000_000_000);
     let res = ctx.contribute(&c2, market, c2_ata, SEED_B);
     assert!(res.is_ok(), "contribute: {res:?}");
 
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
-    let res = ctx.activate(oracle, kass);
+    let refs = ctx.compose_metadao_market(market, oracle, base);
+    let res = ctx.activate(oracle, base);
     assert!(res.is_ok(), "activate: {res:?}");
-    (ctx, kass, oracle, market, refs)
+    (ctx, base, oracle, market, refs)
 }
 
 #[test]
 fn add_liquidity_balanced_pool_no_remainder() {
-    let (mut ctx, kass, oracle, market, refs) = active_market();
+    let (mut ctx, base, oracle, market, refs) = active_market();
     let m0: Market = ctx.read_pod(market);
     let (lp_vault, _) = kassandra_markets_sdk::pda::lp_vault(&market);
     let lp0 = ctx.token_balance(lp_vault);
@@ -51,7 +51,7 @@ fn add_liquidity_balanced_pool_no_remainder() {
     let depositor = Keypair::new();
     ctx.svm_airdrop(&depositor.pubkey());
     let (dep_cyes, dep_cno, res) =
-        ctx.add_liquidity(&depositor, oracle, kass, &refs, 500_000_000);
+        ctx.add_liquidity(&depositor, oracle, base, &refs, 500_000_000);
     assert!(res.is_ok(), "add_liquidity: {res:?}");
 
     let m1: Market = ctx.read_pod(market);
@@ -95,12 +95,12 @@ fn add_liquidity_balanced_pool_no_remainder() {
 
 #[test]
 fn add_liquidity_skewed_pool_returns_remainder() {
-    let (mut ctx, kass, oracle, market, refs) = active_market();
+    let (mut ctx, base, oracle, market, refs) = active_market();
 
     // Skew the pool: a trader sells cYES for cNO, so cYES reserve rises above cNO.
     let trader = Keypair::new();
     ctx.svm_airdrop(&trader.pubkey());
-    let t_kass = ctx.create_token_account(kass, trader.pubkey(), 5_000_000_000);
+    let t_kass = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
     let t_cyes = ctx.create_token_account(refs.yes_mint, trader.pubkey(), 0);
     let t_cno = ctx.create_token_account(refs.no_mint, trader.pubkey(), 0);
     let res = ctx.user_split(&trader, &refs, t_kass, t_cyes, t_cno, 2_000_000_000);
@@ -115,7 +115,7 @@ fn add_liquidity_skewed_pool_returns_remainder() {
     let depositor = Keypair::new();
     ctx.svm_airdrop(&depositor.pubkey());
     let (dep_cyes, dep_cno, res) =
-        ctx.add_liquidity(&depositor, oracle, kass, &refs, 500_000_000);
+        ctx.add_liquidity(&depositor, oracle, base, &refs, 500_000_000);
     assert!(res.is_ok(), "add_liquidity: {res:?}");
 
     // Transient holders always end at 0 (remainder returned to the depositor).
@@ -147,33 +147,33 @@ fn expected_share(lp_total: u64, amount: u64, total: u64) -> u64 {
 fn add_liquidity_fairness_gross_lp_distribution() {
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let fee_dest = ctx.create_token_account(kass, authority.pubkey(), 0);
-    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), kass, MIN_LIQ, 0, fee_dest);
+    let fee_dest = ctx.create_token_account(base, authority.pubkey(), 0);
+    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), base, MIN_LIQ, 0, fee_dest);
     assert!(res.is_ok(), "init_config: {res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "create_market: {res:?}");
     let funder_b = Keypair::new();
     ctx.svm_airdrop(&funder_b.pubkey());
-    let b_ata = ctx.create_token_account(kass, funder_b.pubkey(), 5_000_000_000);
+    let b_ata = ctx.create_token_account(base, funder_b.pubkey(), 5_000_000_000);
     let res = ctx.contribute(&funder_b, market, b_ata, SEED_B);
     assert!(res.is_ok(), "contribute: {res:?}");
 
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
-    assert!(ctx.activate(oracle, kass).is_ok(), "activate");
+    let refs = ctx.compose_metadao_market(market, oracle, base);
+    assert!(ctx.activate(oracle, base).is_ok(), "activate");
     let m_act: Market = ctx.read_pod(market);
     let activation_lp = m_act.activation_lp;
 
     // Skew the pool with a trade (accrues AMM swap fees into the reserves).
     let trader = Keypair::new();
     ctx.svm_airdrop(&trader.pubkey());
-    let t_kass = ctx.create_token_account(kass, trader.pubkey(), 5_000_000_000);
+    let t_kass = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
     let t_cyes = ctx.create_token_account(refs.yes_mint, trader.pubkey(), 0);
     let t_cno = ctx.create_token_account(refs.no_mint, trader.pubkey(), 0);
     assert!(ctx.user_split(&trader, &refs, t_kass, t_cyes, t_cno, 2_000_000_000).is_ok());
@@ -184,7 +184,7 @@ fn add_liquidity_fairness_gross_lp_distribution() {
     // Late LP C deposits.
     let late = Keypair::new();
     ctx.svm_airdrop(&late.pubkey());
-    let (_a, _b, res) = ctx.add_liquidity(&late, oracle, kass, &refs, 500_000_000);
+    let (_a, _b, res) = ctx.add_liquidity(&late, oracle, base, &refs, 500_000_000);
     assert!(res.is_ok(), "add_liquidity: {res:?}");
 
     let m: Market = ctx.read_pod(market);
@@ -237,7 +237,7 @@ fn add_liquidity_fairness_gross_lp_distribution() {
 /// by gross LP to 0.
 #[test]
 fn add_liquidity_fee_path_consistent() {
-    let (mut ctx, kass, oracle, market, refs) = active_market(); // fee_bps == 100
+    let (mut ctx, base, oracle, market, refs) = active_market(); // fee_bps == 100
     let fee_dest = ctx.config_fee_destination();
 
     let late = Keypair::new();
@@ -245,7 +245,7 @@ fn add_liquidity_fee_path_consistent() {
     // Skew a little first so the pool is realistic.
     let trader = Keypair::new();
     ctx.svm_airdrop(&trader.pubkey());
-    let t_kass = ctx.create_token_account(kass, trader.pubkey(), 5_000_000_000);
+    let t_kass = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
     let t_cyes = ctx.create_token_account(refs.yes_mint, trader.pubkey(), 0);
     let t_cno = ctx.create_token_account(refs.no_mint, trader.pubkey(), 0);
     assert!(ctx.user_split(&trader, &refs, t_kass, t_cyes, t_cno, 2_000_000_000).is_ok());
@@ -253,13 +253,13 @@ fn add_liquidity_fee_path_consistent() {
         .user_swap(&trader, &refs, t_cyes, t_cno, SwapType::Sell, 600_000_000, 0)
         .is_ok());
 
-    assert!(ctx.add_liquidity(&late, oracle, kass, &refs, 500_000_000).2.is_ok());
+    assert!(ctx.add_liquidity(&late, oracle, base, &refs, 500_000_000).2.is_ok());
     let m: Market = ctx.read_pod(market);
     let gross_total = m.gross_lp_total;
 
     ctx.set_oracle_resolved(oracle, 0);
     assert!(ctx.resolve_market(market, oracle, refs.question).is_ok(), "resolve");
-    assert!(ctx.collect_fee(oracle, kass, fee_dest).is_ok(), "collect_fee");
+    assert!(ctx.collect_fee(oracle, base, fee_dest).is_ok(), "collect_fee");
     let m: Market = ctx.read_pod(market);
     assert_eq!(m.fee_collected, 1, "fee collected");
     assert_eq!(m.gross_lp_total, gross_total, "gross_lp_total never reduced by fee");
@@ -283,22 +283,22 @@ fn add_liquidity_rejects_non_active() {
     // A Funding market cannot take AMM liquidity.
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "init_config: {res:?}");
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "create_market: {res:?}");
     // Compose (so the derived MetaDAO refs exist) but do NOT activate.
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
+    let refs = ctx.compose_metadao_market(market, oracle, base);
 
     let depositor = Keypair::new();
     ctx.svm_airdrop(&depositor.pubkey());
-    let (_a, _b, res) = ctx.add_liquidity(&depositor, oracle, kass, &refs, 500_000_000);
+    let (_a, _b, res) = ctx.add_liquidity(&depositor, oracle, base, &refs, 500_000_000);
     assert_eq!(
         custom_code(&res),
         Some(kassandra_markets_program::error::MarketError::NotActive as u32),
@@ -308,13 +308,13 @@ fn add_liquidity_rejects_non_active() {
 
 #[test]
 fn add_liquidity_rejects_terminal_oracle() {
-    let (mut ctx, kass, oracle, _market, refs) = active_market();
+    let (mut ctx, base, oracle, _market, refs) = active_market();
     // Oracle resolves → no new liquidity.
     ctx.set_oracle_resolved(oracle, 0);
 
     let depositor = Keypair::new();
     ctx.svm_airdrop(&depositor.pubkey());
-    let (_a, _b, res) = ctx.add_liquidity(&depositor, oracle, kass, &refs, 500_000_000);
+    let (_a, _b, res) = ctx.add_liquidity(&depositor, oracle, base, &refs, 500_000_000);
     assert_eq!(
         custom_code(&res),
         Some(kassandra_markets_program::error::MarketError::OracleResolved as u32),

@@ -26,7 +26,7 @@ pub fn claim_fact(
     }
     let nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
 
-    let [oracle_ai, fact_ai, dest_kass_ai, stake_vault_ai, rent_recipient_ai, token_prog_ai, ..] =
+    let [oracle_ai, fact_ai, dest_base_ai, stake_vault_ai, rent_recipient_ai, token_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -43,7 +43,7 @@ pub fn claim_fact(
         return Err(KassandraError::InvalidAccount.into());
     }
     // The fact's submitter authority is `fact.proposer`.
-    assert_token_account(dest_kass_ai, &oracle.kass_mint, &fact.proposer)?;
+    assert_token_account(dest_base_ai, &oracle.base_mint, &fact.proposer)?;
     assert_key(rent_recipient_ai, &fact.proposer)?;
 
     // The submitter claim CLOSES the Fact, but every `claim_fact_vote` must read
@@ -59,7 +59,7 @@ pub fn claim_fact(
     payout_and_close(
         oracle_ai,
         stake_vault_ai,
-        dest_kass_ai,
+        dest_base_ai,
         fact_ai,
         rent_recipient_ai,
         nonce,

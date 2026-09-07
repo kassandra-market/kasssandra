@@ -6,11 +6,11 @@ use solana_sdk::pubkey::Pubkey;
 
 /// `Activate` (Ix 6) — turn a fully-funded `Funding` market into a live MetaDAO
 /// cYES/cNO AMM market: verify the client-composed MetaDAO market, program-signed
-/// split the escrowed KASS into cYES/cNO, and seed the AMM pool 50/50.
+/// split the escrowed SOL into cYES/cNO, and seed the AMM pool 50/50.
 ///
-/// All addresses are derivable from `oracle` + `kass_mint` (the MetaDAO market was
+/// All addresses are derivable from `oracle` + `base_mint` (the MetaDAO market was
 /// composed with `oracle_authority = market PDA`, `question_id = oracle bytes`,
-/// underlying `= kass_mint`, `base = cYES`, `quote = cNO`). Payload = empty.
+/// underlying `= base_mint`, `base = cYES`, `quote = cNO`). Payload = empty.
 ///
 /// Account order (MUST match `processor::activate`):
 /// ```text
@@ -18,8 +18,8 @@ use solana_sdk::pubkey::Pubkey;
 ///  1  oracle                 (ro) — kassandra oracle, non-terminal
 ///  2  payer                  (signer,w) — rent for the 3 new market-owned token accts
 ///  3  question               (ro) — MetaDAO Question (oracle-authority == market)
-///  4  vault                  (w)  — KASS conditional vault
-///  5  vault_underlying_ata   (w)  — vault's KASS ATA (split destination for underlying)
+///  4  vault                  (w)  — SOL conditional vault
+///  5  vault_underlying_ata   (w)  — vault's SOL ATA (split destination for underlying)
 ///  6  escrow_vault           (w)  — market.escrow_vault (split source)
 ///  7  yes_mint               (w)  — conditional mint idx 0 (cYES)
 ///  8  no_mint                (w)  — conditional mint idx 1 (cNO)
@@ -40,15 +40,15 @@ use solana_sdk::pubkey::Pubkey;
 pub fn activate(
     payer: &Pubkey,
     oracle: &Pubkey,
-    kass_mint: &Pubkey,
+    base_mint: &Pubkey,
     outcome_index: u8,
 ) -> Instruction {
     use crate::metadao as md;
     let (market, _) = crate::pda::market(oracle, outcome_index);
     let (escrow, _) = crate::pda::escrow(&market);
     let (question, _) = md::question(&oracle.to_bytes(), &market, 2);
-    let (vault, _) = md::vault(&question, kass_mint);
-    let vault_underlying_ata = md::ata(&vault, kass_mint);
+    let (vault, _) = md::vault(&question, base_mint);
+    let vault_underlying_ata = md::ata(&vault, base_mint);
     let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
     let (no_mint, _) = md::conditional_token_mint(&vault, 1);
     let (market_cyes, _) = crate::pda::market_cyes(&market);

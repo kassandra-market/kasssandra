@@ -10,14 +10,14 @@ updated: 2026-09-07
 Kassandra is an **optimistic oracle** on Solana with a dispute path backed by an
 **external attested AI feed** and decision markets. Interactive dispute/trading
 state can be **delegated** to a MagicBlock Ephemeral Rollup; programs stay on
-Solana L1. Truth is enforced economically (KASS staking/slashing) and by markets
+Solana L1. Truth is enforced economically (SOL staking/slashing) and by markets
 (the final arbiter). Interpretation is fixed at oracle creation, so disputes are
 about *which evidence is real*, not *what it means*.
 
 ## Resolution flow (happy path is cheap)
 
-1. **Create** — prompt + immutable interpretation + categorical options + deadline; pay a dynamic KASS creation fee (burned).
-2. **Propose** — after the deadline, proposers submit a value + KASS bond. All agree → **Resolved** immediately (no AI, no markets).
+1. **Create** — prompt + immutable interpretation + categorical options + deadline; pay a dynamic SOL creation fee (burned).
+2. **Propose** — after the deadline, proposers submit a value + SOL bond. All agree → **Resolved** immediately (no AI, no markets).
 3. **Dispute** (on conflict) — proposers lock in; a **fact proposal** window then a disjoint **fact voting** window freeze the agreed evidence set.
 4. **AI claim** — an attested `AiOracleFeed` is applied onto proposers
    (`ApplyExternalAiClaim`), or the in-house [runner](runner.md) stamps
@@ -51,9 +51,9 @@ See [`../specs/oracle-program.md`](../specs/oracle-program.md) and
 
 ## Tokens & economics
 
-- **KASS** (9 decimals) — bonds, stakes, contributions, market seeding, fees.
+- **SOL** (9 decimals) — bonds, stakes, contributions, market seeding, fees.
 - **USDC** (6 decimals) — the challenge-market quote side + challenger escrow.
-- Conditional tokens (cYES/cNO) are minted from KASS (9 dp) / USDC (6 dp) via the
+- Conditional tokens (cYES/cNO) are minted from SOL (9 dp) / USDC (6 dp) via the
   MetaDAO conditional-vault CPI. **Scale by the right decimals in the UI** — see
   [`../memories/scaled-amounts-ui.md`](../memories/scaled-amounts-ui.md).
 

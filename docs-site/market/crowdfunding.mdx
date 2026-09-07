@@ -13,7 +13,7 @@ market trivially refundable.
 ## create_market (Ix 2)
 
 `create_market` (`processor/create_market.rs`) is permissionless and lightweight.
-It reads the `Config` singleton for the canonical KASS mint and current
+It reads the `Config` singleton for the canonical SOL mint and current
 `min_liquidity`/`fee_bps`, reads the Kassandra oracle as a gate, and then:
 
 <Steps>
@@ -27,10 +27,10 @@ It reads the `Config` singleton for the canonical KASS mint and current
     The `Market` PDA `[b"market", oracle, [outcome_index]]` is created (one
     sub-market per outcome — a second attempt at the same address fails
     `InvalidAccount`), plus an SPL **escrow** token account
-    `[b"escrow", market]` on KASS whose token authority is the Market PDA.
+    `[b"escrow", market]` on SOL whose token authority is the Market PDA.
   </Step>
   <Step title="Seed the first contribution">
-    The creator's `seed_amount` KASS transfers into escrow and their `Contribution`
+    The creator's `seed_amount` SOL transfers into escrow and their `Contribution`
     is recorded. `seed_amount` may be **any positive amount, even below the floor**;
     zero fails `ZeroAmount`.
   </Step>
@@ -50,9 +50,9 @@ per-oracle parameter snapshots.
 
 ## contribute (Ix 3)
 
-Anyone stakes more KASS toward the floor with `contribute`
+Anyone stakes more SOL toward the floor with `contribute`
 (`processor/contribute.rs`). The market must be `Funding` (else `NotFunding`) and
-the escrow must match `market.escrow_vault`. The contributor's KASS transfers into
+the escrow must match `market.escrow_vault`. The contributor's SOL transfers into
 escrow and their `Contribution` is created or topped up.
 
 The processor detects the create-vs-top-up branch **before** moving tokens: only a
@@ -77,10 +77,10 @@ unwinds:
 - **`cancel`** (`processor/cancel.rs`) — permissionless; flips a `Funding` market
   to `Cancelled` once its oracle is terminal (`Resolved`/`InvalidDeadend`), at
   **any** funding level. This deliberately admits fully-funded markets whose oracle
-  resolved before activation, which would otherwise strand their KASS.
+  resolved before activation, which would otherwise strand their SOL.
 - **`refund`** (`processor/refund.rs`) — permissionless per-contributor pull. It
   program-signs a transfer of `contribution.amount` out of escrow (authority = the
-  Market PDA) back to the contributor's KASS account, then **closes** the
+  Market PDA) back to the contributor's SOL account, then **closes** the
   `Contribution` (rent → contributor) and decrements `open_contributions`.
 
 <Warning>

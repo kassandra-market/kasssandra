@@ -1,7 +1,7 @@
 /**
  * RF4 — the CHALLENGE (open / settle) + AI-CLAIM action layer (pure ix-builders,
  * NO React). The dispute's challenge round runs over EXTERNALLY-COMPOSED MetaDAO
- * v0.4 markets (a binary question, KASS/USDC conditional vaults, two pass/fail
+ * v0.4 markets (a binary question, SOL/USDC conditional vaults, two pass/fail
  * AMMs), so — exactly like the SDK challenge builders
  * (`sdk/src/instructions/challenge.ts`) — the SDK does NOT create that market:
  * the caller composes it in its own transactions (the runner / an integrator
@@ -26,7 +26,7 @@
  * them as hex, or a pasted runner payload). Each must be exactly 32 bytes and the
  * option in `0..options_count`, else a typed {@link ValidationError}.
  *
- * `buildSubmitAiClaimIxs` is the only builder here that touches KASS-free
+ * `buildSubmitAiClaimIxs` is the only builder here that touches SOL-free
  * accounts (no ATA prep): the challenge open/settle move conditional tokens the
  * caller already composed, and submit_ai_claim only writes the claim PDA.
  */
@@ -107,28 +107,28 @@ export interface BuildOpenChallengeArgs {
   // --- externally-composed MetaDAO market accounts ---
   /** Binary MetaDAO `Question` (resolver == oracle PDA). */
   question: AddressInput;
-  /** KASS conditional vault (underlying == oracle.kass_mint). */
-  kassVault: AddressInput;
+  /** SOL conditional vault (underlying == oracle.base_mint). */
+  baseVault: AddressInput;
   /** USDC conditional vault (underlying == oracle.usdc_mint). */
   usdcVault: AddressInput;
   /** Pass-side AMM (owned by the AMM program). */
   passAmm: AddressInput;
   /** Fail-side AMM. */
   failAmm: AddressInput;
-  /** `kass_vault.underlying_token_account`. */
-  kassVaultUnderlying: AddressInput;
-  /** Conditional-KASS mint idx 0 of kass_vault (pass). */
-  passKassMint: AddressInput;
-  /** Conditional-KASS mint idx 1 of kass_vault (fail). */
-  failKassMint: AddressInput;
-  /** Oracle-PDA-owned pass-KASS holder token account. */
+  /** `base_vault.underlying_token_account`. */
+  baseVaultUnderlying: AddressInput;
+  /** Conditional-SOL mint idx 0 of base_vault (pass). */
+  passBaseMint: AddressInput;
+  /** Conditional-SOL mint idx 1 of base_vault (fail). */
+  failBaseMint: AddressInput;
+  /** Oracle-PDA-owned pass-SOL holder token account. */
   oraclePassKass: AddressInput;
-  /** Oracle-PDA-owned fail-KASS holder token account. */
+  /** Oracle-PDA-owned fail-SOL holder token account. */
   oracleFailKass: AddressInput;
   /** Conditional-vault `#[event_cpi]` event authority PDA. */
   cvEventAuthority: AddressInput;
-  /** The futarchy `Dao` (`== protocol.kass_dao`), kass_price source. */
-  kassDao: AddressInput;
+  /** The futarchy `Dao` (`== protocol.spot_dao`), spot_price source. */
+  spotDao: AddressInput;
   /** Canonical USDC mint (`== oracle.usdc_mint`). */
   usdcMint: AddressInput;
   /** Challenger's USDC source token account. */
@@ -145,17 +145,17 @@ export async function buildOpenChallengeIxs(
     proposer: addr("proposer", args.proposer),
     challenger: addr("challenger", args.challenger),
     question: addr("question", args.question),
-    kassVault: addr("kassVault", args.kassVault),
+    baseVault: addr("baseVault", args.baseVault),
     usdcVault: addr("usdcVault", args.usdcVault),
     passAmm: addr("passAmm", args.passAmm),
     failAmm: addr("failAmm", args.failAmm),
-    kassVaultUnderlying: addr("kassVaultUnderlying", args.kassVaultUnderlying),
-    passKassMint: addr("passKassMint", args.passKassMint),
-    failKassMint: addr("failKassMint", args.failKassMint),
+    baseVaultUnderlying: addr("baseVaultUnderlying", args.baseVaultUnderlying),
+    passBaseMint: addr("passBaseMint", args.passBaseMint),
+    failBaseMint: addr("failBaseMint", args.failBaseMint),
     oraclePassKass: addr("oraclePassKass", args.oraclePassKass),
     oracleFailKass: addr("oracleFailKass", args.oracleFailKass),
     cvEventAuthority: addr("cvEventAuthority", args.cvEventAuthority),
-    kassDao: addr("kassDao", args.kassDao),
+    spotDao: addr("spotDao", args.spotDao),
     usdcMint: addr("usdcMint", args.usdcMint),
     challengerUsdcSrc: addr("challengerUsdcSrc", args.challengerUsdcSrc),
     programId: args.programId,
@@ -184,23 +184,23 @@ export interface BuildSettleChallengeArgs {
   failAmm: AddressInput;
   /** Conditional-vault `#[event_cpi]` event authority PDA. */
   cvEventAuthority: AddressInput;
-  /** KASS conditional vault (`== market.kass_vault`). */
-  kassVault: AddressInput;
-  /** `kass_vault.underlying_token_account`. */
-  kassVaultUnderlying: AddressInput;
-  /** Conditional-KASS mint idx 0 of kass_vault (pass). */
-  passKassMint: AddressInput;
-  /** Conditional-KASS mint idx 1 of kass_vault (fail). */
-  failKassMint: AddressInput;
-  /** Oracle-PDA-owned pass-KASS holder (`== market.oracle_pass_kass`). */
+  /** SOL conditional vault (`== market.base_vault`). */
+  baseVault: AddressInput;
+  /** `base_vault.underlying_token_account`. */
+  baseVaultUnderlying: AddressInput;
+  /** Conditional-SOL mint idx 0 of base_vault (pass). */
+  passBaseMint: AddressInput;
+  /** Conditional-SOL mint idx 1 of base_vault (fail). */
+  failBaseMint: AddressInput;
+  /** Oracle-PDA-owned pass-SOL holder (`== market.oracle_pass_base`). */
   oraclePassKass: AddressInput;
-  /** Oracle-PDA-owned fail-KASS holder (`== market.oracle_fail_kass`). */
+  /** Oracle-PDA-owned fail-SOL holder (`== market.oracle_fail_base`). */
   oracleFailKass: AddressInput;
   /** Proposer's USDC payout account (owner == proposer.authority). */
   proposerUsdc: AddressInput;
   /** Challenger's USDC payout account (owner == market.challenger). */
   challengerUsdcDest: AddressInput;
-  /** Challenger's KASS payout account (owner == market.challenger). */
+  /** Challenger's SOL payout account (owner == market.challenger). */
   challengerKass: AddressInput;
   programId?: Address;
 }
@@ -217,10 +217,10 @@ export async function buildSettleChallengeIxs(
     passAmm: addr("passAmm", args.passAmm),
     failAmm: addr("failAmm", args.failAmm),
     cvEventAuthority: addr("cvEventAuthority", args.cvEventAuthority),
-    kassVault: addr("kassVault", args.kassVault),
-    kassVaultUnderlying: addr("kassVaultUnderlying", args.kassVaultUnderlying),
-    passKassMint: addr("passKassMint", args.passKassMint),
-    failKassMint: addr("failKassMint", args.failKassMint),
+    baseVault: addr("baseVault", args.baseVault),
+    baseVaultUnderlying: addr("baseVaultUnderlying", args.baseVaultUnderlying),
+    passBaseMint: addr("passBaseMint", args.passBaseMint),
+    failBaseMint: addr("failBaseMint", args.failBaseMint),
     oraclePassKass: addr("oraclePassKass", args.oraclePassKass),
     oracleFailKass: addr("oracleFailKass", args.oracleFailKass),
     proposerUsdc: addr("proposerUsdc", args.proposerUsdc),

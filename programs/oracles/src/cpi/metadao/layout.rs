@@ -90,7 +90,7 @@ pub const AMM_MIN_LEN: usize = AMM_START_DELAY_SLOTS_OFFSET + 8;
 /// Verify `amm` is a bound MetaDAO v0.4 `Amm` account for a specific conditional
 /// pair: owned by the AMM program, long enough, carrying the `Amm` Anchor
 /// discriminator, and whose recorded base/quote mints are EXACTLY
-/// `expected_base`/`expected_quote` (this market's conditional (KASS, USDC) mint
+/// `expected_base`/`expected_quote` (this market's conditional (SOL, USDC) mint
 /// pair for one outcome).
 ///
 /// Shared by BOTH `open_challenge` and `settle_challenge`. Binding at open is

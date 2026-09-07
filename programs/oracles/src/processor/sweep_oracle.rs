@@ -5,14 +5,14 @@
 //! have drained a terminal oracle, its `stake_vault` retains only bounded
 //! floor/ceil rounding DUST (always under-pay, never short) that no claim can
 //! reach — plus, if a staker never claimed, that no-show's forfeited principal.
-//! That KASS and the rent of the `Oracle` (≈0.0057 SOL) + `stake_vault`
+//! That SOL and the rent of the `Oracle` (≈0.0057 SOL) + `stake_vault`
 //! (≈0.0020 SOL) accounts would otherwise be locked forever. This is the reap.
 //!
 //! # What it does
 //! Once the oracle is TERMINAL ([`Phase::Resolved`]/[`Phase::InvalidDeadend`])
 //! AND `now >= oracle.phase_ends_at + SWEEP_GRACE`, it:
 //! 1. Transfers the ENTIRE residual `stake_vault` balance → the DAO treasury
-//!    (the KASS ATA of `Protocol.dao_authority`), via an SPL `Transfer` CPI
+//!    (the SOL ATA of `Protocol.dao_authority`), via an SPL `Transfer` CPI
 //!    **program-signed by the oracle PDA** (the vault's token authority). A zero
 //!    balance is a no-op.
 //! 2. Closes the (now-empty) `stake_vault` via an SPL `CloseAccount` CPI,
@@ -37,15 +37,15 @@
 //! # FORFEITURE TRADE-OFF (starkly documented)
 //! There is NO outstanding-claims counter (design decision: grace-forced close,
 //! no `Oracle::LEN` change). A staker who has NOT claimed within the generous
-//! grace FORFEITS their unclaimed KASS principal — it is swept to the treasury
+//! grace FORFEITS their unclaimed SOL principal — it is swept to the treasury
 //! with the dust — and their per-account rent. Their subsequent claim then fails
 //! because the `Oracle` is closed. The long grace makes this a genuine
 //! abandonment, not a race.
 //!
 //! # Governance is REQUIRED
-//! The treasury is the KASS **associated token account of `Protocol.dao_authority`**
+//! The treasury is the SOL **associated token account of `Protocol.dao_authority`**
 //! (the Squads vault). The sweep therefore REQUIRES `Protocol.governance_set == 1`
-//! and VALIDATES `dao_treasury == ATA(dao_authority, kass_mint)` — a wrong
+//! and VALIDATES `dao_treasury == ATA(dao_authority, base_mint)` — a wrong
 //! treasury is rejected so dust can never be routed to an attacker's account. An
 //! oracle cannot be swept until the DAO exists ([`KassandraError::GovernanceNotSet`]).
 //!
@@ -56,9 +56,9 @@
 //! 1. stake_vault  — writable; `== oracle.stake_vault`; SPL token account whose
 //!    full balance is swept, then CLOSED here (rent → creator).
 //! 2. protocol     — read-only; the `[b"protocol"]` singleton; supplies
-//!    `governance_set` / `dao_authority` / `kass_mint`.
-//! 3. dao_treasury — writable; `== ATA(protocol.dao_authority, protocol.kass_mint)`;
-//!    the KASS destination for the swept balance.
+//!    `governance_set` / `dao_authority` / `base_mint`.
+//! 3. dao_treasury — writable; `== ATA(protocol.dao_authority, protocol.base_mint)`;
+//!    the SOL destination for the swept balance.
 //! 4. creator      — writable; `== oracle.creator` (both reclaimed rents).
 //! 5. token program.
 //!
@@ -88,7 +88,7 @@ use crate::{
 const PAYLOAD_LEN: usize = 8;
 
 /// SPL Associated Token Account program id. The DAO treasury is the canonical
-/// KASS ATA of `dao_authority`, derived under this program from the standard
+/// SOL ATA of `dao_authority`, derived under this program from the standard
 /// seeds `[owner, TOKEN_PROGRAM, mint]`.
 const ATA_PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
@@ -127,8 +127,8 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         return Err(KassandraError::SweepGraceNotElapsed.into());
     }
 
-    // The treasury is the DAO's KASS ATA, so governance must be set; then pin the
-    // passed treasury to the canonical `ATA(dao_authority, kass_mint)`.
+    // The treasury is the DAO's SOL ATA, so governance must be set; then pin the
+    // passed treasury to the canonical `ATA(dao_authority, base_mint)`.
     let protocol = load_protocol(protocol_ai, program_id)?;
     if !protocol.is_governance_set() {
         return Err(KassandraError::GovernanceNotSet.into());
@@ -137,7 +137,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         &[
             protocol.dao_authority.as_ref(),
             pinocchio_token::ID.as_ref(),
-            protocol.kass_mint.as_ref(),
+            protocol.base_mint.as_ref(),
         ],
         &ATA_PROGRAM_ID,
     );

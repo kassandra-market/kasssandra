@@ -18,14 +18,14 @@ fn v06_conditional_vault_split() {
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 10_000_000_000).unwrap();
 
-    let kass = fabricate_mint(&mut svm, 9, payer.pubkey());
+    let base = fabricate_mint(&mut svm, 9, payer.pubkey());
 
     let underlying_amount: u64 = 5_000_000_000;
-    let user_underlying = ata(&payer.pubkey(), &kass);
+    let user_underlying = ata(&payer.pubkey(), &base);
     fabricate_token_account(
         &mut svm,
         user_underlying,
-        kass,
+        base,
         payer.pubkey(),
         underlying_amount,
     );
@@ -35,14 +35,14 @@ fn v06_conditional_vault_split() {
     let resolver = Pubkey::new_unique();
     let resolver_pk = resolver.to_bytes();
 
-    let kass_arr = kass.to_bytes();
+    let base_arr = base.to_bytes();
     let (question, _) = Pubkey::find_program_address(
         &md4::question_seeds(&question_id, &resolver_pk.into(), &[num_outcomes]),
         &vault_id(),
     );
     let question_arr = question.to_bytes();
     let (vault, _) = Pubkey::find_program_address(
-        &md4::vault_seeds(&question_arr.into(), &kass_arr.into()),
+        &md4::vault_seeds(&question_arr.into(), &base_arr.into()),
         &vault_id(),
     );
     let vault_arr = vault.to_bytes();
@@ -57,7 +57,7 @@ fn v06_conditional_vault_split() {
     let (event_authority, _) =
         Pubkey::find_program_address(&md4::event_authority_seeds(), &vault_id());
 
-    let vault_underlying = ata(&vault, &kass);
+    let vault_underlying = ata(&vault, &base);
 
     let ix_q = Instruction {
         program_id: vault_id(),
@@ -78,7 +78,7 @@ fn v06_conditional_vault_split() {
         accounts: vec![
             AccountMeta::new(vault, false),
             AccountMeta::new_readonly(question, false),
-            AccountMeta::new_readonly(kass, false),
+            AccountMeta::new_readonly(base, false),
             AccountMeta::new(vault_underlying, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),

@@ -10,7 +10,7 @@
 //! with the dispute core end-to-end.
 //!
 //! They also assert the cheap lifecycle invariants along the way: phase
-//! transitions happen in order, counters track the set, and KASS is conserved at
+//! transitions happen in order, counters track the set, and SOL is conserved at
 //! the proposal-phase boundary (`stake_vault == total_oracle_stake == Σ bonds`,
 //! checked BEFORE any `submit_fact` accrues fact stakes into
 //! `total_oracle_stake`).
@@ -40,7 +40,7 @@ fn claim_pda(program_id: &Pubkey, oracle: &Pubkey, proposer: &Pubkey) -> (Pubkey
 }
 
 fn finalize_oracle_ix(ctx: &TestCtx, oracle: Pubkey, tail: &[Pubkey]) -> Instruction {
-    // S3 account order (oracle, kass_mint, stake_vault, token program, tail) +
+    // S3 account order (oracle, base_mint, stake_vault, token program, tail) +
     // the oracle-nonce payload, via the shared harness builder.
     ctx.finalize_oracle_ix(oracle, tail)
 }
@@ -50,8 +50,8 @@ fn finalize_oracle_ix(ctx: &TestCtx, oracle: Pubkey, tail: &[Pubkey]) -> Instruc
 #[test]
 fn e2e_happy_uncontested_resolves() {
     let mut ctx = TestCtx::new();
-    let payer_kass = ctx.payer_kass;
-    let kass_mint = ctx.kass_mint;
+    let payer_base = ctx.payer_base;
+    let base_mint = ctx.base_mint;
 
     // Emission is DISABLED at genesis (fail-safe); enable the recommended curve
     // before the first create so create_oracle mints into the vault as this test expects.
@@ -59,24 +59,22 @@ fn e2e_happy_uncontested_resolves() {
     ctx.enable_default_emission();
 
     // Genesis creation: fee_ema starts at 0, so the dynamic creation fee is 0.
-    let bal_before = ctx.token_balance(payer_kass);
-    let supply_before = ctx.mint_supply(kass_mint);
+    let bal_before = ctx.token_balance(payer_base);
+    let supply_before = ctx.mint_supply(base_mint);
 
     // init_protocol (once) + create_oracle + warp to the open proposal window.
     let oracle = ctx.create_real_oracle(3, 600);
 
-    // Emission is ON by default: create_oracle mints `reward_emission` into the
-    // oracle's stake_vault. The creation FEE (burned from the creator) is still 0
-    // at genesis, but the mint supply now ROSE by exactly the minted emission.
+    // No native-token minting: create_oracle never mints. Genesis fee is 0.
     let emission = ctx.oracle(oracle).reward_emission;
-    assert!(emission > 0, "genesis create mints a positive emission");
+    assert_eq!(emission, 0, "create_oracle never mints a native token");
     assert_eq!(
-        ctx.token_balance(payer_kass),
+        ctx.token_balance(payer_base),
         bal_before,
-        "genesis creation fee is 0: no KASS burned from the creator"
+        "genesis creation fee is 0: no SOL burned from the creator"
     );
     assert_eq!(
-        ctx.mint_supply(kass_mint),
+        ctx.mint_supply(base_mint),
         supply_before + emission,
         "genesis fee is 0, so supply rose by exactly the minted emission"
     );
@@ -88,7 +86,7 @@ fn e2e_happy_uncontested_resolves() {
     ctx.propose_real(oracle, 1, bond);
     ctx.propose_real(oracle, 1, bond);
 
-    // --- KASS conservation at the proposal boundary (no facts yet) ----------
+    // --- SOL conservation at the proposal boundary (no facts yet) ----------
     let (vault, _) = TestCtx::stake_vault_pda(&ctx.program_id, &oracle);
     let sum_bonds = 3 * bond;
     let o = ctx.oracle(oracle);
@@ -166,7 +164,7 @@ fn e2e_happy_uncontested_resolves() {
             expected_reward > 0,
             "emission funds a positive uncontested reward"
         );
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey());
         ctx.send(ix, &[]).expect("claim_proposer (uncontested)");
         assert_eq!(
@@ -194,10 +192,10 @@ fn e2e_happy_uncontested_resolves() {
 fn e2e_second_oracle_fee_is_burned() {
     // The dynamic EMA fee is 0 at genesis but positive on the next creation in
     // the same context: assert the second oracle's fee was BURNED (the creator's
-    // KASS balance AND the mint supply both drop by the same positive amount).
+    // SOL balance AND the mint supply both drop by the same positive amount).
     let mut ctx = TestCtx::new();
-    let payer_kass = ctx.payer_kass;
-    let kass_mint = ctx.kass_mint;
+    let payer_base = ctx.payer_base;
+    let base_mint = ctx.base_mint;
 
     // Emission disabled at genesis (fail-safe); enable before the first create so
     // both oracles mint the emission this test folds into its supply-delta math.
@@ -207,14 +205,14 @@ fn e2e_second_oracle_fee_is_burned() {
     // First (genesis) oracle: free.
     let _first = ctx.create_real_oracle(2, 600);
 
-    let bal_before = ctx.token_balance(payer_kass);
-    let supply_before = ctx.mint_supply(kass_mint);
+    let bal_before = ctx.token_balance(payer_base);
+    let supply_before = ctx.mint_supply(base_mint);
 
     // Second oracle in the same context: fee_ema is now positive => fee burned.
     let second = ctx.create_real_oracle(2, 600);
 
-    let bal_after = ctx.token_balance(payer_kass);
-    let supply_after = ctx.mint_supply(kass_mint);
+    let bal_after = ctx.token_balance(payer_base);
+    let supply_after = ctx.mint_supply(base_mint);
     let burned = bal_before - bal_after;
     assert!(burned > 0, "second creation must charge a positive fee");
     // Emission is ON by default: the same create_oracle ALSO mints an emission
@@ -249,7 +247,7 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
 
     let (vault, _) = TestCtx::stake_vault_pda(&ctx.program_id, &oracle);
 
-    // --- KASS conservation at the proposal boundary (BEFORE any submit_fact) -
+    // --- SOL conservation at the proposal boundary (BEFORE any submit_fact) -
     let sum_bonds = 2 * bond;
     let o = ctx.oracle(oracle);
     // Emission is ON by default: the vault also holds the creation-time emission,
@@ -291,7 +289,7 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
     // 1) submit_fact (one fact) — FactProposal window still open.
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_kass(&submitter, 1_000_000);
+    let submitter_kass = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     let ix = submit_fact_ix(
@@ -318,7 +316,7 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
     //    (2000): approve 2000 clears `approve*3 >= 2000*2`.
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_kass(&voter, 10_000);
+    let voter_kass = ctx.fund_base(&voter, 10_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     let ix = vote_fact_ix(
         &ctx,

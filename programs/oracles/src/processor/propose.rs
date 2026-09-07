@@ -1,7 +1,7 @@
 //! `propose`: register a proposal against an oracle during its proposal window.
 //!
 //! After the creation-time `deadline`, anyone registers a proposal = a
-//! categorical `option` + a KASS `bond`. The bond is escrowed into the oracle's
+//! categorical `option` + a SOL `bond`. The bond is escrowed into the oracle's
 //! stake vault and one [`Proposer`] PDA per (oracle, authority) is created. The
 //! `MAX_PROPOSERS` cap is enforced ON-CHAIN here: this is the liveness guarantee
 //! that keeps the one-shot `finalize_oracle` inside a single transaction's
@@ -24,7 +24,7 @@
 //! 0. oracle            — writable, owned by this program
 //! 1. proposer PDA      — writable, uninitialized (created here)
 //! 2. authority         — signer, writable (funds rent + bond-transfer authority)
-//! 3. authority KASS    — writable token account, source of the bond
+//! 3. authority SOL    — writable token account, source of the bond
 //! 4. stake vault       — writable token account; must equal `oracle.stake_vault`
 //! 5. token program
 //! 6. system program
@@ -76,7 +76,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // Bootstrapping: the bond must clear the oracle's snapshotted activity-scaled
     // floor. At genesis / low activity the floor is 0, so a 0 bond (a weightless
     // proposer — still counted by plurality) is accepted; the floor grows with
-    // creation activity to re-price Sybil registration once KASS circulates.
+    // creation activity to re-price Sybil registration once SOL circulates.
     if bond < oracle.min_stake {
         return Err(KassandraError::BelowMinStake.into());
     }
@@ -132,7 +132,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         return Err(KassandraError::DuplicateProposer.into());
     }
 
-    // Defensive: the bond source must be a KASS token account on this oracle's
+    // Defensive: the bond source must be a SOL token account on this oracle's
     // canonical mint. The SPL Transfer additionally proves the authority
     // (signer) owns/delegates it.
     {
@@ -140,7 +140,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         if data.len() < 32 {
             return Err(KassandraError::InvalidAccount.into());
         }
-        if data[0..32] != oracle.kass_mint.to_bytes() {
+        if data[0..32] != oracle.base_mint.to_bytes() {
             return Err(KassandraError::InvalidAccount.into());
         }
     }

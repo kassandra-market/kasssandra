@@ -2,7 +2,7 @@
  * Offline unit tests for `src/market/lib/marketView.ts` — the pure market
  * presentation + funding/AMM math: status label/tone, `Funding` exit gating,
  * funding progress (clamped, bigint-true `funded`), implied YES probability from
- * pool reserves, and probability/KASS formatting. No React / chain.
+ * pool reserves, and probability/SOL formatting. No React / chain.
  */
 import { MarketStatus } from '@kassandra-market/markets'
 import { describe, expect, it } from 'vitest'
@@ -12,7 +12,7 @@ import {
   contributorLp,
   detailView,
   firstBoundMarketPubkey,
-  formatKass,
+  formatSol,
   formatProbability,
   fundingActions,
   fundingProgress,
@@ -114,12 +114,12 @@ describe('formatProbability', () => {
   })
 })
 
-describe('formatKass (market)', () => {
+describe('formatSol (market)', () => {
   it('scales, groups, and trims trailing fraction zeros', () => {
-    expect(formatKass(0n)).toBe('0')
-    expect(formatKass(1_000_000_000n)).toBe('1')
-    expect(formatKass(1_234_500_000_000n)).toBe('1,234.5')
-    expect(formatKass(-1_500_000_000n)).toBe('-1.5')
+    expect(formatSol(0n)).toBe('0')
+    expect(formatSol(1_000_000_000n)).toBe('1')
+    expect(formatSol(1_234_500_000_000n)).toBe('1,234.5')
+    expect(formatSol(-1_500_000_000n)).toBe('-1.5')
   })
 })
 
@@ -154,18 +154,18 @@ describe('detailView — market-detail render precedence', () => {
   })
 })
 
-const KASS = 1_000_000_000n // one whole KASS in base units
+const SOL = 1_000_000_000n // one whole SOL in base units
 
 describe('poolValueKass — mark-to-market pool value', () => {
   it('marks a 50/50 pool to its complete-set value', () => {
-    // 100 cYES + 100 cNO at 50/50 = 100 complete sets = 100 KASS.
-    expect(poolValueKass(reserves(100n * KASS, 100n * KASS))).toBe(100n * KASS)
+    // 100 cYES + 100 cNO at 50/50 = 100 complete sets = 100 SOL.
+    expect(poolValueKass(reserves(100n * SOL, 100n * SOL))).toBe(100n * SOL)
   })
 
   it('adds the excess side at its probability weight when skewed', () => {
-    // 200 cYES + 100 cNO: 100 complete sets (100 KASS) + 100 excess cYES each
-    // worth P(YES)=100/300 → 133.333… KASS (floored to base units).
-    expect(poolValueKass(reserves(200n * KASS, 100n * KASS))).toBe(133_333_333_333n)
+    // 200 cYES + 100 cNO: 100 complete sets (100 SOL) + 100 excess cYES each
+    // worth P(YES)=100/300 → 133.333… SOL (floored to base units).
+    expect(poolValueKass(reserves(200n * SOL, 100n * SOL))).toBe(133_333_333_333n)
   })
 
   it('is null for absent reserves or an empty pool', () => {
@@ -175,25 +175,25 @@ describe('poolValueKass — mark-to-market pool value', () => {
 })
 
 describe('contributorLp — a contributor gross LP position', () => {
-  const market = { activationLp: 500n * KASS, activationContributed: 1_000n * KASS }
+  const market = { activationLp: 500n * SOL, activationContributed: 1_000n * SOL }
 
   it('gives a pure funder their pro-rata activation LP', () => {
     // 1000 of 1000 funded → all 500 activation LP.
-    expect(contributorLp({ amount: 1_000n * KASS, lateLp: 0n }, market)).toBe(500n * KASS)
+    expect(contributorLp({ amount: 1_000n * SOL, lateLp: 0n }, market)).toBe(500n * SOL)
   })
 
   it('gives a pure late LP exactly what they added', () => {
-    expect(contributorLp({ amount: 0n, lateLp: 300n * KASS }, market)).toBe(300n * KASS)
+    expect(contributorLp({ amount: 0n, lateLp: 300n * SOL }, market)).toBe(300n * SOL)
   })
 
   it('sums funding-derived and late LP for a both-cohort contributor', () => {
     // 200/1000 of activation → 100 LP, plus 100 late LP = 200 LP.
-    expect(contributorLp({ amount: 200n * KASS, lateLp: 100n * KASS }, market)).toBe(200n * KASS)
+    expect(contributorLp({ amount: 200n * SOL, lateLp: 100n * SOL }, market)).toBe(200n * SOL)
   })
 
   it('has no funding-derived LP before activation (activationContributed 0)', () => {
     const pre = { activationLp: 0n, activationContributed: 0n }
-    expect(contributorLp({ amount: 500n * KASS, lateLp: 0n }, pre)).toBe(0n)
+    expect(contributorLp({ amount: 500n * SOL, lateLp: 0n }, pre)).toBe(0n)
   })
 })
 

@@ -1,23 +1,23 @@
 /**
  * The `/oracles` dashboard strip + filter toolbar (RU1). Pure presentation over
  * the already-fetched oracle list — {@link DashboardStats} renders the MONETARY
- * headline + its KASS breakdown (all scaled), and {@link OracleFilters} is the
+ * headline + its SOL breakdown (all scaled), and {@link OracleFilters} is the
  * accessible search + phase-filter + sort toolbar (the per-phase COUNTS live on
  * the filter chips). No data fetching here; the page passes decoded data down.
  */
-import { formatKass } from '../../lib/oracleView'
+import { formatSol } from '../../lib/oracleView'
 import type { OracleStats, PhaseCounts, PhaseFilter, SortBy } from '../../lib/oracleStats'
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 ' +
   'focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss'
 
-/** One monetary figure: a scaled-KASS serif value over an Inter label. */
+/** One monetary figure: a scaled-SOL serif value over an Inter label. */
 function MoneyTile({ amount, label }: { amount: bigint; label: string }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="font-serif text-heading-sm font-light leading-none tabular-nums text-platinum">
-        {formatKass(amount)}
+        {formatSol(amount)}
       </span>
       <span className="font-inter text-[12px] text-silver">{label}</span>
     </div>
@@ -26,7 +26,7 @@ function MoneyTile({ amount, label }: { amount: bigint; label: string }) {
 
 /**
  * The dashboard stats strip — MONETARY ONLY. The headline "Value at stake" is the
- * scaled-KASS sum contestable on chain (the single lavender accent moment) beside
+ * scaled-SOL sum contestable on chain (the single lavender accent moment) beside
  * its breakdown (bond pool · dispute bonds · staked). Oracle counts are NOT here —
  * they live on the phase-filter chips below. Read-only, computed client-side.
  */
@@ -37,18 +37,18 @@ export function DashboardStats({ stats }: { stats: OracleStats }) {
       className="mt-10 rounded-card border border-hairline bg-liquid-kelp px-6 py-5"
     >
       <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-        {/* Headline: total capital at stake — scaled KASS, the lavender accent. */}
+        {/* Headline: total capital at stake — scaled SOL, the lavender accent. */}
         <div className="flex flex-col gap-0.5">
           <span className="font-inter text-[12px] uppercase tracking-wide text-silver">
             Value at stake
           </span>
           <span className="font-serif text-heading font-light leading-none tabular-nums text-lavender-phosphor">
-            {formatKass(stats.bondsAtRisk)}
+            {formatSol(stats.bondsAtRisk)}
           </span>
-          <span className="font-inter text-[12px] text-silver">KASS · across active oracles</span>
+          <span className="font-inter text-[12px] text-silver">SOL · across active oracles</span>
         </div>
 
-        {/* The monetary breakdown (all scaled KASS). */}
+        {/* The monetary breakdown (all scaled SOL). */}
         <div className="flex flex-wrap gap-x-8 gap-y-3">
           <MoneyTile amount={stats.bondPoolActive} label="Bond pool" />
           <MoneyTile amount={stats.disputeBondsActive} label="Dispute bonds" />

@@ -1,12 +1,12 @@
 ---
 title: "Conditional Vaults"
-description: "MetaDAO v0.4 conditional vaults — splitting KASS and USDC into pass/fail conditional tokens, and redeeming them once the question resolves."
+description: "MetaDAO v0.4 conditional vaults — splitting SOL and USDC into pass/fail conditional tokens, and redeeming them once the question resolves."
 ---
 
 A challenge market prices the proposer's stake **conditional** on two mutually
 exclusive futures: the claim survives (**pass**) or the claim is disqualified
 (**fail**). MetaDAO's **conditional vault** program is what makes those conditional
-tokens. It takes an underlying token (KASS or USDC), locks it, and mints a matched set
+tokens. It takes an underlying token (SOL or USDC), locks it, and mints a matched set
 of conditional tokens — one per outcome — that redeem back to the underlying only
 after a binary **question** resolves.
 
@@ -32,7 +32,7 @@ question:
 
 | Vault | Underlying | Outcome 0 (pass) | Outcome 1 (fail) |
 | --- | --- | --- | --- |
-| KASS vault | `oracle.kass_mint` | **pass-KASS** | **fail-KASS** |
+| SOL vault | `oracle.base_mint` | **pass-SOL** | **fail-SOL** |
 | USDC vault | `oracle.usdc_mint` | **pass-USDC** | **fail-USDC** |
 
 Outcome index **0 is always pass, 1 is always fail** (fixed by the composition
@@ -70,7 +70,7 @@ requires the resolver to be the oracle PDA itself, so only the Kassandra program
 
 Creates a vault bound to one `question` and one `underlying_mint`, at PDA
 `[b"conditional_vault", question, underlying_mint]`, and initializes the per-outcome
-conditional-token mints. Called twice per market — once for KASS, once for USDC.
+conditional-token mints. Called twice per market — once for SOL, once for USDC.
 
 ### split_tokens
 
@@ -81,16 +81,16 @@ is used in two distinct ways in a challenge:
 <AccordionGroup>
   <Accordion title="Client-side: seeding the pools (the challenger's capital)">
     During [composition](/challenge/composing), the challenger splits their **own**
-    KASS into pass-KASS + fail-KASS and their **own** USDC into pass-USDC + fail-USDC,
+    SOL into pass-SOL + fail-SOL and their **own** USDC into pass-USDC + fail-USDC,
     then uses those to `add_liquidity` to the two AMMs. This is the challenger's capital
     (and impermanent-loss exposure), never the bond's.
   </Accordion>
   <Accordion title="On-chain: splitting the bond (program-signed)">
     `open_challenge` performs a **program-signed** `split_tokens` of `proposer.bond`
-    KASS out of `oracle.stake_vault` (authority = the oracle PDA, seeds
-    `[b"oracle", nonce_le, [bump]]`) into the KASS vault, minting pass-KASS + fail-KASS
-    to two **oracle-PDA-owned** holders, `market.oracle_pass_kass` and
-    `oracle_fail_kass` (`programs/oracles/src/processor/open_challenge.rs:283-335`).
+    SOL out of `oracle.stake_vault` (authority = the oracle PDA, seeds
+    `[b"oracle", nonce_le, [bump]]`) into the SOL vault, minting pass-SOL + fail-SOL
+    to two **oracle-PDA-owned** holders, `market.oracle_pass_base` and
+    `oracle_fail_base` (`programs/oracles/src/processor/open_challenge.rs:283-335`).
     The bond's conditional tokens then sit **idle** — never traded, never LP'd — so the
     bond carries no impermanent loss. `total_oracle_stake` is intentionally **not**
     decremented (`open_challenge.rs:286-288`).
@@ -106,7 +106,7 @@ a binary pass-win `[1, 0]`: pass redeems 1:1 and fail pays 0; for a fail-win `[0
 it is symmetric.
 
 Because the bond was split into **both** legs at open and never traded, the redeem is
-clean: the **full bond KASS** lands back in `oracle.stake_vault` regardless of the
+clean: the **full bond SOL** lands back in `oracle.stake_vault` regardless of the
 outcome (`settle_challenge.rs:434-531`). What differs by outcome is where the bond then
 goes — see [Settlement](/challenge/settle).
 

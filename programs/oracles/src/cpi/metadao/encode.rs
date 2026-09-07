@@ -134,7 +134,7 @@ pub fn resolve_question_data_binary(numerators: [u32; 2]) -> [u8; 20] {
 /// `#[event_cpi]` accounts and any remaining accounts); `infos` must be the
 /// matching `AccountInfo`s in the same order. `data` is a discriminator-prefixed
 /// payload from the encoders above. Pass PDA `signers` when our program must
-/// authorize a split/merge of vault-held KASS.
+/// authorize a split/merge of vault-held SOL.
 pub fn invoke_conditional_vault_signed<A: AsRef<AccountInfo>>(
     data: &[u8],
     metas: &[InstructionAccount],

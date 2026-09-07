@@ -14,14 +14,14 @@ are little-endian.
 <AccordionGroup>
   <Accordion title="Ix 0 · InitConfig — create the singleton" icon="wrench">
     One-time creation of the `[b"config"]` singleton
-    (`processor/init_config.rs`). Records the futarchy `authority`, canonical KASS
+    (`processor/init_config.rs`). Records the futarchy `authority`, canonical SOL
     mint, `min_liquidity`, `fee_bps` (≤ `MAX_FEE_BPS`), `fee_destination`, and the
     activity-scaled min-liquidity curve (threshold/cap/max — see
     [Accounts](/market-protocol/accounts)'s Config section).
     **Gated to the program's on-chain upgrade authority** (create-or-adopt allocation).
 
     **Accounts:** `0` config PDA (writable, `[b"config"]`, self-signs) · `1` payer
-    (signer, writable) · `2` kass_mint · `3` fee_destination (KASS token account) ·
+    (signer, writable) · `2` base_mint · `3` fee_destination (SOL token account) ·
     `4` system program · `5` program_data (BPF-loader `ProgramData` of this program).
 
     **Payload (98 bytes):** `authority: [u8;32]` ++ `min_liquidity: u64` ++
@@ -30,13 +30,13 @@ are little-endian.
     `min_liquidity_max <= min_liquidity` disables the ramp (a flat floor).
 
     **Errors:** re-init → `AlreadyInitialized`; wrong caller → `NotUpgradeAuthority`;
-    `fee_bps > MAX_FEE_BPS` → `InvalidFee`; non-KASS fee destination → `InvalidAccount`.
+    `fee_bps > MAX_FEE_BPS` → `InvalidFee`; non-SOL fee destination → `InvalidAccount`.
   </Accordion>
 
   <Accordion title="Ix 1 · UpdateConfig — futarchy-gated update" icon="sliders">
     Overwrites `min_liquidity`, `fee_bps`, `fee_destination`, and the
     activity-scaled min-liquidity curve in one call, gated to `Config.authority`
-    (the KASS futarchy DAO executor) (`processor/update_config.rs`). Does not touch
+    (the SOL futarchy DAO executor) (`processor/update_config.rs`). Does not touch
     in-flight markets (they snapshot config at creation) or the LIVE
     `market_creation_ema`/`last_market_creation_unix` — only the curve's
     governable shape.
@@ -49,7 +49,7 @@ are little-endian.
     `min_liquidity_ema_cap: u64` ++ `min_liquidity_max: u64`.
 
     **Errors:** wrong signer → `Unauthorized`; `fee_bps > MAX_FEE_BPS` → `InvalidFee`;
-    non-KASS destination → `InvalidAccount`.
+    non-SOL destination → `InvalidAccount`.
   </Accordion>
 </AccordionGroup>
 
@@ -57,7 +57,7 @@ are little-endian.
 
 <AccordionGroup>
   <Accordion title="Ix 2 · CreateMarket — stand up a sub-market" icon="star">
-    Creates the `[b"market", oracle, [outcome_index]]` sub-market, its KASS escrow,
+    Creates the `[b"market", oracle, [outcome_index]]` sub-market, its SOL escrow,
     and the creator's Contribution, transferring the creator's seed into escrow
     (`processor/create_market.rs`). Snapshots `fee_bps` from Config verbatim, and
     `min_liquidity` off the ACTIVITY-SCALED floor (decays + reads `Config`'s
@@ -66,7 +66,7 @@ are little-endian.
 
     **Accounts:** `0` config (WRITABLE — bumps the market-creation EMA) · `1` oracle
     (Kassandra) · `2` market PDA (writable, uninit) · `3` escrow PDA (writable,
-    uninit) · `4` kass_mint · `5` creator (signer, writable) · `6` creator_kass_ata
+    uninit) · `4` base_mint · `5` creator (signer, writable) · `6` creator_base_ata
     (writable) · `7` contribution PDA (writable, uninit) · `8` token program ·
     `9` system program.
 
@@ -78,12 +78,12 @@ are little-endian.
   </Accordion>
 
   <Accordion title="Ix 3 · Contribute — crowdfund toward the floor" icon="hand-holding-dollar">
-    Adds KASS from any contributor to a `Funding` market's escrow, creating or
+    Adds SOL from any contributor to a `Funding` market's escrow, creating or
     incrementing their Contribution (`processor/contribute.rs`). Only a brand-new
     Contribution grows `open_contributions`.
 
     **Accounts:** `0` market (writable) · `1` escrow (writable; == `market.escrow_vault`)
-    · `2` contributor (signer, writable) · `3` contributor_kass_ata (writable) · `4`
+    · `2` contributor (signer, writable) · `3` contributor_base_ata (writable) · `4`
     contribution PDA (writable) · `5` token program · `6` system program.
 
     **Payload (8 bytes):** `amount: u64`.
@@ -101,13 +101,13 @@ are little-endian.
     **Errors:** not `Funding` → `NotFunding`; oracle not terminal → `OracleNotTerminal`.
   </Accordion>
 
-  <Accordion title="Ix 5 · Refund — pull a contributor's KASS back" icon="rotate-left">
+  <Accordion title="Ix 5 · Refund — pull a contributor's SOL back" icon="rotate-left">
     Permissionless per-contributor refund out of a `Cancelled` market's escrow
     (program-signed), closing the Contribution (rent → contributor) and decrementing
     `open_contributions` (`processor/refund.rs`).
 
     **Accounts:** `0` market (writable) · `1` escrow (writable) · `2` contribution
-    PDA (writable, CLOSED) · `3` contributor_kass_ata (writable; SPL owner ==
+    PDA (writable, CLOSED) · `3` contributor_base_ata (writable; SPL owner ==
     `contribution.contributor`) · `4` contributor (writable; rent recipient) · `5`
     token program. **Payload:** empty.
 
@@ -166,7 +166,7 @@ are little-endian.
 
   <Accordion title="Ix 9 · CollectFee — cut the protocol fee" icon="hand-holding-dollar">
     Permissionless crank cutting `fee_bps` of accrued LP earnings, denominated in
-    KASS, to `Config.fee_destination` via program-signed `remove_liquidity` →
+    SOL, to `Config.fee_destination` via program-signed `remove_liquidity` →
     `redeem_tokens` → transfer; sets `lp_total -= fee_lp`, `fee_collected = 1`
     (`processor/collect_fee.rs`). 21 accounts (mirrors `activate` plus `config` +
     `fee_destination`). **Payload:** empty.

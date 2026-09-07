@@ -5,7 +5,7 @@ import { SubmitButton } from './formPrimitives'
 import { WriteStatusRegion } from './WriteStatusRegion'
 
 /**
- * RF2 — a per-participant CLAIM control (chestnut): pulls one staker's KASS
+ * RF2 — a per-participant CLAIM control (chestnut): pulls one staker's SOL
  * payout out of a Resolved oracle's vault into their canonical ATA + closes the
  * child account, via the wallet-backed sender + the shared write-status UX + a
  * refetch on success (the claimed account then disappears).

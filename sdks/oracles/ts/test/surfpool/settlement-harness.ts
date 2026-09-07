@@ -34,7 +34,7 @@ export const SWEEP_GRACE = 30n * 24n * 60n * 60n;
 export interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
   daoAuthority: Address;
   treasury: Address;
@@ -52,9 +52,9 @@ export async function setupFixture(port: number): Promise<Fixture> {
   await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
   const mintAuth = await pda.mintAuthority();
-  const kassMint = await Keypair.generate();
+  const baseMint = await Keypair.generate();
   const usdcMint = await Keypair.generate();
-  await harness.setAccount(kassMint.publicKey.toString(), {
+  await harness.setAccount(baseMint.publicKey.toString(), {
     lamports: 1_000_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
@@ -67,40 +67,40 @@ export async function setupFixture(port: number): Promise<Fixture> {
     data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
   });
 
-  // --- governance handoff (SEEDED kass_dao, REAL set_governance) ------------
-  // set_governance validates: kass_dao owned by the futarchy program + carries
+  // --- governance handoff (SEEDED spot_dao, REAL set_governance) ------------
+  // set_governance validates: spot_dao owned by the futarchy program + carries
   // the Dao Anchor discriminator, and dao_authority == the Squads v4 vault PDA
   // derived for it. Fabricate the futarchy-owned Dao account (no CPI — only an
   // owner + disc + PDA check), then drive the REAL set_governance.
-  const kassDao = (await Keypair.generate()).publicKey;
+  const spotDao = (await Keypair.generate()).publicKey;
   const daoBlob = new Uint8Array(256);
   daoBlob.set(futarchy.ACCOUNT_DISC.dao, 0);
-  await harness.setAccount(kassDao.toString(), {
+  await harness.setAccount(spotDao.toString(), {
     lamports: 5_000_000,
     owner: FUTARCHY_ID.toString(),
     executable: false,
     data: toHex(daoBlob),
   });
-  const multisig = (await futarchy.pda.squadsMultisig(kassDao)).address;
+  const multisig = (await futarchy.pda.squadsMultisig(spotDao)).address;
   const daoAuthority = (await futarchy.pda.squadsVault(multisig, 0)).address;
 
-  const f: Fixture = { harness, payer, kassMint, usdcMint, daoAuthority, treasury: daoAuthority };
+  const f: Fixture = { harness, payer, baseMint, usdcMint, daoAuthority, treasury: daoAuthority };
 
   await sendIx(f, await initProtocol({
     admin: payer.publicKey,
-    kassMint: kassMint.publicKey,
+    baseMint: baseMint.publicKey,
     usdcMint: usdcMint.publicKey,
   }));
-  await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, kassDao }));
+  await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, spotDao }));
 
-  // Fabricate the DAO treasury ATA(dao_authority, kass_mint) so the sweep
+  // Fabricate the DAO treasury ATA(dao_authority, base_mint) so the sweep
   // Transfer has a live destination (the program validates the exact address).
-  const treasury = (await pda.associatedTokenAccount(daoAuthority, kassMint.publicKey)).address;
+  const treasury = (await pda.associatedTokenAccount(daoAuthority, baseMint.publicKey)).address;
   await harness.setAccount(treasury.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(kassMint.publicKey.toBytes(), daoAuthority.toBytes(), 0n)),
+    data: toHex(tokenAccountBytes(baseMint.publicKey.toBytes(), daoAuthority.toBytes(), 0n)),
   });
   f.treasury = treasury;
   return f;
@@ -184,25 +184,25 @@ export async function fundSigner(f: Fixture): Promise<Keypair> {
   return kp;
 }
 
-export async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
+export async function fundBase(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
   const acct = await Keypair.generate();
   await f.harness.setAccount(acct.publicKey.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(f.kassMint.publicKey.toBytes(), owner.toBytes(), amount)),
+    data: toHex(tokenAccountBytes(f.baseMint.publicKey.toBytes(), owner.toBytes(), amount)),
   });
   return acct.publicKey;
 }
 
 export async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number): Promise<void> {
-  const creatorKass = await fundKass(f, f.payer.publicKey, 10n ** 15n);
+  const creatorBase = await fundBase(f, f.payer.publicKey, 10n ** 15n);
   const nowUnix = await f.harness.clockUnixTimestamp();
   await sendIx(f, await createOracle({
     nonce, optionsCount,
     deadline: nowUnix + 1_000n, twapWindow: 600n,
-    creator: f.payer.publicKey, creatorKassToken: creatorKass,
-    kassMint: f.kassMint.publicKey, usdcMint: f.usdcMint.publicKey,
+    creator: f.payer.publicKey, creatorBaseToken: creatorBase,
+    baseMint: f.baseMint.publicKey, usdcMint: f.usdcMint.publicKey,
   }));
 }
 
@@ -220,8 +220,8 @@ export async function proposeRealWithAuthority(
   f: Fixture, oracle: Address, option: number, bond: bigint,
 ): Promise<{ authority: Keypair; proposer: Address }> {
   const authority = await fundSigner(f);
-  const authorityKass = await fundKass(f, authority.publicKey, bond * 10n);
-  await sendIx(f, await propose({ oracle, authority: authority.publicKey, authorityKass, option, bond }), [authority]);
+  const authorityBase = await fundBase(f, authority.publicKey, bond * 10n);
+  await sendIx(f, await propose({ oracle, authority: authority.publicKey, authorityBase, option, bond }), [authority]);
   const proposer = (await pda.proposer(oracle, authority.publicKey)).address;
   return { authority, proposer };
 }

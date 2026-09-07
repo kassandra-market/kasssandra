@@ -12,8 +12,8 @@ fn settle_fraud_disqualifies_and_resolves_fail_side() {
     let surviving_before = ctx.oracle(f.oracle).surviving_count;
     // open_challenge bumped the open-market counter 0 → 1.
     assert_eq!(ctx.oracle(f.oracle).open_challenge_count, 1);
-    // Physical KASS conservation across the split path holds right after open.
-    assert_kass_conserved(&ctx, f.oracle, f.m.kass_vault_underlying);
+    // Physical SOL conservation across the split path holds right after open.
+    assert_kass_conserved(&ctx, f.oracle, f.m.base_vault_underlying);
 
     ctx.warp(TWAP_WINDOW + 1); // cross market.twap_end
 
@@ -29,23 +29,23 @@ fn settle_fraud_disqualifies_and_resolves_fail_side() {
         &f.extras(),
         f.nonce,
     );
-    // Pre-settle balances for the USDC/KASS conservation checks.
+    // Pre-settle balances for the USDC/SOL conservation checks.
     let escrow_before = ctx.token_balance(f.escrow_vault);
     let stake_before = ctx.token_balance(f.stake_vault);
     assert_eq!(escrow_before, required_escrow_usdc(BOND), "escrow funded");
 
     ctx.send_many(&cu(ix), &[]).expect("settle should succeed");
 
-    // C2 KASS-fee carve-out: 1% of the bond → challenger; bond − fee → bond_pool.
-    let kass_fee = BOND / 100;
-    let net_slash = BOND - kass_fee;
+    // C2 SOL-fee carve-out: 1% of the bond → challenger; bond − fee → bond_pool.
+    let base_fee = BOND / 100;
+    let net_slash = BOND - base_fee;
 
     let p = ctx.proposer(f.proposer);
     assert_eq!(p.disqualified, 1, "fraud proposer disqualified");
     assert_eq!(p.slashed, 1);
     assert_eq!(
         p.slashed_amount, net_slash,
-        "bond − kass_fee forfeit to bond_pool"
+        "bond − base_fee forfeit to bond_pool"
     );
 
     let o = ctx.oracle(f.oracle);
@@ -53,7 +53,7 @@ fn settle_fraud_disqualifies_and_resolves_fail_side() {
     assert_eq!(
         o.bond_pool,
         bond_pool_before + net_slash,
-        "bond_pool gets bond − kass_fee (identity == slashed_amount)"
+        "bond_pool gets bond − base_fee (identity == slashed_amount)"
     );
     assert_eq!(o.phase, Phase::Challenge as u8, "phase stays Challenge");
     // settle decremented the open-market counter 1 → 0.
@@ -72,38 +72,38 @@ fn settle_fraud_disqualifies_and_resolves_fail_side() {
     // The other proposer is untouched.
     assert_eq!(ctx.proposer(f.proposer_other).disqualified, 0);
 
-    // --- physical redeem: the bond's conditional KASS came back as underlying --
-    // The KASS conditional vault's underlying is fully drained (redeemed), and
-    // both oracle-PDA conditional-KASS holders are burned to 0.
+    // --- physical redeem: the bond's conditional SOL came back as underlying --
+    // The SOL conditional vault's underlying is fully drained (redeemed), and
+    // both oracle-PDA conditional-SOL holders are burned to 0.
     assert_eq!(
-        ctx.token_balance(f.m.kass_vault_underlying),
+        ctx.token_balance(f.m.base_vault_underlying),
         0,
-        "redeem drained the conditional KASS vault underlying"
+        "redeem drained the conditional SOL vault underlying"
     );
-    assert_eq!(ctx.token_balance(f.oracle_pass_kass), 0, "pass-KASS burned");
-    assert_eq!(ctx.token_balance(f.oracle_fail_kass), 0, "fail-KASS burned");
+    assert_eq!(ctx.token_balance(f.oracle_pass_base), 0, "pass-SOL burned");
+    assert_eq!(ctx.token_balance(f.oracle_fail_base), 0, "fail-SOL burned");
 
-    // --- KASS routing: redeem +BOND to stake_vault, then kass_fee → challenger -
+    // --- SOL routing: redeem +BOND to stake_vault, then base_fee → challenger -
     assert_eq!(
         ctx.token_balance(f.challenger_kass),
-        kass_fee,
-        "challenger receives the KASS fee"
+        base_fee,
+        "challenger receives the SOL fee"
     );
     assert_eq!(
         ctx.token_balance(f.stake_vault),
-        stake_before + BOND - kass_fee,
-        "stake_vault: +bond (redeem) − kass_fee (to challenger)"
+        stake_before + BOND - base_fee,
+        "stake_vault: +bond (redeem) − base_fee (to challenger)"
     );
-    // KASS conservation with the fee carve-out: stake_vault + vault_underlying +
+    // SOL conservation with the fee carve-out: stake_vault + vault_underlying +
     // challenger_kass == total_oracle_stake (the fee left the system to the
     // challenger; everything else is accounted in stake_vault / the drained vault).
     let total = ctx.oracle(f.oracle).total_oracle_stake;
     assert_eq!(
         ctx.token_balance(f.stake_vault)
-            + ctx.token_balance(f.m.kass_vault_underlying)
+            + ctx.token_balance(f.m.base_vault_underlying)
             + ctx.token_balance(f.challenger_kass),
         total,
-        "KASS conservation incl. the kass_fee carve-out",
+        "SOL conservation incl. the base_fee carve-out",
     );
 
     // --- USDC routing: full escrow returned to the challenger, none to proposer -
@@ -126,8 +126,8 @@ fn settle_honest_survives_and_resolves_pass_side() {
     let (mut ctx, f) = fixture(QUOTE_LOW, QUOTE_LOW);
     let bond_pool_before = ctx.oracle(f.oracle).bond_pool;
     let surviving_before = ctx.oracle(f.oracle).surviving_count;
-    // Physical KASS conservation across the split path holds right after open.
-    assert_kass_conserved(&ctx, f.oracle, f.m.kass_vault_underlying);
+    // Physical SOL conservation across the split path holds right after open.
+    assert_kass_conserved(&ctx, f.oracle, f.m.base_vault_underlying);
 
     ctx.warp(TWAP_WINDOW + 1);
 
@@ -166,25 +166,25 @@ fn settle_honest_survives_and_resolves_pass_side() {
 
     // --- physical redeem: bond stays the proposer's, back in stake_vault -------
     assert_eq!(
-        ctx.token_balance(f.m.kass_vault_underlying),
+        ctx.token_balance(f.m.base_vault_underlying),
         0,
-        "redeem drained the conditional KASS vault underlying"
+        "redeem drained the conditional SOL vault underlying"
     );
-    assert_eq!(ctx.token_balance(f.oracle_pass_kass), 0, "pass-KASS burned");
-    assert_eq!(ctx.token_balance(f.oracle_fail_kass), 0, "fail-KASS burned");
+    assert_eq!(ctx.token_balance(f.oracle_pass_base), 0, "pass-SOL burned");
+    assert_eq!(ctx.token_balance(f.oracle_fail_base), 0, "fail-SOL burned");
     assert_eq!(
         ctx.token_balance(f.stake_vault),
         stake_before + BOND,
-        "stake_vault: +bond (redeem), no KASS fee on a failed challenge"
+        "stake_vault: +bond (redeem), no SOL fee on a failed challenge"
     );
     assert_eq!(
         ctx.token_balance(f.challenger_kass),
         0,
-        "no challenger KASS fee when the challenge fails"
+        "no challenger SOL fee when the challenge fails"
     );
-    // No KASS left the system on the survive path: stake_vault + underlying ==
+    // No SOL left the system on the survive path: stake_vault + underlying ==
     // total_oracle_stake (the original idle-bond conservation, now physical).
-    assert_kass_conserved(&ctx, f.oracle, f.m.kass_vault_underlying);
+    assert_kass_conserved(&ctx, f.oracle, f.m.base_vault_underlying);
 
     // --- USDC routing: 1% fee → proposer, the remainder → challenger -----------
     let usdc_fee = escrow_before / 100;

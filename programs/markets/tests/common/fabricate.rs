@@ -170,7 +170,7 @@ impl TestCtx {
     pub fn seed_market_with_status(
         &mut self,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         escrow: Pubkey,
         status: u8,
     ) -> Pubkey {
@@ -181,7 +181,7 @@ impl TestCtx {
         m.account_type = AccountType::Market.as_u8();
         m.oracle = oracle.to_bytes().into();
 
-        m.kass_mint = kass_mint.to_bytes().into();
+        m.base_mint = base_mint.to_bytes().into();
 
         m.escrow_vault = escrow.to_bytes().into();
 

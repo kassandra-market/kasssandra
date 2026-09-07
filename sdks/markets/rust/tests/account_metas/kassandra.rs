@@ -5,8 +5,8 @@ use kassandra_markets_sdk::{ix, metadao as md, pda, PROGRAM_ID};
 
 #[test]
 fn golden_init_config() {
-    let (payer, kass_mint, authority, fee_dest) = (pk(1), pk(2), pk(3), pk(11));
-    let ix = ix::init_config(&payer, &kass_mint, &authority, 5, 250, &fee_dest, 100, 1000, 5);
+    let (payer, base_mint, authority, fee_dest) = (pk(1), pk(2), pk(3), pk(11));
+    let ix = ix::init_config(&payer, &base_mint, &authority, 5, 250, &fee_dest, 100, 1000, 5);
     let (config, _) = pda::config();
     let (program_data, _) = pda::program_data(&PROGRAM_ID);
     assert_eq!(
@@ -15,7 +15,7 @@ fn golden_init_config() {
             with_programs(vec![
                 (config, "config"),
                 (payer, "payer"),
-                (kass_mint, "kassMint"),
+                (base_mint, "baseMint"),
                 (fee_dest, "feeDestination"),
                 (program_data, "programData"),
             ]),
@@ -23,7 +23,7 @@ fn golden_init_config() {
         vec![
             ("config", false, true),
             ("payer", true, true),
-            ("kassMint", false, false),
+            ("baseMint", false, false),
             ("feeDestination", false, false),
             ("systemProgram", false, false),
             ("programData", false, false),
@@ -55,8 +55,8 @@ fn golden_update_config() {
 
 #[test]
 fn golden_create_market() {
-    let (creator, oracle, kass_mint, creator_ata) = (pk(5), pk(4), pk(2), pk(6));
-    let ix = ix::create_market(&creator, &oracle, &kass_mint, &creator_ata, 1000, 0);
+    let (creator, oracle, base_mint, creator_ata) = (pk(5), pk(4), pk(2), pk(6));
+    let ix = ix::create_market(&creator, &oracle, &base_mint, &creator_ata, 1000, 0);
     let (config, _) = pda::config();
     let (market, _) = pda::market(&oracle, 0);
     let (escrow, _) = pda::escrow(&market);
@@ -69,9 +69,9 @@ fn golden_create_market() {
                 (oracle, "oracle"),
                 (market, "market"),
                 (escrow, "escrow"),
-                (kass_mint, "kassMint"),
+                (base_mint, "baseMint"),
                 (creator, "creator"),
-                (creator_ata, "creatorKassAta"),
+                (creator_ata, "creatorBaseAta"),
                 (contribution, "contribution"),
             ]),
         ),
@@ -80,9 +80,9 @@ fn golden_create_market() {
             ("oracle", false, false),
             ("market", false, true),
             ("escrow", false, true),
-            ("kassMint", false, false),
+            ("baseMint", false, false),
             ("creator", true, true),
-            ("creatorKassAta", false, true),
+            ("creatorBaseAta", false, true),
             ("contribution", false, true),
             ("tokenProgram", false, false),
             ("systemProgram", false, false),
@@ -162,13 +162,13 @@ fn golden_refund() {
 
 #[test]
 fn golden_activate() {
-    let (payer, oracle, kass_mint) = (pk(1), pk(4), pk(2));
-    let ix = ix::activate(&payer, &oracle, &kass_mint, 0);
+    let (payer, oracle, base_mint) = (pk(1), pk(4), pk(2));
+    let ix = ix::activate(&payer, &oracle, &base_mint, 0);
     let (market, _) = pda::market(&oracle, 0);
     let (escrow, _) = pda::escrow(&market);
     let (question, _) = md::question(&oracle.to_bytes(), &market, 2);
-    let (vault, _) = md::vault(&question, &kass_mint);
-    let vault_underlying_ata = md::ata(&vault, &kass_mint);
+    let (vault, _) = md::vault(&question, &base_mint);
+    let vault_underlying_ata = md::ata(&vault, &base_mint);
     let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
     let (no_mint, _) = md::conditional_token_mint(&vault, 1);
     let (market_cyes, _) = pda::market_cyes(&market);
@@ -233,18 +233,18 @@ fn golden_activate() {
 
 #[test]
 fn golden_add_liquidity() {
-    let (depositor, oracle, kass_mint) = (pk(3), pk(4), pk(2));
-    let ix = ix::add_liquidity(&depositor, &oracle, &kass_mint, 0, 1000, 500, 1000, 1);
+    let (depositor, oracle, base_mint) = (pk(3), pk(4), pk(2));
+    let ix = ix::add_liquidity(&depositor, &oracle, &base_mint, 0, 1000, 500, 1000, 1);
     let (market, _) = pda::market(&oracle, 0);
     let (escrow, _) = pda::escrow(&market);
     let (question, _) = md::question(&oracle.to_bytes(), &market, 2);
-    let (vault, _) = md::vault(&question, &kass_mint);
-    let vault_underlying_ata = md::ata(&vault, &kass_mint);
+    let (vault, _) = md::vault(&question, &base_mint);
+    let vault_underlying_ata = md::ata(&vault, &base_mint);
     let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
     let (no_mint, _) = md::conditional_token_mint(&vault, 1);
     let (market_cyes, _) = pda::market_cyes(&market);
     let (market_cno, _) = pda::market_cno(&market);
-    let depositor_kass_ata = md::ata(&depositor, &kass_mint);
+    let depositor_base_ata = md::ata(&depositor, &base_mint);
     let depositor_cyes_ata = md::ata(&depositor, &yes_mint);
     let depositor_cno_ata = md::ata(&depositor, &no_mint);
     let (amm, _) = md::amm(&yes_mint, &no_mint);
@@ -262,7 +262,7 @@ fn golden_add_liquidity() {
                 (market, "market"),
                 (oracle, "oracle"),
                 (depositor, "depositor"),
-                (depositor_kass_ata, "depositorKassAta"),
+                (depositor_base_ata, "depositorBaseAta"),
                 (escrow, "escrow"),
                 (question, "question"),
                 (vault, "vault"),
@@ -287,7 +287,7 @@ fn golden_add_liquidity() {
             ("market", false, true),
             ("oracle", false, false),
             ("depositor", true, true),
-            ("depositorKassAta", false, true),
+            ("depositorBaseAta", false, true),
             ("escrow", false, true),
             ("question", false, false),
             ("vault", false, true),
@@ -370,14 +370,14 @@ fn golden_resolve_market() {
 
 #[test]
 fn golden_collect_fee() {
-    let (oracle, kass_mint, fee_dest) = (pk(4), pk(2), pk(11));
-    let ix = ix::collect_fee(&oracle, &kass_mint, &fee_dest, 0);
+    let (oracle, base_mint, fee_dest) = (pk(4), pk(2), pk(11));
+    let ix = ix::collect_fee(&oracle, &base_mint, &fee_dest, 0);
     let (config, _) = pda::config();
     let (market, _) = pda::market(&oracle, 0);
     let (escrow, _) = pda::escrow(&market);
     let (question, _) = md::question(&oracle.to_bytes(), &market, 2);
-    let (vault, _) = md::vault(&question, &kass_mint);
-    let vault_underlying_ata = md::ata(&vault, &kass_mint);
+    let (vault, _) = md::vault(&question, &base_mint);
+    let vault_underlying_ata = md::ata(&vault, &base_mint);
     let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
     let (no_mint, _) = md::conditional_token_mint(&vault, 1);
     let (market_cyes, _) = pda::market_cyes(&market);

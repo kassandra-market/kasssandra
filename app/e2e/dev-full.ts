@@ -78,18 +78,18 @@ async function main(): Promise<void> {
   const { wallet, fromFile: walletFromFile } = await loadDevWallet()
   log(
     `[dev] funding the dev wallet ${wallet.publicKey.toString()} ` +
-      `(${walletFromFile ? 'your local CLI keypair' : 'generated'}) — 50 SOL + 1,000,000 KASS`,
+      `(${walletFromFile ? 'your local CLI keypair' : 'generated'}) — 50 SOL + 1,000,000 SOL`,
   )
   await ctx.harness.airdrop(wallet.publicKey.toString(), 50_000_000_000)
   const walletKass = (
-    await associatedTokenAccount(wallet.publicKey.toString(), ctx.kassMint.publicKey.toString())
+    await associatedTokenAccount(wallet.publicKey.toString(), ctx.baseMint.publicKey.toString())
   ).address
   await ctx.harness.setAccount(walletKass.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
     data: toHex(
-      tokenAccountBytes(ctx.kassMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
+      tokenAccountBytes(ctx.baseMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
     ),
   })
 
@@ -133,7 +133,7 @@ async function main(): Promise<void> {
   }
 
   // ── 1b) deploy the market program (+ MetaDAO fixtures) + seed demo markets ──
-  // Same surfpool node, same KASS mint — so the single indexer picks up both and
+  // Same surfpool node, same SOL mint — so the single indexer picks up both and
   // the app's /markets section is populated. Best-effort: a market-seed failure
   // must not sink the whole dev stack (the oracle side is already useful).
   log('[dev] deploying the market program + seeding demo markets…')
@@ -155,7 +155,7 @@ async function main(): Promise<void> {
         secretKey: Array.from(wallet.secretKey as Uint8Array),
         publicKey: wallet.publicKey.toString(),
         rpcUrl,
-        kassMint: ctx.kassMint.publicKey.toString(),
+        baseMint: ctx.baseMint.publicKey.toString(),
         usdcMint: ctx.usdcMint.publicKey.toString(),
         oracles,
         markets,
@@ -270,14 +270,14 @@ async function main(): Promise<void> {
       Solana CLI wallet (~/.config/solana/id.json) — connect it in the
       browser and point a custom network at ${rpcUrl}:
 
-        address:          ${wallet.publicKey.toString()}   (funded: SOL + KASS)`
+        address:          ${wallet.publicKey.toString()}   (funded: SOL + SOL)`
     : `      ── connect a wallet in the browser ────────────────────────────────
       The app uses the REAL wallet-adapter. No local Solana CLI keypair was
       found, so import this generated, pre-funded dev keypair into
       Phantom/Solflare and point a custom network at ${rpcUrl}:
 
         secret (base58):  ${bs58.encode(wallet.secretKey as Uint8Array)}
-        address:          ${wallet.publicKey.toString()}   (funded: SOL + KASS)`
+        address:          ${wallet.publicKey.toString()}   (funded: SOL + SOL)`
   log(`
 [dev] ✅ production-like local stack is UP
       app       ${appUrl}          (logs/app.log)

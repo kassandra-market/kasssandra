@@ -21,7 +21,7 @@ import type { MarketRefs } from "./compose.js";
 export interface CollectFeeFlowParams {
   /** The composed refs for the resolved market (from `composeMarketInstructions` or `marketRefs`). */
   refs: MarketRefs;
-  /** `config.feeDestination` — the KASS token account the accrued fee routes to. */
+  /** `config.feeDestination` — the SOL token account the accrued fee routes to. */
   feeDestination: AddressInput;
 }
 

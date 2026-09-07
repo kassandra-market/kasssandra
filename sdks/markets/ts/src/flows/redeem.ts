@@ -1,6 +1,6 @@
 /**
  * High-level redeem flow — after a market resolves, a holder burns their full
- * cYES + cNO balances and receives the resolved KASS payout.
+ * cYES + cNO balances and receives the resolved SOL payout.
  *
  * The MetaDAO `redeem_tokens` pays each conditional token by the question's
  * resolved numerators (`[1,0]` ⇒ cYES pays 1:1 and cNO pays 0, etc.), so a YES
@@ -22,8 +22,8 @@ export interface RedeemParams {
   refs: MarketRefs;
   /** Holder + signer (owns the conditional accounts). */
   user: AddressInput;
-  /** Holder's KASS token account the payout lands in. */
-  userKassAta: AddressInput;
+  /** Holder's SOL token account the payout lands in. */
+  userBaseAta: AddressInput;
   /** Holder's cYES account (defaults to the ATA on `refs.yesMint`). */
   userYesAta?: AddressInput;
   /** Holder's cNO account (defaults to the ATA on `refs.noMint`). */
@@ -34,7 +34,7 @@ export interface RedeemParams {
  * Build the single `redeem_tokens` instruction. Returns it plus the resolved
  * user conditional ATAs. The question must already be resolved (`resolveMarket`).
  *
- * PRECONDITION: the holder's cYES/cNO accounts AND the destination KASS account
+ * PRECONDITION: the holder's cYES/cNO accounts AND the destination SOL account
  * must already exist — `redeem_tokens` cannot create them. For a fresh wallet
  * prepend {@link ensureConditionalAtasInstructions} with `includeKass: true`.
  */
@@ -50,7 +50,7 @@ export async function redeemInstructions(
     vault: refs.vault,
     vaultUnderlyingAta: refs.vaultUnderlyingAta,
     authority: user,
-    userUnderlyingAta: params.userKassAta,
+    userUnderlyingAta: params.userBaseAta,
     conditionalMints: [refs.yesMint, refs.noMint],
     userConditionalAtas: [yes, no],
   });

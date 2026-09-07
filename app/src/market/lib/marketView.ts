@@ -1,6 +1,6 @@
 /**
  * Pure presentation helpers for the market browse views — status → label/chip
- * mapping, funding progress, implied-probability + KASS formatting, resolution
+ * mapping, funding progress, implied-probability + SOL formatting, resolution
  * outcome text, and pubkey truncation. NO React here; the pages + chip
  * components consume these, and `app/test/marketView.test.ts` unit-tests them.
  */
@@ -18,8 +18,8 @@ export const YES_OPTION = 0;
 export const NO_OPTION = 1;
 /** `resolvedOption` sentinel for a dead-end (no valid option). Mirrors `state.rs` 0xFF. */
 export const RESOLVED_OPTION_NONE = 0xff;
-/** KASS mint decimals (raw base units → human amount). */
-export const KASS_DECIMALS = 9;
+/** SOL mint decimals (raw base units → human amount). */
+export const SOL_DECIMALS = 9;
 
 /** On-brand chip tones (mirrors the sibling oracle `Chip` vocabulary). */
 export type ChipTone = "neutral" | "info" | "ember" | "confirmed" | "muted";
@@ -137,11 +137,11 @@ export function impliedYesProbability(reserves: AmmReserves | null | undefined):
 }
 
 /**
- * Mark-to-market KASS value of the cYES/cNO pool. Each conditional token is worth
+ * Mark-to-market SOL value of the cYES/cNO pool. Each conditional token is worth
  * its win probability (cYES → P(YES), cNO → P(NO)), so the pool marks to
  * `base·P(YES) + quote·P(NO) = 2·base·quote / (base + quote)` — which reduces to
  * the complete-set value at a 50/50 pool and adds the excess side's probability
- * weight otherwise. Base units (KASS decimals); `null` when reserves are absent or
+ * weight otherwise. Base units (SOL decimals); `null` when reserves are absent or
  * the pool is empty.
  */
 export function poolValueKass(reserves: AmmReserves | null | undefined): bigint | null {
@@ -176,20 +176,20 @@ export function formatProbability(p: number | null): string {
 }
 
 /**
- * Format a raw base-unit KASS amount ({@link KASS_DECIMALS} decimals) as a human
+ * Format a raw base-unit SOL amount ({@link SOL_DECIMALS} decimals) as a human
  * string with thousands separators, trimming trailing fractional zeros:
  * `1234500000000n` → `1,234.5`, `1000000000n` → `1`.
  */
-export function formatKass(amount: bigint): string {
+export function formatSol(amount: bigint): string {
   const neg = amount < 0n;
   const abs = neg ? -amount : amount;
-  const scale = 10n ** BigInt(KASS_DECIMALS);
+  const scale = 10n ** BigInt(SOL_DECIMALS);
   const whole = abs / scale;
   const frac = abs % scale;
   const wholeStr = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   let out = wholeStr;
   if (frac > 0n) {
-    const fracStr = frac.toString().padStart(KASS_DECIMALS, "0").replace(/0+$/, "");
+    const fracStr = frac.toString().padStart(SOL_DECIMALS, "0").replace(/0+$/, "");
     out = `${wholeStr}.${fracStr}`;
   }
   return neg ? `-${out}` : out;

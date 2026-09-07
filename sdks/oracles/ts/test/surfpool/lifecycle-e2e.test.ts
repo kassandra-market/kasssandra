@@ -27,8 +27,8 @@
  * --- real vs seeded ---
  * EVERYTHING in both arms is driven by REAL instructions over RPC — there is no
  * `setAccount` seeding of any Kassandra program account or phase. The ONLY
- * fabricated state is the SPL plumbing (the KASS/USDC mints + the funded
- * creator/proposer/submitter/voter KASS token accounts), packed as canonical SPL
+ * fabricated state is the SPL plumbing (the SOL/USDC mints + the funded
+ * creator/proposer/submitter/voter SOL token accounts), packed as canonical SPL
  * byte layouts and written token-program-owned — exactly as the litesvm
  * `e2e.test.ts` and the Rust `common/mod.rs` harness fund them (the program's own
  * SPL CPIs run against the real Token program). The full phase chain — propose,
@@ -72,11 +72,11 @@ import { runRunner, runnerAvailable, writeRunnerConfig, type RunOutput } from ".
 
 const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady() && runnerAvailable();
 
-/** A funded admin/payer + the canonical KASS/USDC mints, shared by both arms. */
+/** A funded admin/payer + the canonical SOL/USDC mints, shared by both arms. */
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
 }
 
@@ -91,16 +91,16 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
     const payer = await Keypair.generate();
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
-    // KASS authority = the mint-authority PDA (mirrors the harness bootstrap; not
+    // SOL authority = the mint-authority PDA (mirrors the harness bootstrap; not
     // load-bearing — emissions/genesis-fee are 0 so create_oracle mints/burns
     // nothing). USDC authority = payer.
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    // Back the KASS mint with a large supply so create_oracle's dynamic-fee Burn
+    // Back the SOL mint with a large supply so create_oracle's dynamic-fee Burn
     // (positive on the 2nd+ oracle in the shared protocol — see the Rust
     // `e2e_second_oracle_fee_is_burned`) does not underflow the mint supply.
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -113,13 +113,13 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
       data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
     });
 
-    f = { harness, payer, kassMint, usdcMint };
+    f = { harness, payer, baseMint, usdcMint };
     mock = await MockAnthropic.start();
 
     // init_protocol once (the singleton both arms share).
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
   }, 90_000);
@@ -189,13 +189,13 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
     const contentHash = new Uint8Array(32).fill(0x07);
     const submitter = await Keypair.generate();
     await f.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000);
-    const submitterKass = await fundKass(f, submitter.publicKey, 1_000_000n);
+    const submitterBase = await fundBase(f, submitter.publicKey, 1_000_000n);
     await sendIx(
       f,
       await submitFact({
         oracle,
         submitter: submitter.publicKey,
-        submitterKass,
+        submitterBase,
         contentHash,
         stake: 100n,
         uri: "ipfs://fact",
@@ -215,16 +215,16 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
     // --- vote_fact: approve 2000 clears 2/3 of dispute_bond_total (2000) ---
     const voter = await Keypair.generate();
     await f.harness.airdrop(voter.publicKey.toString(), 2_000_000_000);
-    const voterKass = await fundKass(f, voter.publicKey, 10_000n);
+    const voterBase = await fundBase(f, voter.publicKey, 10_000n);
     await sendIx(
       f,
-      await voteFact({ oracle, fact, voter: voter.publicKey, voterKass, kind: VOTE_APPROVE, stake: 2_000n }),
+      await voteFact({ oracle, fact, voter: voter.publicKey, voterBase, kind: VOTE_APPROVE, stake: 2_000n }),
       [voter],
     );
 
     // --- advance past voting window → finalize_facts([fact]) → AiClaim ---
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
+    await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [fact] }));
     o = decodeOracle(await fetchAccount(f, oracle));
     expect(o.phase).toBe(Phase.AiClaim);
 
@@ -284,7 +284,7 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
 
     // --- advance past Challenge window → finalize_oracle → Resolved (AI option) ---
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeOracle({ nonce, kassMint: f.kassMint.publicKey, proposers: proposerPdas }));
+    await sendIx(f, await finalizeOracle({ nonce, baseMint: f.baseMint.publicKey, proposers: proposerPdas }));
     o = decodeOracle(await fetchAccount(f, oracle));
     expect(o.phase).toBe(Phase.Resolved);
     expect(o.resolvedOption).toBe(aiOption);
@@ -323,14 +323,14 @@ async function tokenBalance(f: Fixture, address: Address): Promise<bigint> {
   return tokenAccountAmount(await fetchAccount(f, address));
 }
 
-/** Fabricate a funded KASS token account owned by `owner` (the bond/stake source). */
-async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
+/** Fabricate a funded SOL token account owned by `owner` (the bond/stake source). */
+async function fundBase(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
   const acct = await Keypair.generate();
   await f.harness.setAccount(acct.publicKey.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(f.kassMint.publicKey.toBytes(), owner.toBytes(), amount)),
+    data: toHex(tokenAccountBytes(f.baseMint.publicKey.toBytes(), owner.toBytes(), amount)),
   });
   return acct.publicKey;
 }
@@ -339,7 +339,7 @@ async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Add
 async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number): Promise<void> {
   // Fund the creator's burn source generously: the dynamic EMA creation fee is 0
   // on the genesis oracle but positive on later ones in the shared protocol.
-  const creatorKass = await fundKass(f, f.payer.publicKey, 10n ** 15n);
+  const creatorBase = await fundBase(f, f.payer.publicKey, 10n ** 15n);
   const nowUnix = await f.harness.clockUnixTimestamp();
   await sendIx(
     f,
@@ -349,8 +349,8 @@ async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number)
       deadline: nowUnix + 1_000n,
       twapWindow: 600n,
       creator: f.payer.publicKey,
-      creatorKassToken: creatorKass,
-      kassMint: f.kassMint.publicKey,
+      creatorBaseToken: creatorBase,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
     }),
   );
@@ -382,10 +382,10 @@ async function proposeRealWithAuthority(
 ): Promise<{ authority: Keypair; proposer: Address }> {
   const authority = await Keypair.generate();
   await f.harness.airdrop(authority.publicKey.toString(), 2_000_000_000);
-  const authorityKass = await fundKass(f, authority.publicKey, bond * 10n);
+  const authorityBase = await fundBase(f, authority.publicKey, bond * 10n);
   await sendIx(
     f,
-    await propose({ oracle, authority: authority.publicKey, authorityKass, option, bond }),
+    await propose({ oracle, authority: authority.publicKey, authorityBase, option, bond }),
     [authority],
   );
   const proposer = (await pda.proposer(oracle, authority.publicKey)).address;

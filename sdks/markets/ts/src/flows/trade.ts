@@ -4,12 +4,12 @@
  *
  * A binary market's payout tokens are the vault's cYES / cNO. To take a *net*
  * directional position a trader:
- *   • BUY  — `split_tokens(kassAmount)` mints an equal cYES+cNO pair from KASS,
+ *   • BUY  — `split_tokens(kassAmount)` mints an equal cYES+cNO pair from SOL,
  *            then `swap`s the unwanted leg on the AMM into more of the wanted leg.
  *            YES ⇒ sell the cNO leg (quote→base = `Buy`); NO ⇒ sell the cYES leg
  *            (base→quote = `Sell`).
  *   • SELL — the mirror: `swap` the held leg back toward a balanced pair, then
- *            `merge_tokens` the balanced set back into KASS.
+ *            `merge_tokens` the balanced set back into SOL.
  *
  * The AMM is created with `base = cYES`, `quote = cNO`, so:
  *   `SwapType.Buy`  = quote→base = cNO → cYES  (accumulate YES),
@@ -56,14 +56,14 @@ function isYes(outcome: Outcome): boolean {
 export interface BuyParams {
   /** Composed market refs (from `composeMarketInstructions`). */
   refs: MarketRefs;
-  /** Trader + signer (owns the KASS + conditional accounts). */
+  /** Trader + signer (owns the SOL + conditional accounts). */
   user: AddressInput;
   /** Which leg to end up net-long. */
   outcome: Outcome;
-  /** KASS to spend (raw base units); split 1:1 into a cYES+cNO pair. */
+  /** SOL to spend (raw base units); split 1:1 into a cYES+cNO pair. */
   kassAmount: bigint | number;
-  /** Trader's KASS token account the split pulls from. */
-  userKassAta: AddressInput;
+  /** Trader's SOL token account the split pulls from. */
+  userBaseAta: AddressInput;
   /** Trader's cYES account (defaults to the ATA on `refs.yesMint`). */
   userYesAta?: AddressInput;
   /** Trader's cNO account (defaults to the ATA on `refs.noMint`). */
@@ -97,7 +97,7 @@ export async function buyInstructions(
     vault: refs.vault,
     vaultUnderlyingAta: refs.vaultUnderlyingAta,
     authority: user,
-    userUnderlyingAta: params.userKassAta,
+    userUnderlyingAta: params.userBaseAta,
     conditionalMints: [refs.yesMint, refs.noMint],
     userConditionalAtas: [yes, no],
     amount: kassAmount,
@@ -136,12 +136,12 @@ export interface SellParams {
    */
   swapAmount: bigint | number;
   /**
-   * Size of the balanced cYES/cNO pair to `merge_tokens` back into KASS (== the
+   * Size of the balanced cYES/cNO pair to `merge_tokens` back into SOL (== the
    * post-swap min(cYES, cNO)). Computed by the app from the swap's quoted output.
    */
   mergeAmount: bigint | number;
-  /** Trader's KASS token account the merge pays back into. */
-  userKassAta: AddressInput;
+  /** Trader's SOL token account the merge pays back into. */
+  userBaseAta: AddressInput;
   /** Trader's cYES account (defaults to the ATA on `refs.yesMint`). */
   userYesAta?: AddressInput;
   /** Trader's cNO account (defaults to the ATA on `refs.noMint`). */
@@ -151,9 +151,9 @@ export interface SellParams {
 }
 
 /**
- * Build `[swap, merge]` for closing a position back to KASS. Swaps `swapAmount`
+ * Build `[swap, merge]` for closing a position back to SOL. Swaps `swapAmount`
  * of the held leg toward the opposite one, then merges a balanced `mergeAmount`
- * pair back into KASS. The two amounts are app-computed from a pool quote (the
+ * pair back into SOL. The two amounts are app-computed from a pool quote (the
  * SDK cannot know the AMM's exact output offline).
  *
  * PRECONDITION: the trader's cYES + cNO accounts must already exist (see
@@ -186,7 +186,7 @@ export async function sellInstructions(
     vault: refs.vault,
     vaultUnderlyingAta: refs.vaultUnderlyingAta,
     authority: user,
-    userUnderlyingAta: params.userKassAta,
+    userUnderlyingAta: params.userBaseAta,
     conditionalMints: [refs.yesMint, refs.noMint],
     userConditionalAtas: [yes, no],
     amount: params.mergeAmount,

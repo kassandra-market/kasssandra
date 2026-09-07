@@ -49,13 +49,13 @@ impl MarketStatus {
 /// (10% = 1000 bps). `init_config`/`update_config` reject anything above this.
 pub const MAX_FEE_BPS: u16 = 1000;
 
-/// Governed singleton at PDA `[b"config"]`. `authority` is the KASS futarchy DAO
+/// Governed singleton at PDA `[b"config"]`. `authority` is the SOL futarchy DAO
 /// executor; only it may `update_config`.
 ///
 /// `fee_bps` + `fee_destination` are the futarchy-governed protocol-fee config:
-/// the KASS cut (in basis points, `<= MAX_FEE_BPS`) and the KASS token account
-/// (on `kass_mint`) fees are routed to. Appended after `bump` so the Phase-1
-/// offsets (`authority@8`/`kass_mint@40`/`min_liquidity@72`) stay pinned.
+/// the SOL cut (in basis points, `<= MAX_FEE_BPS`) and the SOL token account
+/// (on `base_mint`) fees are routed to. Appended after `bump` so the Phase-1
+/// offsets (`authority@8`/`base_mint@40`/`min_liquidity@72`) stay pinned.
 ///
 /// `market_creation_ema` + `last_market_creation_unix` track recent
 /// market-CREATION demand (mirroring the Kassandra oracle's creation-fee EMA);
@@ -71,12 +71,12 @@ pub struct Config {
     pub account_type: u8, // AccountType::Config
     pub _pad_hdr: [u8; 7],
     pub authority: Pubkey,
-    pub kass_mint: Pubkey,
+    pub base_mint: Pubkey,
     pub min_liquidity: u64, // BASE floor — used at/below the EMA threshold (low demand)
     pub bump: u8,
     pub _pad0: u8,
     pub fee_bps: u16,            // protocol fee in basis points (<= MAX_FEE_BPS)
-    pub fee_destination: Pubkey, // KASS token account fees are routed to
+    pub fee_destination: Pubkey, // SOL token account fees are routed to
     pub _pad: [u8; 4],
     // ---- Activity-scaled min-liquidity floor (mirrors the oracle's stake_floor) --
     pub market_creation_ema: u64,         // fixed-point EMA of recent market-creation activity
@@ -102,7 +102,7 @@ pub struct Market {
     pub _pad_hdr: [u8; 7],
     pub oracle: Pubkey,
     pub creator: Pubkey,
-    pub kass_mint: Pubkey,
+    pub base_mint: Pubkey,
     pub escrow_vault: Pubkey,
     pub min_liquidity: u64,
     pub total_contributed: u64,
@@ -113,9 +113,9 @@ pub struct Market {
     pub _pad: [u8; 3],
     // --- Phase-2a MetaDAO bindings (recorded at `activate`) ---
     pub question: Pubkey, // MetaDAO binary Question (oracle-authority == this Market PDA)
-    pub vault: Pubkey,    // KASS conditional vault
-    pub yes_mint: Pubkey, // conditional-KASS mint idx 0 (cYES)
-    pub no_mint: Pubkey,  // conditional-KASS mint idx 1 (cNO)
+    pub vault: Pubkey,    // SOL conditional vault
+    pub yes_mint: Pubkey, // conditional-SOL mint idx 0 (cYES)
+    pub no_mint: Pubkey,  // conditional-SOL mint idx 1 (cNO)
     pub amm: Pubkey,      // the cYES/cNO pool
     pub lp_mint: Pubkey,  // the pool's LP mint
     pub lp_vault: Pubkey, // Market-PDA-owned LP token account holding seeded liquidity

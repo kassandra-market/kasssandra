@@ -11,7 +11,7 @@ import type { AccountMeta } from "@solana/web3.js";
 // Deterministic non-PDA test addresses.
 export const A = (n: number): Address => new Address(new Uint8Array(32).fill(n));
 export const PAYER = A(1);
-export const KASS_MINT = A(2);
+export const BASE_MINT = A(2);
 export const AUTHORITY = A(3);
 export const ORACLE = A(4);
 export const CREATOR = A(5);

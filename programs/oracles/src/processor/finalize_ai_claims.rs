@@ -1,7 +1,7 @@
 //! `finalize_ai_claims`: settle the AI-claim round once its window has elapsed.
 //!
 //! Performs NO token CPI: like `finalize_facts`, it only mutates account data
-//! and bumps the `Oracle.bond_pool` accounting counter. The escrowed KASS does
+//! and bumps the `Oracle.bond_pool` accounting counter. The escrowed SOL does
 //! not move here.
 //!
 //! # Incremental finalization

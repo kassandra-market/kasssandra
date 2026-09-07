@@ -2,7 +2,7 @@
  * Shared surfpool harness for the T-G3 FULL FUTARCHY GOVERNANCE E2E suite:
  * module-level consts, the fixture interfaces, and the low-level on-chain
  * primitives (tx send, account fetch/fabricate, conditional-vault init, the
- * Squads compact-message encoder, and the kass_price reader) reused verbatim by
+ * Squads compact-message encoder, and the spot_price reader) reused verbatim by
  * `futarchy-governance-e2e.test.ts` and `futarchy-governance2-e2e.test.ts`.
  */
 import type { AccountMeta } from "@solana/web3.js";
@@ -16,7 +16,7 @@ import {
 
 import type { Protocol } from "../../src/accounts/index.js";
 import { KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "../../src/constants.js";
-import { kassPrice, type SetConfigParams } from "../../src/instructions/index.js";
+import { spotPrice, type SetConfigParams } from "../../src/instructions/index.js";
 import * as futarchy from "../../src/futarchy/index.js";
 
 import type { SurfpoolHarness } from "./harness.js";
@@ -45,7 +45,7 @@ export const SENTINEL_SUPPLY_CAP = 424_242_424_242n;
 export interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
   dao: Address;
   multisig: Address;
@@ -150,21 +150,21 @@ export async function fabricateDeadendOracle(f: Fixture, optionsCount: number): 
   return acct.publicKey;
 }
 
-/** Read the futarchy spot TWAP (u128 LE return data) via a simulated kass_price tx. */
-export async function readKassPrice(f: Fixture, dao: Address): Promise<bigint> {
+/** Read the futarchy spot TWAP (u128 LE return data) via a simulated spot_price tx. */
+export async function readSpotPrice(f: Fixture, dao: Address): Promise<bigint> {
   const conn = f.harness.connection;
   const tx = new Transaction();
   tx.feePayer = f.payer.publicKey;
   tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-  tx.add(await kassPrice({ kassDao: dao }));
+  tx.add(await spotPrice({ spotDao: dao }));
   await tx.sign(f.payer);
   const b64 = Buffer.from(await tx.serialize()).toString("base64");
   const res = await f.harness.rpc<{
     value: { err: unknown; returnData: { data: [string, string] } | null };
   }>("simulateTransaction", [b64, { encoding: "base64", commitment: "confirmed" }]);
-  if (res.value.err) throw new Error(`kass_price sim failed: ${JSON.stringify(res.value.err)}`);
+  if (res.value.err) throw new Error(`spot_price sim failed: ${JSON.stringify(res.value.err)}`);
   const rd = res.value.returnData?.data?.[0];
-  if (!rd) throw new Error("kass_price returned no data");
+  if (!rd) throw new Error("spot_price returned no data");
   const bytes = Buffer.from(rd, "base64");
   let v = 0n;
   for (let i = bytes.length - 1; i >= 0; i--) v = (v << 8n) | BigInt(bytes[i]);
@@ -193,8 +193,8 @@ export function paramsFromProtocol(p: Protocol): SetConfigParams {
     rewardFactWeight: p.rewardFactWeight,
     challengeFailUsdcFeeNum: p.challengeFailUsdcFeeNum,
     challengeFailUsdcFeeDen: p.challengeFailUsdcFeeDen,
-    challengeSuccessKassFeeNum: p.challengeSuccessKassFeeNum,
-    challengeSuccessKassFeeDen: p.challengeSuccessKassFeeDen,
+    challengeSuccessBaseFeeNum: p.challengeSuccessBaseFeeNum,
+    challengeSuccessBaseFeeDen: p.challengeSuccessBaseFeeDen,
     stakeFloorEmaThreshold: p.stakeFloorEmaThreshold,
     stakeFloorEmaCap: p.stakeFloorEmaCap,
     stakeFloorMax: p.stakeFloorMax,

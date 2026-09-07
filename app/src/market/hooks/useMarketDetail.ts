@@ -46,7 +46,7 @@ export function useMarketDetail(pubkey: string | undefined): MarketDetailState {
   return { ...state, refetchAfterWrite };
 }
 
-/** The program `Config` singleton (KASS mint + funding floor), or `null` if uninitialised. */
+/** The program `Config` singleton (SOL mint + funding floor), or `null` if uninitialised. */
 export function useConfig(): AsyncState<Config | null> {
   const indexer = useIndexer();
   return useAsync(() => fetchConfig(indexer), [indexer]);

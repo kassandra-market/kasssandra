@@ -27,14 +27,14 @@ import {
 } from "../src/flows/index.js";
 import { ATA_PROGRAM_ID } from "../src/constants.js";
 
-const KASS = new Address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+const SOL = new Address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 const ORACLE = new Address("KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY");
 const USER = new Address("11111111111111111111111111111112");
 const USDC = new Address("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt2w");
 
 async function fakeRefs(): Promise<MarketRefs> {
   const market = (await pda.market(ORACLE, 0)).address;
-  const { refs } = await composeMarketInstructions({ market, oracle: ORACLE, kassMint: KASS, payer: USER });
+  const { refs } = await composeMarketInstructions({ market, oracle: ORACLE, baseMint: SOL, payer: USER });
   return refs;
 }
 
@@ -56,7 +56,7 @@ describe("flows/compose", () => {
     const { instructions, refs } = await composeMarketInstructions({
       market,
       oracle: ORACLE,
-      kassMint: KASS,
+      baseMint: SOL,
       payer: USER,
     });
     expect(instructions).toHaveLength(3);
@@ -75,13 +75,13 @@ describe("flows/compose", () => {
 describe("flows/trade", () => {
   it("buy YES = split + swap(cNO→cYES, Buy)", async () => {
     const refs = await fakeRefs();
-    const userKassAta = new Address("So11111111111111111111111111111111111111112");
+    const userBaseAta = new Address("So11111111111111111111111111111111111111112");
     const { instructions } = await buyInstructions({
       refs,
       user: USER,
       outcome: "yes",
       kassAmount: 1000n,
-      userKassAta,
+      userBaseAta,
     });
     expect(instructions).toHaveLength(2);
     expect(Array.from(instructions[0].data.slice(0, 8))).toEqual(Array.from(DISC.splitTokens));
@@ -92,7 +92,7 @@ describe("flows/trade", () => {
 
   it("threads the SAME conditional-ATA overrides into BOTH split and swap", async () => {
     const refs = await fakeRefs();
-    const userKassAta = new Address("So11111111111111111111111111111111111111112");
+    const userBaseAta = new Address("So11111111111111111111111111111111111111112");
     // Deliberately NON-ATA override accounts (as a fabricated/test wallet would use).
     const userYesAta = USDC;
     const userNoAta = ORACLE;
@@ -101,7 +101,7 @@ describe("flows/trade", () => {
       user: USER,
       outcome: "yes",
       kassAmount: 1000n,
-      userKassAta,
+      userBaseAta,
       userYesAta,
       userNoAta,
     });
@@ -120,7 +120,7 @@ describe("flows/trade", () => {
 
   it("throws on an invalid outcome", async () => {
     const refs = await fakeRefs();
-    const userKassAta = new Address("So11111111111111111111111111111111111111112");
+    const userBaseAta = new Address("So11111111111111111111111111111111111111112");
     await expect(
       buyInstructions({
         refs,
@@ -128,34 +128,34 @@ describe("flows/trade", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         outcome: "maybe" as any,
         kassAmount: 1000n,
-        userKassAta,
+        userBaseAta,
       }),
     ).rejects.toThrow(/outcome must be/);
   });
 
   it("buy NO = split + swap(cYES→cNO, Sell)", async () => {
     const refs = await fakeRefs();
-    const userKassAta = new Address("So11111111111111111111111111111111111111112");
+    const userBaseAta = new Address("So11111111111111111111111111111111111111112");
     const { instructions } = await buyInstructions({
       refs,
       user: USER,
       outcome: "no",
       kassAmount: 1000n,
-      userKassAta,
+      userBaseAta,
     });
     expect(instructions[1].data[8]).toBe(SwapType.Sell); // base→quote = cYES→cNO
   });
 
   it("sell YES = swap(cYES→cNO, Sell) + merge", async () => {
     const refs = await fakeRefs();
-    const userKassAta = new Address("So11111111111111111111111111111111111111112");
+    const userBaseAta = new Address("So11111111111111111111111111111111111111112");
     const { instructions } = await sellInstructions({
       refs,
       user: USER,
       outcome: "yes",
       swapAmount: 500n,
       mergeAmount: 400n,
-      userKassAta,
+      userBaseAta,
     });
     expect(instructions).toHaveLength(2);
     expect(instructions[0].data[8]).toBe(SwapType.Sell);
@@ -166,11 +166,11 @@ describe("flows/trade", () => {
 describe("flows/redeem", () => {
   it("emits a single redeem_tokens ix and derives the user conditional ATAs", async () => {
     const refs = await fakeRefs();
-    const userKassAta = new Address("So11111111111111111111111111111111111111112");
+    const userBaseAta = new Address("So11111111111111111111111111111111111111112");
     const { instructions, userYesAta, userNoAta } = await redeemInstructions({
       refs,
       user: USER,
-      userKassAta,
+      userBaseAta,
     });
     expect(instructions).toHaveLength(1);
     expect(Array.from(instructions[0].data.slice(0, 8))).toEqual(Array.from(DISC.redeemTokens));
@@ -180,7 +180,7 @@ describe("flows/redeem", () => {
 });
 
 describe("flows/atas", () => {
-  it("emits idempotent ATA-create ixs (disc 1) for cYES/cNO, and KASS when asked", async () => {
+  it("emits idempotent ATA-create ixs (disc 1) for cYES/cNO, and SOL when asked", async () => {
     const refs = await fakeRefs();
     const both = await ensureConditionalAtasInstructions({ refs, user: USER });
     expect(both.instructions).toHaveLength(2);
@@ -188,16 +188,16 @@ describe("flows/atas", () => {
       expect(ix.programId.toString()).toBe(ATA_PROGRAM_ID.toString());
       expect(Array.from(ix.data)).toEqual([1]); // createAssociatedTokenAccountIdempotent
     }
-    expect(both.userKassAta).toBeUndefined();
+    expect(both.userBaseAta).toBeUndefined();
 
     const withKass = await ensureConditionalAtasInstructions({ refs, user: USER, includeKass: true });
     expect(withKass.instructions).toHaveLength(3);
-    expect(withKass.userKassAta).toBeDefined();
+    expect(withKass.userBaseAta).toBeDefined();
     // The derived cYES ATA matches what redeem/buy derive by default.
     const redeemed = await redeemInstructions({
       refs,
       user: USER,
-      userKassAta: new Address("So11111111111111111111111111111111111111112"),
+      userBaseAta: new Address("So11111111111111111111111111111111111111112"),
     });
     expect(redeemed.userYesAta.toString()).toBe(withKass.userYesAta.toString());
     expect(redeemed.userNoAta.toString()).toBe(withKass.userNoAta.toString());
@@ -205,17 +205,17 @@ describe("flows/atas", () => {
 });
 
 describe("flows/jupiter", () => {
-  it("shapes a v6 quote+swap request (no network) with output = KASS", () => {
+  it("shapes a v6 quote+swap request (no network) with output = SOL", () => {
     const req = buildJupiterEntryRequest({
       inputMint: USDC,
-      outputMint: KASS,
+      outputMint: SOL,
       amount: 1_000_000n,
       slippageBps: 50,
       userPublicKey: USER,
     });
     expect(req.baseUrl).toBe(JUPITER_V6_BASE_URL);
     expect(req.quote.inputMint).toBe(USDC.toString());
-    expect(req.quote.outputMint).toBe(KASS.toString());
+    expect(req.quote.outputMint).toBe(SOL.toString());
     expect(req.quote.amount).toBe("1000000");
     expect(req.quote.slippageBps).toBe(50);
     expect(req.quote.swapMode).toBe("ExactIn");
@@ -246,8 +246,8 @@ describe("flows/createAll", () => {
       oracle: ORACLE,
       optionsCount: 4,
       creator: CREATOR,
-      kassMint: KASS,
-      creatorKassAta: CREATOR_ATA,
+      baseMint: SOL,
+      creatorBaseAta: CREATOR_ATA,
       seedAmount: 1_000n,
     });
 
@@ -272,8 +272,8 @@ describe("flows/createAll", () => {
       oracle: ORACLE,
       optionsCount: 4,
       creator: CREATOR,
-      kassMint: KASS,
-      creatorKassAta: CREATOR_ATA,
+      baseMint: SOL,
+      creatorBaseAta: CREATOR_ATA,
       seedAmount,
     });
 
@@ -293,8 +293,8 @@ describe("flows/createAll", () => {
         oracle: ORACLE,
         optionsCount: 0,
         creator: CREATOR,
-        kassMint: KASS,
-        creatorKassAta: CREATOR_ATA,
+        baseMint: SOL,
+        creatorBaseAta: CREATOR_ATA,
         seedAmount: 1_000n,
       }),
     ).rejects.toThrow();

@@ -13,7 +13,7 @@ pub fn init_protocol(
     program_id: &Pubkey,
     protocol: Pubkey,
     admin: Pubkey,
-    kass_mint: Pubkey,
+    base_mint: Pubkey,
     usdc_mint: Pubkey,
 ) -> Instruction {
     build(
@@ -21,7 +21,7 @@ pub fn init_protocol(
         vec![
             AccountMeta::new(protocol, false),
             AccountMeta::new(admin, true),
-            AccountMeta::new_readonly(kass_mint, false),
+            AccountMeta::new_readonly(base_mint, false),
             AccountMeta::new_readonly(usdc_mint, false),
             AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
         ],
@@ -41,10 +41,10 @@ pub fn create_oracle(
     deadline: i64,
     twap_window: i64,
     oracle: Pubkey,
-    kass_mint: Pubkey,
+    base_mint: Pubkey,
     usdc_mint: Pubkey,
     creator: Pubkey,
-    creator_kass: Pubkey,
+    creator_base: Pubkey,
 ) -> Instruction {
     let (protocol, _) = crate::pda::protocol(program_id);
     let (stake_vault, _) = crate::pda::stake_vault(program_id, &oracle);
@@ -64,11 +64,11 @@ pub fn create_oracle(
             AccountMeta::new(oracle, false),
             AccountMeta::new(stake_vault, false),
             AccountMeta::new(creator, true),
-            AccountMeta::new(kass_mint, false),
+            AccountMeta::new(base_mint, false),
             AccountMeta::new_readonly(usdc_mint, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
-            AccountMeta::new(creator_kass, false),
+            AccountMeta::new(creator_base, false),
             AccountMeta::new_readonly(mint_authority, false),
         ],
         data,

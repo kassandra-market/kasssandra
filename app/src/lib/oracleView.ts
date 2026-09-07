@@ -81,8 +81,8 @@ export function groupDigits(n: bigint): string {
   return neg ? `-${s}` : s
 }
 
-/** KASS mint decimals (raw base units → human amount). Mirrors the market SDK. */
-export const KASS_DECIMALS = 9
+/** SOL mint decimals (raw base units → human amount). Mirrors the market SDK. */
+export const SOL_DECIMALS = 9
 
 /** USDC decimals — the AMM quote side + the challenger's escrowed USDC. */
 export const USDC_DECIMALS = 6
@@ -108,9 +108,9 @@ export function formatUnits(amount: bigint, decimals: number): string {
   return neg ? `-${out}` : out
 }
 
-/** Format a raw base-unit KASS amount ({@link KASS_DECIMALS}) as a scaled figure. */
-export function formatKass(amount: bigint): string {
-  return formatUnits(amount, KASS_DECIMALS)
+/** Format a raw base-unit SOL amount ({@link SOL_DECIMALS}) as a scaled figure. */
+export function formatSol(amount: bigint): string {
+  return formatUnits(amount, SOL_DECIMALS)
 }
 
 /** Format a raw base-unit USDC amount ({@link USDC_DECIMALS}) as a scaled figure. */

@@ -8,7 +8,7 @@ import { resolveOracleNonce } from '../../data/actions/finalize'
  */
 export interface SettleCtx {
   oracle: string
-  kassMint: Address
+  baseMint: Address
   refetch: () => void
 }
 

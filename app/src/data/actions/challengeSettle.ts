@@ -10,13 +10,13 @@
  * one-click wallet action:
  *
  *   - **Directly on the Market** (fields decoded from the on-chain account):
- *     `aiClaim`, `proposer`, `question`, `passAmm`, `failAmm`, `kassVault`,
+ *     `aiClaim`, `proposer`, `question`, `passAmm`, `failAmm`, `baseVault`,
  *     `oraclePassKass`, `oracleFailKass`.
  *   - **Derived (CU2/CU3 derivations, reused import-only):**
- *     - `passKassMint` / `failKassMint` = `conditionalTokenMint(market.kassVault, 0/1)`;
- *     - `kassVaultUnderlying` = `associatedTokenAccount(market.kassVault, oracle.kassMint)`
- *       — the KASS conditional vault's underlying ATA (the same one CU3 composes +
- *       the settle handler binds against `kass_vault.underlying_token_account`);
+ *     - `passBaseMint` / `failBaseMint` = `conditionalTokenMint(market.baseVault, 0/1)`;
+ *     - `baseVaultUnderlying` = `associatedTokenAccount(market.baseVault, oracle.baseMint)`
+ *       — the SOL conditional vault's underlying ATA (the same one CU3 composes +
+ *       the settle handler binds against `base_vault.underlying_token_account`);
  *     - `cvEventAuthority` = `futarchy.pda.vaultEventAuthority()` (fixed PDA);
  *     - `proposerUsdc` = `ATA(proposerAuthority, oracle.usdcMint)` — NOTE the
  *       owner is the proposer's WALLET (`Proposer.authority`), NOT the Proposer
@@ -26,7 +26,7 @@
  *       `proposerAuthority` (read off the decoded `Proposer` whose pubkey ==
  *       `market.proposer`, already fetched by `fetchOracleDetail`);
  *     - `challengerUsdcDest` = `ATA(market.challenger, oracle.usdcMint)`;
- *     - `challengerKass` = `ATA(market.challenger, oracle.kassMint)`.
+ *     - `challengerKass` = `ATA(market.challenger, oracle.baseMint)`.
  *
  * --- challengerUsdcDest vs the escrow (settle account 19 vs 17) ---
  * The settle handler (`processor/settle_challenge.rs`) reads TWO challenger-USDC
@@ -42,7 +42,7 @@
  * settle ASSERTS the three payout destinations (proposerUsdc / challengerUsdcDest
  * / challengerKass) as existing SPL token accounts — it does NOT create them (it
  * only `assert_token_account`s owner+mint, then transfers into them). On a real
- * cluster a payout ATA could be absent (e.g. the challenger never held KASS), and
+ * cluster a payout ATA could be absent (e.g. the challenger never held SOL), and
  * settle would then fail the assert. So — when a `connection` is supplied — this
  * prepends an idempotent `createAssociatedTokenAccountIdempotent` for each of the
  * three payout ATAs (the settle payer covers the tiny rent; already-present ATAs
@@ -81,7 +81,7 @@ export interface BuildSettleFromMarketArgs {
   oracleNonce: bigint | number;
   /** The DECODED on-chain challenge {@link Market} (source of 8 of the 15 accounts). */
   market: Market;
-  /** The DECODED {@link Oracle} (its kass/usdc mints derive the payout ATAs). */
+  /** The DECODED {@link Oracle} (its base/usdc mints derive the payout ATAs). */
   oracle: Oracle;
   /**
    * The challenged proposer's WALLET authority (`Proposer.authority`) — the OWNER
@@ -157,11 +157,11 @@ export async function buildSettleFromMarketIxs(
       ? args.proposerAuthority
       : new Address(args.proposerAuthority);
 
-  // --- derived: conditional-KASS mints (pass=0/fail=1) + the vault underlying ATA
-  const [passKassMint, failKassMint, kassVaultUnderlying, cvEventAuthority] = await Promise.all([
-    conditionalTokenMint(market.kassVault, 0),
-    conditionalTokenMint(market.kassVault, 1),
-    associatedTokenAccount(market.kassVault, oracle.kassMint).then((p) => p.address),
+  // --- derived: conditional-SOL mints (pass=0/fail=1) + the vault underlying ATA
+  const [passBaseMint, failBaseMint, baseVaultUnderlying, cvEventAuthority] = await Promise.all([
+    conditionalTokenMint(market.baseVault, 0),
+    conditionalTokenMint(market.baseVault, 1),
+    associatedTokenAccount(market.baseVault, oracle.baseMint).then((p) => p.address),
     futarchy.pda.vaultEventAuthority().then((p) => p.address),
   ]);
 
@@ -169,7 +169,7 @@ export async function buildSettleFromMarketIxs(
   const [proposerUsdc, challengerUsdcDest, challengerKass] = await Promise.all([
     associatedTokenAccount(proposerAuthority, oracle.usdcMint).then((p) => p.address),
     associatedTokenAccount(market.challenger, oracle.usdcMint).then((p) => p.address),
-    associatedTokenAccount(market.challenger, oracle.kassMint).then((p) => p.address),
+    associatedTokenAccount(market.challenger, oracle.baseMint).then((p) => p.address),
   ]);
 
   const settleIxs = await buildSettleChallengeIxs({
@@ -180,13 +180,13 @@ export async function buildSettleFromMarketIxs(
     question: market.question,
     passAmm: market.passAmm,
     failAmm: market.failAmm,
-    kassVault: market.kassVault,
+    baseVault: market.baseVault,
     oraclePassKass: market.oraclePassKass,
     oracleFailKass: market.oracleFailKass,
     // --- derived ---
-    passKassMint,
-    failKassMint,
-    kassVaultUnderlying,
+    passBaseMint,
+    failBaseMint,
+    baseVaultUnderlying,
     cvEventAuthority,
     proposerUsdc,
     challengerUsdcDest,
@@ -202,7 +202,7 @@ export async function buildSettleFromMarketIxs(
     const creates = [
       createAtaIdempotentIx(payer, proposerUsdc, proposerAuthority, oracle.usdcMint),
       createAtaIdempotentIx(payer, challengerUsdcDest, market.challenger, oracle.usdcMint),
-      createAtaIdempotentIx(payer, challengerKass, market.challenger, oracle.kassMint),
+      createAtaIdempotentIx(payer, challengerKass, market.challenger, oracle.baseMint),
     ];
     return [...creates, ...settleIxs];
   }

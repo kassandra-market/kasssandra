@@ -21,7 +21,7 @@ They are recorded here so later work does not re-litigate them silently.
 | Question | Decision |
 |---|---|
 | Which rollup? | **MagicBlock Ephemeral Rollups**. Programs stay deployed on Solana L1; accounts are delegated to an ER validator. Magic Router (`devnet-router.magicblock.app`) routes txs. |
-| L1 vs ER split? | **L1:** `InitProtocol`, `CreateOracle`, token custody (KASS/USDC ATAs), MetaDAO challenge compose/settle, claims, sweep, governance. **ER:** after `DelegateOracle`, the interactive phase machine (propose/facts/votes/AI apply/phase cranks) and market trading. **v1 custody:** base-layer ATAs + post-commit payout — not Ephemeral SPL yet. |
+| L1 vs ER split? | **L1:** `InitProtocol`, `CreateOracle`, token custody (SOL/USDC ATAs), MetaDAO challenge compose/settle, claims, sweep, governance. **ER:** after `DelegateOracle`, the interactive phase machine (propose/facts/votes/AI apply/phase cranks) and market trading. **v1 custody:** base-layer ATAs + post-commit payout — not Ephemeral SPL yet. |
 | External AI oracle = ? | A **Kassandra-owned `AiOracleFeed` PDA** written by a governance-configured pusher (MagicBlock chain-pusher pattern). Not Allora (price forecasts) and not a hard Switchboard dependency. The in-house runner becomes one optional pusher via `PushAiOracleFeed`. |
 | Keep the dispute machine? | **Yes.** Facts + challenge markets stay. The AI round changes: a single attested feed is applied onto proposers (`ApplyExternalAiClaim`) instead of N independent Anthropic re-runs being protocol-critical. `SubmitAiClaim` remains as a fallback when the feed is disabled. |
 | Markets program too? | **Yes** — parallel `DelegateMarket` / `CommitMarket` / `UndelegateMarket`. |

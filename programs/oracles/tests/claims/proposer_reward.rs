@@ -49,12 +49,12 @@ fn flipped_survivor_not_overpaid() {
             seed.oracle,
             seed.nonce,
             p.account,
-            p.dest_kass,
+            p.dest_base,
             seed.stake_vault,
             p.authority.pubkey(),
         );
         let (account, dest, recip, expected) =
-            (p.account, p.dest_kass, p.authority.pubkey(), p.expected);
+            (p.account, p.dest_base, p.authority.pubkey(), p.expected);
         assert_claim(
             &mut ctx,
             ix,
@@ -73,10 +73,10 @@ fn flipped_survivor_not_overpaid() {
 
 #[test]
 fn disqualified_forfeits_full_bond() {
-    // C1: a CHALLENGE-disqualified proposer has `slashed_amount = bond − kass_fee`
-    // (< bond), and `settle_challenge` already paid `kass_fee` out of the vault to
+    // C1: a CHALLENGE-disqualified proposer has `slashed_amount = bond − base_fee`
+    // (< bond), and `settle_challenge` already paid `base_fee` out of the vault to
     // the challenger. The claim must pay the fraudster 0 (forfeit the WHOLE bond),
-    // NOT `bond − slashed_amount == kass_fee` (which is already gone → would short
+    // NOT `bond − slashed_amount == base_fee` (which is already gone → would short
     // the vault).
     let mut ctx = TestCtx::new();
     let proposers = vec![
@@ -87,7 +87,7 @@ fn disqualified_forfeits_full_bond() {
             disqualified: false,
             slashed_amount: 0,
         },
-        // challenge-disqualified: bond 1000, kass_fee 100 ⇒ slashed_amount 900 (<bond)
+        // challenge-disqualified: bond 1000, base_fee 100 ⇒ slashed_amount 900 (<bond)
         ClaimProposerSpec {
             bond: 1_000,
             claim_option: 0,
@@ -107,12 +107,12 @@ fn disqualified_forfeits_full_bond() {
             seed.oracle,
             seed.nonce,
             p.account,
-            p.dest_kass,
+            p.dest_base,
             seed.stake_vault,
             p.authority.pubkey(),
         );
         let (account, dest, recip, expected) =
-            (p.account, p.dest_kass, p.authority.pubkey(), p.expected);
+            (p.account, p.dest_base, p.authority.pubkey(), p.expected);
         assert_claim(
             &mut ctx,
             ix,
@@ -123,12 +123,12 @@ fn disqualified_forfeits_full_bond() {
             expected,
         );
     }
-    // The 100 kass_fee that (in the real flow) left the vault to the challenger is
+    // The 100 base_fee that (in the real flow) left the vault to the challenger is
     // here modeled as conservation-safe leftover dust — never over-paid.
     let dust = ctx.token_balance(seed.stake_vault);
     assert_eq!(
         dust, 100,
-        "the kass_fee remains as dust, never paid to the fraudster"
+        "the base_fee remains as dust, never paid to the fraudster"
     );
 }
 
@@ -179,7 +179,7 @@ fn ceil_voter_slash_no_shortfall() {
             seed.nonce,
             v.account,
             fact_account,
-            v.dest_kass,
+            v.dest_base,
             seed.stake_vault,
             v.authority.pubkey(),
         );
@@ -190,7 +190,7 @@ fn ceil_voter_slash_no_shortfall() {
         seed.oracle,
         seed.nonce,
         s.account,
-        s.dest_kass,
+        s.dest_base,
         seed.stake_vault,
         s.authority.pubkey(),
     );
@@ -204,7 +204,7 @@ fn ceil_voter_slash_no_shortfall() {
         seed.oracle,
         seed.nonce,
         p.account,
-        p.dest_kass,
+        p.dest_base,
         seed.stake_vault,
         p.authority.pubkey(),
     );
@@ -213,7 +213,7 @@ fn ceil_voter_slash_no_shortfall() {
         res.is_ok(),
         "reward claimant must NOT be short-changed (ceil slash keeps the vault solvent): {res:?}"
     );
-    assert_eq!(ctx.token_balance(p.dest_kass), 1_601);
+    assert_eq!(ctx.token_balance(p.dest_base), 1_601);
     // 1 unit of conservation-safe dust remains (ceil excess + reward floor).
     assert_eq!(ctx.token_balance(seed.stake_vault), 1);
 }

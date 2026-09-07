@@ -3,12 +3,12 @@
  *
  * The MetaDAO `InteractWithVault` account list (split / merge / redeem) and the
  * AMM `swap` list carry NO Associated-Token-Account or System program, so they
- * CANNOT create the user's cYES/cNO (or the redeem KASS) token accounts — those
+ * CANNOT create the user's cYES/cNO (or the redeem SOL) token accounts — those
  * must already exist. For a fresh wallet an app must prepend account creation.
  *
  * {@link ensureConditionalAtasInstructions} returns idempotent
  * `createAssociatedTokenAccountIdempotent` instructions (ATA program discriminant
- * `1`) for the user's cYES + cNO (and optionally the KASS underlying) ATAs. They
+ * `1`) for the user's cYES + cNO (and optionally the SOL underlying) ATAs. They
  * are safe to prepend unconditionally — an already-existing ATA is a no-op.
  */
 import { Address, TransactionInstruction } from "@solana/web3.js";
@@ -59,19 +59,19 @@ async function createIdempotentAta(
 }
 
 export interface EnsureAtasParams {
-  /** Composed market refs (carry the cYES/cNO + KASS mints). */
+  /** Composed market refs (carry the cYES/cNO + SOL mints). */
   refs: MarketRefs;
   /** The wallet that will own (and here, pay for) the ATAs. */
   user: AddressInput;
   /** Rent payer (defaults to `user`). */
   payer?: AddressInput;
-  /** Also create the user's KASS underlying ATA (needed by redeem). Default false. */
+  /** Also create the user's SOL underlying ATA (needed by redeem). Default false. */
   includeKass?: boolean;
 }
 
 /**
  * Idempotent `createAssociatedTokenAccountIdempotent` instructions for the user's
- * cYES + cNO ATAs (and the KASS ATA when `includeKass`). Prepend these to a
+ * cYES + cNO ATAs (and the SOL ATA when `includeKass`). Prepend these to a
  * `buyInstructions` / `redeemInstructions` list for a wallet whose ATAs may not
  * exist yet. Returns the instructions plus the derived ATA addresses.
  */
@@ -79,7 +79,7 @@ export async function ensureConditionalAtasInstructions(params: EnsureAtasParams
   instructions: TransactionInstruction[];
   userYesAta: Address;
   userNoAta: Address;
-  userKassAta?: Address;
+  userBaseAta?: Address;
 }> {
   const owner = toAddr(params.user);
   const payer = params.payer ? toAddr(params.payer) : owner;
@@ -87,12 +87,12 @@ export async function ensureConditionalAtasInstructions(params: EnsureAtasParams
   const yes = await createIdempotentAta(payer, owner, toAddr(params.refs.yesMint));
   const no = await createIdempotentAta(payer, owner, toAddr(params.refs.noMint));
   const instructions = [yes.ix, no.ix];
-  let userKassAta: Address | undefined;
+  let userBaseAta: Address | undefined;
   if (params.includeKass) {
-    const kass = await createIdempotentAta(payer, owner, toAddr(params.refs.kassMint));
-    instructions.push(kass.ix);
-    userKassAta = kass.ata;
+    const base = await createIdempotentAta(payer, owner, toAddr(params.refs.baseMint));
+    instructions.push(base.ix);
+    userBaseAta = base.ata;
   }
 
-  return { instructions, userYesAta: yes.ata, userNoAta: no.ata, userKassAta };
+  return { instructions, userYesAta: yes.ata, userNoAta: no.ata, userBaseAta };
 }

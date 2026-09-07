@@ -31,15 +31,9 @@ fn create_oracle_happy_path() {
     let mut ctx = TestCtx::new();
     let (_p, res) = ctx.init_protocol();
     assert!(res.is_ok(), "init_protocol should succeed: {res:?}");
-    // Emission is DISABLED at genesis (fail-safe); enable the recommended curve
-    // via governance so this test exercises the mint path.
-    ctx.enable_default_emission();
 
     let deadline = ctx.now() + 1_000;
     let twap_window = 600;
-    // Emission now enabled: create mints `reward_emission` into the vault.
-    let emission = ctx.expected_creation_emission();
-    assert!(emission > 0, "enabled config emits at genesis supply");
     let (oracle_pda, res) = ctx.create_oracle(7, 3, deadline, twap_window);
     assert!(res.is_ok(), "create_oracle should succeed: {res:?}");
 
@@ -47,7 +41,7 @@ fn create_oracle_happy_path() {
     assert_eq!(o.account_type, AccountType::Oracle.as_u8());
     assert_eq!(o.phase, Phase::Proposal.as_u8());
     assert_eq!(o.creator, ctx.payer.pubkey().to_bytes().into());
-    assert_eq!(o.kass_mint, ctx.kass_mint.to_bytes().into());
+    assert_eq!(o.base_mint, ctx.base_mint.to_bytes().into());
     assert_eq!(o.usdc_mint, ctx.usdc_mint.to_bytes().into());
     assert_eq!(o.deadline, deadline);
     assert_eq!(o.phase_ends_at, deadline + PROPOSAL_WINDOW);
@@ -62,17 +56,17 @@ fn create_oracle_happy_path() {
     assert_eq!(o.settled_count, 0);
     assert_eq!(o.ai_finalized_count, 0);
     assert_eq!(o.open_challenge_count, 0);
-    // The pre-minted emission is recorded on the oracle and sits in the vault.
-    assert_eq!(o.reward_emission, emission);
+    // No native-token minting: reward_emission is always 0.
+    assert_eq!(o.reward_emission, 0);
 
-    // The stake vault is a KASS token account, authority == oracle PDA, holding
-    // exactly the minted emission (no proposer bonds yet).
+    // The stake vault is a SOL token account, authority == oracle PDA, empty
+    // until proposers bond.
     let (vault_pda, _) = TestCtx::stake_vault_pda(&ctx.program_id, &oracle_pda);
     assert_eq!(o.stake_vault, vault_pda.to_bytes().into());
     let (mint, owner, amount) = ctx.token_account(vault_pda);
-    assert_eq!(mint, ctx.kass_mint.to_bytes());
+    assert_eq!(mint, ctx.base_mint.to_bytes());
     assert_eq!(owner, oracle_pda.to_bytes());
-    assert_eq!(amount, emission);
+    assert_eq!(amount, 0);
 }
 
 #[test]
@@ -128,7 +122,7 @@ fn mint_mismatch_vs_protocol_fails() {
     let _ = ctx.init_protocol();
     let deadline = ctx.now() + 1_000;
 
-    // A bogus KASS mint not equal to the protocol's canonical mint.
+    // A bogus SOL mint not equal to the protocol's canonical mint.
     let fake_kass = Pubkey::new_unique();
     let (oracle_pda, _) = TestCtx::oracle_pda(&ctx.program_id, 1);
     let ix = ctx.create_oracle_ix(1, 2, deadline, 600, oracle_pda, fake_kass, ctx.usdc_mint);
@@ -136,7 +130,7 @@ fn mint_mismatch_vs_protocol_fails() {
     assert_eq!(
         custom_code(&res),
         Some(KassandraError::InvalidAccount as u32),
-        "spoofed KASS mint must fail InvalidAccount: {res:?}"
+        "spoofed SOL mint must fail InvalidAccount: {res:?}"
     );
 
     // Likewise a bogus USDC mint.
@@ -147,7 +141,7 @@ fn mint_mismatch_vs_protocol_fails() {
         deadline,
         600,
         TestCtx::oracle_pda(&ctx.program_id, 2).0,
-        ctx.kass_mint,
+        ctx.base_mint,
         fake_usdc,
     );
     let res = ctx.send(ix, &[]);

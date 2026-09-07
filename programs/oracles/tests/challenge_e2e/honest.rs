@@ -6,8 +6,8 @@ use super::support::*;
 use super::*;
 
 use kassandra_oracles_program::config::{
-    CHALLENGE_FAIL_USDC_FEE_DEN, CHALLENGE_FAIL_USDC_FEE_NUM, CHALLENGE_SUCCESS_KASS_FEE_DEN,
-    CHALLENGE_SUCCESS_KASS_FEE_NUM,
+    CHALLENGE_FAIL_USDC_FEE_DEN, CHALLENGE_FAIL_USDC_FEE_NUM, CHALLENGE_SUCCESS_BASE_FEE_DEN,
+    CHALLENGE_SUCCESS_BASE_FEE_NUM,
 };
 use solana_keypair::Keypair;
 use solana_pubkey::Pubkey;
@@ -18,11 +18,11 @@ fn e2e_honest_full_lifecycle_survives() {
     let mut ctx = TestCtx::new();
     ctx.svm.add_program(vault_id(), VAULT_SO).unwrap();
     ctx.svm.add_program(amm_id(), AMM_SO).unwrap();
-    let kass_dao = ctx.bless_kass_price();
+    let spot_dao = ctx.bless_spot_price();
 
     // REAL front door → Challenge with an un-slashed proposer + real AiClaim.
     let c = front_door_to_challenge(&mut ctx);
-    let (m, oracle_pass_kass, oracle_fail_kass) = setup_market(&mut ctx, c.oracle);
+    let (m, oracle_pass_base, oracle_fail_base) = setup_market(&mut ctx, c.oracle);
 
     // Both pools at the neutral seeded price (1e9) → pass == fail → survives.
     let pass_amm = build_pool(
@@ -62,9 +62,9 @@ fn e2e_honest_full_lifecycle_survives() {
         pass_amm,
         fail_amm,
         c.stake_vault,
-        oracle_pass_kass,
-        oracle_fail_kass,
-        kass_dao,
+        oracle_pass_base,
+        oracle_fail_base,
+        spot_dao,
         challenger_usdc_src,
         c.nonce,
     );
@@ -81,7 +81,7 @@ fn e2e_honest_full_lifecycle_survives() {
 
     // Emission is ON by default: the real-flow oracle's stake_vault also holds
     // the creation-time `reward_emission` (untouched until finalize_oracle). The
-    // KASS-conservation baseline must therefore include it alongside Σ stakes.
+    // SOL-conservation baseline must therefore include it alongside Σ stakes.
     let total_before =
         ctx.oracle(c.oracle).total_oracle_stake + ctx.oracle(c.oracle).reward_emission;
     let bond_pool_before = ctx.oracle(c.oracle).bond_pool;
@@ -90,12 +90,12 @@ fn e2e_honest_full_lifecycle_survives() {
     ctx.warp(TWAP_WINDOW + 1);
     let extras = SettleExtras {
         stake_vault: c.stake_vault,
-        kass_vault: m.kass_vault,
-        kass_vault_underlying: m.kass_vault_underlying,
+        base_vault: m.base_vault,
+        base_vault_underlying: m.base_vault_underlying,
         pass_mint: m.pass_mint,
         fail_mint: m.fail_mint,
-        oracle_pass_kass,
-        oracle_fail_kass,
+        oracle_pass_base,
+        oracle_fail_base,
         escrow_vault: payouts.escrow_vault,
         proposer_usdc: payouts.proposer_usdc,
         challenger_usdc_dest: payouts.challenger_usdc_dest,
@@ -113,8 +113,8 @@ fn e2e_honest_full_lifecycle_survives() {
         BOND,
         escrow,
         0,
-        CHALLENGE_SUCCESS_KASS_FEE_NUM,
-        CHALLENGE_SUCCESS_KASS_FEE_DEN,
+        CHALLENGE_SUCCESS_BASE_FEE_NUM,
+        CHALLENGE_SUCCESS_BASE_FEE_DEN,
         CHALLENGE_FAIL_USDC_FEE_NUM,
         CHALLENGE_FAIL_USDC_FEE_DEN,
     );

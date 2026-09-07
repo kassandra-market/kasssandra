@@ -7,27 +7,27 @@ import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
 import { WriteStatusRegion } from './WriteStatusRegion'
 import { parseAmount, balanceGateError } from './amount'
-import { useKassBalance } from '../../../hooks/useKassBalance'
-import { KassBalanceLine } from './kassBalance'
+import { useSolBalance } from '../../../hooks/useSolBalance'
+import { SolBalanceLine } from './solBalance'
 
 /**
  * Per-fact voting control (FactVoting phase only): Approve or flag Duplicate +
- * an escrowed KASS stake. Wraps WF1 `buildVoteFactIxs`. Rendered inside each
+ * an escrowed SOL stake. Wraps WF1 `buildVoteFactIxs`. Rendered inside each
  * fact card so the vote is anchored to the fact it concerns.
  */
 export function VoteControl({
   oracle,
-  kassMint,
+  baseMint,
   factPubkey,
   refetch,
 }: {
   oracle: string
-  kassMint: Address
+  baseMint: Address
   factPubkey: string
   refetch: () => void
 }) {
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(
-    String(kassMint),
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useSolBalance(
+    String(baseMint),
   )
   const action = useWriteAction(() => {
     refetch()
@@ -50,7 +50,7 @@ export function VoteControl({
       buildVoteFactIxs({
         connection: action.connection,
         oracle,
-        kassMint,
+        baseMint,
         fact: factPubkey,
         voter: action.address!,
         kind,
@@ -88,7 +88,7 @@ export function VoteControl({
               Duplicate
             </button>
           </div>
-          <Field label="Stake (KASS)" error={stakeError ?? balanceError}>
+          <Field label="Stake (SOL)" error={stakeError ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
@@ -99,7 +99,7 @@ export function VoteControl({
               />
             )}
           </Field>
-          <KassBalanceLine balance={balance} loading={balanceLoading} />
+          <SolBalanceLine balance={balance} loading={balanceLoading} />
           <div>
             <SubmitButton verb="Cast vote" status={action.status} disabled={Boolean(balanceError)} />
           </div>

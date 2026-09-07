@@ -7,7 +7,7 @@ Once an oracle reaches `Resolved` or `InvalidDeadend`, the dApp exposes the clea
 
 ## Claim rewards and refunds
 
-Each participant card shows a **Claim** control, but only to the owning wallet (`authority == connected`). Claiming pays the KASS reward or refund and closes the underlying account, returning its rent. The instruction depends on the account type (`sdk/src/instructions/settlement.ts`):
+Each participant card shows a **Claim** control, but only to the owning wallet (`authority == connected`). Claiming pays the SOL reward or refund and closes the underlying account, returning its rent. The instruction depends on the account type (`sdk/src/instructions/settlement.ts`):
 
 | Claim | Builder | Ix | Closes |
 | --- | --- | --- | --- |
@@ -27,7 +27,7 @@ Some accounts have no per-participant payout and are closed permissionlessly to 
 After a grace period, the residual balances on a terminal oracle are swept to the DAO treasury and the oracle/vault accounts are closed. This is the SDK's `sweepOracle` (Ix = 22, `sdk/src/instructions/settlement.ts`):
 
 - **Permissionless** but **grace-gated** and **governance-checked**.
-- Routes the residual to the DAO treasury ATA — `ATA(dao_authority, kass_mint)` (`sdk/src/pda.ts` `associatedTokenAccount`) — and returns the oracle's rent to the **creator**.
+- Routes the residual to the DAO treasury ATA — `ATA(dao_authority, base_mint)` (`sdk/src/pda.ts` `associatedTokenAccount`) — and returns the oracle's rent to the **creator**.
 - Payload: `oracle_nonce u64`.
 
 <Note>

@@ -1,11 +1,11 @@
 /**
- * KASS balance read helper (pure — takes a {@link Connection}, NO React).
+ * SOL balance read helper (pure — takes a {@link Connection}, NO React).
  *
- * {@link fetchKassBalance} derives the owner's `ATA(owner, kassMint)` (the same
+ * {@link fetchSolBalance} derives the owner's `ATA(owner, baseMint)` (the same
  * deriver the WF1 action layer uses) and reads its token-account balance,
  * returning the raw base-unit amount as a `bigint`.
  *
- * An ABSENT/uninitialised KASS ATA (the RPC throws "could not find account" or
+ * An ABSENT/uninitialised SOL ATA (the RPC throws "could not find account" or
  * returns no value) legitimately means a zero balance → **0n** is returned, not
  * thrown. A genuinely transient/unexpected RPC error propagates so the caller
  * (the hook) can treat it softly and NOT hard-block the form on a flaky fetch.
@@ -15,16 +15,16 @@ import { associatedTokenAccount } from '@kassandra-market/oracles'
 import type { AddressInput } from '../data/actions'
 
 /**
- * The owner's KASS balance in raw base units, or `0n` when the ATA is absent.
+ * The owner's SOL balance in raw base units, or `0n` when the ATA is absent.
  * @throws only on a genuinely unexpected/transient RPC failure (never for a
  *   not-found ATA, which is caught and reported as `0n`).
  */
-export async function fetchKassBalance(
+export async function fetchSolBalance(
   connection: Connection,
   owner: AddressInput,
-  kassMint: AddressInput,
+  baseMint: AddressInput,
 ): Promise<bigint> {
-  const ata = (await associatedTokenAccount(owner, kassMint)).address
+  const ata = (await associatedTokenAccount(owner, baseMint)).address
   try {
     const res = await connection.getTokenAccountBalance(ata)
     // A present-but-empty response (no value) is treated as zero.

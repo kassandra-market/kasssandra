@@ -36,7 +36,7 @@ pub(super) fn is_resolved(oracle: &Oracle) -> Result<bool, ProgramError> {
     Ok(oracle.phase() == Some(Phase::Resolved))
 }
 
-/// Transfer `amount` KASS from `stake_vault` → `dest`, program-signed by the
+/// Transfer `amount` SOL from `stake_vault` → `dest`, program-signed by the
 /// oracle PDA (`[b"oracle", nonce_le, [bump]]`). A zero amount is a no-op (a
 /// rejected fact submitter still closes + reclaims rent). Then CLOSE `claimant`,
 /// draining its rent lamports to `rent_recipient` and zeroing its data so a

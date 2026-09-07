@@ -11,7 +11,7 @@ use spl_token::ID as TOKEN_PROGRAM_ID;
 
 /// Build the full `open_challenge` instruction. The challenger USDC escrow size
 /// is computed on-chain (no payload amount); the caller passes the challenger's
-/// USDC source account + the blessed `kass_dao`, and the protocol/escrow-vault
+/// USDC source account + the blessed `spot_dao`, and the protocol/escrow-vault
 /// PDAs are derived here.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn open_challenge_ix(
@@ -23,9 +23,9 @@ pub(crate) fn open_challenge_ix(
     challenger: Pubkey,
     m: &MarketAccounts,
     stake_vault: Pubkey,
-    oracle_pass_kass: Pubkey,
-    oracle_fail_kass: Pubkey,
-    kass_dao: Pubkey,
+    oracle_pass_base: Pubkey,
+    oracle_fail_base: Pubkey,
+    spot_dao: Pubkey,
     challenger_usdc_src: Pubkey,
     nonce: u64,
 ) -> Instruction {
@@ -44,22 +44,22 @@ pub(crate) fn open_challenge_ix(
             AccountMeta::new(market, false),
             AccountMeta::new(challenger, true),
             AccountMeta::new_readonly(m.question, false),
-            AccountMeta::new(m.kass_vault, false),
+            AccountMeta::new(m.base_vault, false),
             AccountMeta::new_readonly(m.usdc_vault, false),
             AccountMeta::new_readonly(m.pass_amm, false),
             AccountMeta::new_readonly(m.fail_amm, false),
             AccountMeta::new(stake_vault, false),
-            AccountMeta::new(m.kass_vault_underlying, false),
+            AccountMeta::new(m.base_vault_underlying, false),
             AccountMeta::new(m.pass_mint, false),
             AccountMeta::new(m.fail_mint, false),
-            AccountMeta::new(oracle_pass_kass, false),
-            AccountMeta::new(oracle_fail_kass, false),
+            AccountMeta::new(oracle_pass_base, false),
+            AccountMeta::new(oracle_fail_base, false),
             AccountMeta::new_readonly(vault_id(), false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(solana_sdk_ids::system_program::ID, false),
             AccountMeta::new_readonly(cv_event_auth, false),
             AccountMeta::new_readonly(protocol, false),
-            AccountMeta::new_readonly(kass_dao, false),
+            AccountMeta::new_readonly(spot_dao, false),
             AccountMeta::new_readonly(ctx.usdc_mint, false),
             AccountMeta::new(challenger_usdc_src, false),
             AccountMeta::new(escrow_vault, false),
@@ -80,9 +80,9 @@ pub(crate) struct Fixture {
     pub(crate) market: Pubkey,
     pub(crate) challenger: Keypair,
     pub(crate) m: MarketAccounts,
-    pub(crate) oracle_pass_kass: Pubkey,
-    pub(crate) oracle_fail_kass: Pubkey,
-    pub(crate) kass_dao: Pubkey,
+    pub(crate) oracle_pass_base: Pubkey,
+    pub(crate) oracle_fail_base: Pubkey,
+    pub(crate) spot_dao: Pubkey,
     pub(crate) challenger_usdc_src: Pubkey,
 }
 
@@ -95,9 +95,9 @@ pub(crate) fn fixture_with_bond(bond0: u64) -> (TestCtx, Fixture) {
     ctx.svm.add_program(vault_id(), VAULT_SO).unwrap();
     ctx.svm.add_program(amm_id(), AMM_SO).unwrap();
 
-    // Protocol + governance handoff with a deterministic kass_price so the
+    // Protocol + governance handoff with a deterministic spot_price so the
     // on-chain escrow sizing is computable.
-    let kass_dao = ctx.bless_kass_price();
+    let spot_dao = ctx.bless_spot_price();
 
     let oracle = ctx.seed_disputed_oracle(&[
         ProposerSpec {
@@ -118,7 +118,7 @@ pub(crate) fn fixture_with_bond(bond0: u64) -> (TestCtx, Fixture) {
     ctx.set_phase(oracle, Phase::Challenge);
     let ai_claim = seed_ai_claim(&mut ctx, oracle, proposer, 0);
 
-    let (m, oracle_pass_kass, oracle_fail_kass) = setup_market(&mut ctx, oracle);
+    let (m, oracle_pass_base, oracle_fail_base) = setup_market(&mut ctx, oracle);
 
     let (market, _) =
         Pubkey::find_program_address(&[b"market", ai_claim.as_ref()], &ctx.program_id);
@@ -142,9 +142,9 @@ pub(crate) fn fixture_with_bond(bond0: u64) -> (TestCtx, Fixture) {
             market,
             challenger,
             m,
-            oracle_pass_kass,
-            oracle_fail_kass,
-            kass_dao,
+            oracle_pass_base,
+            oracle_fail_base,
+            spot_dao,
             challenger_usdc_src,
         },
     )

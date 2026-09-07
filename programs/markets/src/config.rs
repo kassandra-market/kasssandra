@@ -7,8 +7,8 @@
 //! Activity-scaled min-liquidity floor (see `crate::liquidity_floor`)
 //! ---------------------------------------------------------------------------
 //!
-//! The KASS a market must raise before it can `activate` starts at a BASE
-//! (`Config.min_liquidity`, sane even at genesis — e.g. 1 KASS is fine with
+//! The SOL a market must raise before it can `activate` starts at a BASE
+//! (`Config.min_liquidity`, sane even at genesis — e.g. 1 SOL is fine with
 //! almost no markets) and ramps UP with recent market-CREATION demand, so a
 //! busy protocol requires proportionally more skin in the game before a market
 //! goes live. Demand is an exponentially-decaying moving average ("EMA") of

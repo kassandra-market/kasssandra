@@ -48,7 +48,7 @@ The app consumes **both** SDKs via `workspace:*` and needs their `dist/` built f
 The two scripts in `scripts/` fetch external MetaDAO program binaries so the CPI tests are hermetic:
 
 - `scripts/fetch-metadao.sh` — dumps the MetaDAO **v0.4** stack used by the challenge markets: the conditional-vault program `VLTX1ishMBbcX3rdBWGssxawAo1Q2X2qxYFYqiGodVg` and the AMM program `AMMyu265tkBpRW21iGQxKGLaves3gKm2JcMUqfXNSpqD`.
-- `scripts/fetch-metadao-v06.sh` — additively dumps the **v0.6** futarchy governance stack plus **Meteora DAMM v2** (the `kass_price` governance stack, not the challenge market): futarchy `FUTARELBfJfQ8RDGhg1wdhddq1odMAJUePHFuBYfUxKq`, the same reused conditional-vault, Meteora `cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG`, and Squads v4 `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf`.
+- `scripts/fetch-metadao-v06.sh` — additively dumps the **v0.6** futarchy governance stack plus **Meteora DAMM v2** (the `spot_price` governance stack, not the challenge market): futarchy `FUTARELBfJfQ8RDGhg1wdhddq1odMAJUePHFuBYfUxKq`, the same reused conditional-vault, Meteora `cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG`, and Squads v4 `SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf`.
 
 <CardGroup cols={2}>
   <Card title="Architecture overview" icon="sitemap" href="/architecture/overview">

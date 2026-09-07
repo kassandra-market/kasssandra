@@ -27,8 +27,8 @@ pub(crate) const ATA_PROGRAM_ID: Pubkey =
 /// deterministic.
 pub(crate) const MAX_PRICE: u128 = (u64::MAX as u128) * 1_000_000_000_000;
 
-pub(crate) const BOND: u64 = 1_000_000_000; // 1 KASS bond on the challenged proposer.
-/// Base reserve: 100 KASS (9 dp).
+pub(crate) const BOND: u64 = 1_000_000_000; // 1 SOL bond on the challenged proposer.
+/// Base reserve: 100 SOL (9 dp).
 pub(crate) const BASE_RESERVE: u64 = 100_000_000_000;
 /// Quote reserve: 100 USDC (6 dp) → seeded price 1e9 (scaled). add_liquidity
 /// needs the quote ≥ 1e8.
@@ -111,10 +111,10 @@ pub(crate) struct ConservationModel {
     disqualify: bool,
     bond: u64,
     pub(crate) escrow: u64,
-    /// KASS fee → challenger on a successful challenge (`bond × succ_num/den`),
+    /// SOL fee → challenger on a successful challenge (`bond × succ_num/den`),
     /// capped at the proposer's remaining un-slashed bond. The e2e/fuzz proposer
     /// is challenged UN-slashed, so the cap is a no-op (`prior_slash == 0`).
-    pub(crate) kass_fee: u64,
+    pub(crate) base_fee: u64,
     /// USDC fee → proposer on a failed challenge (`escrow × fail_num/den`).
     usdc_fee: u64,
 }
@@ -131,14 +131,14 @@ impl ConservationModel {
         fail_num: u64,
         fail_den: u64,
     ) -> Self {
-        let raw_kass_fee = (bond as u128 * succ_num as u128 / succ_den as u128) as u64;
-        let kass_fee = raw_kass_fee.min(bond - prior_slash);
+        let raw_base_fee = (bond as u128 * succ_num as u128 / succ_den as u128) as u64;
+        let base_fee = raw_base_fee.min(bond - prior_slash);
         let usdc_fee = (escrow as u128 * fail_num as u128 / fail_den as u128) as u64;
         Self {
             disqualify,
             bond,
             escrow,
-            kass_fee,
+            base_fee,
             usdc_fee,
         }
     }
@@ -146,7 +146,7 @@ impl ConservationModel {
     /// Expected `challenger_kass` balance after settle.
     pub(crate) fn challenger_kass(&self) -> u64 {
         if self.disqualify {
-            self.kass_fee
+            self.base_fee
         } else {
             0
         }
@@ -154,7 +154,7 @@ impl ConservationModel {
     /// Expected stake_vault DELTA across settle (redeem in, fee out).
     pub(crate) fn stake_vault_delta(&self) -> u64 {
         if self.disqualify {
-            self.bond - self.kass_fee
+            self.bond - self.base_fee
         } else {
             self.bond
         }
@@ -192,8 +192,8 @@ pub(crate) fn ref_disqualify(pass_twap: u128, fail_twap: u128) -> bool {
 
 pub(crate) struct MarketAccounts {
     pub(crate) question: Pubkey,
-    pub(crate) kass_vault: Pubkey,
-    pub(crate) kass_vault_underlying: Pubkey,
+    pub(crate) base_vault: Pubkey,
+    pub(crate) base_vault_underlying: Pubkey,
     pub(crate) usdc_vault: Pubkey,
     pub(crate) pass_mint: Pubkey,
     pub(crate) fail_mint: Pubkey,
@@ -201,13 +201,13 @@ pub(crate) struct MarketAccounts {
     pub(crate) fail_usdc: Pubkey,
 }
 
-/// Compose the binary question + KASS/USDC conditional vaults for `resolver`,
-/// plus the oracle-PDA-owned pass/fail conditional-KASS holders.
+/// Compose the binary question + SOL/USDC conditional vaults for `resolver`,
+/// plus the oracle-PDA-owned pass/fail conditional-SOL holders.
 pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccounts, Pubkey, Pubkey) {
-    let kass = ctx.kass_mint;
+    let base = ctx.base_mint;
     let usdc = ctx.usdc_mint;
     let resolver_arr = resolver.to_bytes();
-    let kass_arr = kass.to_bytes();
+    let base_arr = base.to_bytes();
     let usdc_arr = usdc.to_bytes();
     let num_outcomes: u8 = 2;
     let question_id = [7u8; 32];
@@ -217,8 +217,8 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
         &vault_id(),
     );
     let question_arr = question.to_bytes();
-    let (kass_vault, _) = Pubkey::find_program_address(
-        &metadao::vault_seeds(&question_arr.into(), &kass_arr.into()),
+    let (base_vault, _) = Pubkey::find_program_address(
+        &metadao::vault_seeds(&question_arr.into(), &base_arr.into()),
         &vault_id(),
     );
     let (usdc_vault, _) = Pubkey::find_program_address(
@@ -226,14 +226,14 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
         &vault_id(),
     );
 
-    let pass_mint = cond_mint(&kass_vault, 0);
-    let fail_mint = cond_mint(&kass_vault, 1);
+    let pass_mint = cond_mint(&base_vault, 0);
+    let fail_mint = cond_mint(&base_vault, 1);
     let pass_usdc = cond_mint(&usdc_vault, 0);
     let fail_usdc = cond_mint(&usdc_vault, 1);
     let (event_authority, _) =
         Pubkey::find_program_address(&metadao::event_authority_seeds(), &vault_id());
 
-    let kass_vault_underlying = ata(&kass_vault, &kass);
+    let base_vault_underlying = ata(&base_vault, &base);
     let usdc_vault_underlying = ata(&usdc_vault, &usdc);
 
     let payer = ctx.payer.pubkey();
@@ -254,10 +254,10 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
     let ix_kv = Instruction {
         program_id: vault_id(),
         accounts: vec![
-            AccountMeta::new(kass_vault, false),
+            AccountMeta::new(base_vault, false),
             AccountMeta::new_readonly(question, false),
-            AccountMeta::new_readonly(kass, false),
-            AccountMeta::new(kass_vault_underlying, false),
+            AccountMeta::new_readonly(base, false),
+            AccountMeta::new(base_vault_underlying, false),
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(ATA_PROGRAM_ID, false),
@@ -269,7 +269,7 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
         ],
         data: metadao::initialize_conditional_vault_data().to_vec(),
     };
-    ctx.send_many(&cu(ix_kv), &[]).expect("init KASS vault");
+    ctx.send_many(&cu(ix_kv), &[]).expect("init SOL vault");
 
     let ix_uv = Instruction {
         program_id: vault_id(),
@@ -291,23 +291,23 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
     };
     ctx.send_many(&cu(ix_uv), &[]).expect("init USDC vault");
 
-    let oracle_pass_kass = Pubkey::new_unique();
-    let oracle_fail_kass = Pubkey::new_unique();
-    fabricate_token_account(ctx, oracle_pass_kass, pass_mint, resolver, 0);
-    fabricate_token_account(ctx, oracle_fail_kass, fail_mint, resolver, 0);
+    let oracle_pass_base = Pubkey::new_unique();
+    let oracle_fail_base = Pubkey::new_unique();
+    fabricate_token_account(ctx, oracle_pass_base, pass_mint, resolver, 0);
+    fabricate_token_account(ctx, oracle_fail_base, fail_mint, resolver, 0);
 
     (
         MarketAccounts {
             question,
-            kass_vault,
-            kass_vault_underlying,
+            base_vault,
+            base_vault_underlying,
             usdc_vault,
             pass_mint,
             fail_mint,
             pass_usdc,
             fail_usdc,
         },
-        oracle_pass_kass,
-        oracle_fail_kass,
+        oracle_pass_base,
+        oracle_fail_base,
     )
 }

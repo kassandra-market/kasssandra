@@ -15,7 +15,7 @@ use solana_sdk::{
 
 const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
 const RESOLVED: u8 = 7; // kassandra Phase::Resolved (terminal)
-const MIN_LIQ: u64 = 1_000_000_000; // 1 KASS (9 dp)
+const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 const SEED_A: u64 = 600_000_000; // creator's stake
 const SEED_B: u64 = 400_000_000; // second contributor's stake (A + B == MIN_LIQ)
 
@@ -79,27 +79,27 @@ struct Activated {
 fn setup_settled_activated_all_claimed() -> Activated {
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let fee_dest = ctx.create_token_account(kass, authority.pubkey(), 0);
-    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), kass, MIN_LIQ, 0, fee_dest);
+    let fee_dest = ctx.create_token_account(base, authority.pubkey(), 0);
+    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), base, MIN_LIQ, 0, fee_dest);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "{res:?}");
 
     let c2 = Keypair::new();
     ctx.svm_airdrop(&c2.pubkey());
-    let c2_ata = ctx.create_token_account(kass, c2.pubkey(), 5_000_000_000);
+    let c2_ata = ctx.create_token_account(base, c2.pubkey(), 5_000_000_000);
     let res = ctx.contribute(&c2, market, c2_ata, SEED_B);
     assert!(res.is_ok(), "{res:?}");
 
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
-    let res = ctx.activate(oracle, kass);
+    let refs = ctx.compose_metadao_market(market, oracle, base);
+    let res = ctx.activate(oracle, base);
     assert!(res.is_ok(), "activate: {res:?}");
     ctx.set_oracle_resolved(oracle, 0);
     let res = ctx.resolve_market(market, oracle, refs.question);
@@ -298,15 +298,15 @@ fn close_market_cancelled_closes_escrow_and_market_only() {
     // cyes/cno/lp_vault ever existed). Drive the real Cancelled path so escrow is a
     // genuine 0-balance token account.
     let mut ctx = TestCtx::new();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "{res:?}");
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 500_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, 200_000_000);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 500_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, 200_000_000);
     assert!(res.is_ok(), "{res:?}");
     let (escrow, _) = kassandra_markets_sdk::pda::escrow(&market);
 

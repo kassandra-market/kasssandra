@@ -12,7 +12,7 @@
  * is a no-op — so no per-account `getAccountInfo` probe is needed.
  *
  * SELL amounts are APP-computed (the SDK can't quote the AMM offline): to unwind
- * `positionAmount` of the held leg back to KASS we swap the pool-optimal fraction
+ * `positionAmount` of the held leg back to SOL we swap the pool-optimal fraction
  * toward the opposite leg so the post-swap cYES/cNO are ~balanced, then merge the
  * smaller balanced side. See {@link optimalUnwindSwap}.
  */
@@ -214,8 +214,8 @@ interface TradeCommon {
   user: AddressInput;
   /** Which leg to be net-long (buy) / currently hold (sell). */
   outcome: Outcome;
-  /** Trader's KASS token account (buy source / sell payout). */
-  userKassAta: AddressInput;
+  /** Trader's SOL token account (buy source / sell payout). */
+  userBaseAta: AddressInput;
   /** Live pool reserves for the slippage estimate (optional; `null` → unbounded). */
   reserves?: AmmReserves | null;
   /** Slippage tolerance in basis points (default {@link DEFAULT_SLIPPAGE_BPS}). */
@@ -223,14 +223,14 @@ interface TradeCommon {
 }
 
 export interface BuildBuyArgs extends TradeCommon {
-  /** KASS to spend (raw base units, > 0); split 1:1 into a cYES+cNO pair. */
+  /** SOL to spend (raw base units, > 0); split 1:1 into a cYES+cNO pair. */
   kassAmount: bigint;
 }
 
 /**
  * Assemble a BUY: `[computeBudget, ...ensureConditionalAtas, split, swap]`. The
  * swap's `outputAmountMin` is derived from the live reserves + slippage when
- * given. The trader's KASS ATA is assumed to exist (they hold the KASS being
+ * given. The trader's SOL ATA is assumed to exist (they hold the SOL being
  * spent); only the cYES/cNO ATAs are ensured.
  */
 export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstruction[]> {
@@ -258,7 +258,7 @@ export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstru
     user,
     outcome: args.outcome,
     kassAmount: args.kassAmount,
-    userKassAta: toAddress("KASS ATA", args.userKassAta),
+    userBaseAta: toAddress("SOL ATA", args.userBaseAta),
     // Thread the ATAs we just ensured so the split/swap can't re-derive differently.
     userYesAta: ensure.userYesAta,
     userNoAta: ensure.userNoAta,
@@ -271,8 +271,8 @@ export async function buildBuyIxs(args: BuildBuyArgs): Promise<TransactionInstru
 /**
  * The SELL preview: unwind `positionAmount` of the held leg by swapping the
  * pool-optimal fraction toward the opposite leg (fee-adjusted, matching the swap
- * {@link buildSellIxs} builds), then merging the balanced pair back to KASS.
- * Returns the estimated KASS `received` (≈ the balanced merge = `min(remainder,
+ * {@link buildSellIxs} builds), then merging the balanced pair back to SOL.
+ * Returns the estimated SOL `received` (≈ the balanced merge = `min(remainder,
  * feeAdjustedSwapOut)`), the swap's `outputAmountMin` floor, and the `residual`
  * conditional-token dust the unwind leaves unmerged (`|remainder − swapOut|`).
  * `null`/empty reserves or a position too small to unwind → all zero.
@@ -291,7 +291,7 @@ export function previewSell(
   if (swapAmount <= 0n) return zero;
   const swapOut = ammSwapOut(swapAmount, inReserve, outReserve);
   const remainder = positionAmount - swapAmount;
-  // Merge the smaller balanced side → that many KASS; the larger side's excess is
+  // Merge the smaller balanced side → that many SOL; the larger side's excess is
   // left as single-sided conditional-token dust.
   const received = remainder < swapOut ? remainder : swapOut;
   const residual = remainder < swapOut ? swapOut - remainder : remainder - swapOut;
@@ -300,7 +300,7 @@ export function previewSell(
 }
 
 export interface BuildSellArgs extends TradeCommon {
-  /** Units of the held leg to unwind back to KASS (raw base units, > 0). */
+  /** Units of the held leg to unwind back to SOL (raw base units, > 0). */
   positionAmount: bigint;
 }
 
@@ -344,7 +344,7 @@ export async function buildSellIxs(args: BuildSellArgs): Promise<TransactionInst
     outcome: args.outcome,
     swapAmount,
     mergeAmount,
-    userKassAta: toAddress("KASS ATA", args.userKassAta),
+    userBaseAta: toAddress("SOL ATA", args.userBaseAta),
     userYesAta: ensure.userYesAta,
     userNoAta: ensure.userNoAta,
     outputAmountMin,

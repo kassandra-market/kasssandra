@@ -12,7 +12,7 @@
  * It mirrors the Rust references `tests/{init_config,create_market,contribute,
  * cancel,refund}.rs`.
  *
- *   1. initConfig            → decode Config, assert authority/kassMint/minLiquidity.
+ *   1. initConfig            → decode Config, assert authority/baseMint/minLiquidity.
  *   2. seedOracle(2, Proposal) + createMarket(seed)
  *                            → decode Market, assert Funding/totals/oracle/escrow;
  *                              assert escrow token balance == seed.
@@ -20,7 +20,7 @@
  *                            → decode Market totalContributed summed;
  *                              decode Contribution amount.
  *   4. re-seed oracle terminal (Resolved) + cancel → Cancelled;
- *      refund each contributor → KASS ATAs restored, escrow drains to 0,
+ *      refund each contributor → SOL ATAs restored, escrow drains to 0,
  *      Contribution.claimed == true.
  */
 import { describe, it } from "vitest";
@@ -37,15 +37,15 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     const ctx = await MarketTestCtx.new();
 
     // --- 1. initConfig -------------------------------------------------------
-    const kassMint = await ctx.createMint(9);
+    const baseMint = await ctx.createMint(9);
     const authority = (await ctx.fundedKeypair()).publicKey;
     const minLiquidity = 1_000_000n;
-    const feeDestination = await ctx.createTokenAccount(kassMint, authority, 0n);
+    const feeDestination = await ctx.createTokenAccount(baseMint, authority, 0n);
 
     await ctx.sendOk(
       await initConfig({
         payer: ctx.payer.publicKey,
-        kassMint,
+        baseMint,
         authority,
         minLiquidity,
         feeBps: 100,
@@ -59,7 +59,7 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     const config = ctx.readConfig(configPda);
     expect(config.accountType).toBe(AccountType.Config);
     expect(config.authority.toString()).toBe(authority.toString());
-    expect(config.kassMint.toString()).toBe(kassMint.toString());
+    expect(config.baseMint.toString()).toBe(baseMint.toString());
     expect(config.minLiquidity).toBe(minLiquidity);
 
     // --- 2. createMarket -----------------------------------------------------
@@ -67,14 +67,14 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     const seed = 300_000n;
 
     const creator = await ctx.fundedKeypair();
-    const creatorKassAta = await ctx.createTokenAccount(kassMint, creator.publicKey, seed);
+    const creatorBaseAta = await ctx.createTokenAccount(baseMint, creator.publicKey, seed);
 
     await ctx.sendOk(
       await createMarket({
         creator: creator.publicKey,
         oracle,
-        kassMint,
-        creatorKassAta,
+        baseMint,
+        creatorBaseAta,
         seedAmount: seed,
         outcomeIndex: 0,
       }),
@@ -89,13 +89,13 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     expect(market.status).toBe(MarketStatus.Funding);
     expect(market.oracle.toString()).toBe(oracle.toString());
     expect(market.creator.toString()).toBe(creator.publicKey.toString());
-    expect(market.kassMint.toString()).toBe(kassMint.toString());
+    expect(market.baseMint.toString()).toBe(baseMint.toString());
     expect(market.escrowVault.toString()).toBe(escrowPda.toString());
     expect(market.totalContributed).toBe(seed);
     expect(market.minLiquidity).toBe(minLiquidity);
     // Escrow holds exactly the seed; the creator's ATA drained to 0.
     expect(ctx.tokenBalance(escrowPda)).toBe(seed);
-    expect(ctx.tokenBalance(creatorKassAta)).toBe(0n);
+    expect(ctx.tokenBalance(creatorBaseAta)).toBe(0n);
 
     // Creator's Contribution recorded the seed.
     const creatorContribPda = (await pda.contribution(marketPda, creator.publicKey)).address;
@@ -109,7 +109,7 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     // --- 3. contribute (second contributor) ----------------------------------
     const amount = 200_000n;
     const contributor = await ctx.fundedKeypair();
-    const contributorKassAta = await ctx.createTokenAccount(kassMint, contributor.publicKey, amount);
+    const contributorKassAta = await ctx.createTokenAccount(baseMint, contributor.publicKey, amount);
 
     await ctx.sendOk(
       await contribute({
@@ -146,11 +146,11 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     // and open_contributions decrements — its absence is the idempotency guard now.
     const creatorRentBefore = ctx.lamportsOf(creator.publicKey);
     await ctx.sendOk(
-      await refund({ market: marketPda, contributor: creator.publicKey, contributorKassAta: creatorKassAta }),
+      await refund({ market: marketPda, contributor: creator.publicKey, contributorKassAta: creatorBaseAta }),
       [],
       "refund(creator)",
     );
-    expect(ctx.tokenBalance(creatorKassAta)).toBe(seed);
+    expect(ctx.tokenBalance(creatorBaseAta)).toBe(seed);
     expect(ctx.exists(creatorContribPda)).toBe(false); // Contribution closed
     expect(ctx.lamportsOf(creator.publicKey)).toBeGreaterThan(creatorRentBefore); // rent returned
     expect(ctx.tokenBalance(escrowPda)).toBe(amount);

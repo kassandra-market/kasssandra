@@ -10,7 +10,7 @@
 answers binary/categorical questions. The cheap path: an uncontested proposal
 settles with no AI and no markets. The dispute machinery (fact agreement → AI
 claim → MetaDAO-style decision market) only fires on proposer disagreement.
-Honesty is enforced economically (KASS staking/slashing) and by markets.
+Honesty is enforced economically (SOL staking/slashing, no native token) and by markets.
 
 Two on-chain programs: the **oracle** (dispute core) and the **market**
 (prediction/decision markets). Client SDKs (Rust + TS) wrap each; a React app,

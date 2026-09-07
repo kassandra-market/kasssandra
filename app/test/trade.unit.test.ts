@@ -94,7 +94,7 @@ describe("previewSell", () => {
     expect(previewSell({ base: 10_000n, quote: 10_000n }, "yes", 1n).received).toBe(0n);
   });
 
-  it("estimates KASS received as the balanced merge and reports the dust residual", () => {
+  it("estimates SOL received as the balanced merge and reports the dust residual", () => {
     const reserves: AmmReserves = { base: 1_000_000n, quote: 1_000_000n };
     const positionAmount = 10_000n;
     const p = previewSell(reserves, "yes", positionAmount, 100);

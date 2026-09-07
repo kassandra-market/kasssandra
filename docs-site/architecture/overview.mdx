@@ -14,7 +14,7 @@ conditional-vault and AMM programs for the challenge decision markets rather tha
   <Card title="On-chain program" icon="microchip" href="/architecture/program">
     The core Solana program (`programs/oracles/`) written in Pinocchio. Owns oracle requests,
     proposal windows, the fact phase, the AI-claim registry, plurality resolution, slashing,
-    KASS staking, emissions, and the dynamic fee.
+    SOL staking, emissions, and the dynamic fee.
   </Card>
   <Card title="TypeScript SDK" icon="cube" href="/architecture/sdk">
     The hand-written client (`sdk/`) — no IDL. PDA derivers, instruction builders, and account
@@ -38,7 +38,7 @@ Kassandra does not build its own decision markets. When an AI claim is challenge
 composes a binary **pass/fail** market out of MetaDAO's **v0.4 conditional-vault + standalone AMM**
 programs, and the Kassandra program CPIs into them to split the bond and resolve the question. A
 separate **v0.6 futarchy** stack (plus Squads v4 and Meteora DAMM v2) provides the governance
-linkage and the KASS/USDC price anchor. See [Challenge markets](/challenge/overview) and
+linkage and the SOL/USDC price anchor. See [Challenge markets](/challenge/overview) and
 [Protocol reference](/protocol/overview).
 
 ## How they compose
@@ -88,7 +88,7 @@ consumes `@kassandra-market/oracles` via `workspace:*`, so the SDK must be built
 | On-chain (program) | Off-chain |
 | --- | --- |
 | Request config: `oracle_meta` (subject, labels, uri/uri_hash), options, deadline, TWAP window | Model inference (private to each runner) |
-| All KASS stakes/bonds and USDC market collateral | Prompt assembly and fact fetching |
+| All SOL stakes/bonds and USDC market collateral | Prompt assembly and fact fetching |
 | Fact set, votes, and approval tallies | Raw AI output (never stored on-chain) |
 | AI-claim metadata (model/params/io hashes, option) | MetaDAO market composition transactions |
 | Plurality result, slash triggers, emissions, fee state | Off-chain fact URIs (content-hash-committed) |

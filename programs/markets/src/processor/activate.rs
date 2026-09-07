@@ -3,11 +3,11 @@
 //!
 //! # Decomposed market (mirrors the Kassandra `open_challenge` precedent)
 //! The client composes the MetaDAO accounts in its OWN prior transactions (a
-//! binary `Question` whose oracle-authority == this Market PDA, a KASS
+//! binary `Question` whose oracle-authority == this Market PDA, a SOL
 //! `conditional_vault`, and the cYES/cNO `Amm`). This instruction does NOT create
 //! them — it **verifies** they are bound to this market (re-derive PDAs +
 //! owner-check + read field bindings), performs the **program-signed** split of
-//! the escrowed KASS into cYES/cNO, seeds the pool 50/50 via a program-signed
+//! the escrowed SOL into cYES/cNO, seeds the pool 50/50 via a program-signed
 //! `add_liquidity`, and **records** the bindings on the [`Market`] with
 //! `status = Active`.
 //!
@@ -112,9 +112,9 @@ pub fn process(
         }
     }
 
-    // KASS conditional vault: question@8, underlying_mint@40, underlying_account@72.
+    // SOL conditional vault: question@8, underlying_mint@40, underlying_account@72.
     assert_owned_by_program(vault_ai, &metadao::CONDITIONAL_VAULT_ID)?;
-    let (expect_vault, _) = metadao::vault_pda(question_ai.address(), &market.kass_mint);
+    let (expect_vault, _) = metadao::vault_pda(question_ai.address(), &market.base_mint);
     assert_key(vault_ai, &expect_vault)?;
     {
         let data = vault_ai.try_borrow()?;
@@ -123,14 +123,14 @@ pub fn process(
         let v_underlying_acct =
             metadao::read_pubkey(&data, metadao::VAULT_UNDERLYING_ACCOUNT_OFFSET)?;
         if &v_question != question_ai.address()
-            || v_underlying != market.kass_mint
+            || v_underlying != market.base_mint
             || &v_underlying_acct != vault_underlying_ai.address()
         {
             return Err(MarketError::InvalidAccount.into());
         }
     }
 
-    // Conditional-KASS mints derive from the vault (idx 0 = cYES, idx 1 = cNO).
+    // Conditional-SOL mints derive from the vault (idx 0 = cYES, idx 1 = cNO).
     let (expect_yes, _) = metadao::conditional_token_mint_pda(vault_ai.address(), 0);
     let (expect_no, _) = metadao::conditional_token_mint_pda(vault_ai.address(), 1);
     assert_key(yes_mint_ai, &expect_yes)?;
@@ -216,7 +216,7 @@ pub fn process(
     market_signer_seeds!(market, oidx, mbump, market_seeds);
     let amount = market.total_contributed;
 
-    // --- program-signed split: escrow KASS -> cYES/cNO ----------------------
+    // --- program-signed split: escrow SOL -> cYES/cNO ----------------------
     let split_data = metadao::split_tokens_data(amount);
     let split_metas = [
         InstructionAccount::readonly(question_ai.address()),

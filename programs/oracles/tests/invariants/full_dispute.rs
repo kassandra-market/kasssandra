@@ -26,7 +26,7 @@ fn claim_pda(program_id: &Pubkey, oracle: &Pubkey, proposer: &Pubkey) -> (Pubkey
 // ---------------------------------------------------------------------------
 
 /// At every step the vault balance must equal the on-chain `total_oracle_stake`
-/// (no KASS created/destroyed; nothing leaves the vault in this milestone).
+/// (no SOL created/destroyed; nothing leaves the vault in this milestone).
 fn assert_conservation_step(
     ctx: &TestCtx,
     oracle: Pubkey,
@@ -36,7 +36,7 @@ fn assert_conservation_step(
     prop_assert_eq!(
         ctx.token_balance(vault),
         o.total_oracle_stake,
-        "vault balance must equal total_oracle_stake (KASS conservation, §9 #3)"
+        "vault balance must equal total_oracle_stake (SOL conservation, §9 #3)"
     );
     Ok(())
 }
@@ -84,7 +84,7 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
     for (i, f) in s.facts.iter().enumerate() {
         let submitter = Keypair::new();
         ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-        let submitter_kass = ctx.fund_kass(&submitter, f.stake);
+        let submitter_kass = ctx.fund_base(&submitter, f.stake);
         let content_hash = [(i as u8) + 1; 32];
         let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
         ctx.send(
@@ -114,7 +114,7 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
     {
         let submitter = Keypair::new();
         ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-        let submitter_kass = ctx.fund_kass(&submitter, 1_000);
+        let submitter_kass = ctx.fund_base(&submitter, 1_000);
         let content_hash = [0xEEu8; 32];
         let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
         let err = ctx
@@ -312,7 +312,7 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
     }
 
     // §9 #9 terminal exclusivity: phase is exactly one terminal state. On
-    // Resolved no KASS moved (bonds remain escrowed counters); on InvalidDeadend
+    // Resolved no SOL moved (bonds remain escrowed counters); on InvalidDeadend
     // finalize_oracle BURNED the slashed bond_pool out of the vault (emission is
     // disabled in this arm), leaving exactly the returnable principal.
     prop_assert!(o.phase == Phase::Resolved as u8 || o.phase == Phase::InvalidDeadend as u8);
@@ -350,7 +350,7 @@ fn cast_vote(
 ) -> Result<(), TestCaseError> {
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_kass(&voter, stake);
+    let voter_kass = ctx.fund_base(&voter, stake);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     ctx.send(
         vote_fact_ix(

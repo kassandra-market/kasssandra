@@ -3,8 +3,8 @@
 //!
 //! Each test drives a TERMINAL oracle seeded by
 //! [`TestCtx::seed_terminal_oracle`] (which stamps self-consistent resolution
-//! totals + a `reward_pool` equal to the physically-slashed KASS), claims an
-//! account, and asserts: the exact KASS delta to the owner's account, the
+//! totals + a `reward_pool` equal to the physically-slashed SOL), claims an
+//! account, and asserts: the exact SOL delta to the owner's account, the
 //! claimant account closed (rent reclaimed to its authority), and the stake
 //! vault decremented by exactly the entitlement. Conservation arms prove the
 //! whole sweep drains the vault to floor dust (Resolved) or to the burned

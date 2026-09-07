@@ -2,7 +2,7 @@
 //!
 //! An oracle reaches [`Phase::InvalidDeadend`] when the dispute core cannot
 //! decide it (e.g. a tie or no surviving proposers) — a terminal failure the
-//! market/AI could not break. The design makes this state "fixable only by KASS
+//! market/AI could not break. The design makes this state "fixable only by SOL
 //! governance": a passed v0.6 futarchy proposal, executing through the Squads v4
 //! multisig vault recorded as `Protocol.dao_authority`, supplies the final
 //! categorical outcome.

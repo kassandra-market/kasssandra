@@ -34,14 +34,14 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
   it("decodes Protocol (368) with every field", () => {
     const b = new Buf(ACCOUNT_SIZES.Protocol, AccountType.Protocol)
       .raw(8, key32(1)) // admin
-      .raw(40, key32(2)) // kass_mint
+      .raw(40, key32(2)) // base_mint
       .raw(72, key32(3)) // usdc_mint
       .u64(104, 1234n) // fee_ema
       .i64(112, 1_700_000_000n) // last_creation_unix
       .u8(120, 251) // bump
       .u8(121, 1) // governance_set
       .raw(128, key32(4)) // dao_authority
-      .raw(160, key32(5)) // kass_dao
+      .raw(160, key32(5)) // spot_dao
       .u64(192, 7n) // emission_num
       .u64(200, 100n) // emission_den
       .u64(208, 999n) // total_supply_cap
@@ -62,20 +62,20 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
       .u64(328, 1n) // reward_fact_weight
       .u64(336, 1n) // challenge_fail_usdc_fee_num
       .u64(344, 100n) // challenge_fail_usdc_fee_den
-      .u64(352, 1n) // challenge_success_kass_fee_num
-      .u64(360, 100n); // challenge_success_kass_fee_den
+      .u64(352, 1n) // challenge_success_base_fee_num
+      .u64(360, 100n); // challenge_success_base_fee_den
 
     const p = decodeProtocol(b.bytes);
     expect(p.accountType).toBe(AccountType.Protocol);
     expect(p.admin.toString()).toBe(key32Addr(1));
-    expect(p.kassMint.toString()).toBe(key32Addr(2));
+    expect(p.baseMint.toString()).toBe(key32Addr(2));
     expect(p.usdcMint.toString()).toBe(key32Addr(3));
     expect(p.feeEma).toBe(1234n);
     expect(p.lastCreationUnix).toBe(1_700_000_000n);
     expect(p.bump).toBe(251);
     expect(p.governanceSet).toBe(true);
     expect(p.daoAuthority.toString()).toBe(key32Addr(4));
-    expect(p.kassDao.toString()).toBe(key32Addr(5));
+    expect(p.spotDao.toString()).toBe(key32Addr(5));
     expect(p.emissionNum).toBe(7n);
     expect(p.emissionDen).toBe(100n);
     expect(p.totalSupplyCap).toBe(999n);
@@ -96,14 +96,14 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
     expect(p.rewardFactWeight).toBe(1n);
     expect(p.challengeFailUsdcFeeNum).toBe(1n);
     expect(p.challengeFailUsdcFeeDen).toBe(100n);
-    expect(p.challengeSuccessKassFeeNum).toBe(1n);
-    expect(p.challengeSuccessKassFeeDen).toBe(100n);
+    expect(p.challengeSuccessBaseFeeNum).toBe(1n);
+    expect(p.challengeSuccessBaseFeeDen).toBe(100n);
   });
 
   it("decodes Oracle (360) with every field, incl. Phase enum + 0xFF resolved_option", () => {
     const b = new Buf(ACCOUNT_SIZES.Oracle, AccountType.Oracle)
       .raw(8, key32(10)) // creator
-      .raw(40, key32(11)) // kass_mint
+      .raw(40, key32(11)) // base_mint
       .raw(72, key32(12)) // usdc_mint
       .raw(104, key32(13)) // stake_vault
       .i64(136, 1_800_000_000n) // deadline
@@ -137,8 +137,8 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
       .u64(288, 1n) // reward_fact_weight
       .u64(296, 1n) // challenge_fail_usdc_fee_num
       .u64(304, 100n) // challenge_fail_usdc_fee_den
-      .u64(312, 1n) // challenge_success_kass_fee_num
-      .u64(320, 100n) // challenge_success_kass_fee_den
+      .u64(312, 1n) // challenge_success_base_fee_num
+      .u64(320, 100n) // challenge_success_base_fee_den
       .u64(328, 3_000_000n) // total_correct_proposer_stake
       .u64(336, 4_000_000n) // total_approved_fact_stake
       .u64(344, 7_000_000n) // reward_pool
@@ -147,7 +147,7 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
     const o = decodeOracle(b.bytes);
     expect(o.accountType).toBe(AccountType.Oracle);
     expect(o.creator.toString()).toBe(key32Addr(10));
-    expect(o.kassMint.toString()).toBe(key32Addr(11));
+    expect(o.baseMint.toString()).toBe(key32Addr(11));
     expect(o.usdcMint.toString()).toBe(key32Addr(12));
     expect(o.stakeVault.toString()).toBe(key32Addr(13));
     expect(o.deadline).toBe(1_800_000_000n);
@@ -181,8 +181,8 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
     expect(o.rewardFactWeight).toBe(1n);
     expect(o.challengeFailUsdcFeeNum).toBe(1n);
     expect(o.challengeFailUsdcFeeDen).toBe(100n);
-    expect(o.challengeSuccessKassFeeNum).toBe(1n);
-    expect(o.challengeSuccessKassFeeDen).toBe(100n);
+    expect(o.challengeSuccessBaseFeeNum).toBe(1n);
+    expect(o.challengeSuccessBaseFeeDen).toBe(100n);
     expect(o.totalCorrectProposerStake).toBe(3_000_000n);
     expect(o.totalApprovedFactStake).toBe(4_000_000n);
     expect(o.rewardPool).toBe(7_000_000n);
@@ -302,12 +302,12 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
       .raw(72, key32(62)) // proposer
       .raw(104, key32(63)) // challenger
       .raw(136, key32(64)) // question
-      .raw(168, key32(65)) // kass_vault
+      .raw(168, key32(65)) // base_vault
       .raw(200, key32(66)) // usdc_vault
       .raw(232, key32(67)) // pass_amm
       .raw(264, key32(68)) // fail_amm
-      .raw(296, key32(69)) // oracle_pass_kass
-      .raw(328, key32(70)) // oracle_fail_kass
+      .raw(296, key32(69)) // oracle_pass_base
+      .raw(328, key32(70)) // oracle_fail_base
       .raw(360, key32(71)) // challenger_usdc_vault
       .i64(392, 1_900_000_000n) // twap_end
       .u64(400, 8_888n) // challenger_usdc
@@ -321,7 +321,7 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
     expect(m.proposer.toString()).toBe(key32Addr(62));
     expect(m.challenger.toString()).toBe(key32Addr(63));
     expect(m.question.toString()).toBe(key32Addr(64));
-    expect(m.kassVault.toString()).toBe(key32Addr(65));
+    expect(m.baseVault.toString()).toBe(key32Addr(65));
     expect(m.usdcVault.toString()).toBe(key32Addr(66));
     expect(m.passAmm.toString()).toBe(key32Addr(67));
     expect(m.failAmm.toString()).toBe(key32Addr(68));

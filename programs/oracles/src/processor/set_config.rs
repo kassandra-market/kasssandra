@@ -12,8 +12,8 @@
 //!
 //! It overwrites the governable fields WHOLESALE (the payload carries every one)
 //! — simplest and unambiguous. It deliberately does NOT touch the identity /
-//! linkage / accounting fields: `dao_authority`, `kass_dao`, `admin`,
-//! `governance_set`, `kass_mint`, `usdc_mint`, `fee_ema`, `last_creation_unix`,
+//! linkage / accounting fields: `dao_authority`, `spot_dao`, `admin`,
+//! `governance_set`, `base_mint`, `usdc_mint`, `fee_ema`, `last_creation_unix`,
 //! `bump`, `account_type`. Only the config knobs move.
 //!
 //! # Snapshot semantics (F2/F3)
@@ -27,9 +27,9 @@
 //! create_oracle / fact-quorum / slash / settlement paths:
 //! * Denominators MUST be `> 0`: `threshold_den`, `market_threshold_den`,
 //!   `flip_slash_den`, `fact_vote_slash_den`, `emission_den`,
-//!   `challenge_fail_usdc_fee_den`, `challenge_success_kass_fee_den`.
+//!   `challenge_fail_usdc_fee_den`, `challenge_success_base_fee_den`.
 //! * Challenge-fee fractions MUST be `<= 1` (`challenge_fail_usdc_fee`,
-//!   `challenge_success_kass_fee`): a fee above 100% of the escrow/bond is
+//!   `challenge_success_base_fee`): a fee above 100% of the escrow/bond is
 //!   nonsensical.
 //! * Fraction numerators MUST be `<= ` their denominator (the value is an
 //!   intended `<= 1` fraction): `threshold`, `flip_slash`, `fact_vote_slash`,
@@ -47,8 +47,8 @@
 //! * At least one reward weight (`reward_proposer_weight` /
 //!   `reward_fact_weight`) MUST be `> 0`, so the settlement-era reward split
 //!   denominator (`pw + fw`) is never zero.
-//! * JOINT bound `flip_slash_frac + challenge_success_kass_fee_frac <= 1` (a
-//!   disqualified proposer's prior flip-slash plus the success KASS fee cannot
+//! * JOINT bound `flip_slash_frac + challenge_success_base_fee_frac <= 1` (a
+//!   disqualified proposer's prior flip-slash plus the success SOL fee cannot
 //!   exceed the bond) — else `settle_challenge`'s carve-out underflows and bricks
 //!   the market. Checked cross-multiplied in u128.
 //!
@@ -71,8 +71,8 @@
 //! ++ `phase_window i64` ++ `proposal_window i64` ++ `fact_vote_slash_num u64`
 //! ++ `fact_vote_slash_den u64` ++ `reward_proposer_weight u64` ++
 //! `reward_fact_weight u64` ++ `challenge_fail_usdc_fee_num u64` ++
-//! `challenge_fail_usdc_fee_den u64` ++ `challenge_success_kass_fee_num u64` ++
-//! `challenge_success_kass_fee_den u64` (these 4 are the Task C1 challenge fees:
+//! `challenge_fail_usdc_fee_den u64` ++ `challenge_success_base_fee_num u64` ++
+//! `challenge_success_base_fee_den u64` (these 4 are the Task C1 challenge fees:
 //! each `den > 0`, `num <= den`) ++ `stake_floor_ema_threshold u64` ++
 //! `stake_floor_ema_cap u64` ++ `stake_floor_max u64` (the bootstrapping
 //! stake-floor curve — unbounded; `max == 0` disables it).
@@ -134,8 +134,8 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     let reward_fact_weight = u64_at(payload, 17);
     let challenge_fail_usdc_fee_num = u64_at(payload, 18);
     let challenge_fail_usdc_fee_den = u64_at(payload, 19);
-    let challenge_success_kass_fee_num = u64_at(payload, 20);
-    let challenge_success_kass_fee_den = u64_at(payload, 21);
+    let challenge_success_base_fee_num = u64_at(payload, 20);
+    let challenge_success_base_fee_den = u64_at(payload, 21);
     let stake_floor_ema_threshold = u64_at(payload, 22);
     let stake_floor_ema_cap = u64_at(payload, 23);
     let stake_floor_max = u64_at(payload, 24);
@@ -152,7 +152,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         || fact_vote_slash_den == 0
         || emission_den == 0
         || challenge_fail_usdc_fee_den == 0
-        || challenge_success_kass_fee_den == 0
+        || challenge_success_base_fee_den == 0
     {
         return Err(KassandraError::InvalidConfig.into());
     }
@@ -163,7 +163,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         || emission_num > emission_den
         || market_threshold_num > market_threshold_den
         || challenge_fail_usdc_fee_num > challenge_fail_usdc_fee_den
-        || challenge_success_kass_fee_num > challenge_success_kass_fee_den
+        || challenge_success_base_fee_num > challenge_success_base_fee_den
     {
         return Err(KassandraError::InvalidConfig.into());
     }
@@ -180,7 +180,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // JOINT GOVERNANCE INVARIANT (settle_challenge liveness): a proposer that was
     // flip-slashed in finalize_ai_claims (`slashed_amount = bond × flip_slash`,
     // still surviving) and then challenged + disqualified has its bond carved into
-    // `bond − success_kass_fee`. If `flip_slash_frac + success_kass_fee_frac > 1`,
+    // `bond − success_base_fee`. If `flip_slash_frac + success_base_fee_frac > 1`,
     // that net slash would be LESS than the prior flip-slash and settle's
     // `net_slash − already_slashed` would underflow → the market becomes
     // permanently unsettleable. The two fractions are bounded independently above
@@ -190,8 +190,8 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // defensively, but this rejects the bad config at the source.)
     let flip_num = flip_slash_num as u128;
     let flip_den = flip_slash_den as u128;
-    let fee_num = challenge_success_kass_fee_num as u128;
-    let fee_den = challenge_success_kass_fee_den as u128;
+    let fee_num = challenge_success_base_fee_num as u128;
+    let fee_den = challenge_success_base_fee_den as u128;
     if flip_num * fee_den + fee_num * flip_den > flip_den * fee_den {
         return Err(KassandraError::InvalidConfig.into());
     }
@@ -218,8 +218,8 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     protocol.reward_fact_weight = reward_fact_weight;
     protocol.challenge_fail_usdc_fee_num = challenge_fail_usdc_fee_num;
     protocol.challenge_fail_usdc_fee_den = challenge_fail_usdc_fee_den;
-    protocol.challenge_success_kass_fee_num = challenge_success_kass_fee_num;
-    protocol.challenge_success_kass_fee_den = challenge_success_kass_fee_den;
+    protocol.challenge_success_base_fee_num = challenge_success_base_fee_num;
+    protocol.challenge_success_base_fee_den = challenge_success_base_fee_den;
     protocol.stake_floor_ema_threshold = stake_floor_ema_threshold;
     protocol.stake_floor_ema_cap = stake_floor_ema_cap;
     protocol.stake_floor_max = stake_floor_max;

@@ -48,7 +48,7 @@ function mockMarket(): Market {
     proposer: A(PROPOSER),
     challenger: A("Cha11enger11111111111111111111111111111111111"),
     question: A("Quest10n111111111111111111111111111111111111"),
-    kassVault: A("KassVau1t11111111111111111111111111111111111"),
+    baseVault: A("KassVau1t11111111111111111111111111111111111"),
     usdcVault: A("UsdcVau1t11111111111111111111111111111111111"),
     passAmm: A("PassAmm1111111111111111111111111111111111111"),
     failAmm: A("Fai1Amm1111111111111111111111111111111111111"),
@@ -68,7 +68,7 @@ function mockOracle(): Oracle {
     accountType: 1,
     marketThresholdNum: 1n,
     marketThresholdDen: 10n,
-    kassMint: A("Kass1111111111111111111111111111111111111111"),
+    baseMint: A("Kass1111111111111111111111111111111111111111"),
     usdcMint: A("Usdc1111111111111111111111111111111111111111"),
   } as unknown as Oracle;
 }

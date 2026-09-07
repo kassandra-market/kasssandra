@@ -51,20 +51,20 @@ futarchy may set (10%). `init_config`/`update_config` reject anything above it.
 
 ## Config — LEN 160
 
-The governed singleton at PDA `[b"config"]`. `authority` is the KASS futarchy DAO
+The governed singleton at PDA `[b"config"]`. `authority` is the SOL futarchy DAO
 executor — only it may `update_config`. Created once by `init_config`.
 
 | Field | Type | Offset | Meaning |
 | --- | --- | --- | --- |
 | `account_type` | u8 | 0 | `AccountType::Config` |
 | `_pad_hdr` | [u8;7] | 1 | header padding |
-| `authority` | Pubkey | 8 | KASS futarchy DAO executor; gates `update_config` |
-| `kass_mint` | Pubkey | 40 | canonical KASS mint |
+| `authority` | Pubkey | 8 | SOL futarchy DAO executor; gates `update_config` |
+| `base_mint` | Pubkey | 40 | canonical SOL mint |
 | `min_liquidity` | u64 | 72 | BASE funding floor a market must raise before activation (low-demand value) |
 | `bump` | u8 | 80 | PDA bump |
 | `_pad0` | u8 | 81 | padding |
 | `fee_bps` | u16 | 82 | protocol fee in basis points (≤ `MAX_FEE_BPS`) |
-| `fee_destination` | Pubkey | 84 | KASS token account fees route to |
+| `fee_destination` | Pubkey | 84 | SOL token account fees route to |
 | `_pad` | [u8;4] | 116 | padding |
 | `market_creation_ema` | u64 | 120 | fixed-point EMA of recent market-creation activity |
 | `last_market_creation_unix` | i64 | 128 | unix timestamp of the last `create_market`, for the EMA decay |
@@ -74,8 +74,8 @@ executor — only it may `update_config`. Created once by `init_config`.
 
 ### Activity-scaled min-liquidity floor
 
-The KASS a market must raise before `activate` starts at the BASE
-(`min_liquidity` — sane even at genesis, e.g. 1 KASS is fine with almost no
+The SOL a market must raise before `activate` starts at the BASE
+(`min_liquidity` — sane even at genesis, e.g. 1 SOL is fine with almost no
 markets) and ramps UP with recent market-creation demand, mirroring the
 Kassandra oracle's activity-scaled stake floor (see the oracle's
 `stake_floor` module). Each `create_market` decays the stored
@@ -100,19 +100,19 @@ immune to governance changes.
 | `_pad_hdr` | [u8;7] | 1 | header padding |
 | `oracle` | Pubkey | 8 | the Kassandra oracle this market resolves against |
 | `creator` | Pubkey | 40 | market creator; rent recipient at close |
-| `kass_mint` | Pubkey | 72 | canonical KASS mint |
-| `escrow_vault` | Pubkey | 104 | Market-PDA-owned KASS escrow (`[b"escrow", market]`) |
+| `base_mint` | Pubkey | 72 | canonical SOL mint |
+| `escrow_vault` | Pubkey | 104 | Market-PDA-owned SOL escrow (`[b"escrow", market]`) |
 | `min_liquidity` | u64 | 136 | funding floor, snapshot from Config |
-| `total_contributed` | u64 | 144 | total KASS contributed |
+| `total_contributed` | u64 | 144 | total SOL contributed |
 | `open_contributions` | u16 | 152 | count of live Contribution accounts (rent-reclaim counter) |
 | `status` | u8 | 154 | `MarketStatus` |
 | `bump` | u8 | 155 | Market PDA bump |
 | `escrow_bump` | u8 | 156 | escrow PDA bump |
 | `_pad` | [u8;3] | 157 | padding |
 | `question` | Pubkey | 160 | MetaDAO binary Question (oracle-authority == this Market PDA) |
-| `vault` | Pubkey | 192 | KASS conditional vault |
-| `yes_mint` | Pubkey | 224 | conditional-KASS mint idx 0 (cYES) |
-| `no_mint` | Pubkey | 256 | conditional-KASS mint idx 1 (cNO) |
+| `vault` | Pubkey | 192 | SOL conditional vault |
+| `yes_mint` | Pubkey | 224 | conditional-SOL mint idx 0 (cYES) |
+| `no_mint` | Pubkey | 256 | conditional-SOL mint idx 1 (cNO) |
 | `amm` | Pubkey | 288 | the cYES/cNO pool |
 | `lp_mint` | Pubkey | 320 | the pool's LP mint |
 | `lp_vault` | Pubkey | 352 | Market-PDA-owned LP token account |
@@ -136,7 +136,7 @@ is the idempotency guard.
 | `_pad_hdr` | [u8;7] | 1 | header padding |
 | `market` | Pubkey | 8 | parent market |
 | `contributor` | Pubkey | 40 | staker; refund/LP destination owner + rent recipient |
-| `amount` | u64 | 72 | KASS contributed (raw base units) |
+| `amount` | u64 | 72 | SOL contributed (raw base units) |
 | `claimed` | u8 | 80 | bool: refunded/claimed (legacy; closure is the real guard) |
 | `bump` | u8 | 81 | PDA bump |
 | `_pad` | [u8;6] | 82 | padding |

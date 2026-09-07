@@ -38,7 +38,7 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=29)", () => {
     SetGovernance: 13,
     SetConfig: 14,
     ResolveDeadend: 15,
-    KassPrice: 16,
+    SpotPrice: 16,
     ClaimProposer: 17,
     ClaimFact: 18,
     ClaimFactVote: 19,

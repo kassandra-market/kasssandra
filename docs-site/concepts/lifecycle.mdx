@@ -50,13 +50,13 @@ live oracle.
 <Steps>
   <Step title="Create → Proposal">
     `create_oracle` (`Ix=10`) stands the oracle up directly in `Phase::Proposal` with a
-    future deadline, a KASS stake vault, a burned creation fee, and an immutable config
+    future deadline, a SOL stake vault, a burned creation fee, and an immutable config
     snapshotted from the Protocol. See [Oracles and questions](/concepts/oracles-and-questions).
   </Step>
 
   <Step title="Proposal — register values and bonds">
     After the `deadline`, proposers call `propose` (`Ix=11`) to register a categorical
-    option plus a KASS bond (no proofs). The window runs `proposal_window` seconds; an empty
+    option plus a SOL bond (no proofs). The window runs `proposal_window` seconds; an empty
     window re-opens on the first proposal. See [Proposals](/concepts/proposals).
   </Step>
 
@@ -69,7 +69,7 @@ live oracle.
 
   <Step title="FactProposal — submit evidence">
     Anyone posts candidate facts with `submit_fact` (`Ix=0`): a `content_hash`, a URI, and a
-    KASS stake. **No voting is possible here** — the disjoint window is an anti-grief
+    SOL stake. **No voting is possible here** — the disjoint window is an anti-grief
     measure. See [Facts](/concepts/facts).
   </Step>
 
@@ -153,7 +153,7 @@ An oracle ends in **exactly one** terminal state (design invariant 9):
   `claim_*` instructions. See [Economics](/concepts/economics).
 - **`InvalidDeadend`** — all values disqualified, a final plurality tie, or no facts at all.
   `resolved_option` is the `0xFF` sentinel. All non-slashed principal is returned, slashed
-  amounts and emissions are burned, and only KASS governance can stamp a final option via
+  amounts and emissions are burned, and only SOL governance can stamp a final option via
   `resolve_deadend`. See [Dead-end settlement](/concepts/dead-end-settlement).
 
 After a terminal state, participants pull their entitlements and close accounts

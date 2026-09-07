@@ -135,7 +135,7 @@ fn claim_lp_and_refund_mutually_exclusive() {
     assert!(res.is_ok(), "{res:?}");
 
     // Attempt to refund the same contribution on the Active market.
-    let refund_dest = s.ctx.create_token_account(s.kass, s.creator.pubkey(), 0);
+    let refund_dest = s.ctx.create_token_account(s.base, s.creator.pubkey(), 0);
     let res = s.ctx.refund(s.market, s.creator.pubkey(), refund_dest);
     assert_eq!(custom_code(&res), Some(MarketError::NotCancelled as u32));
 

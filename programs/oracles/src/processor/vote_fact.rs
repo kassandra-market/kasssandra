@@ -1,7 +1,7 @@
 //! `vote_fact`: stake-weighted approve/duplicate vote on a fact during the
 //! `FactVoting` window.
 //!
-//! Any KASS holder may vote. A vote escrows `stake` KASS into the oracle's
+//! Any SOL holder may vote. A vote escrows `stake` SOL into the oracle's
 //! stake vault and records a per-`(fact, voter)` [`FactVote`] PDA, so a voter
 //! can vote at most once per fact. Voting is **non-exclusive across facts**: a
 //! voter may vote on many facts and their full stake counts on each — stake is
@@ -22,7 +22,7 @@
 //! 1. fact             — writable, owned by this program; `fact.oracle == oracle`
 //! 2. fact_vote PDA    — writable, uninitialized (created here)
 //! 3. voter            — signer, writable (funds rent + stake authority)
-//! 4. voter KASS       — writable token account, source of the stake
+//! 4. voter SOL       — writable token account, source of the stake
 //! 5. stake vault      — writable token account; must equal `oracle.stake_vault`
 //! 6. token program
 //! 7. system program

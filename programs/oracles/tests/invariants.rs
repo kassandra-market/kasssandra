@@ -21,8 +21,8 @@
 //!   fuzzer uses 2..=5 proposers (`<= MAX_PROPOSERS == 60`, the Task-12
 //!   registration-cap contract) and <=3 facts so the one-shot `finalize_oracle`
 //!   and the finalize calls all fit a single transaction.
-//! * **#3 KASS conservation — ASSERTED.** No challenge is opened in this harness,
-//!   so no KASS is moved into a MetaDAO conditional vault; the dispute
+//! * **#3 SOL conservation — ASSERTED.** No challenge is opened in this harness,
+//!   so no SOL is moved into a MetaDAO conditional vault; the dispute
 //!   instructions move nothing EXCEPT the terminal InvalidDeadend BURN. The
 //!   precise statements are: (a) `stake_vault` balance `== oracle.total_oracle_
 //!   stake` at every step UNTIL a terminal InvalidDeadend, where `finalize_oracle`
@@ -46,7 +46,7 @@
 //!
 //! ## Partially covered / deferred
 //! * **#4 stake-locking** — structurally guaranteed (no instruction in this
-//!   milestone transfers KASS OUT of the vault; conservation #3.1 above, asserted
+//!   milestone transfers SOL OUT of the vault; conservation #3.1 above, asserted
 //!   at every step, is exactly "locked bonds never leave"). Not separately fuzzed.
 //! * **#5 fee-EMA** — DEFERRED: the creation-fee EMA lives in the un-built
 //!   `create_oracle` tokenomics layer; nothing to fuzz here.
@@ -198,7 +198,7 @@ enum FactClass {
 }
 
 struct ReferenceModel {
-    /// Total KASS that flows into the vault across the whole run.
+    /// Total SOL that flows into the vault across the whole run.
     total_in: u64,
     /// Independently-computed final `bond_pool`.
     bond_pool: u64,
@@ -249,7 +249,7 @@ impl ReferenceModel {
         // Mirror seed_disputed_oracle: options_count = max(max_opt + 1, 2).
         let options_count = ((max_opt as u16 + 1).max(2)) as u8;
 
-        // KASS that flows in: seeded bonds + each fact submit stake + each vote.
+        // SOL that flows in: seeded bonds + each fact submit stake + each vote.
         let mut total_in = dispute_bond_total;
         for f in &s.facts {
             total_in += f.stake + f.approve + f.duplicate;
@@ -343,7 +343,7 @@ impl ReferenceModel {
 // ---------------------------------------------------------------------------
 
 fn finalize_oracle_ix(ctx: &TestCtx, oracle: Pubkey, tail: &[Pubkey]) -> Instruction {
-    // S3 account order (oracle, kass_mint, stake_vault, token program, tail) +
+    // S3 account order (oracle, base_mint, stake_vault, token program, tail) +
     // the oracle-nonce payload, via the shared harness builder.
     ctx.finalize_oracle_ix(oracle, tail)
 }

@@ -1,6 +1,6 @@
 /**
  * DAO / admin instruction builders — the governance ops the participant flows
- * don't cover: `set_governance`, `set_config`, `resolve_deadend`, `kass_price`.
+ * don't cover: `set_governance`, `set_config`, `resolve_deadend`, `spot_price`.
  * These are gated to the Protocol admin / DAO authority on-chain; the app exposes
  * them on the /admin page for completeness (and to make them e2e-drivable).
  */
@@ -8,7 +8,7 @@ import { Address, type TransactionInstruction } from "@solana/web3.js";
 import {
   type SetConfigParams,
   futarchy,
-  kassPrice,
+  spotPrice,
   resolveDeadend,
   setConfig,
   setGovernance,
@@ -46,8 +46,8 @@ export const DEFAULT_CONFIG: SetConfigParams = {
   rewardFactWeight: 1n,
   challengeFailUsdcFeeNum: 1n,
   challengeFailUsdcFeeDen: 100n,
-  challengeSuccessKassFeeNum: 1n,
-  challengeSuccessKassFeeDen: 100n,
+  challengeSuccessBaseFeeNum: 1n,
+  challengeSuccessBaseFeeDen: 100n,
   // Bootstrapping stake floor: curve pre-set to ~10/day → ~1000/day, magnitude
   // disabled (0) so participation stays free until governance activates it.
   stakeFloorEmaThreshold: 15_000_000_000n,
@@ -80,21 +80,21 @@ export async function buildSetConfigIxs(args: {
 
 /**
  * `set_governance` — the one-time DAO-linkage handoff. Records `dao_authority`
- * (derived as the Squads v4 vault of `kassDao`) + `kassDao` into the Protocol.
+ * (derived as the Squads v4 vault of `spotDao`) + `spotDao` into the Protocol.
  */
 export async function buildSetGovernanceIxs(args: {
   authority: AddressInput;
-  kassDao: AddressInput;
+  spotDao: AddressInput;
 }): Promise<TransactionInstruction[]> {
-  const kassDao = addr("kassDao", args.kassDao);
-  const multisig = (await futarchy.pda.squadsMultisig(kassDao)).address;
+  const spotDao = addr("spotDao", args.spotDao);
+  const multisig = (await futarchy.pda.squadsMultisig(spotDao)).address;
   const daoAuthority = (await futarchy.pda.squadsVault(multisig, 0)).address;
-  return [await setGovernance({ authority: addr("authority", args.authority), daoAuthority, kassDao })]
+  return [await setGovernance({ authority: addr("authority", args.authority), daoAuthority, spotDao })]
 }
 
-/** `kass_price` — read the governance-anchored KASS/USDC spot TWAP. */
-export async function buildKassPriceIxs(args: {
-  kassDao: AddressInput;
+/** `spot_price` — read the governance-anchored SOL/USDC spot TWAP. */
+export async function buildSpotPriceIxs(args: {
+  spotDao: AddressInput;
 }): Promise<TransactionInstruction[]> {
-  return [await kassPrice({ kassDao: addr("kassDao", args.kassDao) })]
+  return [await spotPrice({ spotDao: addr("spotDao", args.spotDao) })]
 }

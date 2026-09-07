@@ -102,13 +102,13 @@ export interface OracleStats {
   counts: PhaseCounts
   /**
    * Sum of {@link oracleBonds} across NON-terminal (active) oracles — the capital
-   * still contestable on chain, in raw base units (the UI scales it to KASS).
+   * still contestable on chain, in raw base units (the UI scales it to SOL).
    */
   bondsAtRisk: bigint
   /**
    * The monetary breakdown of {@link bondsAtRisk} across active oracles — the
    * surviving-proposer bond pool, the dispute bonds, and the total staked. Raw
-   * base units (the UI scales them to KASS). Sum == {@link bondsAtRisk}.
+   * base units (the UI scales them to SOL). Sum == {@link bondsAtRisk}.
    */
   bondPoolActive: bigint
   disputeBondsActive: bigint

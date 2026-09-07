@@ -3,7 +3,7 @@
  *
  * Before a `kassandra-market` market can be activated, a client must stand up the
  * MetaDAO scaffolding it will bind to: a `Question` (resolver == the Market PDA),
- * a KASS `ConditionalVault` (minting cYES/cNO at outcome idx 0/1), and the
+ * a SOL `ConditionalVault` (minting cYES/cNO at outcome idx 0/1), and the
  * cYES/cNO `Amm` pool. {@link composeMarketInstructions} returns exactly that
  * ordered instruction list plus every derived address (`refs`) that the
  * subsequent `activate` needs, and {@link activateInstruction} wires those refs
@@ -58,13 +58,13 @@ export interface MarketRefs {
   market: Address;
   /** The Kassandra oracle the market resolves against (also the question id). */
   oracle: Address;
-  /** The KASS underlying mint. */
-  kassMint: Address;
+  /** The SOL underlying mint. */
+  baseMint: Address;
   /** MetaDAO `Question` (resolver == the Market PDA). */
   question: Address;
-  /** KASS `ConditionalVault`. */
+  /** SOL `ConditionalVault`. */
   vault: Address;
-  /** The vault's KASS underlying ATA (split/merge/redeem destination). */
+  /** The vault's SOL underlying ATA (split/merge/redeem destination). */
   vaultUnderlyingAta: Address;
   /** cYES conditional mint (outcome idx 0). */
   yesMint: Address;
@@ -88,7 +88,7 @@ export interface MarketRefs {
   marketCno: Address;
   /** Market-PDA-owned LP holder (created at `activate`). */
   lpVault: Address;
-  /** Market-PDA-owned KASS escrow (drained at `activate`). */
+  /** Market-PDA-owned SOL escrow (drained at `activate`). */
   escrow: Address;
 }
 
@@ -117,7 +117,7 @@ export async function marketRefsFromAccount(
   params: MarketRefsFromAccountParams,
 ): Promise<MarketRefs> {
   const market = toAddr(params.market);
-  const { oracle, kassMint, question, vault, yesMint, noMint, amm, lpMint, lpVault, escrowVault } =
+  const { oracle, baseMint, question, vault, yesMint, noMint, amm, lpMint, lpVault, escrowVault } =
     params.decoded;
 
   const [
@@ -129,7 +129,7 @@ export async function marketRefsFromAccount(
     marketCyes,
     marketCno,
   ] = await Promise.all([
-    metadao.pda.ata(vault, kassMint),
+    metadao.pda.ata(vault, baseMint),
     metadao.pda.ata(amm, yesMint),
     metadao.pda.ata(amm, noMint),
     metadao.pda.vaultEventAuthority(),
@@ -141,7 +141,7 @@ export async function marketRefsFromAccount(
   return {
     market,
     oracle,
-    kassMint,
+    baseMint,
     question,
     vault,
     vaultUnderlyingAta,
@@ -167,8 +167,8 @@ export interface ComposeParams {
   market: AddressInput;
   /** The Kassandra oracle (its 32 bytes become the MetaDAO question id). */
   oracle: AddressInput;
-  /** The KASS underlying mint. */
-  kassMint: AddressInput;
+  /** The SOL underlying mint. */
+  baseMint: AddressInput;
   /** Rent payer + signer for the three composition instructions. */
   payer: AddressInput;
 }
@@ -187,7 +187,7 @@ export async function composeMarketInstructions(
 ): Promise<{ instructions: TransactionInstruction[]; refs: MarketRefs }> {
   const market = toAddr(params.market);
   const oracle = toAddr(params.oracle);
-  const kassMint = toAddr(params.kassMint);
+  const baseMint = toAddr(params.baseMint);
   const payer = toAddr(params.payer);
 
   // The MetaDAO question id is the raw 32 bytes of the Kassandra oracle address;
@@ -195,8 +195,8 @@ export async function composeMarketInstructions(
   const questionId = oracle.toBytes();
 
   const question = (await metadao.pda.question(questionId, market, 2)).address;
-  const vault = (await metadao.pda.conditionalVault(question, kassMint)).address;
-  const vaultUnderlyingAta = await metadao.pda.ata(vault, kassMint);
+  const vault = (await metadao.pda.conditionalVault(question, baseMint)).address;
+  const vaultUnderlyingAta = await metadao.pda.ata(vault, baseMint);
   const yesMint = (await metadao.pda.conditionalTokenMint(vault, 0)).address;
   const noMint = (await metadao.pda.conditionalTokenMint(vault, 1)).address;
   const amm = (await metadao.pda.amm(yesMint, noMint)).address;
@@ -220,7 +220,7 @@ export async function composeMarketInstructions(
   const ixVault = await metadao.initializeConditionalVault({
     payer,
     question,
-    underlyingMint: kassMint,
+    underlyingMint: baseMint,
     numOutcomes: 2,
   });
   const ixAmm = await metadao.createAmm({
@@ -237,7 +237,7 @@ export async function composeMarketInstructions(
     refs: {
       market,
       oracle,
-      kassMint,
+      baseMint,
       question,
       vault,
       vaultUnderlyingAta,

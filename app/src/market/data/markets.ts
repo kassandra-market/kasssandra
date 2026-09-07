@@ -102,7 +102,7 @@ export function mapMarketDto(dto: MarketDto): Market {
     accountType: AccountType.Market,
     oracle: new Address(dto.oracle),
     creator: new Address(dto.creator),
-    kassMint: new Address(dto.kassMint),
+    baseMint: new Address(dto.baseMint),
     escrowVault: new Address(dto.escrowVault),
     minLiquidity: BigInt(dto.minLiquidity),
     totalContributed: BigInt(dto.totalContributed),
@@ -133,7 +133,7 @@ export function mapConfigDto(dto: ConfigDto): Config {
   return {
     accountType: AccountType.Config,
     authority: new Address(dto.authority),
-    kassMint: new Address(dto.kassMint),
+    baseMint: new Address(dto.baseMint),
     minLiquidity: BigInt(dto.minLiquidity),
     bump: dto.bump,
     feeBps: dto.feeBps,
@@ -275,7 +275,7 @@ export function isCategorical(group: OracleGroup): boolean {
 }
 
 /**
- * Read the `Config` singleton (`/api/config`) for the KASS mint + funding-floor.
+ * Read the `Config` singleton (`/api/config`) for the SOL mint + funding-floor.
  * Returns `null` when the program is not yet initialised (no Config account, the
  * indexer 404s).
  */

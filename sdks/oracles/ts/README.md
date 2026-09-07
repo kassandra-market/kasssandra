@@ -68,8 +68,8 @@ const ix = await createOracle({
   deadline: 1_900_000_000n,   // unix seconds
   twapWindow: 600n,
   creator: creator.publicKey,
-  creatorKassToken,
-  kassMint,
+  creatorBaseToken,
+  baseMint,
   usdcMint,
 });
 
@@ -118,7 +118,7 @@ payload bytes the program expects.
 | 2 | `finalizeFacts` | 13 | `setGovernance` |
 | 3 | `submitAiClaim` | 14 | `setConfig` |
 | 4 | `openChallenge` | 15 | `resolveDeadend` |
-| 5 | `settleChallenge` | 16 | `kassPrice` |
+| 5 | `settleChallenge` | 16 | `spotPrice` |
 | 6 | `finalizeOracle` | 17 | `claimProposer` |
 | 7 | `advancePhase` | 18 | `claimFact` |
 | 8 | `finalizeAiClaims` | 19 | `claimFactVote` |
@@ -213,8 +213,8 @@ Meteora / Squads), `CONFIG` (default governable params), and the sentinels
   only the Kassandra-owned PDAs (oracle, ai_claim, market, stake_vault,
   protocol, escrow). Composing the MetaDAO market is left to the caller.
 - **Emissions are governance-enabled and default-disabled.** At genesis
-  `emission_num == 0`, so `createOracle` mints no KASS and the creation fee is
-  0. KASS reward emission only activates once governance enables it via
+  `emission_num == 0`, so `createOracle` mints no SOL and the creation fee is
+  0. SOL reward emission only activates once governance enables it via
   `setConfig`.
 - **Not published to npm.** Consumed in-repo from `dist/` for now.
 

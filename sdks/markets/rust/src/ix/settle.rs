@@ -36,7 +36,7 @@ pub fn resolve_market(
 /// `amm::remove_liquidity` → `conditional_vault::redeem_tokens` → SPL `transfer`)
 /// into `config.fee_destination`. Payload = empty.
 ///
-/// All addresses are derivable from `oracle` + `kass_mint` (same composition as
+/// All addresses are derivable from `oracle` + `base_mint` (same composition as
 /// `activate`) plus the `Config` PDA's `fee_destination`.
 ///
 /// Account order (MUST match `processor::collect_fee`):
@@ -65,7 +65,7 @@ pub fn resolve_market(
 /// ```
 pub fn collect_fee(
     oracle: &Pubkey,
-    kass_mint: &Pubkey,
+    base_mint: &Pubkey,
     fee_destination: &Pubkey,
     outcome_index: u8,
 ) -> Instruction {
@@ -74,8 +74,8 @@ pub fn collect_fee(
     let (market, _) = crate::pda::market(oracle, outcome_index);
     let (escrow, _) = crate::pda::escrow(&market);
     let (question, _) = md::question(&oracle.to_bytes(), &market, 2);
-    let (vault, _) = md::vault(&question, kass_mint);
-    let vault_underlying_ata = md::ata(&vault, kass_mint);
+    let (vault, _) = md::vault(&question, base_mint);
+    let vault_underlying_ata = md::ata(&vault, base_mint);
     let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
     let (no_mint, _) = md::conditional_token_mint(&vault, 1);
     let (market_cyes, _) = crate::pda::market_cyes(&market);

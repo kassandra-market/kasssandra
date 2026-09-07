@@ -16,11 +16,11 @@ impl TestCtx {
         &mut self,
         creator: &Keypair,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         creator_ata: Pubkey,
         seed: u64,
     ) -> (Pubkey, TransactionResult) {
-        self.create_market_full(creator, oracle, kass_mint, creator_ata, seed, 0)
+        self.create_market_full(creator, oracle, base_mint, creator_ata, seed, 0)
     }
 
     /// Full `CreateMarket` with an explicit `outcome_index` (the sub-market this
@@ -30,7 +30,7 @@ impl TestCtx {
         &mut self,
         creator: &Keypair,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         creator_ata: Pubkey,
         seed: u64,
         outcome_index: u8,
@@ -39,7 +39,7 @@ impl TestCtx {
         let ix = kassandra_markets_sdk::ix::create_market(
             &creator.pubkey(),
             &oracle,
-            &kass_mint,
+            &base_mint,
             &creator_ata,
             seed,
             outcome_index,

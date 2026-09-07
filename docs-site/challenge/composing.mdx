@@ -31,9 +31,9 @@ account creation is too large to fit in one.
     PDA**. Outcome index **0 = pass, 1 = fail**. SDK: `futarchy.initializeQuestion`
     (`sdk/src/futarchy/instructions.ts:129`).
   </Step>
-  <Step title="Create KASS vault — conditional_vault::initialize_conditional_vault">
-    A vault with underlying = `oracle.kassMint`. Mints the conditional-token mints:
-    idx 0 = **pass-KASS**, idx 1 = **fail-KASS**. SDK:
+  <Step title="Create SOL vault — conditional_vault::initialize_conditional_vault">
+    A vault with underlying = `oracle.baseMint`. Mints the conditional-token mints:
+    idx 0 = **pass-SOL**, idx 1 = **fail-SOL**. SDK:
     `futarchy.initializeConditionalVault` (`:158`).
   </Step>
   <Step title="Create USDC vault — conditional_vault::initialize_conditional_vault">
@@ -42,17 +42,17 @@ account creation is too large to fit in one.
   </Step>
   <Step title="Fund + split — conditional_vault::split_tokens">
     The challenger creates the ATAs it needs (including the oracle-PDA-owned pass/fail
-    -KASS holders the bond will later be minted to), then `split_tokens` splits its
-    **own** KASS → equal pass-KASS + fail-KASS and its **own** USDC → equal pass-USDC +
+    -SOL holders the bond will later be minted to), then `split_tokens` splits its
+    **own** SOL → equal pass-SOL + fail-SOL and its **own** USDC → equal pass-USDC +
     fail-USDC, to seed the pools. SDK: `futarchy.splitTokens` (`:222`).
   </Step>
   <Step title="Seed pass pool — amm::create_amm + amm::add_liquidity">
-    `create_amm(base = pass-KASS, quote = pass-USDC)` then `add_liquidity`. SDK:
+    `create_amm(base = pass-SOL, quote = pass-USDC)` then `add_liquidity`. SDK:
     `ammV04.createAmm` (`sdk/src/amm-v04/instructions.ts:90`) and `ammV04.addLiquidity`
     (`:145`).
   </Step>
   <Step title="Seed fail pool — amm::create_amm + amm::add_liquidity">
-    `create_amm(base = fail-KASS, quote = fail-USDC)` then `add_liquidity`.
+    `create_amm(base = fail-SOL, quote = fail-USDC)` then `add_liquidity`.
   </Step>
   <Step title="Open challenge — Kassandra open_challenge (Ix=4)">
     The Kassandra instruction that verifies and records everything above, splits the
@@ -63,9 +63,9 @@ account creation is too large to fit in one.
 
 ```mermaid
 flowchart TB
-  Q[1 · initialize_question<br/>binary, resolver = oracle] --> KV[2 · init KASS vault<br/>pass-KASS / fail-KASS]
+  Q[1 · initialize_question<br/>binary, resolver = oracle] --> KV[2 · init SOL vault<br/>pass-SOL / fail-SOL]
   Q --> UV[3 · init USDC vault<br/>pass-USDC / fail-USDC]
-  KV --> SP[4 · split_tokens<br/>challenger KASS + USDC]
+  KV --> SP[4 · split_tokens<br/>challenger SOL + USDC]
   UV --> SP
   SP --> PP[5 · create_amm + add_liquidity<br/>PASS pool]
   SP --> FP[6 · create_amm + add_liquidity<br/>FAIL pool]
@@ -86,7 +86,7 @@ add_liquidity(quote_amount = quoteReserve, max_base_amount = baseReserve)
 ```
 
 Defaults (`challengeCompose.ts` consts `DEFAULT_BASE_RESERVE` / `DEFAULT_QUOTE_RESERVE`,
-`PRICE_SCALE`, `MAX_OBSERVATION_CHANGE`, `DEFAULT_QUESTION_ID`): base 100 KASS (9 dp),
+`PRICE_SCALE`, `MAX_OBSERVATION_CHANGE`, `DEFAULT_QUESTION_ID`): base 100 SOL (9 dp),
 quote 100 USDC (6 dp) → a seeded price of `1.0`. See
 [AMMs and the TWAP](/challenge/amms-and-twap) for what the observation fields mean.
 
@@ -101,14 +101,14 @@ LE` (8 bytes) and binds the externally-composed accounts:
 - **Claim + proposer** — the claim is not already challenged; the proposer is not
   disqualified.
 - **Question** — resolver == oracle and `num_outcomes == 2` (`:210-223`).
-- **Vaults** — KASS vault underlying == `oracle.kass_mint` (`:225-239`); USDC vault
+- **Vaults** — SOL vault underlying == `oracle.base_mint` (`:225-239`); USDC vault
   underlying == `oracle.usdc_mint` (`:241-250`).
 - **AMMs** — only `owner == AMM_ID` is checked here; the **hard** mint-pair binding is
   deferred to settle (`:252-259`).
-- **Conditional mints** — pass/fail-KASS mints == `conditional_token_mint_pda(kass_vault,
+- **Conditional mints** — pass/fail-SOL mints == `conditional_token_mint_pda(base_vault,
   0 / 1)` (`:261-265`).
 
-It then program-splits the bond, escrows the challenger's USDC (sized via `kass_price`),
+It then program-splits the bond, escrows the challenger's USDC (sized via `spot_price`),
 creates the `Market` PDA at `[b"market", ai_claim]`, sets `ai_claim.challenged = 1`, and
 increments `oracle.open_challenge_count`. Those on-chain effects are detailed under
 [Settlement](/challenge/settle) and [Economics](/challenge/economics).

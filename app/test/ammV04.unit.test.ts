@@ -121,12 +121,12 @@ const decode = (f: Partial<AmmFields> = {}): AmmV04 => decodeAmmV04(encodeAmm({ 
 
 describe('instantaneousPrice', () => {
   it('is decimals-aware quote/base', () => {
-    // 1000 USDC (6dec) / 1000 KASS (9dec) => spot 1.0
+    // 1000 USDC (6dec) / 1000 SOL (9dec) => spot 1.0
     expect(instantaneousPrice(decode())).toBeCloseTo(1.0, 9)
   })
 
   it('reflects an imbalanced pool', () => {
-    // 1045 USDC / 1000 KASS => 1.045
+    // 1045 USDC / 1000 SOL => 1.045
     expect(instantaneousPrice(decode({ quoteAmount: 1_045_000_000n }))).toBeCloseTo(1.045, 9)
   })
 

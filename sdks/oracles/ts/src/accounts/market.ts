@@ -18,17 +18,17 @@ export interface Market {
   challenger: Address;
   /** MetaDAO binary question (resolver == oracle PDA). */
   question: Address;
-  /** MetaDAO conditional vault, underlying == oracle.kass_mint. */
-  kassVault: Address;
+  /** MetaDAO conditional vault, underlying == oracle.base_mint. */
+  baseVault: Address;
   /** MetaDAO conditional vault, underlying == oracle.usdc_mint. */
   usdcVault: Address;
   /** Outcome-0 (pass) AMM. */
   passAmm: Address;
   /** Outcome-1 (fail) AMM. */
   failAmm: Address;
-  /** Oracle-PDA-owned conditional-KASS token account (pass). */
+  /** Oracle-PDA-owned conditional-SOL token account (pass). */
   oraclePassKass: Address;
-  /** Oracle-PDA-owned conditional-KASS token account (fail). */
+  /** Oracle-PDA-owned conditional-SOL token account (fail). */
   oracleFailKass: Address;
   /** Market-owned USDC escrow holding the challenger's staked USDC. */
   challengerUsdcVault: Address;
@@ -52,7 +52,7 @@ export function decodeMarket(data: Uint8Array): Market {
     proposer: readPubkey(data, 72),
     challenger: readPubkey(data, 104),
     question: readPubkey(data, 136),
-    kassVault: readPubkey(data, 168),
+    baseVault: readPubkey(data, 168),
     usdcVault: readPubkey(data, 200),
     passAmm: readPubkey(data, 232),
     failAmm: readPubkey(data, 264),

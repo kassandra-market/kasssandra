@@ -8,7 +8,7 @@
  *     group's combined raised/floor — not a bar per outcome;
  *   - the deposit affordance targets exactly the funding outcomes;
  *   - a deposit/withdraw's completion refetches the group (via `group.refetch`),
- *     the KASS balance, AND the parent market-detail page — not just the balance
+ *     the SOL balance, AND the parent market-detail page — not just the balance
  *     (regression coverage for the missing-refetch bug: a bulk deposit used to
  *     leave both this panel's reserves and the page's pool value/price impact
  *     stuck on pre-deposit data);
@@ -31,10 +31,10 @@ const spies = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/market/hooks/useMarketDetail", () => ({
-  useConfig: () => ({ data: { kassMint: { toString: () => "Kass1111111111111111111111111111111111111111" } }, loading: false, error: undefined, refetch: () => {} }),
+  useConfig: () => ({ data: { baseMint: { toString: () => "Kass1111111111111111111111111111111111111111" } }, loading: false, error: undefined, refetch: () => {} }),
 }));
-vi.mock("../src/market/hooks/useKassBalance", () => ({
-  useKassBalance: () => ({ balance: 1_000_000_000_000n, loading: false, refetch: spies.refetchBalance }),
+vi.mock("../src/market/hooks/useSolBalance", () => ({
+  useSolBalance: () => ({ balance: 1_000_000_000_000n, loading: false, refetch: spies.refetchBalance }),
 }));
 vi.mock("../src/market/hooks/useActionSequence", () => ({
   useActionSequence: (onDone?: () => void) => {
@@ -180,7 +180,7 @@ describe("GroupLiquidityPanel", () => {
     expect(html).toContain("Withdraw from 2 outcomes");
   });
 
-  it("a completed deposit/withdraw sequence refetches the group, the KASS balance, AND the parent page — not just the balance", () => {
+  it("a completed deposit/withdraw sequence refetches the group, the SOL balance, AND the parent page — not just the balance", () => {
     spies.refetchMarkets.mockClear();
     spies.refetchBalance.mockClear();
     spies.onSuccess.mockClear();

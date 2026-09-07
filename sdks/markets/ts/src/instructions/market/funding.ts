@@ -14,12 +14,12 @@ import { addr, ro, u64LE, u8, w, withDisc } from "../payload.js";
 
 // ---------------------------------------------------------------------------
 // CreateMarket (Ix 2) — create the `outcome_index` binary sub-market for `oracle`,
-// its KASS escrow, and the creator's Contribution, transferring `seed_amount`
-// KASS in. Binary markets pass `outcomeIndex = 0`; a categorical oracle has one
+// its SOL escrow, and the creator's Contribution, transferring `seed_amount`
+// SOL in. Binary markets pass `outcomeIndex = 0`; a categorical oracle has one
 // sub-market per outcome (the market PDA is keyed by `(oracle, outcomeIndex)`).
 // Payload = seed_amount(u64 LE) ++ outcome_index(u8).
 // Accounts: 0 config(w) 1 oracle(ro) 2 market(w,PDA) 3 escrow(w,PDA)
-//           4 kass_mint(ro) 5 creator(signer,w) 6 creator_kass_ata(w)
+//           4 base_mint(ro) 5 creator(signer,w) 6 creator_base_ata(w)
 //           7 contribution(w,PDA) 8 token program(ro) 9 system program(ro).
 // `config` is WRITABLE: create_market bumps its market-creation-activity EMA
 // (see the program's `liquidity_floor` module).
@@ -29,11 +29,11 @@ export interface CreateMarketArgs {
   creator: AddressInput;
   /** The Kassandra oracle the market resolves against (seeds the market PDA). */
   oracle: AddressInput;
-  /** Canonical KASS mint (== `config.kass_mint`). */
-  kassMint: AddressInput;
-  /** Creator's KASS token account the seed amount transfers from. */
-  creatorKassAta: AddressInput;
-  /** KASS seeded into escrow as the creator's contribution. */
+  /** Canonical SOL mint (== `config.base_mint`). */
+  baseMint: AddressInput;
+  /** Creator's SOL token account the seed amount transfers from. */
+  creatorBaseAta: AddressInput;
+  /** SOL seeded into escrow as the creator's contribution. */
   seedAmount: bigint | number;
   /**
    * The oracle outcome this sub-market binds to (`0 <= outcomeIndex <
@@ -57,9 +57,9 @@ export async function createMarket(args: CreateMarketArgs): Promise<TransactionI
       ro(addr(args.oracle)),
       w(market.address),
       w(escrow.address),
-      ro(addr(args.kassMint)),
+      ro(addr(args.baseMint)),
       w(addr(args.creator), true),
-      w(addr(args.creatorKassAta)),
+      w(addr(args.creatorBaseAta)),
       w(contribution.address),
       ro(TOKEN_PROGRAM_ID),
       ro(SYSTEM_PROGRAM_ID),
@@ -69,10 +69,10 @@ export async function createMarket(args: CreateMarketArgs): Promise<TransactionI
 }
 
 // ---------------------------------------------------------------------------
-// Contribute (Ix 3) — add `amount` KASS to a Funding market's escrow and
+// Contribute (Ix 3) — add `amount` SOL to a Funding market's escrow and
 // create-or-increment the contributor's Contribution.
 // Payload = amount(u64 LE).
-// Accounts: 0 market(w) 1 escrow(w,PDA) 2 contributor(signer,w) 3 contributor_kass_ata(w)
+// Accounts: 0 market(w) 1 escrow(w,PDA) 2 contributor(signer,w) 3 contributor_base_ata(w)
 //           4 contribution(w,PDA) 5 token program(ro) 6 system program(ro).
 // ---------------------------------------------------------------------------
 export interface ContributeArgs {
@@ -80,9 +80,9 @@ export interface ContributeArgs {
   contributor: AddressInput;
   /** The market being contributed to. */
   market: AddressInput;
-  /** Contributor's KASS token account the stake transfers from. */
+  /** Contributor's SOL token account the stake transfers from. */
   contributorKassAta: AddressInput;
-  /** KASS to stake (raw base units). */
+  /** SOL to stake (raw base units). */
   amount: bigint | number;
   programId?: Address;
 }
@@ -131,7 +131,7 @@ export async function cancel(args: CancelArgs): Promise<TransactionInstruction> 
 // ---------------------------------------------------------------------------
 // Refund (Ix 5) — permissionless per-contributor refund from a Cancelled market.
 // The Contribution is CLOSED (rent → contributor). Payload = empty.
-// Accounts: 0 market(w) 1 escrow(w,PDA) 2 contribution(w,PDA) 3 contributor_kass_ata(w)
+// Accounts: 0 market(w) 1 escrow(w,PDA) 2 contribution(w,PDA) 3 contributor_base_ata(w)
 //           4 contributor(w) 5 token program(ro).
 // `market` is writable (its open_contributions counter is decremented) and
 // `contributor` (== contribution.contributor) receives the closed Contribution's rent.
@@ -144,7 +144,7 @@ export interface RefundArgs {
    * recipient of the closed Contribution — must equal `contribution.contributor`).
    */
   contributor: AddressInput;
-  /** Contributor's KASS token account the stake refunds to. */
+  /** Contributor's SOL token account the stake refunds to. */
   contributorKassAta: AddressInput;
   programId?: Address;
 }

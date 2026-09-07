@@ -1,4 +1,4 @@
-//! Tests for the dynamic EMA creation fee (Task H2): KASS burned on
+//! Tests for the dynamic EMA creation fee (Task H2): SOL burned on
 //! `create_oracle`, proportional to an EMA of recent creation activity — 0 at
 //! genesis, grows with rapid creations, shrinks when idle.
 
@@ -9,19 +9,19 @@ use kassandra_oracles_program::config::{FEE_EMA_HALFLIFE_SECS, FEE_EMA_INCREMENT
 use kassandra_oracles_program::fee::{bumped_fee_ema, creation_fee, decay_fee_ema};
 
 /// Helper: create an oracle with a fresh future deadline and report
-/// `(fee_burned, emission_minted)`. The fee is measured from the creator's KASS
+/// `(fee_burned, emission_minted)`. The fee is measured from the creator's SOL
 /// balance (unaffected by emission); the emission is read from the new oracle.
 /// Emission is ON by default, so `create_oracle` BURNS `fee` from the creator
 /// AND MINTS `emission` into the oracle vault — the net mint-supply delta is
 /// `emission − fee` (not just `−fee`). That money-flow identity is asserted here.
 fn create_and_measure(ctx: &mut TestCtx, nonce: u64) -> (u64, u64) {
-    let bal_before = ctx.token_balance(ctx.payer_kass);
-    let sup_before = ctx.mint_supply(ctx.kass_mint);
+    let bal_before = ctx.token_balance(ctx.payer_base);
+    let sup_before = ctx.mint_supply(ctx.base_mint);
     let deadline = ctx.now() + 1_000_000;
     let (oracle, res) = ctx.create_oracle(nonce, 2, deadline, 600);
     assert!(res.is_ok(), "create_oracle should succeed: {res:?}");
-    let bal_after = ctx.token_balance(ctx.payer_kass);
-    let sup_after = ctx.mint_supply(ctx.kass_mint);
+    let bal_after = ctx.token_balance(ctx.payer_base);
+    let sup_after = ctx.mint_supply(ctx.base_mint);
     let fee = bal_before - bal_after;
     let emission = ctx.oracle(oracle).reward_emission;
     assert_eq!(
@@ -38,21 +38,21 @@ fn genesis_create_is_free() {
     let (protocol_pda, res) = ctx.init_protocol();
     assert!(res.is_ok(), "init_protocol should succeed: {res:?}");
 
-    let bal_before = ctx.token_balance(ctx.payer_kass);
-    let sup_before = ctx.mint_supply(ctx.kass_mint);
+    let bal_before = ctx.token_balance(ctx.payer_base);
+    let sup_before = ctx.mint_supply(ctx.base_mint);
     let now = ctx.now();
 
     let (fee, emission) = create_and_measure(&mut ctx, 0);
     assert_eq!(fee, 0, "genesis creation must be free");
     assert_eq!(
-        ctx.token_balance(ctx.payer_kass),
+        ctx.token_balance(ctx.payer_base),
         bal_before,
-        "creator KASS unchanged at genesis (fee 0; emission is minted into the vault, not from the creator)"
+        "creator SOL unchanged at genesis (fee 0; emission is minted into the vault, not from the creator)"
     );
     // Emission is ON by default: the genesis fee is 0 (no burn), so the mint
     // supply rose by EXACTLY the minted emission.
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         sup_before + emission,
         "mint supply rose by the minted emission (fee 0 at genesis)"
     );
@@ -70,8 +70,8 @@ fn rapid_creates_fee_grows_and_burns() {
     let mut ctx = TestCtx::new();
     let _ = ctx.init_protocol();
 
-    let bal_start = ctx.token_balance(ctx.payer_kass);
-    let sup_start = ctx.mint_supply(ctx.kass_mint);
+    let bal_start = ctx.token_balance(ctx.payer_base);
+    let sup_start = ctx.mint_supply(ctx.base_mint);
 
     // Four rapid creations with no clock advance between them: decay is 0, so
     // each adds a full FEE_EMA_INCREMENT and the fee strictly increases.
@@ -102,9 +102,9 @@ fn rapid_creates_fee_grows_and_burns() {
     // default), so its net delta is `Σ emissions − Σ fees`.
     let total: u64 = fees.iter().sum();
     let total_emission: u64 = emissions.iter().sum();
-    assert_eq!(ctx.token_balance(ctx.payer_kass), bal_start - total);
+    assert_eq!(ctx.token_balance(ctx.payer_base), bal_start - total);
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         sup_start - total + total_emission
     );
 }

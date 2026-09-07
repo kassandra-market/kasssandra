@@ -9,7 +9,7 @@
  *
  * Recipe (mirrors the SDK/read E2Es — reusing `sdks/oracles/ts/test/surfpool/harness.ts`):
  *   boot + deploy + init_protocol + create an oracle (nonce 1, 2 options);
- *   fund the user KEYPAIR's KASS at its canonical ATA so the action layer uses it.
+ *   fund the user KEYPAIR's SOL at its canonical ATA so the action layer uses it.
  *
  *   1. Proposal phase → user `buildProposeIxs(option 0)` → assert a Proposer
  *      (authority == user, originalOption 0, bond).
@@ -56,7 +56,7 @@ const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady();
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
 }
 
@@ -74,9 +74,9 @@ describe.skipIf(!ENABLED)("write action layer over a real surfpool cluster", () 
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -89,24 +89,24 @@ describe.skipIf(!ENABLED)("write action layer over a real surfpool cluster", () 
       data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
     });
 
-    f = { harness, payer, kassMint, usdcMint };
+    f = { harness, payer, baseMint, usdcMint };
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
 
-    // The USER keypair the action layer drives: funded SOL + KASS at its
+    // The USER keypair the action layer drives: funded SOL + SOL at its
     // CANONICAL ATA (so the action layer's getAccountInfo sees it present + uses
-    // it as the bond/stake source — mirrors a real wallet already holding KASS).
+    // it as the bond/stake source — mirrors a real wallet already holding SOL).
     user = await Keypair.generate();
     await harness.airdrop(user.publicKey.toString(), 10_000_000_000);
-    const userAta = (await associatedTokenAccount(user.publicKey, kassMint.publicKey)).address;
+    const userAta = (await associatedTokenAccount(user.publicKey, baseMint.publicKey)).address;
     await harness.setAccount(userAta.toString(), {
       lamports: 5_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
-      data: toHex(tokenAccountBytes(kassMint.publicKey.toBytes(), user.publicKey.toBytes(), 1_000_000n)),
+      data: toHex(tokenAccountBytes(baseMint.publicKey.toBytes(), user.publicKey.toBytes(), 1_000_000n)),
     });
 
     // Create the oracle + open proposals (advance past its deadline).
@@ -127,7 +127,7 @@ describe.skipIf(!ENABLED)("write action layer over a real surfpool cluster", () 
     const ixs = await buildProposeIxs({
       connection: f.harness.connection,
       oracle,
-      kassMint: f.kassMint.publicKey,
+      baseMint: f.baseMint.publicKey,
       authority: user.publicKey,
       option: 0,
       bond,
@@ -159,7 +159,7 @@ describe.skipIf(!ENABLED)("write action layer over a real surfpool cluster", () 
     const ixs = await buildSubmitFactIxs({
       connection: f.harness.connection,
       oracle,
-      kassMint: f.kassMint.publicKey,
+      baseMint: f.baseMint.publicKey,
       submitter: user.publicKey,
       contentHash,
       stake,
@@ -189,7 +189,7 @@ describe.skipIf(!ENABLED)("write action layer over a real surfpool cluster", () 
     const ixs = await buildVoteFactIxs({
       connection: f.harness.connection,
       oracle,
-      kassMint: f.kassMint.publicKey,
+      baseMint: f.baseMint.publicKey,
       fact: factPda,
       voter: user.publicKey,
       kind: VOTE_APPROVE,
@@ -231,19 +231,19 @@ async function fetchAccount(f: Fixture, address: Address, timeoutMs = 15_000): P
   throw new Error(`account ${address} did not appear within ${timeoutMs}ms`);
 }
 
-async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
+async function fundBase(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
   const acct = await Keypair.generate();
   await f.harness.setAccount(acct.publicKey.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(f.kassMint.publicKey.toBytes(), owner.toBytes(), amount)),
+    data: toHex(tokenAccountBytes(f.baseMint.publicKey.toBytes(), owner.toBytes(), amount)),
   });
   return acct.publicKey;
 }
 
 async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number): Promise<void> {
-  const creatorKass = await fundKass(f, f.payer.publicKey, 10n ** 15n);
+  const creatorBase = await fundBase(f, f.payer.publicKey, 10n ** 15n);
   const nowUnix = await f.harness.clockUnixTimestamp();
   await sendIx(
     f,
@@ -253,8 +253,8 @@ async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number)
       deadline: nowUnix + 1_000n,
       twapWindow: 600n,
       creator: f.payer.publicKey,
-      creatorKassToken: creatorKass,
-      kassMint: f.kassMint.publicKey,
+      creatorBaseToken: creatorBase,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
     }),
   );
@@ -274,10 +274,10 @@ async function proposeConflicting(
 ): Promise<Address> {
   const authority = await Keypair.generate();
   await f.harness.airdrop(authority.publicKey.toString(), 2_000_000_000);
-  const authorityKass = await fundKass(f, authority.publicKey, bond * 10n);
+  const authorityBase = await fundBase(f, authority.publicKey, bond * 10n);
   await sendIx(
     f,
-    await propose({ oracle, authority: authority.publicKey, authorityKass, option, bond }),
+    await propose({ oracle, authority: authority.publicKey, authorityBase, option, bond }),
     [authority],
   );
   return (await pda.proposer(oracle, authority.publicKey)).address;

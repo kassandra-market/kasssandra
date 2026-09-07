@@ -24,7 +24,7 @@ import {
   DAO_CREATOR,
   DISC,
   FUTARCHY_ID,
-  KASS_MINT,
+  BASE_MINT,
   Market,
   PAYER,
   SOME,
@@ -158,7 +158,7 @@ describe("conditional_vault builders", () => {
       authority: ADMIN,
       userUnderlying: SOME,
       conditionalMints: [SOME, USDC_MINT],
-      userConditionalAccounts: [KASS_MINT, USDC_MINT],
+      userConditionalAccounts: [BASE_MINT, USDC_MINT],
       amount: 2_000_000_000n,
     });
     expect(hex(ix.data)).toBe(hex(cat(DISC.splitTokens, u64(2_000_000_000n))));
@@ -180,7 +180,7 @@ describe("futarchy builders", () => {
     const args = {
       daoCreator: DAO_CREATOR,
       payer: PAYER,
-      baseMint: KASS_MINT,
+      baseMint: BASE_MINT,
       quoteMint: USDC_MINT,
       squadsProgramConfigTreasury: TREASURY,
       twapInitialObservation: 500_000_000n,
@@ -218,7 +218,7 @@ describe("futarchy builders", () => {
     const vault = (await pda.squadsVault(multisig, 0)).address;
     const pc = (await pda.squadsProgramConfig()).address;
     const sl = (await pda.squadsSpendingLimit(multisig, dao)).address;
-    const baseVault = await ata(dao, KASS_MINT);
+    const baseVault = await ata(dao, BASE_MINT);
     const quoteVault = await ata(dao, USDC_MINT);
     const ea = (await pda.futarchyEventAuthority()).address;
     const SYS = "11111111111111111111111111111111";
@@ -230,7 +230,7 @@ describe("futarchy builders", () => {
       [DAO_CREATOR, true, false],
       [PAYER, true, true],
       [SYS, false, false],
-      [KASS_MINT, false, false],
+      [BASE_MINT, false, false],
       [USDC_MINT, false, false],
       [multisig.toString(), false, true],
       [vault.toString(), false, false],

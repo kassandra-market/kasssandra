@@ -23,7 +23,7 @@ const detail = {
     feeCollected: false,
     oracle: { toString: () => ORACLE },
     creator: { toString: () => "Creator1" },
-    kassMint: { toString: () => "Kass1" },
+    baseMint: { toString: () => "Kass1" },
     escrowVault: { toString: () => "Escrow1" },
     question: { toString: () => "Q1" },
     vault: { toString: () => "Vault1" },

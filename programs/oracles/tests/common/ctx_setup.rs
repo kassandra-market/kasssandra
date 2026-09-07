@@ -1,7 +1,7 @@
 use super::*;
 
 impl TestCtx {
-    /// Build a fresh context: a funded payer plus KASS (9 dp) and USDC (6 dp)
+    /// Build a fresh context: a funded payer plus SOL (9 dp) and USDC (6 dp)
     /// mints, both with the payer as mint authority, and the compiled
     /// `kassandra_oracles_program` deployed so tests can submit real transactions via
     /// [`TestCtx::send`].
@@ -23,9 +23,9 @@ impl TestCtx {
         let mut ctx = Self {
             svm,
             payer,
-            kass_mint: Pubkey::default(),
+            base_mint: Pubkey::default(),
             usdc_mint: Pubkey::default(),
-            payer_kass: Pubkey::default(),
+            payer_base: Pubkey::default(),
             program_id,
             next_nonce: 0,
             oracles: HashMap::new(),
@@ -33,9 +33,9 @@ impl TestCtx {
             cu_meter: CuMeter::default(),
         };
 
-        // Mint-authority bootstrap (Task S3): the KASS mint's authority MUST be
+        // Mint-authority bootstrap (Task S3): the SOL mint's authority MUST be
         // the program's mint-authority PDA `[b"mint_authority"]`, so the program
-        // (and ONLY the program, via the emission `MintTo` CPI) can mint KASS.
+        // (and ONLY the program, via the emission `MintTo` CPI) can mint SOL.
         // This harness fabricates every token balance directly (`create_token_
         // account` writes the balance; `add_mint_supply` rewrites the mint supply
         // field) and burns via the creator (token-account owner) as the SPL Burn
@@ -44,12 +44,12 @@ impl TestCtx {
         // enabling the program's emission mint. USDC's authority stays the payer
         // (no program ever mints USDC).
         let (mint_auth, _) = Self::mint_authority_pda(&ctx.program_id);
-        ctx.kass_mint = ctx.create_mint(KASS_DECIMALS, mint_auth);
+        ctx.base_mint = ctx.create_mint(SOL_DECIMALS, mint_auth);
         ctx.usdc_mint = ctx.create_mint(USDC_DECIMALS, ctx.payer.pubkey());
-        // Bankroll the payer with KASS backed by real mint supply so the
+        // Bankroll the payer with SOL backed by real mint supply so the
         // creation-fee burn reduces both the balance AND the supply.
         let payer = ctx.payer.pubkey();
-        ctx.payer_kass = ctx.fund_kass_minted(payer, 1_000_000_000_000_000);
+        ctx.payer_base = ctx.fund_base_minted(payer, 1_000_000_000_000_000);
         ctx
     }
 
@@ -68,7 +68,7 @@ impl TestCtx {
         kassandra_oracles_sdk::pda::protocol(program_id)
     }
 
-    /// Derive the KASS mint-authority PDA: seeds `[b"mint_authority"]`.
+    /// Derive the SOL mint-authority PDA: seeds `[b"mint_authority"]`.
     pub fn mint_authority_pda(program_id: &Pubkey) -> (Pubkey, u8) {
         kassandra_oracles_sdk::pda::mint_authority(program_id)
     }

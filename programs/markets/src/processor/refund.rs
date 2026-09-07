@@ -1,5 +1,5 @@
-//! `refund`: permissionless per-contributor refund of staked KASS out of a
-//! `Cancelled` market's escrow, back to the recorded contributor's KASS ata.
+//! `refund`: permissionless per-contributor refund of staked SOL out of a
+//! `Cancelled` market's escrow, back to the recorded contributor's SOL ata.
 //!
 //! The escrow's SPL authority is the market PDA, so the transfer is
 //! program-signed with the market seeds `[b"market", oracle, [outcome_index], [bump]]`.
@@ -15,7 +15,7 @@
 //! 0. market PDA          — writable; must be `Cancelled` (open_contributions decremented)
 //! 1. escrow              — writable; must equal `market.escrow_vault`
 //! 2. contribution PDA    — writable; must belong to this market (CLOSED here)
-//! 3. contributor_kass_ata — writable; SPL owner must equal `contribution.contributor`
+//! 3. contributor_base_ata — writable; SPL owner must equal `contribution.contributor`
 //! 4. contributor         — writable; == contribution.contributor (Contribution rent recipient)
 //! 5. token program
 

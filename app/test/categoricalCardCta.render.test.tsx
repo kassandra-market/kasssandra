@@ -2,7 +2,7 @@
  * Render coverage for CategoricalCard's status-driven footer CTA
  * (FundGroupCta) — the group analogue of MarketCard's Stake/Launch CTA:
  *   - no Funding outcome in the group → no footer CTA at all
- *   - some Funding outcomes under their own floor → an inline "total KASS"
+ *   - some Funding outcomes under their own floor → an inline "total SOL"
  *     stake input + button, no launch button
  *   - every Funding outcome already at/over its own floor → a one-click bulk
  *     launch button, no stake input
@@ -19,8 +19,8 @@ vi.mock("../src/market/hooks/useActionSequence", () => ({
     run: async () => {},
   }),
 }));
-vi.mock("../src/market/hooks/useKassBalance", () => ({
-  useKassBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
+vi.mock("../src/market/hooks/useSolBalance", () => ({
+  useSolBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
 }));
 vi.mock("../src/market/lib/indexer", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -40,7 +40,7 @@ import { CategoricalCard } from "../src/components/markets/CategoricalCard";
 import type { OracleGroup } from "../src/market/data/markets";
 
 const ORACLE = "Orac1e1111111111111111111111111111111111111";
-const KASS_MINT = { toString: () => "Kass1111111111111111111111111111111111111111" };
+const BASE_MINT = { toString: () => "Kass1111111111111111111111111111111111111111" };
 
 function market(
   outcomeIndex: number,
@@ -55,7 +55,7 @@ function market(
       outcomeIndex,
       totalContributed,
       minLiquidity,
-      kassMint: KASS_MINT,
+      baseMint: BASE_MINT,
       oracle: { toString: () => ORACLE },
     },
     reserves: status === MarketStatus.Active ? { base: 6n, quote: 4n } : null,
@@ -87,7 +87,7 @@ describe("CategoricalCard — footer CTA (FundGroupCta)", () => {
       market(1, MarketStatus.Funding, 200_000_000_000n), // 200 < 500 floor
       market(2, MarketStatus.Active, 500_000_000_000n),
     ]);
-    expect(html).toContain('aria-label="Total amount to deposit across all Funding outcomes, in KASS"');
+    expect(html).toContain('aria-label="Total amount to deposit across all Funding outcomes, in SOL"');
     expect(html).toContain(">Stake<");
     expect(html).not.toContain("Launch market");
   });
@@ -106,7 +106,7 @@ describe("CategoricalCard — footer CTA (FundGroupCta)", () => {
       market(0, MarketStatus.Funding, 100_000_000_000n), // under floor
       market(1, MarketStatus.Funding, 900_000_000_000n), // over floor
     ]);
-    expect(html).toContain('aria-label="Total amount to deposit across all Funding outcomes, in KASS"');
+    expect(html).toContain('aria-label="Total amount to deposit across all Funding outcomes, in SOL"');
     expect(html).not.toContain("Launch market");
   });
 });

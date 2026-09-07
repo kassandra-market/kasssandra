@@ -96,15 +96,15 @@ describe("Funding & liquidity panel", () => {
   it("details the underlying pool's cYES/cNO token composition", () => {
     const html = render();
     expect(html).toContain("Pool composition");
-    expect(html).toContain("cYES (pays 1 KASS on YES)");
-    expect(html).toContain("cNO (pays 1 KASS on NO)");
+    expect(html).toContain("cYES (pays 1 SOL on YES)");
+    expect(html).toContain("cNO (pays 1 SOL on NO)");
   });
 
-  it("shows the pool's cYES/cNO reserve AMOUNTS at the top of the tab, not a KASS pool value", () => {
+  it("shows the pool's cYES/cNO reserve AMOUNTS at the top of the tab, not a SOL pool value", () => {
     const html = render();
     expect(html).not.toContain("Pool value");
     // The overview stat tiles surface each side's raw reserve amount (base=cYES,
-    // quote=cNO from the fixture's `reserves`), not a mark-to-market KASS total.
+    // quote=cNO from the fixture's `reserves`), not a mark-to-market SOL total.
     expect(html).toMatch(/>cYES<[\s\S]*?0\.64/);
     expect(html).toMatch(/>cNO<[\s\S]*?0\.36/);
   });

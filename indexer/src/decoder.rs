@@ -31,7 +31,7 @@ const IX_VARIANTS: [Ix; 30] = [
     Ix::SetGovernance,
     Ix::SetConfig,
     Ix::ResolveDeadend,
-    Ix::KassPrice,
+    Ix::SpotPrice,
     Ix::ClaimProposer,
     Ix::ClaimFact,
     Ix::ClaimFactVote,

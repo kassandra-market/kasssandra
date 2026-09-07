@@ -37,10 +37,10 @@ import {
   DEST_KASS,
   FACT,
   FAIL_AMM,
-  FAIL_KASS_MINT,
+  FAIL_BASE_MINT,
   FACT_VOTE,
-  KASS_DAO,
-  KASS_MINT,
+  SPOT_DAO,
+  BASE_MINT,
   KASS_VAULT,
   KASS_VAULT_UNDERLYING,
   MARKET_ARG,
@@ -48,7 +48,7 @@ import {
   ORACLE_FAIL_KASS,
   ORACLE_PASS_KASS,
   PASS_AMM,
-  PASS_KASS_MINT,
+  PASS_BASE_MINT,
   PROPOSER,
   PROPOSER_USDC,
   QUESTION,
@@ -68,17 +68,17 @@ describe("D3b challenge builders — open_challenge / settle_challenge", () => {
       proposer: PROPOSER,
       challenger: CHALLENGER,
       question: QUESTION,
-      kassVault: KASS_VAULT,
+      baseVault: KASS_VAULT,
       usdcVault: USDC_VAULT,
       passAmm: PASS_AMM,
       failAmm: FAIL_AMM,
-      kassVaultUnderlying: KASS_VAULT_UNDERLYING,
-      passKassMint: PASS_KASS_MINT,
-      failKassMint: FAIL_KASS_MINT,
+      baseVaultUnderlying: KASS_VAULT_UNDERLYING,
+      passBaseMint: PASS_BASE_MINT,
+      failBaseMint: FAIL_BASE_MINT,
       oraclePassKass: ORACLE_PASS_KASS,
       oracleFailKass: ORACLE_FAIL_KASS,
       cvEventAuthority: CV_EVENT_AUTH,
-      kassDao: KASS_DAO,
+      spotDao: SPOT_DAO,
       usdcMint: USDC_MINT,
       challengerUsdcSrc: CHALLENGER_USDC_SRC,
     });
@@ -105,8 +105,8 @@ describe("D3b challenge builders — open_challenge / settle_challenge", () => {
       [FAIL_AMM, false, false], // 9
       [stakeVault.address.toString(), false, true], // 10
       [KASS_VAULT_UNDERLYING, false, true], // 11
-      [PASS_KASS_MINT, false, true], // 12
-      [FAIL_KASS_MINT, false, true], // 13
+      [PASS_BASE_MINT, false, true], // 12
+      [FAIL_BASE_MINT, false, true], // 13
       [ORACLE_PASS_KASS, false, true], // 14
       [ORACLE_FAIL_KASS, false, true], // 15
       [EXTERNAL_PROGRAM_IDS.conditionalVault.toString(), false, false], // 16
@@ -114,7 +114,7 @@ describe("D3b challenge builders — open_challenge / settle_challenge", () => {
       [SYSTEM_PROGRAM_ID.toString(), false, false], // 18
       [CV_EVENT_AUTH, false, false], // 19
       [protocol.address.toString(), false, false], // 20
-      [KASS_DAO, false, false], // 21
+      [SPOT_DAO, false, false], // 21
       [USDC_MINT, false, false], // 22
       [CHALLENGER_USDC_SRC, false, true], // 23
       [escrow.address.toString(), false, true], // 24
@@ -132,10 +132,10 @@ describe("D3b challenge builders — open_challenge / settle_challenge", () => {
       passAmm: PASS_AMM,
       failAmm: FAIL_AMM,
       cvEventAuthority: CV_EVENT_AUTH,
-      kassVault: KASS_VAULT,
-      kassVaultUnderlying: KASS_VAULT_UNDERLYING,
-      passKassMint: PASS_KASS_MINT,
-      failKassMint: FAIL_KASS_MINT,
+      baseVault: KASS_VAULT,
+      baseVaultUnderlying: KASS_VAULT_UNDERLYING,
+      passBaseMint: PASS_BASE_MINT,
+      failBaseMint: FAIL_BASE_MINT,
       oraclePassKass: ORACLE_PASS_KASS,
       oracleFailKass: ORACLE_FAIL_KASS,
       proposerUsdc: PROPOSER_USDC,
@@ -164,8 +164,8 @@ describe("D3b challenge builders — open_challenge / settle_challenge", () => {
       [stakeVault.address.toString(), false, true], // 10
       [KASS_VAULT, false, true], // 11
       [KASS_VAULT_UNDERLYING, false, true], // 12
-      [PASS_KASS_MINT, false, true], // 13
-      [FAIL_KASS_MINT, false, true], // 14
+      [PASS_BASE_MINT, false, true], // 13
+      [FAIL_BASE_MINT, false, true], // 14
       [ORACLE_PASS_KASS, false, true], // 15
       [ORACLE_FAIL_KASS, false, true], // 16
       [escrow.address.toString(), false, true], // 17
@@ -183,7 +183,7 @@ describe("D3b settlement builders — claims + closes", () => {
     const ix = await claimProposer({
       nonce,
       proposer: PROPOSER,
-      destKass: DEST_KASS,
+      destBase: DEST_KASS,
       rentRecipient: RENT_RECIPIENT,
     });
 
@@ -206,7 +206,7 @@ describe("D3b settlement builders — claims + closes", () => {
     const ix = await claimFact({
       nonce,
       fact: FACT,
-      destKass: DEST_KASS,
+      destBase: DEST_KASS,
       rentRecipient: RENT_RECIPIENT,
     });
 
@@ -230,7 +230,7 @@ describe("D3b settlement builders — claims + closes", () => {
       nonce,
       factVote: FACT_VOTE,
       fact: FACT,
-      destKass: DEST_KASS,
+      destBase: DEST_KASS,
       rentRecipient: RENT_RECIPIENT,
     });
 
@@ -286,11 +286,11 @@ describe("D3b settlement builders — claims + closes", () => {
 
   it("sweepOracle: nonce u64 payload, oracle/vault/protocol/treasury/creator/token", async () => {
     const nonce = 7n;
-    // daoAuthority = KASS_DAO stand-in, creator = AUTHORITY, mint = KASS_MINT.
+    // daoAuthority = SPOT_DAO stand-in, creator = AUTHORITY, mint = BASE_MINT.
     const ix = await sweepOracle({
       nonce,
-      kassMint: KASS_MINT,
-      daoAuthority: KASS_DAO,
+      baseMint: BASE_MINT,
+      daoAuthority: SPOT_DAO,
       creator: AUTHORITY,
     });
 
@@ -299,10 +299,10 @@ describe("D3b settlement builders — claims + closes", () => {
     const oracle = await pda.oracle(nonce);
     const stakeVault = await pda.stakeVault(oracle.address);
     const protocol = await pda.protocol();
-    const daoTreasury = await pda.associatedTokenAccount(KASS_DAO, KASS_MINT);
-    // Treasury is the KASS ATA of dao_authority under the ATA program.
+    const daoTreasury = await pda.associatedTokenAccount(SPOT_DAO, BASE_MINT);
+    // Treasury is the SOL ATA of dao_authority under the ATA program.
     const [expectedAta] = await Address.findProgramAddress(
-      [new Address(KASS_DAO).toBytes(), TOKEN_PROGRAM_ID.toBytes(), new Address(KASS_MINT).toBytes()],
+      [new Address(SPOT_DAO).toBytes(), TOKEN_PROGRAM_ID.toBytes(), new Address(BASE_MINT).toBytes()],
       new Address("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"),
     );
     expect(daoTreasury.address.toString()).toBe(expectedAta.toString());

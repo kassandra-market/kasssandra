@@ -56,7 +56,7 @@ export function OracleActions({
   /** Latest attested feed, if a pusher has written one. */
   aiFeed?: { pubkey: string; feed: AiOracleFeed }
 }) {
-  const kassMint = oracle.kassMint
+  const baseMint = oracle.baseMint
   // The full-set finalizes overflow a legacy tx past MAX_LEGACY_TAIL proposers.
   const proposersNearCap = proposers.length > MAX_LEGACY_TAIL
   // finalize_facts uses the fact tail, or the proposers in the no-facts dead-end.
@@ -110,7 +110,7 @@ export function OracleActions({
             build={() =>
               buildFinalizeFactsIxs({
                 oracle: pubkey,
-                kassMint,
+                baseMint,
                 facts: factsTail,
                 oracleNonce: recallNonce(pubkey) ?? undefined,
               })
@@ -148,7 +148,7 @@ export function OracleActions({
           build={() =>
             buildFinalizeOracleIxs({
               oracle: pubkey,
-              kassMint,
+              baseMint,
               proposers,
               oracleNonce: recallNonce(pubkey) ?? undefined,
             })
@@ -161,7 +161,7 @@ export function OracleActions({
       return (
         <div className="flex flex-col gap-4">
           <Note>
-            This oracle is settled — claim your KASS payouts from the fact and proposer cards, then
+            This oracle is settled — claim your SOL payouts from the fact and proposer cards, then
             anyone can sweep the remainder.
           </Note>
           <SweepControl oracle={pubkey} oracleAccount={oracle} refetch={refetch} />

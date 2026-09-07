@@ -243,7 +243,7 @@ fn run_resolved_settlement(
                 seed.nonce,
                 v.account,
                 f.submitter.account,
-                v.dest_kass,
+                v.dest_base,
                 seed.stake_vault,
                 v.authority.pubkey(),
             );
@@ -254,7 +254,7 @@ fn run_resolved_settlement(
                 res
             );
             prop_assert_eq!(
-                ctx.token_balance(v.dest_kass),
+                ctx.token_balance(v.dest_base),
                 predicted,
                 "vote payout matches reference"
             );
@@ -271,7 +271,7 @@ fn run_resolved_settlement(
             seed.oracle,
             seed.nonce,
             f.submitter.account,
-            f.submitter.dest_kass,
+            f.submitter.dest_base,
             seed.stake_vault,
             f.submitter.authority.pubkey(),
         );
@@ -282,7 +282,7 @@ fn run_resolved_settlement(
             res
         );
         prop_assert_eq!(
-            ctx.token_balance(f.submitter.dest_kass),
+            ctx.token_balance(f.submitter.dest_base),
             predicted_sub,
             "submitter payout matches reference"
         );
@@ -309,7 +309,7 @@ fn run_resolved_settlement(
             seed.oracle,
             seed.nonce,
             p.account,
-            p.dest_kass,
+            p.dest_base,
             seed.stake_vault,
             p.authority.pubkey(),
         );
@@ -320,7 +320,7 @@ fn run_resolved_settlement(
             res
         );
         prop_assert_eq!(
-            ctx.token_balance(p.dest_kass),
+            ctx.token_balance(p.dest_base),
             predicted,
             "proposer payout matches reference"
         );
@@ -340,7 +340,7 @@ fn run_resolved_settlement(
     );
     // Dust = floor/ceil reward remainders PLUS, for each disqualified proposer, the
     // forfeited-but-uncredited `bond − slashed_amount`. In the real flow that
-    // remainder is the `kass_fee` already sent OUT of the vault to the challenger
+    // remainder is the `base_fee` already sent OUT of the vault to the challenger
     // (so it is never in the vault); the seeded model over-funds the vault by it,
     // leaving it as conservation-SAFE dust (an under-pay, never an over-pay). The
     // bound below catches any gross over-retention while allowing that surplus.

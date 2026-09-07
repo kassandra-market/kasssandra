@@ -32,8 +32,8 @@ vi.mock('../src/market/hooks/useActionSequence', () => ({
     run: async () => {},
   }),
 }))
-vi.mock('../src/market/hooks/useKassBalance', () => ({
-  useKassBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
+vi.mock('../src/market/hooks/useSolBalance', () => ({
+  useSolBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
 }))
 vi.mock('../src/market/lib/indexer', async (importOriginal) => ({
   ...(await importOriginal()),
@@ -116,7 +116,7 @@ function summary(outcomeIndex: number, pubkey: string) {
       status: MarketStatus.Active,
       outcomeIndex,
       oracle: { toString: () => ORACLE },
-      kassMint: { toString: () => 'KassMint11111111111111111111111111111111' },
+      baseMint: { toString: () => 'BaseMint11111111111111111111111111111111' },
       totalContributed: 5n,
       minLiquidity: 10n,
     },

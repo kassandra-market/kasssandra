@@ -8,7 +8,7 @@ use super::build;
 use crate::{SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
 
 // ===================================================================== Ix 11
-/// `Propose` (Ix 11) — register a categorical `option` with a KASS `bond`.
+/// `Propose` (Ix 11) — register a categorical `option` with a SOL `bond`.
 #[allow(clippy::too_many_arguments)]
 pub fn propose(
     program_id: &Pubkey,

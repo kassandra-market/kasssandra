@@ -70,12 +70,12 @@ fn set_config_gate_accepts_only_recorded_squads_vault_pda() {
 
     // Stand up a REAL futarchy `Dao` (valid owner + discriminator) and its
     // derived Squads vault — the exact linkage the hardened handoff requires.
-    let (kass_dao, vault_pda) = ctx.fabricate_dao_and_vault();
+    let (spot_dao, vault_pda) = ctx.fabricate_dao_and_vault();
 
     // Admin (payer) hands governance off through the real (validated) handoff,
     // recording the vault PDA as the DAO execution authority.
     let payer = ctx.payer.insecure_clone();
-    let (protocol_pda, res) = ctx.set_governance(&payer, vault_pda, kass_dao);
+    let (protocol_pda, res) = ctx.set_governance(&payer, vault_pda, spot_dao);
     assert!(res.is_ok(), "handoff should succeed: {res:?}");
     assert_eq!(
         ctx.protocol(protocol_pda).dao_authority,
@@ -118,10 +118,10 @@ fn resolve_deadend_gate_rejects_non_vault_signer() {
     let mut ctx = TestCtx::new();
     ctx.ensure_protocol();
 
-    let (kass_dao, vault_pda) = ctx.fabricate_dao_and_vault();
+    let (spot_dao, vault_pda) = ctx.fabricate_dao_and_vault();
 
     let payer = ctx.payer.insecure_clone();
-    let (_p, res) = ctx.set_governance(&payer, vault_pda, kass_dao);
+    let (_p, res) = ctx.set_governance(&payer, vault_pda, spot_dao);
     assert!(res.is_ok(), "handoff should succeed: {res:?}");
 
     // Stand up a dead-ended oracle.
@@ -175,12 +175,12 @@ fn gate_accepts_recorded_authority_when_signable() {
 
     let dao_kp = Keypair::new();
     ctx.svm.airdrop(&dao_kp.pubkey(), 1_000_000_000).unwrap();
-    let kass_dao = Pubkey::new_unique();
+    let spot_dao = Pubkey::new_unique();
 
     // A SIGNABLE keypair as `dao_authority` is recorded directly: the Task
     // G1-hardened handoff only accepts the derived (unsignable) Squads vault PDA,
     // so the accept path uses the direct-write harness helper.
-    let protocol_pda = ctx.force_governance(dao_kp.pubkey(), kass_dao);
+    let protocol_pda = ctx.force_governance(dao_kp.pubkey(), spot_dao);
 
     // The recorded authority signs → accepted.
     let mut params = ConfigParams::defaults();

@@ -3,9 +3,9 @@
 // `ammV04.ts`), decoded back through `decodeAmmV04` so the panel exercises the
 // genuine decoder path offline. Slots: created@1000, start_delay 150, last@2150
 // ⇒ 1000 accumulating slots. Aggregator = twap * slots (twap PRICE_SCALE-scaled,
-// 1e12). Reserves: 9-dec base (KASS), 6-dec quote (USDC).
-//   pass: twap ≈ 1.000 · reserves 1000 KASS / 1000 USDC ⇒ spot 1.000
-//   fail: twap ≈ 1.090 · reserves 1000 KASS / 1090 USDC ⇒ spot 1.090
+// 1e12). Reserves: 9-dec base (SOL), 6-dec quote (USDC).
+//   pass: twap ≈ 1.000 · reserves 1000 SOL / 1000 USDC ⇒ spot 1.000
+//   fail: twap ≈ 1.090 · reserves 1000 SOL / 1090 USDC ⇒ spot 1.090
 // margin 1/10 ⇒ disqualify when fail > pass*1.1; progress = (fail-pass)*10/pass
 // = (0.09)*10/1 = 0.90 ⇒ NEAR the margin (the single ember accent lights up),
 // not yet over (would need fail > 1.10).
@@ -62,14 +62,14 @@ function encodeMockAmm(opts: {
 
 const MOCK_PASS_AMM = encodeMockAmm({
   twap: PRICE_SCALE_MOCK, // 1.000
-  baseAmount: 1_000_000_000_000n, // 1000 KASS (9 dec)
+  baseAmount: 1_000_000_000_000n, // 1000 SOL (9 dec)
   quoteAmount: 1_000_000_000n, // 1000 USDC (6 dec)
   baseSeed: 91,
   quoteSeed: 92,
 })
 const MOCK_FAIL_AMM = encodeMockAmm({
   twap: (PRICE_SCALE_MOCK * 1090n) / 1000n, // 1.090
-  baseAmount: 1_000_000_000_000n, // 1000 KASS
+  baseAmount: 1_000_000_000_000n, // 1000 SOL
   quoteAmount: 1_090_000_000n, // 1090 USDC
   baseSeed: 93,
   quoteSeed: 94,

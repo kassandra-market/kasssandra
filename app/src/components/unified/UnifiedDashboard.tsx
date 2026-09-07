@@ -4,7 +4,7 @@
  * bound market groups. Pure presentation over the already-fetched + merged
  * data; no fetching here.
  */
-import { formatKass } from '../../lib/oracleView'
+import { formatSol } from '../../lib/oracleView'
 import type { CombinedStats } from '../../lib/unifiedList'
 import type { UnifiedCounts, UnifiedFilter, UnifiedSort } from '../../lib/unifiedList'
 
@@ -12,12 +12,12 @@ const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 ' +
   'focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss'
 
-/** One monetary figure: a scaled-KASS serif value over an Inter label. */
+/** One monetary figure: a scaled-SOL serif value over an Inter label. */
 function MoneyTile({ amount, label }: { amount: bigint; label: string }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="font-serif text-heading-sm font-light leading-none tabular-nums text-platinum">
-        {formatKass(amount)}
+        {formatSol(amount)}
       </span>
       <span className="font-inter text-[12px] text-silver">{label}</span>
     </div>
@@ -27,7 +27,7 @@ function MoneyTile({ amount, label }: { amount: bigint; label: string }) {
 /**
  * The combined stats strip. The headline "Capital at stake" sums the oracle
  * bond economics (still-contestable oracles) and every loaded market's TVL —
- * both raw KASS, just two different economics riding on the same token — then
+ * both raw SOL, just two different economics riding on the same token — then
  * breaks that down into four tiles: the oracle bond pool, dispute bonds, and
  * stake, plus market TVL.
  */
@@ -44,9 +44,9 @@ export function UnifiedStats({ stats }: { stats: CombinedStats }) {
             Capital at stake
           </span>
           <span className="font-serif text-heading font-light leading-none tabular-nums text-lavender-phosphor">
-            {formatKass(headline)}
+            {formatSol(headline)}
           </span>
-          <span className="font-inter text-[12px] text-silver">KASS · oracles + markets</span>
+          <span className="font-inter text-[12px] text-silver">SOL · oracles + markets</span>
         </div>
 
         <div className="flex flex-wrap gap-x-8 gap-y-3">

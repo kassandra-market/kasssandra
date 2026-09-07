@@ -4,7 +4,7 @@ import { ChallengeComposeForm } from './ChallengeComposeForm'
 
 /**
  * RF4 — the Challenge-phase control. The challenge round runs over a MetaDAO
- * v0.4 market (a binary question, KASS/USDC conditional vaults, two pass/fail
+ * v0.4 market (a binary question, SOL/USDC conditional vaults, two pass/fail
  * AMMs). This surface hosts challenge STATUS + the CLIENT-SIDE compose→open flow
  * (CU3's {@link ChallengeComposeForm}, no runner JSON): any wallet challenges an
  * uncontested claim by composing the whole market from the browser and funding

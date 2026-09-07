@@ -2,8 +2,8 @@
  * The redeem write ACTION (pure ix-builder, NO React).
  *
  * After a market resolves, a holder burns their full cYES + cNO balances for the
- * resolved KASS payout. {@link buildRedeemIxs} prepends idempotent create-ATAs
- * for the holder's cYES/cNO AND destination KASS accounts (the `redeem_tokens`
+ * resolved SOL payout. {@link buildRedeemIxs} prepends idempotent create-ATAs
+ * for the holder's cYES/cNO AND destination SOL accounts (the `redeem_tokens`
  * account list carries no ATA/System program, so all three must pre-exist), plus
  * a compute-budget ix (the burn-2-mints + transfer CPI), then the SDK
  * `flows.redeemInstructions`. The market's MetaDAO question must already be
@@ -16,7 +16,7 @@ import type { IndexerReads } from "../../lib/indexer";
 import { setComputeUnitLimitIx } from "./compute";
 import { toAddress, type AddressInput } from "./ata";
 
-/** Compute budget for redeem (burn cYES + cNO, transfer the KASS payout). */
+/** Compute budget for redeem (burn cYES + cNO, transfer the SOL payout). */
 export const REDEEM_COMPUTE_UNITS = 300_000;
 
 export interface BuildRedeemArgs {
@@ -29,7 +29,7 @@ export interface BuildRedeemArgs {
 
 /**
  * Assemble the redeem instruction list:
- * `[computeBudget, ...ensureConditionalAtas(+KASS), redeem]`. The KASS ATA the
+ * `[computeBudget, ...ensureConditionalAtas(+SOL), redeem]`. The SOL ATA the
  * payout lands in is the one `ensureConditionalAtasInstructions({ includeKass })`
  * derives, so it's threaded straight into the redeem.
  */
@@ -44,7 +44,7 @@ export async function buildRedeemIxs(args: BuildRedeemArgs): Promise<Transaction
   const redeem = await flows.redeemInstructions({
     refs: args.refs,
     user,
-    userKassAta: ensure.userKassAta!,
+    userBaseAta: ensure.userBaseAta!,
     userYesAta: ensure.userYesAta,
     userNoAta: ensure.userNoAta,
   });

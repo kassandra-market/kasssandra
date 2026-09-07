@@ -53,13 +53,13 @@ describe('uniformSplit', () => {
 
 let MARKET: Address
 let ORACLE: Address
-let KASS_MINT: Address
+let BASE_MINT: Address
 let PAYER: Address
 
 beforeAll(async () => {
   MARKET = (await Keypair.generate()).publicKey
   ORACLE = (await Keypair.generate()).publicKey
-  KASS_MINT = (await Keypair.generate()).publicKey
+  BASE_MINT = (await Keypair.generate()).publicKey
   PAYER = (await Keypair.generate()).publicKey
 })
 
@@ -111,7 +111,7 @@ describe('outcomesReadyToActivate', () => {
 describe('buildBulkActivateSteps', () => {
   it('builds one full 4-step activate sequence per entry, label-prefixed by outcome', async () => {
     const steps = await buildBulkActivateSteps({
-      kassMint: KASS_MINT,
+      baseMint: BASE_MINT,
       payer: PAYER,
       entries: [entry('Outcome 2', { totalContributed: 100n, minLiquidity: 100n, amount: 0n })],
     })
@@ -127,7 +127,7 @@ describe('buildBulkActivateSteps', () => {
 
   it('concatenates sequences for multiple entries, in order, each still label-prefixed', async () => {
     const steps = await buildBulkActivateSteps({
-      kassMint: KASS_MINT,
+      baseMint: BASE_MINT,
       payer: PAYER,
       entries: [
         entry('Outcome 0', { totalContributed: 100n, minLiquidity: 100n, amount: 0n }),
@@ -140,6 +140,6 @@ describe('buildBulkActivateSteps', () => {
   })
 
   it('returns an empty sequence for no entries', async () => {
-    expect(await buildBulkActivateSteps({ kassMint: KASS_MINT, payer: PAYER, entries: [] })).toEqual([])
+    expect(await buildBulkActivateSteps({ baseMint: BASE_MINT, payer: PAYER, entries: [] })).toEqual([])
   })
 })

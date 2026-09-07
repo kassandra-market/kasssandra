@@ -26,8 +26,8 @@ const TRADE_CU = 400_000
  * point. Throws if activation didn't take.
  */
 export async function seedActiveMarket(ctx: SeedCtx, oracle: string): Promise<ActiveMarketSeed> {
-  const payerKass = await deployAndInitMarket(ctx)
-  return createAndActivateMarket(ctx, oracle, payerKass, { split: true })
+  const payerBase = await deployAndInitMarket(ctx)
+  return createAndActivateMarket(ctx, oracle, payerBase, { split: true })
 }
 
 /** Which leg to push: `"down"` sells cYES (P(YES)↓), `"up"` buys cYES (P(YES)↑). */

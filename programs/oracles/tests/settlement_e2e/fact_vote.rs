@@ -53,7 +53,7 @@ fn assert_fact_vote_deadend_drains(ctx: &mut TestCtx, d: &DrivenFactVoteDeadend)
 
     // The slashed bond_pool + the emission were BURNED back to the reservoir.
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         d.supply_before - d.bond_pool - d.emission,
         "bond_pool (rejected stake + voter floor-slash) + emission burned"
     );
@@ -66,7 +66,7 @@ fn assert_fact_vote_deadend_drains(ctx: &mut TestCtx, d: &DrivenFactVoteDeadend)
 
     // --- AGREED fact: approve-voter then submitter both reclaim full stake ---
     let av = ctx.fact_vote(d.agreed_vote);
-    let dest = ctx.fund_kass(&d.agreed_voter, 0);
+    let dest = ctx.fund_base(&d.agreed_voter, 0);
     ctx.send(
         ctx.claim_fact_vote_ix(
             d.oracle,
@@ -88,7 +88,7 @@ fn assert_fact_vote_deadend_drains(ctx: &mut TestCtx, d: &DrivenFactVoteDeadend)
     returned += av.stake;
 
     let af = ctx.fact(d.agreed_fact);
-    let dest = ctx.fund_kass(&d.agreed_submitter, 0);
+    let dest = ctx.fund_base(&d.agreed_submitter, 0);
     ctx.send(
         ctx.claim_fact_ix(
             d.oracle,
@@ -112,7 +112,7 @@ fn assert_fact_vote_deadend_drains(ctx: &mut TestCtx, d: &DrivenFactVoteDeadend)
     // --- REJECTED fact: voter slashed ceil; submitter forfeits to 0 ----------
     let rv = ctx.fact_vote(d.rejected_vote);
     let voter_slash = ceil_slash(rv.stake, FACT_VOTE_SLASH_NUM, FACT_VOTE_SLASH_DEN);
-    let dest = ctx.fund_kass(&d.rejected_voter, 0);
+    let dest = ctx.fund_base(&d.rejected_voter, 0);
     ctx.send(
         ctx.claim_fact_vote_ix(
             d.oracle,
@@ -133,7 +133,7 @@ fn assert_fact_vote_deadend_drains(ctx: &mut TestCtx, d: &DrivenFactVoteDeadend)
     );
     returned += rv.stake - voter_slash;
 
-    let dest = ctx.fund_kass(&d.rejected_submitter, 0);
+    let dest = ctx.fund_base(&d.rejected_submitter, 0);
     ctx.send(
         ctx.claim_fact_ix(
             d.oracle,
@@ -158,7 +158,7 @@ fn assert_fact_vote_deadend_drains(ctx: &mut TestCtx, d: &DrivenFactVoteDeadend)
     for (auth, pda) in &d.proposers {
         let p = ctx.proposer(*pda);
         let expected = p.bond - p.slashed_amount;
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         ctx.send(
             ctx.claim_proposer_ix(d.oracle, d.nonce, *pda, dest, d.vault, auth.pubkey()),
             &[],
@@ -225,8 +225,8 @@ fn e2e_fact_vote_deadend_governance_resolved_pays_identically() {
     // already happened at finalize; resolve_deadend moves no tokens).
     let dao = Keypair::new();
     ctx.airdrop(&dao, 1_000_000_000);
-    let (_da, kass_dao) = TestCtx::stand_in_governance(0x44);
-    ctx.force_governance(dao.pubkey(), kass_dao);
+    let (_da, spot_dao) = TestCtx::stand_in_governance(0x44);
+    ctx.force_governance(dao.pubkey(), spot_dao);
     let (_p, res) = ctx.resolve_deadend(d.oracle, &dao, 1);
     assert!(res.is_ok(), "resolve_deadend should succeed: {res:?}");
     let o = ctx.oracle(d.oracle);

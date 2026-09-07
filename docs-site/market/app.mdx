@@ -58,10 +58,10 @@ status.
 <Steps>
   <Step title="Create a market">
     `/markets/new` (`app/src/pages/CreateMarket.tsx`) picks a Kassandra oracle + an
-    outcome index and seeds an opening amount of KASS — builds `create_market`.
+    outcome index and seeds an opening amount of SOL — builds `create_market`.
   </Step>
   <Step title="Contribute">
-    On a `Funding` market, stake KASS toward the floor — builds `contribute`. Every
+    On a `Funding` market, stake SOL toward the floor — builds `contribute`. Every
     contributor funds at the same pre-pool basis.
   </Step>
   <Step title="Activate (permissionless crank)">
@@ -71,7 +71,7 @@ status.
   <Step title="Trade YES/NO">
     On an `Active` market, buy or sell a net YES/NO position. The SDK's `buy`/`sell`
     flows do the split-and-swap so the UI never exposes conditional tokens; entry
-    from any token routes through Jupiter (KASS is the on-chain denomination).
+    from any token routes through Jupiter (SOL is the on-chain denomination).
   </Step>
   <Step title="Resolve (permissionless crank)">
     Once the oracle is terminal, anyone cranks `resolve_market` to bridge the
@@ -87,7 +87,7 @@ status.
 
 If the oracle goes terminal while a market is still `Funding`, the detail page
 exposes the `cancel` crank and per-contributor `refund` — the escape path that
-returns all staked KASS. See [Crowdfunding](/market/crowdfunding).
+returns all staked SOL. See [Crowdfunding](/market/crowdfunding).
 
 <Note>
 The market app and the oracle app are two front-ends over two programs, each with

@@ -7,11 +7,11 @@ import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
 import { WriteStatusRegion } from './WriteStatusRegion'
 import { parseAmount, balanceGateError } from './amount'
-import { useKassBalance } from '../../../hooks/useKassBalance'
-import { KassBalanceLine } from './kassBalance'
+import { useSolBalance } from '../../../hooks/useSolBalance'
+import { SolBalanceLine } from './solBalance'
 
 /**
- * Propose a categorical option + escrow a KASS bond (Proposal phase only).
+ * Propose a categorical option + escrow a SOL bond (Proposal phase only).
  * Wraps WF1 `buildProposeIxs` via the wallet-backed sender.
  */
 export function ProposeForm({
@@ -23,8 +23,8 @@ export function ProposeForm({
   oracle: Oracle
   refetch: () => void
 }) {
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(
-    String(oracle.kassMint),
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useSolBalance(
+    String(oracle.baseMint),
   )
   const action = useWriteAction(() => {
     refetch()
@@ -47,7 +47,7 @@ export function ProposeForm({
       buildProposeIxs({
         connection: action.connection,
         oracle: pubkey,
-        kassMint: oracle.kassMint,
+        baseMint: oracle.baseMint,
         authority: action.address!,
         option,
         bond: parsed.value!,
@@ -61,7 +61,7 @@ export function ProposeForm({
       <div>
         <h3 className="font-serif text-subheading font-light text-platinum">Propose an option</h3>
         <p className="mt-1 font-inter text-[13px] text-silver">
-          Escrow a KASS bond behind the option you believe resolves this dispute.
+          Escrow a SOL bond behind the option you believe resolves this dispute.
         </p>
       </div>
       <ConnectGate connected={action.connected}>
@@ -83,7 +83,7 @@ export function ProposeForm({
               </select>
             )}
           </Field>
-          <Field label="Bond (KASS)" hint="In KASS, e.g. 5 or 1.5." error={bondError ?? balanceError}>
+          <Field label="Bond (SOL)" hint="In SOL, e.g. 5 or 1.5." error={bondError ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
@@ -94,7 +94,7 @@ export function ProposeForm({
               />
             )}
           </Field>
-          <KassBalanceLine balance={balance} loading={balanceLoading} />
+          <SolBalanceLine balance={balance} loading={balanceLoading} />
           <div className="flex items-center gap-3">
             <SubmitButton verb="Propose" status={action.status} disabled={Boolean(balanceError)} />
           </div>

@@ -1,11 +1,11 @@
 /**
- * High-level `add_liquidity` (Ix 11) flow — deposit KASS into an already-`Active`
+ * High-level `add_liquidity` (Ix 11) flow — deposit SOL into an already-`Active`
  * market's live cYES/cNO AMM, receiving pooled LP claimable pro-rata (gross-LP
  * basis) alongside the funders.
  *
- * The program splits the KASS 1:1 into cYES/cNO and adds the ratio-limited amounts
+ * The program splits the SOL 1:1 into cYES/cNO and adds the ratio-limited amounts
  * to the pool, returning the heavy-side remainder to the depositor's cYES/cNO ATA.
- * This flow (1) prepends idempotent creates for the depositor's cYES/cNO/KASS ATAs
+ * This flow (1) prepends idempotent creates for the depositor's cYES/cNO/SOL ATAs
  * and (2) computes the `quoteAmount`/`maxBaseAmount`/`minLpTokens` hints from the
  * live pool reserves (base = cYES, quote = cNO), leaving a small base headroom for
  * the AMM's round-up and a slippage floor on the minted LP.
@@ -23,7 +23,7 @@ export interface AddLiquidityFlowParams {
   refs: MarketRefs;
   /** The depositor wallet (signer + rent payer + ATA owner). */
   depositor: AddressInput;
-  /** KASS to deposit (raw base units, > 0). */
+  /** SOL to deposit (raw base units, > 0). */
   amount: bigint;
   /** Live cYES (base) pool reserve — the `ammVaultBase` token balance. */
   baseReserve: bigint;
@@ -49,7 +49,7 @@ export interface AddLiquidityFlowResult {
 }
 
 /**
- * Build the ordered instruction list to add `amount` KASS of liquidity. A raised
+ * Build the ordered instruction list to add `amount` SOL of liquidity. A raised
  * compute budget is needed (the split + add_liquidity CPIs), so callers should
  * prepend a `SetComputeUnitLimit`. The depositor signs.
  */
@@ -85,7 +85,7 @@ export async function addLiquidityInstructions(
     market: refs.market,
     oracle: refs.oracle,
     depositor,
-    kassMint: refs.kassMint,
+    baseMint: refs.baseMint,
     question: refs.question,
     vault: refs.vault,
     vaultUnderlyingAta: refs.vaultUnderlyingAta,

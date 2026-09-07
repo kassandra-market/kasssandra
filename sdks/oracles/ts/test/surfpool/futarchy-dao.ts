@@ -2,8 +2,8 @@
  * Shared test helper: fabricate a minimal futarchy `Dao` account blob carrying an
  * embedded spot AMM `TwapOracle` at the fixed byte offsets the program reads
  * (`aggregator`@9, `last_updated`@25, `created_at`@33, `start_delay`@105). Used by
- * every surfpool/e2e suite that needs a governance-blessed `kass_dao` (so
- * `open_challenge` sizing + `kass_price` have a readable TWAP), instead of each
+ * every surfpool/e2e suite that needs a governance-blessed `spot_dao` (so
+ * `open_challenge` sizing + `spot_price` have a readable TWAP), instead of each
  * copy-pasting the same builder.
  */
 

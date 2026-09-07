@@ -2,8 +2,8 @@ use super::*;
 
 /// Hand-build a futarchy `Dao` account blob with a `PoolState::Spot` embedded
 /// spot `Pool` whose `TwapOracle` carries the given fields at the F0-documented
-/// fixed offsets (mirrors `tests/kass_price.rs`). Used to give `open_challenge`
-/// a deterministic `kass_price`.
+/// fixed offsets (mirrors `tests/spot_price.rs`). Used to give `open_challenge`
+/// a deterministic `spot_price`.
 pub fn build_dao_blob(
     aggregator: u128,
     last_updated: i64,

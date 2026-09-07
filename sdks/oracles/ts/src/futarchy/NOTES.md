@@ -45,7 +45,7 @@ under the Squads program, and the vault as
 stores `squads_multisig` and `squads_multisig_vault`.
 
 **⇒ G1's hardened `set_governance` check is CORRECT.** It derives
-`vault = squads_vault(squads_multisig(create_key == kass_dao), 0)` and requires
+`vault = squads_vault(squads_multisig(create_key == spot_dao), 0)` and requires
 `dao_authority == vault`. Reality matches the assumption exactly.
 
 **Deviation from the plan's literal wording (handled, not a blocker):** plan
@@ -222,7 +222,7 @@ quote_vault_underlying_token_account(w), pass_base_mint(w), fail_base_mint(w),
 pass_quote_mint(w), fail_quote_mint(w), conditional_vault_program,
 vault_event_authority, question, token_program]`.
 
-### spot_swap  (src: spot_swap.rs) — cranks the spot TWAP (the `kass_price` source)
+### spot_swap  (src: spot_swap.rs) — cranks the spot TWAP (the `spot_price` source)
 `SpotSwapParams` Borsh: `input_amount:u64, swap_type:SwapType(u8), min_output_amount:u64`
 (17 + 8 disc). Accounts (then event_authority, program):
 `[dao(w), user_base_account(w), user_quote_account(w), amm_base_vault(w),

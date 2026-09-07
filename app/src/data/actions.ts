@@ -2,7 +2,7 @@
  * WF1 — the write ACTION layer (pure ix-builders, NO React).
  *
  * Each builder takes a {@link Connection} (for an ATA-existence check), derives
- * the authority's KASS Associated Token Account (`ATA(authority, kassMint)`),
+ * the authority's SOL Associated Token Account (`ATA(authority, baseMint)`),
  * PREPENDS an idempotent create-ATA instruction when that account is absent, and
  * appends the corresponding `@kassandra-market/oracles` write builder
  * (`propose` / `submitFact` / `voteFact`). The returned list is handed straight
@@ -77,7 +77,7 @@ function requireVoteKind(kind: number): void {
 }
 
 /**
- * Derive `ATA(authority, kassMint)` and, if the account is absent
+ * Derive `ATA(authority, baseMint)` and, if the account is absent
  * (`getAccountInfo` null), return an idempotent create-ATA ix to prepend
  * (payer == owner == authority). The ATA address is always returned so the
  * caller passes it as the token account to the SDK builder.
@@ -85,13 +85,13 @@ function requireVoteKind(kind: number): void {
 async function ensureKassAta(
   connection: Connection,
   authority: Address,
-  kassMint: Address,
+  baseMint: Address,
 ): Promise<{ ata: Address; createIx?: TransactionInstruction }> {
-  const ata = (await associatedTokenAccount(authority, kassMint)).address;
+  const ata = (await associatedTokenAccount(authority, baseMint)).address;
   const info = await connection.getAccountInfo(ata);
   const createIx = info
     ? undefined
-    : flows.createAtaIdempotentInstruction(authority, ata, authority, kassMint);
+    : flows.createAtaIdempotentInstruction(authority, ata, authority, baseMint);
   return { ata, createIx };
 }
 
@@ -113,13 +113,13 @@ export interface BuildProposeArgs {
   connection: Connection;
   /** The oracle being proposed against (must be in the Proposal phase). */
   oracle: AddressInput;
-  /** The oracle's KASS mint (`oracle.kassMint` from the read layer). */
-  kassMint: AddressInput;
+  /** The oracle's SOL mint (`oracle.baseMint` from the read layer). */
+  baseMint: AddressInput;
   /** Proposer authority (the signer): funds rent + bond. */
   authority: AddressInput;
   /** Categorical option proposed. */
   option: number;
-  /** KASS bond escrowed into the stake vault (> 0). */
+  /** SOL bond escrowed into the stake vault (> 0). */
   bond: bigint | number;
   /** When supplied, validates `option < optionsCount`. */
   optionsCount?: number;
@@ -130,11 +130,11 @@ export async function buildProposeIxs(args: BuildProposeArgs): Promise<Transacti
   requirePositiveAmount("bond", args.bond);
   requireOption(args.option, args.optionsCount);
   const authority = addr(args.authority);
-  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr(args.kassMint));
+  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr(args.baseMint));
   const ix = await propose({
     oracle: args.oracle,
     authority,
-    authorityKass: ata,
+    authorityBase: ata,
     option: args.option,
     bond: args.bond,
     programId: args.programId,
@@ -149,12 +149,12 @@ export interface BuildSubmitFactArgs {
   connection: Connection;
   /** The oracle being supported (must be in the FactProposal phase). */
   oracle: AddressInput;
-  kassMint: AddressInput;
+  baseMint: AddressInput;
   /** Submitter authority (the signer): funds rent + stake. */
   submitter: AddressInput;
   /** 32-byte fact content hash (see {@link hashToContentHash}). */
   contentHash: Uint8Array;
-  /** KASS stake escrowed for the fact (> 0). */
+  /** SOL stake escrowed for the fact (> 0). */
   stake: bigint | number;
   /** Fact uri (<= 200 bytes). */
   uri: string | Uint8Array;
@@ -167,11 +167,11 @@ export async function buildSubmitFactIxs(
   requirePositiveAmount("stake", args.stake);
   requireUri(args.uri);
   const submitter = addr(args.submitter);
-  const { ata, createIx } = await ensureKassAta(args.connection, submitter, addr(args.kassMint));
+  const { ata, createIx } = await ensureKassAta(args.connection, submitter, addr(args.baseMint));
   const ix = await submitFact({
     oracle: args.oracle,
     submitter,
-    submitterKass: ata,
+    submitterBase: ata,
     contentHash: args.contentHash,
     stake: args.stake,
     uri: args.uri,
@@ -187,14 +187,14 @@ export interface BuildVoteFactArgs {
   connection: Connection;
   /** The oracle (must be in the FactVoting phase). */
   oracle: AddressInput;
-  kassMint: AddressInput;
+  baseMint: AddressInput;
   /** The fact being voted on. */
   fact: AddressInput;
   /** Voter authority (the signer): funds rent + stake. */
   voter: AddressInput;
   /** `VOTE_APPROVE` (0) or `VOTE_DUPLICATE` (1). */
   kind: number;
-  /** KASS stake escrowed for the vote (> 0). */
+  /** SOL stake escrowed for the vote (> 0). */
   stake: bigint | number;
   programId?: Address;
 }
@@ -205,12 +205,12 @@ export async function buildVoteFactIxs(
   requirePositiveAmount("stake", args.stake);
   requireVoteKind(args.kind);
   const voter = addr(args.voter);
-  const { ata, createIx } = await ensureKassAta(args.connection, voter, addr(args.kassMint));
+  const { ata, createIx } = await ensureKassAta(args.connection, voter, addr(args.baseMint));
   const ix = await voteFact({
     oracle: args.oracle,
     fact: args.fact,
     voter,
-    voterKass: ata,
+    voterBase: ata,
     kind: args.kind,
     stake: args.stake,
     programId: args.programId,

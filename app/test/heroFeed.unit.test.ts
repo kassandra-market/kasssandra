@@ -79,7 +79,7 @@ describe('buildHeroCards', () => {
       id: 'o-big',
       href: '/oracles/o-big',
       title: 'Did protocol X ship mainnet by Jun 30?',
-      metricAccent: '0.9 KASS',
+      metricAccent: '0.9 SOL',
       metricLabel: 'at stake',
     })
     // market with null reserves → no probability, falls back to liquidity figure
@@ -87,7 +87,7 @@ describe('buildHeroCards', () => {
       kind: 'market',
       href: '/markets/m1',
       title: 'Will the grant milestone verify on-chain?',
-      metricAccent: '12 KASS',
+      metricAccent: '12 SOL',
       metricLabel: 'liquidity',
     })
   })

@@ -11,7 +11,7 @@ pub(super) const PAYLOAD_LEN: usize = 8;
 
 /// `value × num / den` in u128, checked back into `u64`. `den == 0` (a malformed
 /// fee config) is rejected as [`KassandraError::InvalidConfig`]. Used for both
-/// directional fees (KASS fee on a successful challenge, USDC fee on a failed
+/// directional fees (SOL fee on a successful challenge, USDC fee on a failed
 /// one).
 pub(super) fn fee_amount(value: u64, num: u64, den: u64) -> Result<u64, ProgramError> {
     if den == 0 {

@@ -47,7 +47,7 @@ pub fn claim_fact_vote(
     }
     let nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
 
-    let [oracle_ai, vote_ai, fact_ai, dest_kass_ai, stake_vault_ai, rent_recipient_ai, token_prog_ai, ..] =
+    let [oracle_ai, vote_ai, fact_ai, dest_base_ai, stake_vault_ai, rent_recipient_ai, token_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -66,7 +66,7 @@ pub fn claim_fact_vote(
     if &vote.fact != fact_ai.address() || &fact.oracle != oracle_ai.address() {
         return Err(KassandraError::InvalidAccount.into());
     }
-    assert_token_account(dest_kass_ai, &oracle.kass_mint, &vote.voter)?;
+    assert_token_account(dest_base_ai, &oracle.base_mint, &vote.voter)?;
     assert_key(rent_recipient_ai, &vote.voter)?;
 
     // Disposition-based on BOTH terminal phases; only the reward (Resolved only)
@@ -127,7 +127,7 @@ pub fn claim_fact_vote(
     payout_and_close(
         oracle_ai,
         stake_vault_ai,
-        dest_kass_ai,
+        dest_base_ai,
         vote_ai,
         rent_recipient_ai,
         nonce,

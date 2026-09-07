@@ -1,7 +1,7 @@
 /**
  * Governance + resolution lifecycle builders: `setGovernance` (Ix=13),
  * `setConfig` (Ix=14) + its {@link SetConfigParams} encoder, `resolveDeadend`
- * (Ix=15), `kassPrice` (Ix=16). See `../lifecycle` for conventions.
+ * (Ix=15), `spotPrice` (Ix=16). See `../lifecycle` for conventions.
  */
 import { Address, TransactionInstruction } from "@solana/web3.js";
 
@@ -13,11 +13,11 @@ import { addr, ro, w } from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // SetGovernance (Ix=13) — processor/set_governance.rs
-// Accounts: 0 protocol(w) 1 authority(ro,signer) 2 kass_dao(ro).
-// Payload (64): dao_authority[32] ++ kass_dao[32].
+// Accounts: 0 protocol(w) 1 authority(ro,signer) 2 spot_dao(ro).
+// Payload (64): dao_authority[32] ++ spot_dao[32].
 //
-// Task G1: the handoff VALIDATES the linkage against the threaded `kass_dao`
-// account — it must equal the payload `kass_dao`, be owned by the futarchy
+// Task G1: the handoff VALIDATES the linkage against the threaded `spot_dao`
+// account — it must equal the payload `spot_dao`, be owned by the futarchy
 // program, and carry the `Dao` Anchor discriminator; and the payload
 // `dao_authority` must be the Squads v4 vault PDA derived for that DAO.
 // ---------------------------------------------------------------------------
@@ -27,11 +27,11 @@ export interface SetGovernanceArgs {
   /** The Squads v4 multisig vault PDA recorded as `dao_authority` (non-zero). */
   daoAuthority: AddressInput;
   /**
-   * The futarchy `Dao` account recorded as `kass_dao` (non-zero). Used BOTH as
+   * The futarchy `Dao` account recorded as `spot_dao` (non-zero). Used BOTH as
    * the payload pubkey and the read-only account the processor validates
    * (owner == futarchy program + `Dao` discriminator).
    */
-  kassDao: AddressInput;
+  spotDao: AddressInput;
   programId?: Address;
 }
 
@@ -42,7 +42,7 @@ export async function setGovernance(args: SetGovernanceArgs): Promise<Transactio
   const data = withDisc(
     Ix.SetGovernance,
     pubkeyBytes(args.daoAuthority),
-    pubkeyBytes(args.kassDao),
+    pubkeyBytes(args.spotDao),
   );
 
   return new TransactionInstruction({
@@ -50,7 +50,7 @@ export async function setGovernance(args: SetGovernanceArgs): Promise<Transactio
     keys: [
       w(protocol.address),
       ro(addr(args.authority), true),
-      ro(addr(args.kassDao)),
+      ro(addr(args.spotDao)),
     ],
     data,
   });
@@ -91,13 +91,13 @@ export interface SetConfigParams {
   rewardFactWeight: bigint;
   challengeFailUsdcFeeNum: bigint;
   challengeFailUsdcFeeDen: bigint;
-  challengeSuccessKassFeeNum: bigint;
-  challengeSuccessKassFeeDen: bigint;
+  challengeSuccessBaseFeeNum: bigint;
+  challengeSuccessBaseFeeDen: bigint;
   /** Bootstrapping stake-floor curve: fee-EMA below which the floor is 0. */
   stakeFloorEmaThreshold: bigint;
   /** Bootstrapping stake-floor curve: fee-EMA at which the floor reaches max. */
   stakeFloorEmaCap: bigint;
-  /** Bootstrapping stake-floor curve: the max floor (KASS base units); 0 = disabled. */
+  /** Bootstrapping stake-floor curve: the max floor (SOL base units); 0 = disabled. */
   stakeFloorMax: bigint;
 }
 
@@ -124,8 +124,8 @@ export function encodeSetConfigParams(p: SetConfigParams): Uint8Array {
     u64LE(p.rewardFactWeight), // 17
     u64LE(p.challengeFailUsdcFeeNum), // 18
     u64LE(p.challengeFailUsdcFeeDen), // 19
-    u64LE(p.challengeSuccessKassFeeNum), // 20
-    u64LE(p.challengeSuccessKassFeeDen), // 21
+    u64LE(p.challengeSuccessBaseFeeNum), // 20
+    u64LE(p.challengeSuccessBaseFeeDen), // 21
     u64LE(p.stakeFloorEmaThreshold), // 22
     u64LE(p.stakeFloorEmaCap), // 23
     u64LE(p.stakeFloorMax), // 24
@@ -184,22 +184,22 @@ export async function resolveDeadend(args: ResolveDeadendArgs): Promise<Transact
 }
 
 // ---------------------------------------------------------------------------
-// KassPrice (Ix=16) — processor/kass_price.rs
-// Accounts: 0 protocol(ro) 1 kass_dao(ro). Payload: empty. Read-only (return data).
+// SpotPrice (Ix=16) — processor/spot_price.rs
+// Accounts: 0 protocol(ro) 1 spot_dao(ro). Payload: empty. Read-only (return data).
 // ---------------------------------------------------------------------------
-export interface KassPriceArgs {
-  /** The futarchy `Dao` account == `protocol.kass_dao`. */
-  kassDao: AddressInput;
+export interface SpotPriceArgs {
+  /** The futarchy `Dao` account == `protocol.spot_dao`. */
+  spotDao: AddressInput;
   programId?: Address;
 }
 
-export async function kassPrice(args: KassPriceArgs): Promise<TransactionInstruction> {
+export async function spotPrice(args: SpotPriceArgs): Promise<TransactionInstruction> {
   const programId = args.programId ?? KASSANDRA_PROGRAM_ID;
   const protocol = await pda.protocol(programId);
 
   return new TransactionInstruction({
     programId,
-    keys: [ro(protocol.address), ro(addr(args.kassDao))],
-    data: withDisc(Ix.KassPrice),
+    keys: [ro(protocol.address), ro(addr(args.spotDao))],
+    data: withDisc(Ix.SpotPrice),
   });
 }

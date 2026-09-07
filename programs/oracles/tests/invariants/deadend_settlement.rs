@@ -40,7 +40,7 @@ fn run_deadend_settlement(bond0: u64, bond1: u64, emission: u64) -> Result<(), T
 
     let vault = ctx.seeded(oracle).stake_vault;
     let nonce = ctx.seeded(oracle).nonce;
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     let stakes = bond0 + bond1;
     prop_assert_eq!(ctx.token_balance(vault), stakes + emission);
 
@@ -57,7 +57,7 @@ fn run_deadend_settlement(bond0: u64, bond1: u64, emission: u64) -> Result<(), T
         "emission burned out of the vault"
     );
     prop_assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before - emission,
         "supply returns by the burned emission"
     );
@@ -66,7 +66,7 @@ fn run_deadend_settlement(bond0: u64, bond1: u64, emission: u64) -> Result<(), T
     let mut total_payout = 0u64;
     for (auth, pda) in auths.iter().zip(&pdas) {
         let bond = ctx.proposer(*pda).bond;
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey());
         let res = ctx.send(ix, &[]);
         prop_assert!(res.is_ok(), "deadend claim should succeed: {:?}", res);

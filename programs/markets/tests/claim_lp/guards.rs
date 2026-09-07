@@ -7,19 +7,19 @@ use super::*;
 fn claim_lp_rejects_not_active() {
     // A still-`Funding` market (never activated) has no LP to claim.
     let mut ctx = TestCtx::new();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "{res:?}");
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "{res:?}");
 
     // No lp_mint yet; any token account will do — the status guard fires first.
-    let dest = ctx.create_token_account(kass, creator.pubkey(), 0);
+    let dest = ctx.create_token_account(base, creator.pubkey(), 0);
     let res = ctx.claim_lp(market, creator.pubkey(), dest);
     assert_eq!(custom_code(&res), Some(MarketError::NotActive as u32));
 }
@@ -43,8 +43,8 @@ fn claim_lp_rejects_wrong_dest_owner() {
 #[test]
 fn claim_lp_rejects_wrong_mint() {
     let mut s = setup_active_two_contributors();
-    // Dest owned by the contributor but on the WRONG mint (KASS, not lp_mint).
-    let wrong_mint_ata = s.ctx.create_token_account(s.kass, s.creator.pubkey(), 0);
+    // Dest owned by the contributor but on the WRONG mint (SOL, not lp_mint).
+    let wrong_mint_ata = s.ctx.create_token_account(s.base, s.creator.pubkey(), 0);
     let res = s.ctx.claim_lp(s.market, s.creator.pubkey(), wrong_mint_ata);
     assert_eq!(custom_code(&res), Some(MarketError::InvalidAccount as u32));
 }
@@ -84,7 +84,7 @@ fn claim_lp_dust_share_zero_still_closes_contribution() {
     // `lp_total == total_contributed` so this never triggers; we fabricate an
     // inconsistent state to cover the branch.
     let mut ctx = TestCtx::new();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let lp_mint = ctx.create_mint(9);
     let oracle = Pubkey::new_unique();
     let (market, mbump) = kassandra_markets_sdk::pda::market(&oracle, 0);
@@ -101,7 +101,7 @@ fn claim_lp_dust_share_zero_still_closes_contribution() {
     m.account_type = AccountType::Market.as_u8();
     m.oracle = oracle.to_bytes().into();
 
-    m.kass_mint = kass.to_bytes().into();
+    m.base_mint = base.to_bytes().into();
 
     m.status = MarketStatus::Active.as_u8();
     m.bump = mbump;

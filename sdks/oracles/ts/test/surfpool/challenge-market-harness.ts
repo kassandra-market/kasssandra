@@ -37,13 +37,13 @@ export const BPF_UPGRADEABLE = "BPFLoaderUpgradeab1e11111111111111111111111";
 export const INITIALIZE_QUESTION = Uint8Array.from([0xf5, 0x97, 0x6a, 0xbc, 0x58, 0x2c, 0x41, 0xd4]);
 export const INITIALIZE_CONDITIONAL_VAULT = Uint8Array.from([0x25, 0x58, 0xfa, 0xd4, 0x36, 0xda, 0xe3, 0xaf]);
 
-// `kass_price` consts (mirror `config.rs` + the Rust test harness).
-export const KASS_PRICE_TWAP = 500_000_000n;
-export const KASS_PRICE_SCALE = 1_000_000_000_000n;
+// `spot_price` consts (mirror `config.rs` + the Rust test harness).
+export const SPOT_PRICE_TWAP = 500_000_000n;
+export const SPOT_PRICE_SCALE = 1_000_000_000_000n;
 
 export const enc = new TextEncoder();
 
-/** 1 KASS (9 dp) bond — large enough that required_usdc = bond×twap/scale > 0. */
+/** 1 SOL (9 dp) bond — large enough that required_usdc = bond×twap/scale > 0. */
 export const BOND = 1_000_000_000n;
 
 // --- v0.4 AMM pool seeding (mirror challenge_e2e.rs build_pool) ---------------
@@ -51,7 +51,7 @@ export const BOND = 1_000_000_000n;
  * price straight into the TWAP (no clamp), so the cranked TWAP is deterministic.
  * (== `u64::MAX × 1e12`, the same value the Rust e2e uses.) */
 export const MAX_PRICE = ((1n << 64n) - 1n) * 1_000_000_000_000n;
-/** Base reserve: 100 conditional-KASS (9 dp). */
+/** Base reserve: 100 conditional-SOL (9 dp). */
 export const BASE_RESERVE = 100_000_000_000n;
 /** Quote reserve: 100 conditional-USDC (6 dp) → seeded price 1e9 (scaled). */
 export const QUOTE_NEUTRAL = 100_000_000n;
@@ -59,9 +59,9 @@ export const QUOTE_NEUTRAL = 100_000_000n;
 export interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
-  kassDao: Address;
+  spotDao: Address;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +171,7 @@ export interface Challenged {
 
 export interface MarketComposition {
   question: Address;
-  kass: VaultAccounts;
+  base: VaultAccounts;
   usdc: VaultAccounts;
   oraclePassKass: Address;
   oracleFailKass: Address;
@@ -281,12 +281,12 @@ export async function tokenBalance(f: Fixture, address: Address): Promise<bigint
   return tokenAccountAmount(await fetchAccount(f, address));
 }
 
-export async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
-  return fabricateTokenAccountMint(f, f.kassMint.publicKey, owner, amount);
+export async function fundBase(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
+  return fabricateTokenAccountMint(f, f.baseMint.publicKey, owner, amount);
 }
 
 export async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number): Promise<void> {
-  const creatorKass = await fundKass(f, f.payer.publicKey, 10n ** 15n);
+  const creatorBase = await fundBase(f, f.payer.publicKey, 10n ** 15n);
   const nowUnix = await f.harness.clockUnixTimestamp();
   await sendIx(
     f,
@@ -296,8 +296,8 @@ export async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: 
       deadline: nowUnix + 1_000n,
       twapWindow: 600n,
       creator: f.payer.publicKey,
-      creatorKassToken: creatorKass,
-      kassMint: f.kassMint.publicKey,
+      creatorBaseToken: creatorBase,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
     }),
   );
@@ -321,8 +321,8 @@ export async function proposeRealWithAuthority(
 ): Promise<{ authority: Keypair; proposer: Address }> {
   const authority = await Keypair.generate();
   await f.harness.airdrop(authority.publicKey.toString(), 2_000_000_000);
-  const authorityKass = await fundKass(f, authority.publicKey, bond * 10n);
-  await sendIx(f, await propose({ oracle, authority: authority.publicKey, authorityKass, option, bond }), [authority]);
+  const authorityBase = await fundBase(f, authority.publicKey, bond * 10n);
+  await sendIx(f, await propose({ oracle, authority: authority.publicKey, authorityBase, option, bond }), [authority]);
   const proposer = (await pda.proposer(oracle, authority.publicKey)).address;
   return { authority, proposer };
 }

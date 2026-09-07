@@ -1,5 +1,5 @@
 //! Integration tests for `refund` (permissionless per-contributor refund of
-//! staked KASS out of a `Cancelled` market's escrow, program-signed by the
+//! staked SOL out of a `Cancelled` market's escrow, program-signed by the
 //! market PDA).
 
 mod common;
@@ -27,7 +27,7 @@ struct Setup {
     ctx: TestCtx,
     oracle: Pubkey,
     market: Pubkey,
-    kass: Pubkey,
+    base: Pubkey,
     creator: Keypair,
     creator_ata: Pubkey,
     c2: Keypair,
@@ -36,23 +36,23 @@ struct Setup {
 
 fn setup_two_contributors() -> Setup {
     let mut ctx = TestCtx::new();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_config, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQUIDITY);
+    let (_config, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQUIDITY);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
 
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 500_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, 200_000_000);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 500_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, 200_000_000);
     assert!(res.is_ok(), "{res:?}");
     assert_eq!(ctx.token_balance(creator_ata), 300_000_000);
 
     let c2 = Keypair::new();
     ctx.svm_airdrop(&c2.pubkey());
-    let c2_ata = ctx.create_token_account(kass, c2.pubkey(), 400_000_000);
+    let c2_ata = ctx.create_token_account(base, c2.pubkey(), 400_000_000);
     let res = ctx.contribute(&c2, market, c2_ata, 300_000_000);
     assert!(res.is_ok(), "{res:?}");
     assert_eq!(ctx.token_balance(c2_ata), 100_000_000);
@@ -61,7 +61,7 @@ fn setup_two_contributors() -> Setup {
         ctx,
         oracle,
         market,
-        kass,
+        base,
         creator,
         creator_ata,
         c2,
@@ -173,10 +173,10 @@ fn refund_rejects_cross_market_contribution() {
     s.ctx.svm_airdrop(&creator_b.pubkey());
     let creator_b_ata = s
         .ctx
-        .create_token_account(s.kass, creator_b.pubkey(), 500_000_000);
+        .create_token_account(s.base, creator_b.pubkey(), 500_000_000);
     let (market_b, res) =
         s.ctx
-            .create_market(&creator_b, oracle_b, s.kass, creator_b_ata, 200_000_000);
+            .create_market(&creator_b, oracle_b, s.base, creator_b_ata, 200_000_000);
     assert!(res.is_ok(), "{res:?}");
 
     // Cancel market A so the status guard passes and we reach the market check.
@@ -203,7 +203,7 @@ fn refund_rejects_wrong_destination_owner() {
     // A cranker tries to redirect the creator's refund to a token account owned
     // by a stranger. The destination's SPL owner != contribution.contributor.
     let stranger = Keypair::new();
-    let stranger_ata = s.ctx.create_token_account(s.kass, stranger.pubkey(), 0);
+    let stranger_ata = s.ctx.create_token_account(s.base, stranger.pubkey(), 0);
     let res = s.ctx.refund_to(s.market, s.creator.pubkey(), stranger_ata);
     assert_eq!(custom_code(&res), Some(MarketError::InvalidAccount as u32));
 

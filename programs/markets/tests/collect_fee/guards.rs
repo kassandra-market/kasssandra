@@ -7,7 +7,7 @@ use super::*;
 fn collect_fee_rejects_substituted_fee_destination() {
     // FUND-CUSTODY: the crank routes real pool value out, so a cranker must not be
     // able to redirect the fee to an account of their choosing. Passing any
-    // `fee_destination != config.fee_destination` (even a valid KASS account) is
+    // `fee_destination != config.fee_destination` (even a valid SOL account) is
     // rejected by the `assert_key` bind → InvalidAccount, before any value moves.
     let mut a = setup_active(100);
     grow_pool_sell_cyes(&mut a);
@@ -15,11 +15,11 @@ fn collect_fee_rejects_substituted_fee_destination() {
     let res = a.ctx.resolve_market(a.market, a.oracle, a.refs.question);
     assert!(res.is_ok(), "resolve: {res:?}");
 
-    // A rogue KASS token account owned by an attacker (correct mint, wrong key).
+    // A rogue SOL token account owned by an attacker (correct mint, wrong key).
     let attacker = Keypair::new();
-    let rogue = a.ctx.create_token_account(a.kass, attacker.pubkey(), 0);
+    let rogue = a.ctx.create_token_account(a.base, attacker.pubkey(), 0);
     assert_ne!(rogue, a.fee_dest, "rogue is a different account");
-    let res = a.ctx.collect_fee(a.oracle, a.kass, rogue);
+    let res = a.ctx.collect_fee(a.oracle, a.base, rogue);
     assert_eq!(
         custom_code(&res),
         Some(MarketError::InvalidAccount as u32),
@@ -45,32 +45,32 @@ fn collect_fee_multi_contributor_claim_pro_rata_off_reduced_total() {
 
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let fee_dest = ctx.create_token_account(kass, authority.pubkey(), 0);
-    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), kass, MIN_LIQ, 100, fee_dest);
+    let fee_dest = ctx.create_token_account(base, authority.pubkey(), 0);
+    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), base, MIN_LIQ, 100, fee_dest);
     assert!(res.is_ok(), "init_config: {res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 10_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 10_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "create_market: {res:?}");
     let c2 = Keypair::new();
     ctx.svm_airdrop(&c2.pubkey());
-    let c2_ata = ctx.create_token_account(kass, c2.pubkey(), 10_000_000_000);
+    let c2_ata = ctx.create_token_account(base, c2.pubkey(), 10_000_000_000);
     let res = ctx.contribute(&c2, market, c2_ata, SEED_B);
     assert!(res.is_ok(), "contribute: {res:?}");
 
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
-    let res = ctx.activate(oracle, kass);
+    let refs = ctx.compose_metadao_market(market, oracle, base);
+    let res = ctx.activate(oracle, base);
     assert!(res.is_ok(), "activate: {res:?}");
 
     // Grow the pool, resolve YES, collect the fee.
     let mut a = Active {
         ctx,
-        kass,
+        base,
         market,
         oracle,
         refs,
@@ -85,7 +85,7 @@ fn collect_fee_multi_contributor_claim_pro_rata_off_reduced_total() {
     assert!(fee_lp > 0, "multi-contributor fee_lp > 0");
     let lp_before = a.ctx.read_pod::<Market>(a.market).lp_total;
 
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert!(res.is_ok(), "collect_fee: {res:?}");
     let reduced = a.ctx.read_pod::<Market>(a.market).lp_total;
     assert_eq!(reduced, lp_before - fee_lp, "lp_total reduced by fee_lp");
@@ -138,14 +138,14 @@ fn collect_fee_positive_accrual_but_fee_floors_to_zero() {
     const SELL: u64 = 5_000;
     let user = Keypair::new();
     a.ctx.svm_airdrop(&user.pubkey());
-    let u_kass = a.ctx.create_token_account(a.kass, user.pubkey(), 1_000_000);
+    let u_base = a.ctx.create_token_account(a.base, user.pubkey(), 1_000_000);
     let u_cyes = a
         .ctx
         .create_token_account(a.refs.yes_mint, user.pubkey(), 0);
     let u_cno = a.ctx.create_token_account(a.refs.no_mint, user.pubkey(), 0);
     let res = a
         .ctx
-        .user_split(&user, &a.refs, u_kass, u_cyes, u_cno, 1_000_000);
+        .user_split(&user, &a.refs, u_base, u_cyes, u_cno, 1_000_000);
     assert!(res.is_ok(), "tiny split: {res:?}");
     let res = a
         .ctx
@@ -175,12 +175,12 @@ fn collect_fee_positive_accrual_but_fee_floors_to_zero() {
     );
 
     let lp_before = m.lp_total;
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert!(res.is_ok(), "collect_fee (floored fee): {res:?}");
     let m: Market = a.ctx.read_pod(a.market);
     assert_eq!(m.fee_collected, 1, "flag stamped despite zero fee");
     assert_eq!(m.lp_total, lp_before, "lp_total intact (no LP removed)");
-    assert_eq!(a.ctx.token_balance(a.fee_dest), 0, "no KASS transferred");
+    assert_eq!(a.ctx.token_balance(a.fee_dest), 0, "no SOL transferred");
 
     // claim_lp opens.
     let claim_ata = a

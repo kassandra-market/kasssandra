@@ -9,12 +9,12 @@
  *   close_market      → {@link buildCloseMarketIxs}      (rent → market.challenger)
  *   sweep_oracle      → {@link buildSweepOracleIxs}      (residual → treasury, close)
  *
- * The three CLAIMS pay KASS out of the oracle's stake-vault into the
- * participant's KASS Associated Token Account (`ATA(authority, kassMint)`) and
+ * The three CLAIMS pay SOL out of the oracle's stake-vault into the
+ * participant's SOL Associated Token Account (`ATA(authority, baseMint)`) and
  * refund the child-account rent to that same authority. Each claim builder
  * therefore derives that ATA (idempotently PREPENDING a create-ATA when it is
- * absent, mirroring the WF1/RF3 seam) and passes it as `destKass` +
- * `rentRecipient == authority`. The two CLOSES and the SWEEP move no KASS to a
+ * absent, mirroring the WF1/RF3 seam) and passes it as `destBase` +
+ * `rentRecipient == authority`. The two CLOSES and the SWEEP move no SOL to a
  * participant ATA, so they carry no ATA prep — just the single SDK ix.
  *
  * --- the oracle nonce ---
@@ -27,9 +27,9 @@
  *
  * These builders match the SDK settlement account/arg shapes EXACTLY (see
  * `sdk/src/instructions/settlement.ts`): `nonce` (not oracle) for the three
- * claims / close_market / sweep, `destKass` = the participant ATA, the rent
- * recipients, and the sweep's dao_treasury = ATA(daoAuthority, kassMint) derived
- * inside the SDK from `kassMint` + `daoAuthority`.
+ * claims / close_market / sweep, `destBase` = the participant ATA, the rent
+ * recipients, and the sweep's dao_treasury = ATA(daoAuthority, baseMint) derived
+ * inside the SDK from `baseMint` + `daoAuthority`.
  */
 import { Address, TransactionInstruction, type Connection } from "@solana/web3.js";
 import {
@@ -86,7 +86,7 @@ function createAtaIdempotentIx(
   payer: Address,
   ata: Address,
   owner: Address,
-  kassMint: Address,
+  baseMint: Address,
 ): TransactionInstruction {
   return new TransactionInstruction({
     programId: ATA_PROGRAM_ID,
@@ -94,7 +94,7 @@ function createAtaIdempotentIx(
       { pubkey: payer, isSigner: true, isWritable: true },
       { pubkey: ata, isSigner: false, isWritable: true },
       { pubkey: owner, isSigner: false, isWritable: false },
-      { pubkey: kassMint, isSigner: false, isWritable: false },
+      { pubkey: baseMint, isSigner: false, isWritable: false },
       { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
@@ -103,19 +103,19 @@ function createAtaIdempotentIx(
 }
 
 /**
- * Derive `ATA(owner, kassMint)` — the claim's KASS payout destination — and, when
+ * Derive `ATA(owner, baseMint)` — the claim's SOL payout destination — and, when
  * the account is absent (`getAccountInfo` null), return an idempotent create-ATA
  * ix to prepend (payer == owner). The ATA address is always returned so the
- * builder passes it as the SDK `destKass`.
+ * builder passes it as the SDK `destBase`.
  */
 async function ensureKassAta(
   connection: Connection,
   owner: Address,
-  kassMint: Address,
+  baseMint: Address,
 ): Promise<{ ata: Address; createIx?: TransactionInstruction }> {
-  const ata = (await associatedTokenAccount(owner, kassMint)).address;
+  const ata = (await associatedTokenAccount(owner, baseMint)).address;
   const info = await connection.getAccountInfo(ata);
-  const createIx = info ? undefined : createAtaIdempotentIx(owner, ata, owner, kassMint);
+  const createIx = info ? undefined : createAtaIdempotentIx(owner, ata, owner, baseMint);
   return { ata, createIx };
 }
 
@@ -128,10 +128,10 @@ export interface BuildClaimProposerArgs {
   oracleNonce: bigint | number;
   /** The Proposer PDA being claimed + closed (`detail.proposers[].pubkey`). */
   proposer: AddressInput;
-  /** `proposer.authority` — the KASS payout owner + rent recipient. */
+  /** `proposer.authority` — the SOL payout owner + rent recipient. */
   authority: AddressInput;
-  /** The oracle's KASS mint (`oracle.kassMint`). */
-  kassMint: AddressInput;
+  /** The oracle's SOL mint (`oracle.baseMint`). */
+  baseMint: AddressInput;
   programId?: Address;
 }
 
@@ -140,11 +140,11 @@ export async function buildClaimProposerIxs(
 ): Promise<TransactionInstruction[]> {
   const nonce = requireNonce(args.oracleNonce);
   const authority = addr("authority", args.authority);
-  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr("kassMint", args.kassMint));
+  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr("baseMint", args.baseMint));
   const ix = await claimProposer({
     nonce,
     proposer: args.proposer,
-    destKass: ata,
+    destBase: ata,
     rentRecipient: authority,
     programId: args.programId,
   });
@@ -159,9 +159,9 @@ export interface BuildClaimFactArgs {
   oracleNonce: bigint | number;
   /** The Fact PDA being claimed + closed (`detail.facts[].pubkey`). */
   fact: AddressInput;
-  /** `fact.proposer` — the KASS payout owner + rent recipient. */
+  /** `fact.proposer` — the SOL payout owner + rent recipient. */
   authority: AddressInput;
-  kassMint: AddressInput;
+  baseMint: AddressInput;
   programId?: Address;
 }
 
@@ -170,11 +170,11 @@ export async function buildClaimFactIxs(
 ): Promise<TransactionInstruction[]> {
   const nonce = requireNonce(args.oracleNonce);
   const authority = addr("authority", args.authority);
-  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr("kassMint", args.kassMint));
+  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr("baseMint", args.baseMint));
   const ix = await claimFact({
     nonce,
     fact: args.fact,
-    destKass: ata,
+    destBase: ata,
     rentRecipient: authority,
     programId: args.programId,
   });
@@ -191,9 +191,9 @@ export interface BuildClaimFactVoteArgs {
   factVote: AddressInput;
   /** The fact this vote belongs to (`fact_vote.fact`); writable in the ix. */
   fact: AddressInput;
-  /** `fact_vote.voter` — the KASS payout owner + rent recipient. */
+  /** `fact_vote.voter` — the SOL payout owner + rent recipient. */
   voter: AddressInput;
-  kassMint: AddressInput;
+  baseMint: AddressInput;
   programId?: Address;
 }
 
@@ -202,12 +202,12 @@ export async function buildClaimFactVoteIxs(
 ): Promise<TransactionInstruction[]> {
   const nonce = requireNonce(args.oracleNonce);
   const voter = addr("voter", args.voter);
-  const { ata, createIx } = await ensureKassAta(args.connection, voter, addr("kassMint", args.kassMint));
+  const { ata, createIx } = await ensureKassAta(args.connection, voter, addr("baseMint", args.baseMint));
   const ix = await claimFactVote({
     nonce,
     factVote: args.factVote,
     fact: args.fact,
-    destKass: ata,
+    destBase: ata,
     rentRecipient: voter,
     programId: args.programId,
   });
@@ -267,13 +267,13 @@ export async function buildCloseMarketIxs(
 
 // ---------------------------------------------------------------------------
 // sweep_oracle — permissionless, grace-gated; residual vault dust → DAO treasury
-// (= ATA(daoAuthority, kassMint), derived in the SDK), then vault + Oracle closed
+// (= ATA(daoAuthority, baseMint), derived in the SDK), then vault + Oracle closed
 // with both rents refunded to `creator`.
 // ---------------------------------------------------------------------------
 export interface BuildSweepOracleArgs {
   oracleNonce: bigint | number;
-  /** `Protocol.kass_mint` — the vault/treasury mint; derives the treasury ATA. */
-  kassMint: AddressInput;
+  /** `Protocol.base_mint` — the vault/treasury mint; derives the treasury ATA. */
+  baseMint: AddressInput;
   /** `Protocol.dao_authority` — owner of the treasury ATA. */
   daoAuthority: AddressInput;
   /** Rent recipient for both reclaimed rents (`== oracle.creator`). */
@@ -309,7 +309,7 @@ export async function buildSweepOracleIxs(
   const nonce = requireNonce(args.oracleNonce);
   const ix = await sweepOracle({
     nonce,
-    kassMint: args.kassMint,
+    baseMint: args.baseMint,
     daoAuthority: args.daoAuthority,
     creator: args.creator,
     programId: args.programId,

@@ -67,8 +67,8 @@ import { createMarket, MARKET_PROGRAM_ID } from "@kassandra-market/markets";
 const ix = await createMarket({
   creator,            // signer
   oracle,             // the Kassandra oracle
-  kassMint,           // == config.kass_mint
-  creatorKassAta,     // KASS source
+  baseMint,           // == config.base_mint
+  creatorBaseAta,     // SOL source
   seedAmount: 1_000_000n,
   outcomeIndex: 0,    // binary; a categorical oracle uses 0..options_count
 });
@@ -96,12 +96,12 @@ reason about conditional tokens:
   activate" bring-up.
 - **`buyInstructions` / `sellInstructions`** — take/close a net YES or NO position
   via split-and-swap (buy = `split_tokens` then swap the unwanted leg; sell is the
-  mirror, ending in `merge_tokens` back to KASS).
+  mirror, ending in `merge_tokens` back to SOL).
 - **`redeemInstructions`** — claim the resolved payout.
 - **`collectFeeInstruction`** / **`closeMarketInstruction`** — the fee crank and the
   rent reclaim, with every MetaDAO address wired from a decoded `Market` + `Config`.
 - **`buildJupiterEntryRequest` / `composeWithEntry`** — the offline any-token-entry
-  boundary (KASS is the on-chain denomination).
+  boundary (SOL is the on-chain denomination).
 
 <Card title="Reference" icon="cube" href="/market-protocol/instructions">
 The on-chain surface these builders and decoders map onto — instructions, accounts,

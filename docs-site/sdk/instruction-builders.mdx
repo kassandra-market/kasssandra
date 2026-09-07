@@ -33,14 +33,14 @@ Creation, phase progression, and governance wiring.
 | `setGovernance` | 13 | `set_governance` | One-shot DAO linkage. |
 | `setConfig` | 14 | `set_config` | Update the governable params. |
 | `resolveDeadend` | 15 | `resolve_deadend` | DAO-forced resolution of a dead-end. |
-| `kassPrice` | 16 | `kass_price` | Read the KASS/USDC TWAP (return data). |
+| `spotPrice` | 16 | `spot_price` | Read the SOL/USDC TWAP (return data). |
 
 <AccordionGroup>
   <Accordion title="initProtocol — InitProtocolArgs">
     ```ts
-    InitProtocolArgs { admin, kassMint, usdcMint, programId? }
+    InitProtocolArgs { admin, baseMint, usdcMint, programId? }
     ```
-    Builds `init_protocol`, creating the Protocol singleton that pins the canonical KASS +
+    Builds `init_protocol`, creating the Protocol singleton that pins the canonical SOL +
     USDC mints. Empty payload. See [Protocol account](/protocol/accounts).
   </Accordion>
   <Accordion title="createOracle — CreateOracleArgs">
@@ -50,12 +50,12 @@ Creation, phase progression, and governance wiring.
       optionsCount: number,
       deadline: bigint | number,
       twapWindow: bigint | number,
-      creator, creatorKassToken, kassMint, usdcMint,
+      creator, creatorBaseToken, baseMint, usdcMint,
       programId?,
     }
     ```
     Builds `create_oracle`. Payload (25 bytes): `nonce u64 ++ options_count u8 ++ deadline
-    i64 ++ twap_window i64`. The creator's KASS token account is the fee-burn source. The
+    i64 ++ twap_window i64`. The creator's SOL token account is the fee-burn source. The
     oracle's question and option labels are written on-chain by `writeOracleMeta` (appended
     to the same transaction).
   </Accordion>
@@ -77,7 +77,7 @@ Creation, phase progression, and governance wiring.
   </Accordion>
   <Accordion title="propose — ProposeArgs">
     ```ts
-    ProposeArgs { oracle, authority, authorityKass, option: number, bond: bigint | number, programId? }
+    ProposeArgs { oracle, authority, authorityBase, option: number, bond: bigint | number, programId? }
     ```
     Builds `propose`. Payload (9 bytes): `option u8 ++ bond u64`. The SDK derives the
     `proposer` PDA and the oracle `stake_vault`.
@@ -97,9 +97,9 @@ Creation, phase progression, and governance wiring.
   </Accordion>
   <Accordion title="setGovernance — SetGovernanceArgs">
     ```ts
-    SetGovernanceArgs { authority, daoAuthority, kassDao, programId? }
+    SetGovernanceArgs { authority, daoAuthority, spotDao, programId? }
     ```
-    Builds `set_governance`. Payload (64 bytes): `dao_authority[32] ++ kass_dao[32]`. One-shot
+    Builds `set_governance`. Payload (64 bytes): `dao_authority[32] ++ spot_dao[32]`. One-shot
     — records the Squads vault authority and the futarchy `Dao` price source.
   </Accordion>
   <Accordion title="setConfig — SetConfigArgs">
@@ -116,11 +116,11 @@ Creation, phase progression, and governance wiring.
     Builds `resolve_deadend`. Payload (1 byte): `option u8`. See
     [Dead-end settlement](/concepts/dead-end-settlement).
   </Accordion>
-  <Accordion title="kassPrice — KassPriceArgs">
+  <Accordion title="spotPrice — SpotPriceArgs">
     ```ts
-    KassPriceArgs { kassDao, programId? }
+    SpotPriceArgs { spotDao, programId? }
     ```
-    Builds `kass_price` — a read-only instruction that returns the KASS/USDC TWAP as return
+    Builds `spot_price` — a read-only instruction that returns the SOL/USDC TWAP as return
     data. Empty payload.
   </Accordion>
 </AccordionGroup>
@@ -149,7 +149,7 @@ interface SetConfigParams {
   factVoteSlashNum; factVoteSlashDen;
   rewardProposerWeight; rewardFactWeight;
   challengeFailUsdcFeeNum; challengeFailUsdcFeeDen;
-  challengeSuccessKassFeeNum; challengeSuccessKassFeeDen;
+  challengeSuccessBaseFeeNum; challengeSuccessBaseFeeDen;
 }
 ```
 
@@ -173,7 +173,7 @@ The fact-submission, voting, and AI-claim rail plus the multi-step finalizers.
   <Accordion title="submitFact — SubmitFactArgs">
     ```ts
     SubmitFactArgs {
-      oracle, submitter, submitterKass,
+      oracle, submitter, submitterBase,
       contentHash: Uint8Array, // 32 bytes
       stake: bigint | number,
       uri: Uint8Array | string,
@@ -184,13 +184,13 @@ The fact-submission, voting, and AI-claim rail plus the multi-step finalizers.
   </Accordion>
   <Accordion title="voteFact — VoteFactArgs">
     ```ts
-    VoteFactArgs { oracle, fact, voter, voterKass, kind: number, stake: bigint | number, programId? }
+    VoteFactArgs { oracle, fact, voter, voterBase, kind: number, stake: bigint | number, programId? }
     ```
     Payload: `kind u8 ++ stake u64`. `kind` is `VOTE_APPROVE` (0) or `VOTE_DUPLICATE` (1).
   </Accordion>
   <Accordion title="finalizeFacts — FinalizeFactsArgs">
     ```ts
-    FinalizeFactsArgs { nonce: bigint | number, kassMint, tail: ReadonlyArray<AddressInput>, programId? }
+    FinalizeFactsArgs { nonce: bigint | number, baseMint, tail: ReadonlyArray<AddressInput>, programId? }
     ```
     Payload: `oracle_nonce u64`. The **writable** tail is the facts to settle (or the
     proposers, in a no-facts dead-end).
@@ -217,7 +217,7 @@ The fact-submission, voting, and AI-claim rail plus the multi-step finalizers.
   </Accordion>
   <Accordion title="finalizeOracle — FinalizeOracleArgs">
     ```ts
-    FinalizeOracleArgs { nonce: bigint | number, kassMint, proposers: ReadonlyArray<AddressInput>, programId? }
+    FinalizeOracleArgs { nonce: bigint | number, baseMint, proposers: ReadonlyArray<AddressInput>, programId? }
     ```
     Payload: `oracle_nonce u64`. Full proposer set as a **read-only** tail. Requires
     `open_challenge_count == 0`.
@@ -236,9 +236,9 @@ the conditional-vault / token / system program ids. See
     ```ts
     OpenChallengeArgs {
       nonce, proposer, challenger, question,
-      kassVault, usdcVault, passAmm, failAmm, kassVaultUnderlying,
-      passKassMint, failKassMint, oraclePassKass, oracleFailKass,
-      cvEventAuthority, kassDao, usdcMint, challengerUsdcSrc,
+      baseVault, usdcVault, passAmm, failAmm, baseVaultUnderlying,
+      passBaseMint, failBaseMint, oraclePassKass, oracleFailKass,
+      cvEventAuthority, spotDao, usdcMint, challengerUsdcSrc,
       programId?,
     }
     ```
@@ -252,7 +252,7 @@ the conditional-vault / token / system program ids. See
     SettleChallengeArgs {
       nonce, aiClaim, proposer, question,
       passAmm, failAmm, cvEventAuthority,
-      kassVault, kassVaultUnderlying, passKassMint, failKassMint,
+      baseVault, baseVaultUnderlying, passBaseMint, failBaseMint,
       oraclePassKass, oracleFailKass,
       proposerUsdc, challengerUsdcDest, challengerKass,
       programId?,
@@ -266,7 +266,7 @@ the conditional-vault / token / system program ids. See
 ## Settlement — `sdk/src/instructions/settlement.ts`
 
 Pull rewards, close accounts, and sweep dust. Each takes an oracle `nonce` and a
-`rentRecipient`, and pays out to a `destKass` where applicable.
+`rentRecipient`, and pays out to a `destBase` where applicable.
 
 | Builder | `Ix` | On-chain ix | Purpose |
 | --- | --- | --- | --- |
@@ -280,20 +280,20 @@ Pull rewards, close accounts, and sweep dust. Each takes an oracle `nonce` and a
 <AccordionGroup>
   <Accordion title="claimProposer — ClaimProposerArgs">
     ```ts
-    ClaimProposerArgs { nonce, proposer, destKass, rentRecipient, programId? }
+    ClaimProposerArgs { nonce, proposer, destBase, rentRecipient, programId? }
     ```
-    Payload: `oracle_nonce u64`. Pulls the proposer's reward + bond into `destKass`, then
+    Payload: `oracle_nonce u64`. Pulls the proposer's reward + bond into `destBase`, then
     closes the Proposer to `rentRecipient`.
   </Accordion>
   <Accordion title="claimFact — ClaimFactArgs">
     ```ts
-    ClaimFactArgs { nonce, fact, destKass, rentRecipient, programId? }
+    ClaimFactArgs { nonce, fact, destBase, rentRecipient, programId? }
     ```
     Payload: `oracle_nonce u64`. Pulls + closes the Fact.
   </Accordion>
   <Accordion title="claimFactVote — ClaimFactVoteArgs">
     ```ts
-    ClaimFactVoteArgs { nonce, factVote, fact, destKass, rentRecipient, programId? }
+    ClaimFactVoteArgs { nonce, factVote, fact, destBase, rentRecipient, programId? }
     ```
     Payload: `oracle_nonce u64`. Pulls + closes the FactVote.
   </Accordion>
@@ -311,10 +311,10 @@ Pull rewards, close accounts, and sweep dust. Each takes an oracle `nonce` and a
   </Accordion>
   <Accordion title="sweepOracle — SweepOracleArgs">
     ```ts
-    SweepOracleArgs { nonce, kassMint, daoAuthority, creator, programId? }
+    SweepOracleArgs { nonce, baseMint, daoAuthority, creator, programId? }
     ```
     Payload: `oracle_nonce u64`. Permissionless, grace-gated: sweeps residual dust to the DAO
-    treasury ATA — `associatedTokenAccount(daoAuthority, kassMint)` — and performs the
+    treasury ATA — `associatedTokenAccount(daoAuthority, baseMint)` — and performs the
     terminal Oracle + vault close.
   </Accordion>
 </AccordionGroup>

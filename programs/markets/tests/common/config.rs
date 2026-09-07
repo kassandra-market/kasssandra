@@ -18,14 +18,14 @@ impl TestCtx {
         &mut self,
         signer: &Keypair,
         authority: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         min_liquidity: u64,
         fee_bps: u16,
         fee_destination: Pubkey,
     ) -> TransactionResult {
         let ix = kassandra_markets_sdk::ix::init_config(
             &signer.pubkey(),
-            &kass_mint,
+            &base_mint,
             &authority,
             min_liquidity,
             fee_bps,
@@ -40,19 +40,19 @@ impl TestCtx {
     /// Send an `InitConfig` instruction creating the `Config` singleton. Returns
     /// the config PDA plus the result so tests can assert success / rejection.
     ///
-    /// Threads a default protocol fee (100 bps) and a freshly fabricated KASS
-    /// `fee_destination` (a token account on `kass_mint` owned by `authority`), so
+    /// Threads a default protocol fee (100 bps) and a freshly fabricated SOL
+    /// `fee_destination` (a token account on `base_mint` owned by `authority`), so
     /// existing tests need not care about the fee config. Use
     /// [`TestCtx::init_config_full`] to control the fee args.
     #[allow(clippy::result_large_err)]
     pub fn init_config(
         &mut self,
         authority: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         min_liquidity: u64,
     ) -> (Pubkey, TransactionResult) {
-        let fee_destination = self.create_token_account(kass_mint, authority, 0);
-        self.init_config_full(authority, kass_mint, min_liquidity, 100, fee_destination)
+        let fee_destination = self.create_token_account(base_mint, authority, 0);
+        self.init_config_full(authority, base_mint, min_liquidity, 100, fee_destination)
     }
 
     /// Full `InitConfig` with explicit `fee_bps` + `fee_destination` (for the
@@ -64,14 +64,14 @@ impl TestCtx {
     pub fn init_config_full(
         &mut self,
         authority: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         min_liquidity: u64,
         fee_bps: u16,
         fee_destination: Pubkey,
     ) -> (Pubkey, TransactionResult) {
         self.init_config_with_curve(
             authority,
-            kass_mint,
+            base_mint,
             min_liquidity,
             fee_bps,
             fee_destination,
@@ -89,7 +89,7 @@ impl TestCtx {
     pub fn init_config_with_curve(
         &mut self,
         authority: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         min_liquidity: u64,
         fee_bps: u16,
         fee_destination: Pubkey,
@@ -100,7 +100,7 @@ impl TestCtx {
         let (config, _) = kassandra_markets_sdk::pda::config();
         let ix = kassandra_markets_sdk::ix::init_config(
             &self.payer.pubkey(),
-            &kass_mint,
+            &base_mint,
             &authority,
             min_liquidity,
             fee_bps,
@@ -113,7 +113,7 @@ impl TestCtx {
         (config, res)
     }
 
-    /// Read the `Config` singleton's `fee_destination` (a KASS token account).
+    /// Read the `Config` singleton's `fee_destination` (a SOL token account).
     pub fn config_fee_destination(&self) -> Pubkey {
         use kassandra_markets_program::state::Config;
         let (config, _) = kassandra_markets_sdk::pda::config();
@@ -122,7 +122,7 @@ impl TestCtx {
 
     /// Send an `UpdateConfig` instruction. The `authority` signs as an extra
     /// signer (the payer remains fee-payer). Threads a default fee (100 bps) and a
-    /// freshly fabricated KASS `fee_destination` on `kass_mint`, and the
+    /// freshly fabricated SOL `fee_destination` on `base_mint`, and the
     /// activity-scaled funding-floor curve DISABLED (`max == base`); use
     /// [`TestCtx::update_config_full`] to control the fee args, or
     /// [`TestCtx::update_config_with_curve`] for an ACTIVE ramp.
@@ -130,10 +130,10 @@ impl TestCtx {
     pub fn update_config(
         &mut self,
         authority: &solana_sdk::signature::Keypair,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         min_liquidity: u64,
     ) -> litesvm::types::TransactionResult {
-        let fee_destination = self.create_token_account(kass_mint, authority.pubkey(), 0);
+        let fee_destination = self.create_token_account(base_mint, authority.pubkey(), 0);
         self.update_config_full(authority, min_liquidity, 100, fee_destination)
     }
 

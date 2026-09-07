@@ -20,7 +20,7 @@ import { addr, ro, u64LE, w, withDisc } from "./payload.js";
 
 // ---------------------------------------------------------------------------
 // ClaimProposer (Ix=17) — processor/claims.rs
-// Accounts: 0 oracle(ro) 1 proposer(w,closed) 2 dest_kass(w) 3 stake_vault(w,PDA)
+// Accounts: 0 oracle(ro) 1 proposer(w,closed) 2 dest_base(w) 3 stake_vault(w,PDA)
 //           4 rent_recipient(w) 5 token program(ro). Payload: oracle_nonce u64.
 // ---------------------------------------------------------------------------
 export interface ClaimProposerArgs {
@@ -28,8 +28,8 @@ export interface ClaimProposerArgs {
   nonce: bigint | number;
   /** The Proposer PDA being claimed + closed. */
   proposer: AddressInput;
-  /** KASS payout dest (mint==oracle.kass_mint, owner==proposer.authority). */
-  destKass: AddressInput;
+  /** SOL payout dest (mint==oracle.base_mint, owner==proposer.authority). */
+  destBase: AddressInput;
   /** Rent recipient (`== proposer.authority`). */
   rentRecipient: AddressInput;
   programId?: Address;
@@ -45,7 +45,7 @@ export async function claimProposer(args: ClaimProposerArgs): Promise<Transactio
     keys: [
       ro(oracle.address),
       w(addr(args.proposer)),
-      w(addr(args.destKass)),
+      w(addr(args.destBase)),
       w(stakeVault.address),
       w(addr(args.rentRecipient)),
       ro(TOKEN_PROGRAM_ID),
@@ -56,7 +56,7 @@ export async function claimProposer(args: ClaimProposerArgs): Promise<Transactio
 
 // ---------------------------------------------------------------------------
 // ClaimFact (Ix=18) — processor/claims.rs
-// Accounts: 0 oracle(ro) 1 fact(w,closed) 2 dest_kass(w) 3 stake_vault(w,PDA)
+// Accounts: 0 oracle(ro) 1 fact(w,closed) 2 dest_base(w) 3 stake_vault(w,PDA)
 //           4 rent_recipient(w) 5 token program(ro). Payload: oracle_nonce u64.
 // ---------------------------------------------------------------------------
 export interface ClaimFactArgs {
@@ -64,8 +64,8 @@ export interface ClaimFactArgs {
   nonce: bigint | number;
   /** The Fact PDA being claimed + closed. */
   fact: AddressInput;
-  /** KASS payout dest (mint==oracle.kass_mint, owner==fact.proposer). */
-  destKass: AddressInput;
+  /** SOL payout dest (mint==oracle.base_mint, owner==fact.proposer). */
+  destBase: AddressInput;
   /** Rent recipient (`== fact.proposer`). */
   rentRecipient: AddressInput;
   programId?: Address;
@@ -81,7 +81,7 @@ export async function claimFact(args: ClaimFactArgs): Promise<TransactionInstruc
     keys: [
       ro(oracle.address),
       w(addr(args.fact)),
-      w(addr(args.destKass)),
+      w(addr(args.destBase)),
       w(stakeVault.address),
       w(addr(args.rentRecipient)),
       ro(TOKEN_PROGRAM_ID),
@@ -92,7 +92,7 @@ export async function claimFact(args: ClaimFactArgs): Promise<TransactionInstruc
 
 // ---------------------------------------------------------------------------
 // ClaimFactVote (Ix=19) — processor/claims.rs
-// Accounts: 0 oracle(ro) 1 fact_vote(w,closed) 2 fact(w) 3 dest_kass(w)
+// Accounts: 0 oracle(ro) 1 fact_vote(w,closed) 2 fact(w) 3 dest_base(w)
 //           4 stake_vault(w,PDA) 5 rent_recipient(w) 6 token program(ro).
 // Payload: oracle_nonce u64.
 // ---------------------------------------------------------------------------
@@ -103,8 +103,8 @@ export interface ClaimFactVoteArgs {
   factVote: AddressInput;
   /** The fact this vote belongs to (`fact_vote.fact == fact`); writable. */
   fact: AddressInput;
-  /** KASS payout dest (mint==oracle.kass_mint, owner==fact_vote.voter). */
-  destKass: AddressInput;
+  /** SOL payout dest (mint==oracle.base_mint, owner==fact_vote.voter). */
+  destBase: AddressInput;
   /** Rent recipient (`== fact_vote.voter`). */
   rentRecipient: AddressInput;
   programId?: Address;
@@ -121,7 +121,7 @@ export async function claimFactVote(args: ClaimFactVoteArgs): Promise<Transactio
       ro(oracle.address),
       w(addr(args.factVote)),
       w(addr(args.fact)),
-      w(addr(args.destKass)),
+      w(addr(args.destBase)),
       w(stakeVault.address),
       w(addr(args.rentRecipient)),
       ro(TOKEN_PROGRAM_ID),
@@ -196,7 +196,7 @@ export async function closeMarket(args: CloseMarketArgs): Promise<TransactionIns
 // Permissionless, grace-gated dust sweep + terminal Oracle/stake_vault closure.
 // After the grace (now >= oracle.phase_ends_at + SWEEP_GRACE) the residual vault
 // balance (bounded dust, or a no-show staker's FORFEITED principal) is
-// transferred to the DAO treasury = ATA(dao_authority, kass_mint), then the vault
+// transferred to the DAO treasury = ATA(dao_authority, base_mint), then the vault
 // and the Oracle are closed with both rents refunded to oracle.creator.
 // Accounts: 0 oracle(w,closed) 1 stake_vault(w,PDA,closed) 2 protocol(ro)
 //           3 dao_treasury(w) 4 creator(w) 5 token program(ro).
@@ -205,8 +205,8 @@ export async function closeMarket(args: CloseMarketArgs): Promise<TransactionIns
 export interface SweepOracleArgs {
   /** Oracle nonce — payload + derives the oracle/stake_vault PDAs (the vault authority). */
   nonce: bigint | number;
-  /** `Protocol.kass_mint` — the vault/treasury mint; derives the treasury ATA. */
-  kassMint: AddressInput;
+  /** `Protocol.base_mint` — the vault/treasury mint; derives the treasury ATA. */
+  baseMint: AddressInput;
   /** `Protocol.dao_authority` (the Squads vault) — owner of the treasury ATA. */
   daoAuthority: AddressInput;
   /** Rent recipient for both reclaimed rents (`== oracle.creator`). */
@@ -219,9 +219,9 @@ export async function sweepOracle(args: SweepOracleArgs): Promise<TransactionIns
   const oracle = await pda.oracle(BigInt(args.nonce), programId);
   const stakeVault = await pda.stakeVault(oracle.address, programId);
   const protocol = await pda.protocol(programId);
-  // DAO treasury = canonical KASS ATA of dao_authority (derived under the ATA
-  // program, matching the in-program ATA(dao_authority, kass_mint) validation).
-  const daoTreasury = await pda.associatedTokenAccount(args.daoAuthority, args.kassMint);
+  // DAO treasury = canonical SOL ATA of dao_authority (derived under the ATA
+  // program, matching the in-program ATA(dao_authority, base_mint) validation).
+  const daoTreasury = await pda.associatedTokenAccount(args.daoAuthority, args.baseMint);
 
   return new TransactionInstruction({
     programId,

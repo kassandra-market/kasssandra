@@ -230,10 +230,10 @@ describe.skipIf(!ENABLED)("D2 litesvm full-drive of MetaDAO collect_meteora_damm
     // vault_transaction/proposal PDAs it creates — fund it (sigverify off).
     svm.airdrop(address(futarchy.METADAO_ADMIN.toString()), lamports(1_000_000_000n));
 
-    // KASS (base, 9dp) + USDC (quote, 6dp). initialize_dao requires quote decimals == 6.
-    const kassMint = await Keypair.generate();
+    // SOL (base, 9dp) + USDC (quote, 6dp). initialize_dao requires quote decimals == 6.
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    putSplAccount(svm, kassMint.publicKey, mintBytes(payer.publicKey, 0n, 9));
+    putSplAccount(svm, baseMint.publicKey, mintBytes(payer.publicKey, 0n, 9));
     putSplAccount(svm, usdcMint.publicKey, mintBytes(payer.publicKey, 0n, 6));
 
     // --- (1) initialize_dao → Dao + Squads multisig/vault (futarchy→Squads CPI) -
@@ -249,7 +249,7 @@ describe.skipIf(!ENABLED)("D2 litesvm full-drive of MetaDAO collect_meteora_damm
         await futarchy.initializeDao({
           daoCreator: payer.publicKey,
           payer: payer.publicKey,
-          baseMint: kassMint.publicKey,
+          baseMint: baseMint.publicKey,
           quoteMint: usdcMint.publicKey,
           squadsProgramConfigTreasury: treasury,
           twapInitialObservation: 1_000_000_000_000n,
@@ -276,15 +276,15 @@ describe.skipIf(!ENABLED)("D2 litesvm full-drive of MetaDAO collect_meteora_damm
     // initialize_pool mints the position NFT to `creator` (UncheckedAccount, not a
     // signer), so creator == the vault PDA makes the vault the position owner. The
     // liquidity is funded from the payer's token accounts.
-    const kassMintA = kassMint.publicKey; // token A = dao.base_mint (KASS)
+    const baseMintA = baseMint.publicKey; // token A = dao.base_mint (SOL)
     const usdcMintB = usdcMint.publicKey; // token B = dao.quote_mint (USDC)
-    const poolAddr = (await meteora.pda.pool(config, kassMintA, usdcMintB)).address;
-    const tokenAVault = (await meteora.pda.tokenVault(kassMintA, poolAddr)).address;
+    const poolAddr = (await meteora.pda.pool(config, baseMintA, usdcMintB)).address;
+    const tokenAVault = (await meteora.pda.tokenVault(baseMintA, poolAddr)).address;
     const tokenBVault = (await meteora.pda.tokenVault(usdcMintB, poolAddr)).address;
 
     const payerTokenA = await Keypair.generate();
     const payerTokenB = await Keypair.generate();
-    putSplAccount(svm, payerTokenA.publicKey, tokenAccountBytes(kassMintA, payer.publicKey, 10n ** 18n));
+    putSplAccount(svm, payerTokenA.publicKey, tokenAccountBytes(baseMintA, payer.publicKey, 10n ** 18n));
     putSplAccount(svm, payerTokenB.publicKey, tokenAccountBytes(usdcMintB, payer.publicKey, 10n ** 18n));
 
     const posNftMint = await Keypair.generate();
@@ -297,7 +297,7 @@ describe.skipIf(!ENABLED)("D2 litesvm full-drive of MetaDAO collect_meteora_damm
           payer: payer.publicKey,
           positionNftMint: posNftMint.publicKey,
           config,
-          tokenAMint: kassMintA,
+          tokenAMint: baseMintA,
           tokenBMint: usdcMintB,
           payerTokenA: payerTokenA.publicKey,
           payerTokenB: payerTokenB.publicKey,
@@ -328,7 +328,7 @@ describe.skipIf(!ENABLED)("D2 litesvm full-drive of MetaDAO collect_meteora_damm
             outputTokenAccount: payerTokenB.publicKey,
             tokenAVault,
             tokenBVault,
-            tokenAMint: kassMintA,
+            tokenAMint: baseMintA,
             tokenBMint: usdcMintB,
             payer: payer.publicKey,
             amountIn,
@@ -340,9 +340,9 @@ describe.skipIf(!ENABLED)("D2 litesvm full-drive of MetaDAO collect_meteora_damm
     }
 
     // --- (4) fabricate the MetaDAO fee-recipient ATAs (authority = 6awyHMsh…) ---
-    const feeAAccount = await futarchy.ata(futarchy.METADAO_MULTISIG_VAULT, kassMintA);
+    const feeAAccount = await futarchy.ata(futarchy.METADAO_MULTISIG_VAULT, baseMintA);
     const feeBAccount = await futarchy.ata(futarchy.METADAO_MULTISIG_VAULT, usdcMintB);
-    putSplAccount(svm, feeAAccount, tokenAccountBytes(kassMintA, futarchy.METADAO_MULTISIG_VAULT, 0n));
+    putSplAccount(svm, feeAAccount, tokenAccountBytes(baseMintA, futarchy.METADAO_MULTISIG_VAULT, 0n));
     putSplAccount(svm, feeBAccount, tokenAccountBytes(usdcMintB, futarchy.METADAO_MULTISIG_VAULT, 0n));
 
     const feeABefore = tokenBalance(svm, feeAAccount);
@@ -358,7 +358,7 @@ describe.skipIf(!ENABLED)("D2 litesvm full-drive of MetaDAO collect_meteora_damm
       position: positionAddr,
       tokenAVault,
       tokenBVault,
-      tokenAMint: kassMintA,
+      tokenAMint: baseMintA,
       tokenBMint: usdcMintB,
       positionNftAccount: posNftAccount,
       owner: vault, // position owner == the DAO's Squads vault (signs the inner claim)

@@ -187,7 +187,7 @@ fn load_keypair_parses_64_byte_json_array() {
     let kp = sample_keypair();
     let json = sample_keypair_json(&kp);
     let dir = std::env::temp_dir();
-    let path = dir.join(format!("kass-test-kp-{}.json", std::process::id()));
+    let path = dir.join(format!("base-test-kp-{}.json", std::process::id()));
     std::fs::write(&path, json).unwrap();
 
     let loaded = load_keypair(&path).unwrap();
@@ -198,14 +198,14 @@ fn load_keypair_parses_64_byte_json_array() {
 
 #[test]
 fn load_keypair_rejects_missing_file() {
-    let err = load_keypair(Path::new("/no/such/kass-keypair.json")).unwrap_err();
+    let err = load_keypair(Path::new("/no/such/base-keypair.json")).unwrap_err();
     assert!(matches!(err, SubmitError::KeypairRead { .. }), "{err}");
 }
 
 #[test]
 fn load_keypair_rejects_wrong_length() {
     let dir = std::env::temp_dir();
-    let path = dir.join(format!("kass-test-badkp-{}.json", std::process::id()));
+    let path = dir.join(format!("base-test-badkp-{}.json", std::process::id()));
     std::fs::write(&path, "[1,2,3]").unwrap();
     let err = load_keypair(&path).unwrap_err();
     assert!(matches!(err, SubmitError::KeypairMalformed { .. }), "{err}");

@@ -16,7 +16,7 @@ fn double_claim_fails_account_gone() {
         seed.oracle,
         seed.nonce,
         p.account,
-        p.dest_kass,
+        p.dest_base,
         seed.stake_vault,
         recip,
     );
@@ -28,7 +28,7 @@ fn double_claim_fails_account_gone() {
         seed.oracle,
         seed.nonce,
         p.account,
-        p.dest_kass,
+        p.dest_base,
         seed.stake_vault,
         recip,
     );
@@ -48,9 +48,9 @@ fn dest_owner_mismatch_rejected() {
     let seed = resolved_full(&mut ctx);
     let p = &seed.proposers[0];
 
-    // A KASS account owned by a DIFFERENT party cannot receive the payout.
+    // A SOL account owned by a DIFFERENT party cannot receive the payout.
     let attacker = solana_keypair::Keypair::new();
-    let bad_dest = ctx.fund_kass(&attacker, 0);
+    let bad_dest = ctx.fund_base(&attacker, 0);
 
     let ix = ctx.claim_proposer_ix(
         seed.oracle,
@@ -81,7 +81,7 @@ fn submitter_before_voters_rejected() {
         seed.oracle,
         seed.nonce,
         s.account,
-        s.dest_kass,
+        s.dest_base,
         seed.stake_vault,
         s.authority.pubkey(),
     );
@@ -113,7 +113,7 @@ fn non_terminal_oracle_rejected() {
     let stake_vault = ctx.seeded(oracle).stake_vault;
     let pda = ctx.proposers(oracle)[0].pda;
     let authority = ctx.proposers(oracle)[0].authority.insecure_clone();
-    let dest = ctx.fund_kass(&authority, 0);
+    let dest = ctx.fund_base(&authority, 0);
 
     let ix = ctx.claim_proposer_ix(oracle, nonce, pda, dest, stake_vault, authority.pubkey());
     let err = ctx.send(ix, &[]).unwrap_err().err;

@@ -181,7 +181,7 @@ fn metadao_programs_load_without_panic() {
 /// End-to-end split validation against the real conditional_vault binary:
 /// initialize_question (2 outcomes) → initialize_conditional_vault →
 /// split_tokens, then assert the user received `amount` of each conditional
-/// token and the vault escrowed `amount` of the underlying KASS-like mint.
+/// token and the vault escrowed `amount` of the underlying SOL-like mint.
 #[test]
 fn split_tokens_mints_conditional_tokens() {
     let mut svm = LiteSVM::new();
@@ -190,16 +190,16 @@ fn split_tokens_mints_conditional_tokens() {
     let payer = Keypair::new();
     svm.airdrop(&payer.pubkey(), 10_000_000_000).unwrap();
 
-    // KASS-like underlying mint, authority = payer.
-    let kass = fabricate_mint(&mut svm, 9, payer.pubkey());
+    // SOL-like underlying mint, authority = payer.
+    let base = fabricate_mint(&mut svm, 9, payer.pubkey());
 
     // User (acts as both payer of these txs and split authority).
     let underlying_amount: u64 = 5_000_000_000;
-    let user_underlying = ata(&payer.pubkey(), &kass);
+    let user_underlying = ata(&payer.pubkey(), &base);
     fabricate_token_account(
         &mut svm,
         user_underlying,
-        kass,
+        base,
         payer.pubkey(),
         underlying_amount,
     );
@@ -221,14 +221,14 @@ fn split_tokens_mints_conditional_tokens() {
     // proves those helpers match the deployed binary, guarding against drift in
     // the dead-code `*_pda` wrappers that reuse the same builders.
     let question_resolver = resolver.to_bytes();
-    let kass_arr = kass.to_bytes();
+    let base_arr = base.to_bytes();
     let (question, _) = Pubkey::find_program_address(
         &metadao::question_seeds(&question_id, &question_resolver.into(), &[num_outcomes]),
         &vault_id(),
     );
     let question_arr = question.to_bytes();
     let (vault, _) = Pubkey::find_program_address(
-        &metadao::vault_seeds(&question_arr.into(), &kass_arr.into()),
+        &metadao::vault_seeds(&question_arr.into(), &base_arr.into()),
         &vault_id(),
     );
     let vault_arr = vault.to_bytes();
@@ -243,7 +243,7 @@ fn split_tokens_mints_conditional_tokens() {
     let (event_authority, _) =
         Pubkey::find_program_address(&metadao::event_authority_seeds(), &vault_id());
 
-    let vault_underlying = ata(&vault, &kass);
+    let vault_underlying = ata(&vault, &base);
 
     // ----- 1. initialize_question ------------------------------------------
     let ix_q = Instruction {
@@ -266,7 +266,7 @@ fn split_tokens_mints_conditional_tokens() {
         accounts: vec![
             AccountMeta::new(vault, false),
             AccountMeta::new_readonly(question, false),
-            AccountMeta::new_readonly(kass, false),
+            AccountMeta::new_readonly(base, false),
             AccountMeta::new(vault_underlying, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),

@@ -3,13 +3,13 @@
 // ===========================================================================
 //
 // A tie dead-end reached via the REAL `finalize_oracle` AFTER fuzzed proposer
-// slashes (challenge-disqualify with a fuzzed kass_fee, and flip-slashed
+// slashes (challenge-disqualify with a fuzzed base_fee, and flip-slashed
 // SURVIVORS), with a fuzzed emission. finalize_oracle BURNS the slashed
 // `bond_pool` + the emission; the survivors' claims then drain the vault to dust.
 // Runs BOTH a plain InvalidDeadend AND a governance-resolved (`resolve_deadend` →
 // Resolved) sweep and asserts they pay IDENTICALLY (the no-marker insight), with
 // the full conservation equation:
-//   Σ returned principal + dust + Σ kass_fee_out + bond_pool_burned
+//   Σ returned principal + dust + Σ base_fee_out + bond_pool_burned
 //     + emission_burned == Σ bonds + emission.
 
 use super::*;
@@ -19,12 +19,12 @@ use solana_keypair::Keypair;
 use solana_signer::Signer;
 
 /// One fuzzed proposer for Arm F: a flip-slashed SURVIVOR or a challenge-
-/// disqualified proposer (kass_fee left the vault).
+/// disqualified proposer (base_fee left the vault).
 #[derive(Clone, Copy, Debug)]
 struct SlashDeadendProposerGen {
     bond: u64,
     /// % of the bond slashed (0..=100): a flip slash if surviving, else the
-    /// bond_pool contribution `bond − kass_fee` if disqualified.
+    /// bond_pool contribution `bond − base_fee` if disqualified.
     slash_pct: u8,
     disqualified: bool,
 }
@@ -81,16 +81,16 @@ fn run_slashed_deadend_settlement(
     ctx.set_proposer_claim_option(pdas[0], 0);
     ctx.set_proposer_claim_option(pdas[1], 1);
 
-    let mut kass_fee_out = 0u64;
+    let mut base_fee_out = 0u64;
     for (i, e) in extra.iter().enumerate() {
         let pda = pdas[2 + i];
         let slash = (e.bond as u128 * e.slash_pct as u128 / 100) as u64;
         if e.disqualified {
-            // Challenge-disqualify: kass_fee = bond − slash left the vault; bond_pool
+            // Challenge-disqualify: base_fee = bond − slash left the vault; bond_pool
             // gains `slash`. (slash == bond_pool contribution.)
-            let kass_fee = e.bond - slash;
-            ctx.seed_challenge_disqualify(oracle, pda, kass_fee);
-            kass_fee_out += kass_fee;
+            let base_fee = e.bond - slash;
+            ctx.seed_challenge_disqualify(oracle, pda, base_fee);
+            base_fee_out += base_fee;
         } else {
             // Flip-slashed SURVIVING: slash into bond_pool; claim its DISTINCT
             // option (2 + i) so the all-distinct surviving plurality stays a tie.
@@ -106,13 +106,13 @@ fn run_slashed_deadend_settlement(
         ctx.ensure_protocol();
         let dao = Keypair::new();
         ctx.airdrop(&dao, 1_000_000_000);
-        let (_da, kass_dao) = TestCtx::stand_in_governance(0x44);
-        ctx.force_governance(dao.pubkey(), kass_dao);
+        let (_da, spot_dao) = TestCtx::stand_in_governance(0x44);
+        ctx.force_governance(dao.pubkey(), spot_dao);
 
         let vault = ctx.seeded(oracle).stake_vault;
         let nonce = ctx.seeded(oracle).nonce;
         let sum_bonds: u64 = specs.iter().map(|s| s.bond).sum();
-        let supply_before = ctx.mint_supply(ctx.kass_mint);
+        let supply_before = ctx.mint_supply(ctx.base_mint);
         let bond_pool = ctx.oracle(oracle).bond_pool;
 
         ctx.warp(WINDOW + 1);
@@ -133,7 +133,7 @@ fn run_slashed_deadend_settlement(
             sum_bonds,
             emission,
             bond_pool,
-            kass_fee_out,
+            base_fee_out,
             supply_before,
         )?;
         return Ok(());
@@ -142,7 +142,7 @@ fn run_slashed_deadend_settlement(
     let vault = ctx.seeded(oracle).stake_vault;
     let nonce = ctx.seeded(oracle).nonce;
     let sum_bonds: u64 = specs.iter().map(|s| s.bond).sum();
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     let bond_pool = ctx.oracle(oracle).bond_pool;
 
     ctx.warp(WINDOW + 1);
@@ -161,7 +161,7 @@ fn run_slashed_deadend_settlement(
         sum_bonds,
         emission,
         bond_pool,
-        kass_fee_out,
+        base_fee_out,
         supply_before,
     )
 }
@@ -181,19 +181,19 @@ fn assert_deadend_drains(
     sum_bonds: u64,
     emission: u64,
     bond_pool: u64,
-    kass_fee_out: u64,
+    base_fee_out: u64,
     supply_before: u64,
 ) -> Result<(), TestCaseError> {
     // The slashed bond_pool + emission were burned back to the reservoir.
     prop_assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before - bond_pool - emission,
         "bond_pool + emission burned"
     );
-    // Post-burn vault == Σ bonds − kass_fee_out − bond_pool (the returnable
+    // Post-burn vault == Σ bonds − base_fee_out − bond_pool (the returnable
     // non-slashed principal).
     let vault_after = ctx.token_balance(vault);
-    prop_assert_eq!(vault_after, sum_bonds - kass_fee_out - bond_pool);
+    prop_assert_eq!(vault_after, sum_bonds - base_fee_out - bond_pool);
 
     let mut returned = 0u64;
     for (auth, pda) in auths.iter().zip(pdas) {
@@ -203,7 +203,7 @@ fn assert_deadend_drains(
         } else {
             p.bond - p.slashed_amount
         };
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let res = ctx.send(
             ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey()),
             &[],
@@ -219,12 +219,12 @@ fn assert_deadend_drains(
     let dust = ctx.token_balance(vault);
     prop_assert_eq!(returned, vault_after, "Σ returned == post-burn vault");
     prop_assert_eq!(dust, 0u64, "vault fully drained to dust");
-    // Full conservation: Σ returned + dust + kass_fee_out + bond_pool_burned +
+    // Full conservation: Σ returned + dust + base_fee_out + bond_pool_burned +
     // emission_burned == Σ bonds + emission.
     prop_assert_eq!(
-        returned + dust + kass_fee_out + bond_pool + emission,
+        returned + dust + base_fee_out + bond_pool + emission,
         sum_bonds + emission,
-        "Σ returned + dust + kass_fee_out + bond_pool_burned + emission_burned == Σ bonds + emission"
+        "Σ returned + dust + base_fee_out + bond_pool_burned + emission_burned == Σ bonds + emission"
     );
     Ok(())
 }
@@ -237,12 +237,12 @@ proptest! {
     })]
 
     /// Arm F (DS1) — SLASHED-then-deadend physical settlement: fuzzed proposer
-    /// slashes (challenge-disqualify w/ fuzzed kass_fee + flip-slashed survivors)
+    /// slashes (challenge-disqualify w/ fuzzed base_fee + flip-slashed survivors)
     /// + a fuzzed emission, terminated via the REAL `finalize_oracle` (burns the
     /// slashed bond_pool + emission), then the survivor claims drain the vault.
     /// `governance_resolve` toggles the `resolve_deadend` → Resolved path, which
     /// MUST pay identically (the no-marker insight). Asserts the full conservation
-    /// equation incl. the kass_fee that left to the challenger.
+    /// equation incl. the base_fee that left to the challenger.
     #[test]
     fn slashed_deadend_settlement_conservation(
         extra in prop::collection::vec(slash_deadend_proposer_strategy(), 0..=3),

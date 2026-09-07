@@ -62,13 +62,13 @@ export async function protocolAt(address: string): Promise<ReturnType<typeof dec
 
 /**
  * Fabricate governance fields on the Protocol singleton (admin @8, governance_set
- * @121, dao_authority @128, kass_dao @160) so the connected wallet can drive each
+ * @121, dao_authority @128, spot_dao @160) so the connected wallet can drive each
  * DAO-gated op — the real set_governance requires a Squads vault PDA no keypair
  * can sign, so admin/DAO tests fabricate the linkage directly.
  */
 export async function patchProtocol(
   protocol: string,
-  fields: { admin?: string; daoAuthority?: string; governanceSet?: boolean; kassDao?: string },
+  fields: { admin?: string; daoAuthority?: string; governanceSet?: boolean; spotDao?: string },
 ): Promise<void> {
   const cur = await getAccountData(protocol)
   if (!cur) throw new Error('protocol not found')
@@ -76,6 +76,6 @@ export async function patchProtocol(
   if (fields.admin) d.set(new Address(fields.admin).toBytes(), 8)
   if (fields.governanceSet !== undefined) d[121] = fields.governanceSet ? 1 : 0
   if (fields.daoAuthority) d.set(new Address(fields.daoAuthority).toBytes(), 128)
-  if (fields.kassDao) d.set(new Address(fields.kassDao).toBytes(), 160)
+  if (fields.spotDao) d.set(new Address(fields.spotDao).toBytes(), 160)
   await setAccountRaw(protocol, d, KASSANDRA_PROGRAM)
 }

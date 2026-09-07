@@ -6,7 +6,7 @@
 //! * Fact PDA seeds `[b"fact", oracle, content_hash]`.
 //! * Instruction payload `disc=0 ++ content_hash[32] ++ stake u64 LE ++
 //!   uri_len u16 LE ++ uri[uri_len]`.
-//! * Account order: oracle, fact, submitter, submitter-KASS, stake-vault,
+//! * Account order: oracle, fact, submitter, submitter-SOL, stake-vault,
 //!   token-program, system-program.
 
 mod common;
@@ -41,7 +41,7 @@ struct Fixture {
     content_hash: [u8; 32],
 }
 
-/// Seed an oracle in `FactProposal` and fund a fresh submitter with KASS.
+/// Seed an oracle in `FactProposal` and fund a fresh submitter with SOL.
 fn fixture(stake: u64) -> Fixture {
     let mut ctx = TestCtx::new();
     let oracle = ctx.seed_disputed_oracle(&[
@@ -58,7 +58,7 @@ fn fixture(stake: u64) -> Fixture {
 
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_kass(&submitter, stake * 8);
+    let submitter_kass = ctx.fund_base(&submitter, stake * 8);
 
     let content_hash = [0x42u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
@@ -240,7 +240,7 @@ fn submit_fact_after_window_fails() {
 #[test]
 fn submit_fact_zero_stake_ok_when_floor_zero() {
     // Bootstrapping: with a 0 floor (genesis / low activity) a 0-stake fact is
-    // accepted — participation needs no premined KASS.
+    // accepted — participation needs no premined SOL.
     let stake = 500u64;
     let Fixture {
         mut ctx,

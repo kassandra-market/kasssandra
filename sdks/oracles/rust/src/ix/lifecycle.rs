@@ -13,7 +13,7 @@ use crate::TOKEN_PROGRAM_ID;
 pub fn finalize_oracle(
     program_id: &Pubkey,
     oracle: Pubkey,
-    kass_mint: Pubkey,
+    base_mint: Pubkey,
     stake_vault: Pubkey,
     nonce: u64,
     tail: &[Pubkey],
@@ -23,7 +23,7 @@ pub fn finalize_oracle(
     data.extend_from_slice(&nonce.to_le_bytes());
     let mut accounts = Vec::with_capacity(4 + tail.len());
     accounts.push(AccountMeta::new(oracle, false));
-    accounts.push(AccountMeta::new(kass_mint, false));
+    accounts.push(AccountMeta::new(base_mint, false));
     accounts.push(AccountMeta::new(stake_vault, false));
     accounts.push(AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false));
     for k in tail {

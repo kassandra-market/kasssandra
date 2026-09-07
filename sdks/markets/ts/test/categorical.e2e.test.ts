@@ -27,14 +27,14 @@ describe("litesvm categorical markets (per-outcome binary sub-markets)", () => {
     const ctx = await MarketTestCtx.new();
 
     // ── initConfig ──────────────────────────────────────────────────────────
-    const kassMint = await ctx.createMint(9);
+    const baseMint = await ctx.createMint(9);
     const authority = (await ctx.fundedKeypair()).publicKey;
     const minLiquidity = 1_000_000n;
-    const feeDestination = await ctx.createTokenAccount(kassMint, authority, 0n);
+    const feeDestination = await ctx.createTokenAccount(baseMint, authority, 0n);
     await ctx.sendOk(
       await initConfig({
         payer: ctx.payer.publicKey,
-        kassMint,
+        baseMint,
         authority,
         minLiquidity,
         feeBps: 100,
@@ -52,13 +52,13 @@ describe("litesvm categorical markets (per-outcome binary sub-markets)", () => {
     const marketAddrs: string[] = [];
     for (let outcomeIndex = 0; outcomeIndex < OPTIONS; outcomeIndex++) {
       const creator = await ctx.fundedKeypair();
-      const creatorKassAta = await ctx.createTokenAccount(kassMint, creator.publicKey, seed);
+      const creatorBaseAta = await ctx.createTokenAccount(baseMint, creator.publicKey, seed);
       await ctx.sendOk(
         await createMarket({
           creator: creator.publicKey,
           oracle,
-          kassMint,
-          creatorKassAta,
+          baseMint,
+          creatorBaseAta,
           seedAmount: seed,
           outcomeIndex,
         }),
@@ -81,13 +81,13 @@ describe("litesvm categorical markets (per-outcome binary sub-markets)", () => {
 
     // ── outcome_index == options_count (out of range) → InvalidOutcome (19). ──
     const badCreator = await ctx.fundedKeypair();
-    const badAta = await ctx.createTokenAccount(kassMint, badCreator.publicKey, seed);
+    const badAta = await ctx.createTokenAccount(baseMint, badCreator.publicKey, seed);
     const badResult = await ctx.send(
       await createMarket({
         creator: badCreator.publicKey,
         oracle,
-        kassMint,
-        creatorKassAta: badAta,
+        baseMint,
+        creatorBaseAta: badAta,
         seedAmount: seed,
         outcomeIndex: OPTIONS, // == options_count → out of range
       }),

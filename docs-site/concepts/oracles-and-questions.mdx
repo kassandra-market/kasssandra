@@ -1,6 +1,6 @@
 ---
 title: "Oracles and questions"
-description: "What an oracle is in Kassandra — a fixed prompt, immutable interpretation rules, categorical options, a deadline, bonding params, and a burned KASS creation fee."
+description: "What an oracle is in Kassandra — a fixed prompt, immutable interpretation rules, categorical options, a deadline, bonding params, and a burned SOL creation fee."
 ---
 
 An **oracle** in Kassandra is a single on-chain question with everything needed to resolve
@@ -11,7 +11,7 @@ configuration is immutable — the whole trust model rests on that.
 ## What a creator fixes at creation
 
 `create_oracle` stands up a new oracle in `Phase::Proposal` with a future deadline, a
-program-controlled KASS stake vault, a burned creation fee, and an immutable configuration.
+program-controlled SOL stake vault, a burned creation fee, and an immutable configuration.
 The creator supplies (payload is exactly 25 bytes; `create_oracle.rs`):
 
 <ParamField path="options_count" type="u8">
@@ -30,8 +30,8 @@ The creator supplies (payload is exactly 25 bytes; `create_oracle.rs`):
   allowed only after `market.twap_end = open_time + oracle.twap_window`. Must be positive.
 </ParamField>
 
-<ParamField path="kass_mint / usdc_mint" type="Pubkey">
-  The KASS mint (must match the Protocol's canonical KASS) used for all bonds/stakes, and
+<ParamField path="base_mint / usdc_mint" type="Pubkey">
+  The SOL mint (must match the Protocol's canonical SOL) used for all bonds/stakes, and
   the USDC mint used as challenge-market collateral.
 </ParamField>
 
@@ -58,9 +58,9 @@ global `Protocol` account onto the `Oracle` at creation.
   `flip_slash_*`, `phase_window`, `proposal_window`, reward weights, and challenge fees).
 </Note>
 
-## The burned KASS creation fee
+## The burned SOL creation fee
 
-Creating an oracle costs a **dynamic KASS fee that is burned**, not paid to anyone. The fee
+Creating an oracle costs a **dynamic SOL fee that is burned**, not paid to anyone. The fee
 tracks an exponential moving average of recent creation activity (`fee.rs`):
 
 ```
@@ -68,7 +68,7 @@ fee = fee_for_ema(decay_fee_ema(fee_ema, last_creation_unix, now))
 ```
 
 At genesis the EMA is zero, so **creation is free** — you can bootstrap into the system and
-earn KASS via emissions without having to acquire it first. As creations pile up the EMA
+earn SOL via emissions without having to acquire it first. As creations pile up the EMA
 rises (each creation bumps it by `FEE_EMA_INCREMENT`), and it decays with a one-day
 half-life (`FEE_EMA_HALFLIFE_SECS = 86_400`) as activity relaxes. The burn is the
 deflationary counterweight to work-to-earn emissions; there is **no USDC floor**. See
@@ -96,12 +96,12 @@ resolution stamps written at the end. A few fields worth knowing early:
 | Field | Meaning |
 |---|---|
 | `phase` | current `Phase` as a `u8` — the oracle's position in the [lifecycle](/concepts/lifecycle) |
-| `stake_vault` | PDA token account (`[b"vault", oracle]`) holding all KASS bonds and stakes |
+| `stake_vault` | PDA token account (`[b"vault", oracle]`) holding all SOL bonds and stakes |
 | `deadline` / `phase_ends_at` | proposal deadline and the end of the current window |
 | `options_count` / `resolved_option` | number of options; the final winner (valid only when `Resolved`; `0xFF` on `InvalidDeadend`) |
 | `proposer_count` / `surviving_count` | total proposers, and those not yet disqualified |
 | `dispute_bond_total` | sum of proposer bonds, fixed at dispute start — the fact-quorum denominator |
-| `bond_pool` | accumulated slashed KASS that funds rewards on resolution |
+| `bond_pool` | accumulated slashed SOL that funds rewards on resolution |
 
 The full field-by-field layout, PDA seeds, and byte offsets are in the protocol reference.
 

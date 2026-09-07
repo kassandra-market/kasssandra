@@ -54,7 +54,7 @@ function summary(status: MarketStatus, totalContributed: bigint, minLiquidity = 
       outcomeIndex: 0,
       totalContributed,
       minLiquidity,
-      kassMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
+      baseMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
       oracle: { toString: () => ORACLE },
     },
     reserves: status === MarketStatus.Active ? { base: 6n, quote: 4n } : null,
@@ -86,7 +86,7 @@ describe("MarketCard — header", () => {
 describe("MarketCard — footer CTA", () => {
   it("Funding, under the floor → an inline stake input + button, no launch button", () => {
     const html = render(summary(MarketStatus.Funding, 100_000_000_000n)); // 100 < 500 floor
-    expect(html).toContain('aria-label="Amount to stake, in KASS"');
+    expect(html).toContain('aria-label="Amount to stake, in SOL"');
     expect(html).toContain(">Stake<");
     expect(html).not.toContain("Launch market");
   });
@@ -94,7 +94,7 @@ describe("MarketCard — footer CTA", () => {
   it("Funding, at the floor (funded) → a launch button, no stake input", () => {
     const html = render(summary(MarketStatus.Funding, 500_000_000_000n)); // 500 == 500 floor
     expect(html).toContain("Launch market");
-    expect(html).not.toContain('aria-label="Amount to stake, in KASS"');
+    expect(html).not.toContain('aria-label="Amount to stake, in SOL"');
   });
 
   it("Funding, past the floor → still a launch button (funded is a >= compare)", () => {
@@ -105,18 +105,18 @@ describe("MarketCard — footer CTA", () => {
   it("Active → no footer CTA", () => {
     const html = render(summary(MarketStatus.Active, 500_000_000_000n));
     expect(html).not.toContain("Launch market");
-    expect(html).not.toContain('aria-label="Amount to stake, in KASS"');
+    expect(html).not.toContain('aria-label="Amount to stake, in SOL"');
   });
 
   it("Resolved → no footer CTA", () => {
     const html = render(summary(MarketStatus.Resolved, 500_000_000_000n));
     expect(html).not.toContain("Launch market");
-    expect(html).not.toContain('aria-label="Amount to stake, in KASS"');
+    expect(html).not.toContain('aria-label="Amount to stake, in SOL"');
   });
 
   it("Cancelled → no footer CTA", () => {
     const html = render(summary(MarketStatus.Cancelled, 100_000_000_000n));
     expect(html).not.toContain("Launch market");
-    expect(html).not.toContain('aria-label="Amount to stake, in KASS"');
+    expect(html).not.toContain('aria-label="Amount to stake, in SOL"');
   });
 });

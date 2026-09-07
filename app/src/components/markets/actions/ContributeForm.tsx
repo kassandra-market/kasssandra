@@ -3,16 +3,16 @@ import type { Market } from "@kassandra-market/markets";
 import { Card } from "../../ui";
 import { buildContributeIxs } from "../../../market/data/actions";
 import { useWriteAction } from "../../../market/hooks/useWriteAction";
-import { useKassBalance } from "../../../market/hooks/useKassBalance";
-import { formatKass } from "../../../market/lib/marketView";
-import { parseKassAmount, balanceGateError } from "../../../market/data/amount";
+import { useSolBalance } from "../../../market/hooks/useSolBalance";
+import { formatSol } from "../../../market/lib/marketView";
+import { parseSolAmount, balanceGateError } from "../../../market/data/amount";
 import { ConnectGate } from "./ConnectGate";
-import { Field, KassBalanceLine, SubmitButton, TextInput } from "./formPrimitives";
+import { Field, SolBalanceLine, SubmitButton, TextInput } from "./formPrimitives";
 import { WriteStatusRegion } from "./WriteStatusRegion";
 
 /**
- * Add KASS to a Funding market's escrow (create-or-increment the caller's
- * Contribution). Shows the connected wallet's KASS balance and gates the submit
+ * Add SOL to a Funding market's escrow (create-or-increment the caller's
+ * Contribution). Shows the connected wallet's SOL balance and gates the submit
  * on it (additively — a `null` balance never blocks; the tx is the guard).
  */
 export function ContributeForm({
@@ -24,8 +24,8 @@ export function ContributeForm({
   market: Market;
   onSuccess: () => void;
 }) {
-  const kassMint = market.kassMint.toString();
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(kassMint);
+  const baseMint = market.baseMint.toString();
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useSolBalance(baseMint);
   const action = useWriteAction(() => {
     refetchBalance();
     onSuccess();
@@ -33,11 +33,11 @@ export function ContributeForm({
 
   const [amount, setAmount] = useState("");
   const [amountError, setAmountError] = useState<string | undefined>();
-  const balanceError = balanceGateError(parseKassAmount(amount).value, balance);
+  const balanceError = balanceGateError(parseSolAmount(amount).value, balance);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const parsed = parseKassAmount(amount);
+    const parsed = parseSolAmount(amount);
     if (parsed.error) {
       setAmountError(parsed.error);
       return;
@@ -47,7 +47,7 @@ export function ContributeForm({
       buildContributeIxs({
         indexer: action.indexer,
         market: pubkey,
-        kassMint,
+        baseMint,
         contributor: action.address!,
         amount: parsed.value!,
       }),
@@ -59,12 +59,12 @@ export function ContributeForm({
       <div>
         <h3 className="font-serif text-subheading font-light text-platinum">Contribute funding</h3>
         <p className="mt-1 font-inter text-[13px] text-silver">
-          Stake KASS toward this market's funding floor. Refundable if it's cancelled.
+          Stake SOL toward this market's funding floor. Refundable if it's cancelled.
         </p>
       </div>
       <ConnectGate connected={action.connected}>
         <form className="flex flex-col gap-4" onSubmit={onSubmit} noValidate>
-          <Field label="Amount (KASS)" error={amountError ?? balanceError}>
+          <Field label="Amount (SOL)" error={amountError ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
@@ -75,7 +75,7 @@ export function ContributeForm({
               />
             )}
           </Field>
-          <KassBalanceLine balance={balance} loading={balanceLoading} format={formatKass} />
+          <SolBalanceLine balance={balance} loading={balanceLoading} format={formatSol} />
           <div className="flex items-center gap-3">
             <SubmitButton verb="Contribute" status={action.status} disabled={Boolean(balanceError)} />
           </div>

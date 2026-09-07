@@ -25,14 +25,14 @@ pub fn protocol(program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"protocol"], program_id)
 }
 
-/// KASS mint-authority PDA — seeds `[MINT_AUTHORITY_SEED]`. Handed to the KASS
+/// SOL mint-authority PDA — seeds `[MINT_AUTHORITY_SEED]`. Handed to the SOL
 /// mint so the program's emission `MintTo` can program-sign.
 pub fn mint_authority(program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[MINT_AUTHORITY_SEED], program_id)
 }
 
 /// Stake-vault PDA for an oracle — seeds `[b"vault", oracle]`. An SPL token
-/// account on the KASS mint whose authority is the oracle PDA.
+/// account on the SOL mint whose authority is the oracle PDA.
 pub fn stake_vault(program_id: &Pubkey, oracle: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"vault", oracle.as_ref()], program_id)
 }
@@ -83,14 +83,14 @@ pub fn ai_oracle_feed(program_id: &Pubkey, oracle: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"ai_feed", oracle.as_ref()], program_id)
 }
 
-/// The canonical KASS associated-token-account of `owner` — where the DAO
+/// The canonical SOL associated-token-account of `owner` — where the DAO
 /// treasury lives. Derived under the ATA program from `[owner, token_program, mint]`.
-pub fn kass_ata(owner: &Pubkey, kass_mint: &Pubkey) -> Pubkey {
+pub fn base_ata(owner: &Pubkey, base_mint: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(
         &[
             owner.as_ref(),
             TOKEN_PROGRAM_ID.as_ref(),
-            kass_mint.as_ref(),
+            base_mint.as_ref(),
         ],
         &ATA_PROGRAM_ID,
     )

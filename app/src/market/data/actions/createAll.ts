@@ -14,7 +14,7 @@
  * market PDA as `checkAccount`; the sequence sender probes it and SKIPS the step
  * when the market already exists (skip-if-exists resume), exactly like activate.
  *
- * The creator's KASS ATA is the seed-transfer source for every outcome, so an
+ * The creator's SOL ATA is the seed-transfer source for every outcome, so an
  * idempotent create-ATA ix is prepended ONCE — on step 0 only — when that account
  * is absent (all later steps reuse the account step 0 created).
  */
@@ -32,15 +32,15 @@ export interface BuildCreateAllArgs {
   optionsCount: number;
   /** Creator authority (the signer): pays rent + seeds each contribution. */
   creator: AddressInput;
-  /** Canonical KASS mint (== `config.kass_mint`). */
-  kassMint: AddressInput;
-  /** KASS seeded into each outcome's escrow (raw base units, > 0); charged per outcome. */
+  /** Canonical SOL mint (== `config.base_mint`). */
+  baseMint: AddressInput;
+  /** SOL seeded into each outcome's escrow (raw base units, > 0); charged per outcome. */
   seedAmount: bigint;
 }
 
 /**
  * Build the ordered per-outcome create sequence for a categorical oracle. Derives
- * the creator's KASS ATA (the shared seed source) via {@link ensureKassAta} and
+ * the creator's SOL ATA (the shared seed source) via {@link ensureKassAta} and
  * hands it to the SDK `createAllOutcomeMarkets` to get one `createMarket` ix per
  * outcome; wraps each in an {@link ActivateStep} whose `checkAccount` is that
  * outcome's market PDA (skip-if-exists). When the ATA is absent, its idempotent
@@ -48,7 +48,7 @@ export interface BuildCreateAllArgs {
  */
 export async function buildCreateAllSteps(args: BuildCreateAllArgs): Promise<ActivateStep[]> {
   const oracle = toAddress("Oracle", args.oracle);
-  const kassMint = toAddress("KASS mint", args.kassMint);
+  const baseMint = toAddress("SOL mint", args.baseMint);
   const creator = toAddress("Creator", args.creator);
 
   if (!Number.isInteger(args.optionsCount) || args.optionsCount < 1) {
@@ -58,14 +58,14 @@ export async function buildCreateAllSteps(args: BuildCreateAllArgs): Promise<Act
     throw new ValidationError("Seed amount must be greater than zero.");
   }
 
-  const { ata, createIx } = await ensureKassAta(args.indexer, creator, kassMint);
+  const { ata, createIx } = await ensureKassAta(args.indexer, creator, baseMint);
 
   const { steps } = await flows.createAllOutcomeMarkets({
     oracle,
     optionsCount: args.optionsCount,
     creator,
-    kassMint,
-    creatorKassAta: ata,
+    baseMint,
+    creatorBaseAta: ata,
     seedAmount: args.seedAmount,
   });
 

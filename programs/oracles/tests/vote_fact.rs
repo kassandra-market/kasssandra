@@ -6,7 +6,7 @@
 //!
 //! * FactVote PDA seeds `[b"vote", fact, voter]`.
 //! * Payload `disc=1 ++ kind u8 ++ stake u64 LE`.
-//! * Account order: oracle, fact, fact_vote, voter, voter-KASS, stake-vault,
+//! * Account order: oracle, fact, fact_vote, voter, voter-SOL, stake-vault,
 //!   token-program, system-program.
 //! * One vote per voter per fact; non-exclusive across facts.
 
@@ -53,7 +53,7 @@ fn setup(num_facts: usize, advance: bool) -> Setup {
     // A submitter that bankrolls all the fact stakes.
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_kass(&submitter, 1_000_000);
+    let submitter_kass = ctx.fund_base(&submitter, 1_000_000);
 
     let mut facts = Vec::with_capacity(num_facts);
     for i in 0..num_facts {
@@ -87,11 +87,11 @@ fn setup(num_facts: usize, advance: bool) -> Setup {
     }
 }
 
-/// Create + fund a fresh voter (lamports for rent + KASS for stake).
-fn fund_voter(ctx: &mut TestCtx, kass: u64) -> (Keypair, Pubkey) {
+/// Create + fund a fresh voter (lamports for rent + SOL for stake).
+fn fund_voter(ctx: &mut TestCtx, base: u64) -> (Keypair, Pubkey) {
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_kass(&voter, kass);
+    let voter_kass = ctx.fund_base(&voter, base);
     (voter, voter_kass)
 }
 

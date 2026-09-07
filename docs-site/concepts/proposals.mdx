@@ -1,6 +1,6 @@
 ---
 title: "Proposals"
-description: "The proposal window — categorical values plus KASS bonds, no proofs; all-agree resolves, conflict opens a dispute, and plurality is over proposers, not stake."
+description: "The proposal window — categorical values plus SOL bonds, no proofs; all-agree resolves, conflict opens a dispute, and plurality is over proposers, not stake."
 ---
 
 The **proposal window** is where an oracle's answer is first put forward. It is the entire
@@ -13,7 +13,7 @@ After the oracle's `deadline`, a participant registers a proposal with `propose`
 (`Ix::Propose = 11`). The payload is exactly 9 bytes: `option: u8` plus `bond: u64 LE`
 (`propose.rs`). The processor:
 
-- escrows the KASS `bond` into the oracle's `stake_vault`, and
+- escrows the SOL `bond` into the oracle's `stake_vault`, and
 - creates one `Proposer` PDA per `(oracle, authority)` at seeds
   `[b"proposer", oracle, authority]`, recording `original_option = option` and
   `claim_option = CLAIM_OPTION_NONE` (0xFF, "no AI claim yet").
@@ -25,7 +25,7 @@ After the oracle's `deadline`, a participant registers a proposal with `propose`
 </ParamField>
 
 <ParamField path="bond" type="u64">
-  The KASS bond (raw base units) escrowed into the stake vault. Must be positive
+  The SOL bond (raw base units) escrowed into the stake vault. Must be positive
   (`ZeroStake`). It is what the proposer risks: it becomes conditional collateral in a
   challenge market and can be slashed.
 </ParamField>
@@ -93,7 +93,7 @@ for their (possibly updated) value, and the option with the strictly-highest cou
 
 <Info>
   Plurality is **one proposer, one vote** — deliberately *not* stake-weighted. A wealthy
-  proposer risks more KASS, but does not get a louder vote. A tie between options has no
+  proposer risks more SOL, but does not get a louder vote. A tie between options has no
   winner and sends the oracle to an [Invalid dead-end](/concepts/dead-end-settlement).
 </Info>
 

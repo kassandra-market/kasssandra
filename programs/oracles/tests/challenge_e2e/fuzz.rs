@@ -2,7 +2,7 @@
 // Conservation FUZZ (deliverable 2)
 //
 // Sweeps both outcomes × fee rates × bond sizes × pass/fail TWAP relation and
-// asserts the KASS + USDC conservation equations across REAL open_challenge +
+// asserts the SOL + USDC conservation equations across REAL open_challenge +
 // settle_challenge against the INDEPENDENT ConservationModel. To keep each case
 // cheap (the real-AMM TWAP-production path is heavy — and is covered by the two
 // e2e tests above + settle_challenge.rs), the pass/fail AMMs are FABRICATED
@@ -83,7 +83,7 @@ fn fuzz_case_strategy() -> impl Strategy<Value = FuzzCase> {
         0u128..4_000_000_000u128,       // pass_twap (incl. 0 → always survive)
         100_000_000u128..12_000_000_000u128, // fail_twap
         // Fee rates within bounds (num ≤ den, den > 0). Keep succ_num/den ≤ ~50%
-        // so the kass_fee never collides with the (here-zero) prior slash.
+        // so the base_fee never collides with the (here-zero) prior slash.
         (1u64..=50u64, 100u64..=100u64),
         (1u64..=50u64, 100u64..=100u64),
     )
@@ -104,7 +104,7 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
     let mut ctx = TestCtx::new();
     ctx.svm.add_program(vault_id(), VAULT_SO).unwrap();
     ctx.svm.add_program(amm_id(), AMM_SO).unwrap();
-    let kass_dao = ctx.bless_kass_price();
+    let spot_dao = ctx.bless_spot_price();
 
     let oracle = ctx.seed_disputed_oracle(&[
         ProposerSpec {
@@ -137,7 +137,7 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
     a.bump = bump;
     ctx.seed_program_account_at(claim, bytemuck::bytes_of(&a).to_vec());
 
-    let (m, oracle_pass_kass, oracle_fail_kass) = setup_market(&mut ctx, oracle);
+    let (m, oracle_pass_base, oracle_fail_base) = setup_market(&mut ctx, oracle);
     // Stubbed-TWAP AMMs (see module note): known pass/fail TWAP, real binding.
     let pass_amm = fabricate_amm_with_twap(&mut ctx, m.pass_mint, m.pass_usdc, fc.pass_twap);
     let fail_amm = fabricate_amm_with_twap(&mut ctx, m.fail_mint, m.fail_usdc, fc.fail_twap);
@@ -160,9 +160,9 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
         pass_amm,
         fail_amm,
         stake_vault,
-        oracle_pass_kass,
-        oracle_fail_kass,
-        kass_dao,
+        oracle_pass_base,
+        oracle_fail_base,
+        spot_dao,
         challenger_usdc_src,
         nonce,
     );
@@ -180,12 +180,12 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
     ctx.warp(TWAP_WINDOW + 1);
     let extras = SettleExtras {
         stake_vault,
-        kass_vault: m.kass_vault,
-        kass_vault_underlying: m.kass_vault_underlying,
+        base_vault: m.base_vault,
+        base_vault_underlying: m.base_vault_underlying,
         pass_mint: m.pass_mint,
         fail_mint: m.fail_mint,
-        oracle_pass_kass,
-        oracle_fail_kass,
+        oracle_pass_base,
+        oracle_fail_base,
         escrow_vault: payouts.escrow_vault,
         proposer_usdc: payouts.proposer_usdc,
         challenger_usdc_dest: payouts.challenger_usdc_dest,
@@ -218,7 +218,7 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
     }
     prop_assert_eq!(ctx.proposer(proposer).disqualified != 0, disqualify);
 
-    // KASS.
+    // SOL.
     prop_assert_eq!(
         ctx.token_balance(payouts.challenger_kass),
         model.challenger_kass()
@@ -227,13 +227,13 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
         ctx.token_balance(stake_vault),
         stake_before + model.stake_vault_delta()
     );
-    prop_assert_eq!(ctx.token_balance(m.kass_vault_underlying), 0);
+    prop_assert_eq!(ctx.token_balance(m.base_vault_underlying), 0);
     prop_assert_eq!(
         ctx.token_balance(stake_vault)
-            + ctx.token_balance(m.kass_vault_underlying)
+            + ctx.token_balance(m.base_vault_underlying)
             + ctx.token_balance(payouts.challenger_kass),
         total_before,
-        "KASS conservation incl. the kass_fee carve-out"
+        "SOL conservation incl. the base_fee carve-out"
     );
     // USDC.
     prop_assert_eq!(

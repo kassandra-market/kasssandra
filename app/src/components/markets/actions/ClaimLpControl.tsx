@@ -3,7 +3,7 @@ import type { Market, Contribution } from "@kassandra-market/markets";
 import { Card } from "../../ui";
 import { buildClaimLpIxs } from "../../../market/data/actions";
 import { useWriteAction } from "../../../market/hooks/useWriteAction";
-import { formatKass } from "../../../market/lib/marketView";
+import { formatSol } from "../../../market/lib/marketView";
 import { SubmitButton } from "./formPrimitives";
 import { WriteStatusRegion } from "./WriteStatusRegion";
 
@@ -80,14 +80,14 @@ export function ClaimLpControl({
     );
   }
 
-  // A contributor's claimable position is their Funding stake (`amount` KASS, which
+  // A contributor's claimable position is their Funding stake (`amount` SOL, which
   // earned LP pro-rata at activation) and/or the liquidity they added post-activation
   // (`lateLp`, recorded as LP with `amount == 0`). Describe whichever they hold — a
-  // pure late LP must NOT read as a "0 KASS contribution".
+  // pure late LP must NOT read as a "0 SOL contribution".
   const c = mine.contribution;
   const parts: string[] = [];
-  if (c.amount > 0n) parts.push(`${formatKass(c.amount)} KASS funding contribution`);
-  if (c.lateLp > 0n) parts.push(`${formatKass(c.lateLp)} LP you added to the pool`);
+  if (c.amount > 0n) parts.push(`${formatSol(c.amount)} SOL funding contribution`);
+  if (c.lateLp > 0n) parts.push(`${formatSol(c.lateLp)} LP you added to the pool`);
   const positionText = parts.length > 0 ? parts.join(" and ") : "position";
 
   // Fee gate: claim_lp opens only after the protocol fee is collected. Until then

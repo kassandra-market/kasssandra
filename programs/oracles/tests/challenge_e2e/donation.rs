@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // Donation edge (C2 review heads-up): anyone can SPL-transfer extra conditional
-// KASS into the oracle-PDA-owned holder before settle; redeem burns the FULL
+// SOL into the oracle-PDA-owned holder before settle; redeem burns the FULL
 // balance, pulling the extra underlying into stake_vault. This documents that the
-// donation only INFLATES stake_vault (the donor forfeits their own KASS) — it is
+// donation only INFLATES stake_vault (the donor forfeits their own SOL) — it is
 // NOT theft (no protocol funds leave to the donor), so production is unchanged.
 // ---------------------------------------------------------------------------
 
@@ -25,7 +25,7 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
     let mut ctx = TestCtx::new();
     ctx.svm.add_program(vault_id(), VAULT_SO).unwrap();
     ctx.svm.add_program(amm_id(), AMM_SO).unwrap();
-    let kass_dao = ctx.bless_kass_price();
+    let spot_dao = ctx.bless_spot_price();
 
     // Lighter seeded-Challenge setup (the donation mechanic is orthogonal to how
     // we reach Challenge); real open/settle + real conditional vault throughout.
@@ -58,7 +58,7 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
     a.bump = bump;
     ctx.seed_program_account_at(claim, bytemuck::bytes_of(&a).to_vec());
 
-    let (m, oracle_pass_kass, oracle_fail_kass) = setup_market(&mut ctx, oracle);
+    let (m, oracle_pass_base, oracle_fail_base) = setup_market(&mut ctx, oracle);
     // Honest (survive) market: both pools neutral → pass-side resolution.
     let pass_amm = build_pool(
         &mut ctx,
@@ -94,22 +94,22 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
         pass_amm,
         fail_amm,
         stake_vault,
-        oracle_pass_kass,
-        oracle_fail_kass,
-        kass_dao,
+        oracle_pass_base,
+        oracle_fail_base,
+        spot_dao,
         challenger_usdc_src,
         nonce,
     );
     ctx.send_many(&cu(ix), &[&challenger])
         .expect("open_challenge");
 
-    // --- the donation: a third party splits D KASS in THIS market's KASS vault
-    // (minting D pass-KASS + D fail-KASS to themselves) then SPL-transfers the D
-    // pass-KASS into the oracle-PDA-owned pass holder. ----------------------
+    // --- the donation: a third party splits D SOL in THIS market's SOL vault
+    // (minting D pass-SOL + D fail-SOL to themselves) then SPL-transfers the D
+    // pass-SOL into the oracle-PDA-owned pass holder. ----------------------
     let donation: u64 = 250_000_000;
     let donor = Keypair::new();
     ctx.svm.airdrop(&donor.pubkey(), 1_000_000_000).unwrap();
-    let donor_kass_src = ctx.fund_kass(&donor, donation);
+    let donor_kass_src = ctx.fund_base(&donor, donation);
     let donor_pass = Pubkey::new_unique();
     let donor_fail = Pubkey::new_unique();
     fabricate_token_account(&mut ctx, donor_pass, m.pass_mint, donor.pubkey(), 0);
@@ -121,8 +121,8 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
         program_id: vault_id(),
         accounts: vec![
             AccountMeta::new_readonly(m.question, false),
-            AccountMeta::new(m.kass_vault, false),
-            AccountMeta::new(m.kass_vault_underlying, false),
+            AccountMeta::new(m.base_vault, false),
+            AccountMeta::new(m.base_vault_underlying, false),
             AccountMeta::new(donor.pubkey(), true),
             AccountMeta::new(donor_kass_src, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -137,11 +137,11 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
     };
     ctx.send_many(&cu(split_ix), &[&donor])
         .expect("donor split");
-    // SPL-transfer the donated pass-KASS into the oracle-PDA-owned holder.
+    // SPL-transfer the donated pass-SOL into the oracle-PDA-owned holder.
     let xfer = spl_token::instruction::transfer(
         &TOKEN_PROGRAM_ID,
         &donor_pass,
-        &oracle_pass_kass,
+        &oracle_pass_base,
         &donor.pubkey(),
         &[],
         donation,
@@ -151,9 +151,9 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
         .expect("donate transfer");
 
     assert_eq!(
-        ctx.token_balance(oracle_pass_kass),
+        ctx.token_balance(oracle_pass_base),
         BOND + donation,
-        "holder now carries bond + donated conditional KASS"
+        "holder now carries bond + donated conditional SOL"
     );
 
     let payouts = fabricate_payouts(&mut ctx, market, proposer_authority, challenger.pubkey());
@@ -163,12 +163,12 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
     ctx.warp(TWAP_WINDOW + 1);
     let extras = SettleExtras {
         stake_vault,
-        kass_vault: m.kass_vault,
-        kass_vault_underlying: m.kass_vault_underlying,
+        base_vault: m.base_vault,
+        base_vault_underlying: m.base_vault_underlying,
         pass_mint: m.pass_mint,
         fail_mint: m.fail_mint,
-        oracle_pass_kass,
-        oracle_fail_kass,
+        oracle_pass_base,
+        oracle_fail_base,
         escrow_vault: payouts.escrow_vault,
         proposer_usdc: payouts.proposer_usdc,
         challenger_usdc_dest: payouts.challenger_usdc_dest,
@@ -182,24 +182,24 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
     // Redeem burned the FULL pass holder (bond + donation) → pulled bond +
     // donation into stake_vault. The proposer is NOT slashed (survive), so the
     // donation is pure inflation of stake_vault.
-    assert_eq!(ctx.token_balance(oracle_pass_kass), 0, "holder burned");
+    assert_eq!(ctx.token_balance(oracle_pass_base), 0, "holder burned");
     assert_eq!(
-        ctx.token_balance(m.kass_vault_underlying),
+        ctx.token_balance(m.base_vault_underlying),
         0,
         "underlying drained"
     );
     assert_eq!(
         ctx.token_balance(stake_vault),
         stake_before + BOND + donation,
-        "stake_vault inflated by bond + DONATION (donor forfeited their KASS)"
+        "stake_vault inflated by bond + DONATION (donor forfeited their SOL)"
     );
     // The naive conservation equation now carries the donation on top of the
     // conserved total: stake_vault + underlying == total + donation. The donor's
-    // own KASS was pulled in and is NOT recoverable by them (their fail-KASS is
-    // worthless) — external griefing that only ADDS KASS to the protocol, never
+    // own SOL was pulled in and is NOT recoverable by them (their fail-SOL is
+    // worthless) — external griefing that only ADDS SOL to the protocol, never
     // theft, so production is intentionally NOT guarded against it.
     assert_eq!(
-        ctx.token_balance(stake_vault) + ctx.token_balance(m.kass_vault_underlying),
+        ctx.token_balance(stake_vault) + ctx.token_balance(m.base_vault_underlying),
         total_before + donation,
         "donation inflates stake_vault beyond the conserved total (no funds stolen)"
     );

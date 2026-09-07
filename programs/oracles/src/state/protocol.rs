@@ -7,13 +7,13 @@ use super::Pubkey;
 /// Protocol singleton: the program's global configuration record. `size_of == 368`.
 ///
 /// Created once by `init_protocol` and never re-initialized. Pins the canonical
-/// KASS/USDC mints (so `create_oracle`'s fee-burn cannot be spoofed with a fake
-/// KASS mint) and carries the dynamic creation-fee EMA state used by Task H2.
+/// SOL/USDC mints (so `create_oracle`'s fee-burn cannot be spoofed with a fake
+/// SOL mint) and carries the dynamic creation-fee EMA state used by Task H2.
 ///
 /// # Governance linkage (Task F1)
 /// `dao_authority` is the **Squads v4 multisig VAULT PDA** that gates the
-/// privileged `set_config`/`resolve_deadend` instructions; `kass_dao` is the
-/// futarchy `Dao` account whose embedded spot AMM is the KASS price source
+/// privileged `set_config`/`resolve_deadend` instructions; `spot_dao` is the
+/// futarchy `Dao` account whose embedded spot AMM is the SOL price source
 /// (F5). Both are zero (unset) at `init_protocol` and recorded once by
 /// `set_governance` (the one-time admin→DAO handoff). `governance_set` is the
 /// one-shot flag (see `set_governance` for the trust model).
@@ -33,7 +33,7 @@ pub struct Protocol {
     pub account_type: u8, // AccountType::Protocol
     pub _pad_hdr: [u8; 7],
     pub admin: Pubkey,     // the initializer; gates the one-time set_governance
-    pub kass_mint: Pubkey, // canonical KASS mint; oracles must match this
+    pub base_mint: Pubkey, // canonical SOL mint; oracles must match this
     pub usdc_mint: Pubkey, // canonical USDC mint; oracles must match this
     // Fixed-point EMA accumulator of recent oracle-creation activity. 0 at
     // genesis (first creation is free); rises with creation frequency and decays
@@ -44,24 +44,24 @@ pub struct Protocol {
     // Task H2. 0 at genesis.
     pub last_creation_unix: i64,
     pub bump: u8,
-    // 1 once `set_governance` has recorded `dao_authority`/`kass_dao`; 0 before
+    // 1 once `set_governance` has recorded `dao_authority`/`spot_dao`; 0 before
     // (the admin→DAO handoff is one-shot, see `set_governance`).
     pub governance_set: u8,
     pub _pad: [u8; 6],
     // Squads v4 multisig VAULT PDA — the signer that gates `set_config` (F3) and
     // `resolve_deadend` (F4). Zero until `set_governance` records it.
     pub dao_authority: Pubkey,
-    // Futarchy `Dao` account; its embedded spot AMM is F5's KASS price source.
+    // Futarchy `Dao` account; its embedded spot AMM is F5's SOL price source.
     // Zero until `set_governance` records it. STORED (not re-derived) because the
     // `Dao` account's post-`amm` fields sit at variable offsets (F0 finding).
-    pub kass_dao: Pubkey,
+    pub spot_dao: Pubkey,
     // ---- Governable monetary params (reserved by F1, retuned by F3) ----------
     // Emission rate as a fraction `emission_num / emission_den`. Settlement sets
     // the full semantics; F1 reserves the fields (defaulted 0/1 — no emission,
     // denominator never zero) so the layout and `set_config` plumbing exist now.
     pub emission_num: u64,
     pub emission_den: u64,
-    // Hard cap on circulating KASS supply (settlement-era; F1 reserves it as 0).
+    // Hard cap on circulating SOL supply (settlement-era; F1 reserves it as 0).
     pub total_supply_cap: u64,
     // Mirror of the `config.rs` fee-EMA consts so `create_oracle` can later read
     // them from state (F2). F1 defaults them to the current consts (no behavior
@@ -88,13 +88,13 @@ pub struct Protocol {
     pub reward_proposer_weight: u64,
     pub reward_fact_weight: u64,
     // ---- Challenge-fee config (Task C1; mutable source, snapshotted to Oracle)
-    // USDC fee on a FAILED challenge (→ proposer) and KASS fee on a SUCCESSFUL
+    // USDC fee on a FAILED challenge (→ proposer) and SOL fee on a SUCCESSFUL
     // challenge (→ challenger), each a `num/den` fraction. Defaulted by
     // `init_protocol` (1/100 each), retuned by `set_config` (den>0, num≤den).
     pub challenge_fail_usdc_fee_num: u64,
     pub challenge_fail_usdc_fee_den: u64,
-    pub challenge_success_kass_fee_num: u64,
-    pub challenge_success_kass_fee_den: u64,
+    pub challenge_success_base_fee_num: u64,
+    pub challenge_success_base_fee_den: u64,
     // ---- Activity-scaled stake-floor curve (bootstrapping; snapshotted to Oracle)
     // The governable curve `create_oracle` evaluates against the decayed fee-EMA to
     // snapshot `Oracle.min_stake` (see `crate::stake_floor`). `init_protocol`
@@ -103,7 +103,7 @@ pub struct Protocol {
     // governance activates it via `set_config`.
     pub stake_floor_ema_threshold: u64, // fee-EMA below which the floor is 0
     pub stake_floor_ema_cap: u64,       // fee-EMA at which the floor reaches max
-    pub stake_floor_max: u64,           // max floor (KASS base units); 0 = disabled
+    pub stake_floor_max: u64,           // max floor (SOL base units); 0 = disabled
 }
 
 impl Protocol {

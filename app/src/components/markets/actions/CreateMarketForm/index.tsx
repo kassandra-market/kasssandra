@@ -7,12 +7,12 @@ import { buildCreateMarketIxs, buildCreateAllSteps, type ActivateStep } from "..
 import { useWriteAction } from "../../../../market/hooks/useWriteAction";
 import { useActionSequence } from "../../../../market/hooks/useActionSequence";
 import { useConfig } from "../../../../market/hooks/useMarketDetail";
-import { useKassBalance } from "../../../../market/hooks/useKassBalance";
+import { useSolBalance } from "../../../../market/hooks/useSolBalance";
 import { useMarkets } from "../../../../market/hooks/useMarkets";
-import { formatKass, outcomeLabel } from "../../../../market/lib/marketView";
-import { parseKassAmount, balanceGateError } from "../../../../market/data/amount";
+import { formatSol, outcomeLabel } from "../../../../market/lib/marketView";
+import { parseSolAmount, balanceGateError } from "../../../../market/data/amount";
 import { ConnectGate } from "../ConnectGate";
-import { Field, KassBalanceLine, SubmitButton, TextInput } from "../formPrimitives";
+import { Field, SolBalanceLine, SubmitButton, TextInput } from "../formPrimitives";
 import { WriteStatusRegion } from "../WriteStatusRegion";
 import { ModeButton } from "./ModeButton";
 import { BatchStepList } from "./BatchStepList";
@@ -24,7 +24,7 @@ const focusRing =
 
 /**
  * Create a new prediction market bound to an existing Kassandra oracle: an oracle
- * address and a KASS seed (pools always seed 50/50). Once
+ * address and a SOL seed (pools always seed 50/50). Once
  * the oracle is entered the form reads its `options_count`: a binary (2-option)
  * oracle stays a simple form (`outcome_index = 0`), while a categorical (N>2)
  * oracle exposes an OUTCOME SELECTOR — the created sub-market is "YES if the
@@ -36,9 +36,9 @@ const focusRing =
 export function CreateMarketForm() {
   const navigate = useNavigate();
   const config = useConfig();
-  const kassMint = config.data ? config.data.kassMint.toString() : undefined;
+  const baseMint = config.data ? config.data.baseMint.toString() : undefined;
   const notInitialized = !config.loading && config.data === null;
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(kassMint);
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useSolBalance(baseMint);
 
   const [oracle, setOracle] = useState("");
   const [seed, setSeed] = useState("");
@@ -137,7 +137,7 @@ export function CreateMarketForm() {
     if (!isCategorical) setBatchMode(false);
   }, [isCategorical]);
 
-  const parsedSeed = parseKassAmount(seed);
+  const parsedSeed = parseSolAmount(seed);
   // In batch mode the creator funds `optionsCount × seed`; gate on that total.
   const totalCost =
     batchMode && parsedSeed.value !== undefined && typeof optionsCount === "number"
@@ -164,8 +164,8 @@ export function CreateMarketForm() {
       setSeedError(parsedSeed.error);
       return null;
     }
-    if (!kassMint) {
-      setOracleError("Waiting for the on-chain config (KASS mint) to load.");
+    if (!baseMint) {
+      setOracleError("Waiting for the on-chain config (SOL mint) to load.");
       return null;
     }
     setOracleError(undefined);
@@ -185,7 +185,7 @@ export function CreateMarketForm() {
       buildCreateMarketIxs({
         indexer: action.indexer,
         oracle: trimmedOracle,
-        kassMint: kassMint!,
+        baseMint: baseMint!,
         creator: action.address!,
         seedAmount: v.seedValue,
         outcomeIndex,
@@ -206,7 +206,7 @@ export function CreateMarketForm() {
         oracle: trimmedOracle,
         optionsCount,
         creator: seq.address!,
-        kassMint: kassMint!,
+        baseMint: baseMint!,
         seedAmount: v.seedValue,
       });
       setBatchSteps(built);
@@ -231,7 +231,7 @@ export function CreateMarketForm() {
       {notInitialized ? (
         <div className="rounded-tag border border-hairline bg-liquid-deep p-4">
           <p className="font-inter text-[13px] text-silver">
-            The program is not initialized (no on-chain Config), so its KASS mint is unknown. Deploy
+            The program is not initialized (no on-chain Config), so its SOL mint is unknown. Deploy
             + initialize the program before creating a market.
           </p>
         </div>
@@ -331,7 +331,7 @@ export function CreateMarketForm() {
           ) : null}
 
           <Field
-            label={batchMode ? "Seed per outcome (KASS)" : "Seed (KASS)"}
+            label={batchMode ? "Seed per outcome (SOL)" : "Seed (SOL)"}
             hint="Your initial contribution to the funding pool."
             error={seedError ?? balanceError}
           >
@@ -349,11 +349,11 @@ export function CreateMarketForm() {
             <p className="-mt-1 font-inter text-[12px] text-silver">
               Total: {optionsCount} × seed ={" "}
               <span className="font-medium text-silver">
-                {formatKass(parsedSeed.value * BigInt(optionsCount))}
+                {formatSol(parsedSeed.value * BigInt(optionsCount))}
               </span>
             </p>
           ) : null}
-          <KassBalanceLine balance={balance} loading={balanceLoading} format={formatKass} />
+          <SolBalanceLine balance={balance} loading={balanceLoading} format={formatSol} />
 
           {batchMode ? (
             <>
