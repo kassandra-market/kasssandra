@@ -80,7 +80,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     session.status = ER_STATUS_DELEGATED;
     session.validator = validator;
     session.commit_frequency_ms = commit_frequency_ms;
-        session.delegated_at = now;
+    session.delegated_at = now;
     session.last_commit_slot = 0;
     {
         let mut data = session_ai.try_borrow_mut()?;

@@ -46,6 +46,10 @@ fn delegate_ix(ctx: &TestCtx, oracle: Pubkey, session: Pubkey, data: Vec<u8>) ->
 
 fn seed_one() -> (TestCtx, Pubkey, u64) {
     let mut ctx = TestCtx::new();
+    // LiteSVM's Clock starts at unix_timestamp=0 / slot=0. Warp so
+    // `delegated_at` and `last_commit_slot` are distinguishable from
+    // the Pod-zeroed defaults.
+    ctx.warp_slots(1_700_000_000, 42);
     let oracle = ctx.seed_disputed_oracle(&[ProposerSpec {
         option: 0,
         bond: 1_000,
@@ -71,6 +75,7 @@ fn delegate_records_er_session() {
     assert_eq!(s.commit_frequency_ms, DEFAULT_COMMIT_FREQUENCY_MS);
     assert_eq!(s.oracle, oracle.to_bytes().into());
     assert_eq!(s.validator, [0u8; 32].into());
+    assert_eq!(s.delegated_at, ctx.now());
     assert!(s.delegated_at > 0);
 }
 
@@ -120,7 +125,8 @@ fn commit_and_undelegate_roundtrip() {
     ctx.send(commit, &[]).expect("commit");
     let s: ErSession = ctx.read_pod(session);
     assert_eq!(s.status, ER_STATUS_DELEGATED);
-    assert!(s.last_commit_slot > 0 || s.last_commit_slot == 0); // LiteSVM clock slot may be 0
+    assert_eq!(s.last_commit_slot, ctx.slot());
+    assert!(s.last_commit_slot > 0);
     let _ = magicblock::MAGIC_PROGRAM_ID;
 
     let undelegate = Instruction {
