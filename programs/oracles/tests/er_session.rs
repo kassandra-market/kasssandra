@@ -15,6 +15,7 @@ use solana_instruction::{AccountMeta, Instruction};
 use solana_instruction_error::InstructionError;
 use solana_pubkey::Pubkey;
 use solana_sdk_ids::system_program;
+use solana_signer::Signer;
 use solana_transaction_error::TransactionError;
 
 fn session_pda(program_id: &Pubkey, oracle: &Pubkey) -> (Pubkey, u8) {
