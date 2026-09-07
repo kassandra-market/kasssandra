@@ -116,6 +116,28 @@ pub enum Ix {
     /// write-once). Lets other programs read the subject/options without our
     /// indexer; the PDA's rent is reclaimed at `sweep_oracle`.
     WriteOracleMeta = 23,
+    /// Record an [`crate::state::ErSession`] for this oracle and, when the
+    /// remaining-account MagicBlock set is present, CPI the Delegation Program
+    /// so the oracle PDA can execute on an Ephemeral Rollup.
+    DelegateOracle = 24,
+    /// Stamp a commit on the `ErSession` (and optionally CPI Magic Program
+    /// `schedule_commit` when remaining accounts are present). Called on the ER.
+    CommitOracle = 25,
+    /// Mark the `ErSession` undelegated (and optionally CPI commit-and-undelegate).
+    /// Called on the ER; the validator later callbacks with the 8-byte
+    /// MagicBlock undelegate discriminator.
+    UndelegateOracle = 26,
+    /// DAO-gated create-or-update of the `[b"ai_oracle_config"]` singleton:
+    /// pusher `authority`, `max_staleness_slots`, `source`, `enabled`.
+    SetAiOracleConfig = 27,
+    /// Authority-gated write of `[b"ai_feed", oracle]`. The program stamps
+    /// `Clock.slot` / `Clock.unix_timestamp`; the pusher supplies the
+    /// categorical option + opaque commitment hashes + attestation.
+    PushAiOracleFeed = 28,
+    /// In `Phase::AiClaim`, create this proposer's `AiClaim` from the live
+    /// `AiOracleFeed` (one proposer per tx). Replaces the in-house runner as
+    /// the protocol's source of truth when the feed is enabled.
+    ApplyExternalAiClaim = 29,
     // Future variants are APPENDED here with the next discriminant; add a
     // matching arm to `from_u8` below.
 }
@@ -149,6 +171,12 @@ impl Ix {
             21 => Some(Ix::CloseMarket),
             22 => Some(Ix::SweepOracle),
             23 => Some(Ix::WriteOracleMeta),
+            24 => Some(Ix::DelegateOracle),
+            25 => Some(Ix::CommitOracle),
+            26 => Some(Ix::UndelegateOracle),
+            27 => Some(Ix::SetAiOracleConfig),
+            28 => Some(Ix::PushAiOracleFeed),
+            29 => Some(Ix::ApplyExternalAiClaim),
             _ => None,
         }
     }

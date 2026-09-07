@@ -2,7 +2,7 @@
 id: spec-oracle-program
 title: Oracle program spec
 tags: [spec, oracle, program, onchain]
-updated: 2026-07-10
+updated: 2026-09-07
 source: programs/oracles/src/{instruction.rs,state.rs,processor/}
 ---
 
@@ -28,6 +28,9 @@ Crate `kassandra-oracles-program` (`programs/oracles`). Pinocchio; single-byte
 | 9 | InitProtocol | 21 | CloseMarket |
 | 10 | CreateOracle | 22 | SweepOracle |
 | 11 | Propose | 23 | WriteOracleMeta |
+| 24 | DelegateOracle | 27 | SetAiOracleConfig |
+| 25 | CommitOracle | 28 | PushAiOracleFeed |
+| 26 | UndelegateOracle | 29 | ApplyExternalAiClaim |
 
 Instruction `data` = `[disc_byte, ...payload]`, payload mirrors the processor's
 byte layout (LE ints, pubkeys as 32 raw bytes). The SDKs build these byte-exactly.
@@ -37,14 +40,17 @@ byte layout (LE ints, pubkeys as 32 raw bytes). The SDKs build these byte-exactl
 | tag | AccountType | Struct | Notes |
 |---|---|---|---|
 | 0 | Uninitialized | — | |
-| 1 | Oracle | `Oracle` (~392 B) | phase, deadline, options_count, thresholds, bond pool… |
+| 1 | Oracle | `Oracle` (368 B) | phase, deadline, options_count, thresholds, bond pool… |
 | 2 | Proposer | `Proposer` | option, bond, claim_option (0xFF = none), slashed_amount |
 | 3 | Fact | `Fact` | content_hash, uri, approve/duplicate stake |
 | 4 | FactVote | `FactVote` | per-voter stake on a fact |
 | 5 | AiClaim | `AiClaim` | model_id/params_hash/io_hash (opaque 32B each) + option |
 | 6 | Market | `Market` | challenge-market link (challenger, challengerUsdc, twap_end, question/vault…) |
-| 7 | Protocol | `Protocol` (368 B) | governance singleton |
+| 7 | Protocol | `Protocol` (392 B) | governance singleton |
 | 8 | OracleMeta | companion PDA | subject + option labels on-chain; `uri`+`uri_hash` bind extended JSON |
+| 9 | ErSession | `ErSession` (96 B) | `[b"er_session", oracle]` MagicBlock delegation record |
+| 10 | AiOracleConfig | `AiOracleConfig` (48 B) | `[b"ai_oracle_config"]` pusher authority + staleness |
+| 11 | AiOracleFeed | `AiOracleFeed` (248 B) | `[b"ai_feed", oracle]` latest attested categorical answer |
 
 Every Pod account starts with `account_type: u8` at offset 0
 (`ACCOUNT_TYPE_OFFSET`); a getProgramAccounts memcmp filter matches on the bs58 of
@@ -74,6 +80,11 @@ options_count u8 ‖ [opt_len u16 ‖ opt]* ‖ uri_len u16 ‖ uri ‖ uri_hash
 The challenge market CPIs into MetaDAO: conditional vault, AMM v0.4, futarchy
 v0.6 (`programs/oracles/src/cpi/{metadao,metadao_v06}/`). LiteSVM loads their
 `.so` from `programs/oracles/tests/fixtures/`.
+
+MagicBlock Ephemeral Rollup CPIs are hand-rolled in `cpi/magicblock.rs` (no
+`ephemeral-rollups-pinocchio` dep). Full ownership-transfer is optional remaining
+accounts; LiteSVM tests use the short form. See
+[`ephemeral-rollups-and-ai-oracle.md`](ephemeral-rollups-and-ai-oracle.md).
 
 ## Change protocol
 

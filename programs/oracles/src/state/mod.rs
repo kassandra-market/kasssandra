@@ -6,11 +6,15 @@
 //! This lets us read/write them straight out of account data with `bytemuck`.
 
 mod accounts;
+mod ai_oracle;
 mod common;
+mod er;
 mod oracle;
 mod protocol;
 
 pub use accounts::*;
+pub use ai_oracle::*;
 pub use common::*;
+pub use er::*;
 pub use oracle::*;
 pub use protocol::*;

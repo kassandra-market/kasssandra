@@ -2,7 +2,7 @@
 id: context-app
 title: The dApp (app/)
 tags: [context, app, react, vite]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # The dApp (`app/`)
@@ -30,6 +30,9 @@ indexer's read API; writes via the SDK instruction builders.
 - `app/src/components/{oracles,markets}` — feature components + `actions/` (the write forms).
 - `app/src/data` — oracle-side data/actions; `app/src/market/` — market-side data/hooks/lib.
 - `app/src/lib` — shared utils (base58, base64, oracleView formatters, cluster).
+  Direct mode uses `VITE_MAGIC_ROUTER_URL` (when set) as the RPC for non-localnet
+  clusters so MagicBlock ER txs route through Magic Router. Gateway mode still
+  never ships RPC URLs.
 - `app/test` — vitest unit + litesvm e2e tests (run in CI).
 - `app/e2e` — Playwright browser specs + `seed*.ts` helpers + `dev-full.ts` (`make dev` entry). NOT run in the default unit lane.
 

@@ -201,7 +201,10 @@ const ORACLES: OracleSummary[] = [
 
 // --- children for the rich detail (the challenged oracle) --------------------
 
-function childrenFor(pubkey: string): Pick<OracleDetail, 'facts' | 'proposers' | 'aiClaims' | 'market'> {
+function childrenFor(pubkey: string): Pick<
+  OracleDetail,
+  'facts' | 'proposers' | 'aiClaims' | 'market' | 'erSession' | 'aiFeed'
+> {
   const oracle = A(pubkey)
   const facts: OracleDetail['facts'] = [
     {
@@ -342,6 +345,6 @@ export function mockOracleDetail(pubkey: string): Promise<OracleDetail> {
     pubkey === 'OracLeFactVoting1111111111111111111111111111'
   const kids = rich
     ? childrenFor(pubkey)
-    : { facts: [], proposers: [], aiClaims: [], market: undefined }
+    : { facts: [], proposers: [], aiClaims: [], market: undefined, erSession: undefined, aiFeed: undefined }
   return Promise.resolve({ pubkey, oracle: summary.oracle, ...kids })
 }

@@ -19,3 +19,4 @@
 export * from "./config.js";
 export * from "./funding.js";
 export * from "./lifecycle.js";
+export * from "./er.js";

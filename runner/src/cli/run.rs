@@ -16,7 +16,8 @@ use crate::provider::{AiProvider, ModelConfig};
 use crate::submit::{derive_proposer_pda, submit_and_confirm, ConfirmOptions, SubmitError};
 
 use crate::cli::{
-    ClaimPdaSeeds, CommonArgs, HashCheck, RunOutput, RunnerConfig, SubmissionOutput, VerifyOutput,
+    ClaimPdaSeeds, CommonArgs, FeedSubmissionOutput, HashCheck, RunOutput, RunnerConfig,
+    SubmissionOutput, VerifyOutput,
 };
 
 // --- core (mock-testable: takes trait objects) ------------------------------
@@ -70,6 +71,7 @@ pub async fn run_core(
         resolved_model_id: resp.model_id,
         claim_pda_seeds,
         submission: None,
+        feed_submission: None,
         submit_ai_claim_payload: payload,
     })
 }
@@ -196,6 +198,40 @@ pub(crate) fn resolve_submit_target(
     }))
 }
 
+/// Validate `--push-feed` the same way as `--submit` (keypair + rpc + oracle).
+pub(crate) fn resolve_push_feed_target(
+    common: &CommonArgs,
+    push_feed: bool,
+    keypair: Option<&Path>,
+    config: &RunnerConfig,
+) -> anyhow::Result<Option<SubmitTarget>> {
+    if !push_feed {
+        return Ok(None);
+    }
+    let keypair_path = keypair
+        .ok_or_else(|| anyhow::anyhow!("--push-feed requires --keypair <path>"))?
+        .to_path_buf();
+    let rpc_url = common.rpc_url.clone().ok_or_else(|| {
+        anyhow::anyhow!("--push-feed requires --rpc-url <url> (the network to push the feed to)")
+    })?;
+    let raw = common
+        .oracle
+        .as_deref()
+        .or(config.oracle.as_deref())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "--push-feed needs an oracle: pass --oracle <pubkey> or set `oracle` in the config"
+            )
+        })?;
+    let oracle =
+        Pubkey::from_str(raw).map_err(|e| anyhow::anyhow!("invalid oracle pubkey `{raw}`: {e}"))?;
+    Ok(Some(SubmitTarget {
+        rpc_url,
+        keypair_path,
+        oracle,
+    }))
+}
+
 /// Sign + submit + confirm the run's claim over `rpc` — the testable seam
 /// (takes a `&dyn JsonRpc` so the keeper flow runs OFFLINE against
 /// [`crate::rpc::MockRpc`], mirroring [`build_config_from_chain`]).
@@ -219,5 +255,27 @@ pub async fn submit_claim(
         oracle: oracle.to_string(),
         proposer: proposer.to_string(),
         authority: authority_pubkey.to_string(),
+    })
+}
+
+/// Sign + push + confirm `PushAiOracleFeed` from the run's 97-byte claim payload.
+/// Attestation is the ed25519 signature of those 97 bytes (64 bytes on the wire).
+pub async fn push_feed(
+    rpc: &dyn crate::rpc::JsonRpc,
+    oracle: &Pubkey,
+    authority: &Keypair,
+    payload: &[u8; SUBMIT_AI_CLAIM_PAYLOAD_LEN],
+    opts: ConfirmOptions,
+) -> Result<FeedSubmissionOutput, SubmitError> {
+    let confirmation =
+        crate::submit::push_feed_and_confirm(rpc, oracle, authority, payload, opts).await?;
+    let program_id = crate::submit::program_id();
+    let feed = kassandra_oracles_sdk::pda::ai_oracle_feed(&program_id, oracle).0;
+    Ok(FeedSubmissionOutput {
+        signature: confirmation.signature,
+        confirmation_status: confirmation.confirmation_status,
+        oracle: oracle.to_string(),
+        feed: feed.to_string(),
+        authority: authority.pubkey().to_string(),
     })
 }

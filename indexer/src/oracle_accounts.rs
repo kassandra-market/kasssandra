@@ -25,12 +25,14 @@ use tokio_postgres::Client;
 use crate::market::rpc::Rpc;
 
 /// `account_type` tag bytes — from `programs/oracles/src/state.rs` (`AccountType`).
-/// Oracle=1, Proposer=2, Fact=3, FactVote=4, AiClaim=5, Market=6. (Protocol=7 and
-/// OracleMeta=8 are indexed elsewhere / not needed by the oracle browse+detail.)
+/// Oracle=1, Proposer=2, Fact=3, FactVote=4, AiClaim=5, Market=6. (Protocol=7,
+/// OracleMeta=8, and AiOracleConfig=10 are indexed elsewhere / not needed by
+/// the oracle browse+detail.) ErSession=9 and AiOracleFeed=11 are children
+/// (parent `oracle` at offset 8).
 const TAG_ORACLE: u8 = 1;
 /// The child account types the browse/detail views read. Every child stores its
 /// parent `oracle` pubkey at byte offset 8 (right after the 8-byte header).
-const CHILD_TAGS: [u8; 5] = [2, 3, 4, 5, 6];
+const CHILD_TAGS: [u8; 7] = [2, 3, 4, 5, 6, 9, 11];
 const CHILD_ORACLE_OFFSET: usize = 8;
 
 const SCHEMA: &str = r#"

@@ -19,7 +19,7 @@ import {
   decodeError,
 } from "../src/constants.js";
 
-describe("parity guard: Ix discriminants (instruction.rs 0..=23)", () => {
+describe("parity guard: Ix discriminants (instruction.rs 0..=29)", () => {
   // Pinned from programs/oracles/src/instruction.rs.
   const PINNED: Record<string, number> = {
     SubmitFact: 0,
@@ -45,6 +45,13 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=23)", () => {
     CloseAiClaim: 20,
     CloseMarket: 21,
     SweepOracle: 22,
+    WriteOracleMeta: 23,
+    DelegateOracle: 24,
+    CommitOracle: 25,
+    UndelegateOracle: 26,
+    SetAiOracleConfig: 27,
+    PushAiOracleFeed: 28,
+    ApplyExternalAiClaim: 29,
   };
 
   it("matches every Ix by name and value", () => {
@@ -53,15 +60,15 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=23)", () => {
     }
   });
 
-  it("has exactly 24 instructions (0..=23), no more, no fewer", () => {
+  it("has exactly 30 instructions (0..=29), no more, no fewer", () => {
     const numericValues = Object.values(Ix).filter((v) => typeof v === "number");
     expect(numericValues.sort((a, b) => (a as number) - (b as number))).toEqual(
-      Array.from({ length: 24 }, (_, i) => i),
+      Array.from({ length: 30 }, (_, i) => i),
     );
   });
 });
 
-describe("parity guard: AccountType (state.rs 0..=7)", () => {
+describe("parity guard: AccountType (state.rs 0..=11)", () => {
   const PINNED: Record<string, number> = {
     Uninitialized: 0,
     Oracle: 1,
@@ -71,6 +78,10 @@ describe("parity guard: AccountType (state.rs 0..=7)", () => {
     AiClaim: 5,
     Market: 6,
     Protocol: 7,
+    OracleMeta: 8,
+    ErSession: 9,
+    AiOracleConfig: 10,
+    AiOracleFeed: 11,
   };
 
   it("matches every AccountType by name and value", () => {
@@ -109,6 +120,9 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
     FactVote: 88,
     AiClaim: 208,
     Market: 416,
+    ErSession: 96,
+    AiOracleConfig: 48,
+    AiOracleFeed: 248,
   } as const;
 
   it("matches every pinned account size", () => {
@@ -116,7 +130,7 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
   });
 });
 
-describe("parity guard: KassandraError (error.rs 0..=36)", () => {
+describe("parity guard: KassandraError (error.rs 0..=41)", () => {
   // Pinned from programs/oracles/src/error.rs.
   const PINNED: Record<string, number> = {
     NotImplemented: 0,
@@ -156,6 +170,11 @@ describe("parity guard: KassandraError (error.rs 0..=36)", () => {
     GovernanceNotSet: 34,
     InvalidTreasury: 35,
     BelowMinStake: 36,
+    AlreadyDelegated: 37,
+    NotDelegated: 38,
+    StaleAiOracle: 39,
+    AiOracleDisabled: 40,
+    AiOracleMismatch: 41,
   };
 
   it("matches every KassandraError by name and value", () => {
@@ -164,9 +183,9 @@ describe("parity guard: KassandraError (error.rs 0..=36)", () => {
     }
   });
 
-  it("has exactly 37 errors (0..=36)", () => {
+  it("has exactly 42 errors (0..=41)", () => {
     const numericValues = Object.values(KassandraError).filter((v) => typeof v === "number");
-    expect(numericValues.length).toBe(37);
+    expect(numericValues.length).toBe(42);
   });
 
   it("decodeError maps a custom code to its name + a non-empty message", () => {

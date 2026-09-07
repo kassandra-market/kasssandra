@@ -5,11 +5,13 @@
 mod activate;
 mod add_liquidity;
 mod config;
+mod er;
 mod funding;
 mod settle;
 
 pub use activate::*;
 pub use add_liquidity::*;
 pub use config::*;
+pub use er::*;
 pub use funding::*;
 pub use settle::*;

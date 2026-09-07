@@ -27,6 +27,10 @@ export class Buf {
     this.dv.setUint16(offset, v, true);
     return this;
   }
+  u32(offset: number, v: number): this {
+    this.dv.setUint32(offset, v, true);
+    return this;
+  }
   u64(offset: number, v: bigint): this {
     this.dv.setBigUint64(offset, v, true);
     return this;

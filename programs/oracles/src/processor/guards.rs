@@ -15,7 +15,10 @@ use pinocchio_token::state::Account as TokenAccount;
 
 use crate::{
     error::KassandraError,
-    state::{AccountType, AiClaim, Fact, Oracle, Phase, Proposer, Protocol},
+    state::{
+        AccountType, AiClaim, AiOracleConfig, AiOracleFeed, ErSession, Fact, Oracle, Phase,
+        Proposer, Protocol,
+    },
 };
 
 /// The canonical `[b"protocol"]` singleton PDA (bump 255) for this program id.
@@ -162,6 +165,63 @@ pub fn load_ai_claim(account: &AccountInfo, program_id: &Pubkey) -> Result<AiCla
         return Err(KassandraError::InvalidAccount.into());
     }
     Ok(claim)
+}
+
+/// Load and validate an [`ErSession`] companion PDA.
+pub fn load_er_session(
+    account: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<ErSession, ProgramError> {
+    assert_owned_by_program(account, program_id)?;
+    if account.data_len() < ErSession::LEN {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    let session: ErSession = {
+        let data = account.try_borrow()?;
+        bytemuck::pod_read_unaligned::<ErSession>(&data[..ErSession::LEN])
+    };
+    if session.account_type != AccountType::ErSession.as_u8() {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    Ok(session)
+}
+
+/// Load and validate the [`AiOracleConfig`] singleton.
+pub fn load_ai_oracle_config(
+    account: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<AiOracleConfig, ProgramError> {
+    assert_owned_by_program(account, program_id)?;
+    if account.data_len() < AiOracleConfig::LEN {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    let cfg: AiOracleConfig = {
+        let data = account.try_borrow()?;
+        bytemuck::pod_read_unaligned::<AiOracleConfig>(&data[..AiOracleConfig::LEN])
+    };
+    if cfg.account_type != AccountType::AiOracleConfig.as_u8() {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    Ok(cfg)
+}
+
+/// Load and validate an [`AiOracleFeed`] companion PDA.
+pub fn load_ai_oracle_feed(
+    account: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<AiOracleFeed, ProgramError> {
+    assert_owned_by_program(account, program_id)?;
+    if account.data_len() < AiOracleFeed::LEN {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    let feed: AiOracleFeed = {
+        let data = account.try_borrow()?;
+        bytemuck::pod_read_unaligned::<AiOracleFeed>(&data[..AiOracleFeed::LEN])
+    };
+    if feed.account_type != AccountType::AiOracleFeed.as_u8() {
+        return Err(KassandraError::InvalidAccount.into());
+    }
+    Ok(feed)
 }
 
 /// Load and validate the [`Protocol`] singleton: its address must be the

@@ -9,5 +9,6 @@
 //! See [`metadao`] for the resolved program IDs, discriminators, and the
 //! account orderings verified against the real on-chain binaries.
 
+pub mod magicblock;
 pub mod metadao;
 pub mod metadao_v06;

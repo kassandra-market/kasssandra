@@ -14,6 +14,8 @@ import { useConnection } from '@solana/wallet-adapter-react'
  *
  *  - Direct mode (`VITE_RPC_URL` set — local dev / e2e): the app talks to that
  *    RPC directly and the cluster switcher is available. Never used in production.
+ *    When `VITE_MAGIC_ROUTER_URL` is also set, non-localnet clusters route
+ *    through MagicBlock's Magic Router (ephemeral rollups) instead of public RPC.
  */
 export type Cluster = 'localnet' | 'devnet' | 'mainnet-beta'
 
@@ -29,12 +31,21 @@ export const CLUSTER_LABELS: Record<Cluster, string> = {
 /** A direct RPC URL for local dev / e2e. When unset, the app is in gateway mode. */
 const RPC_OVERRIDE = (import.meta.env.VITE_RPC_URL as string | undefined)?.trim() || undefined
 
+/** MagicBlock Magic Router (dev/direct only). Gateway mode still never ships this. */
+const MAGIC_ROUTER_URL =
+  (import.meta.env.VITE_MAGIC_ROUTER_URL as string | undefined)?.trim() || undefined
+
 /** Same-origin path the app server proxies to the private backend's RPC gateway. */
 const GATEWAY_PATH = '/indexer/rpc'
 
 /** True in production: no direct RPC URL, so all chain access goes via the gateway. */
 export function isGatewayMode(): boolean {
   return RPC_OVERRIDE === undefined
+}
+
+/** True when direct-mode traffic for non-localnet clusters goes through Magic Router. */
+export function isMagicRouter(): boolean {
+  return RPC_OVERRIDE !== undefined && MAGIC_ROUTER_URL !== undefined
 }
 
 /** The fixed cluster (gateway mode) — a display label for explorer links only. */
@@ -53,6 +64,11 @@ export function endpointFor(cluster: Cluster): string {
     // server, which proxies to the private backend.
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     return `${origin}${GATEWAY_PATH}`
+  }
+  // Direct mode: Magic Router for live clusters (ER routing). Localnet stays on
+  // the surfpool / local validator URL so `make dev` is unchanged.
+  if (MAGIC_ROUTER_URL && cluster !== 'localnet') {
+    return MAGIC_ROUTER_URL
   }
   switch (cluster) {
     case 'localnet':

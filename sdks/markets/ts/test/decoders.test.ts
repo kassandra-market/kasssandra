@@ -18,6 +18,7 @@ import {
 import { decodeConfig } from "../src/accounts/config.js";
 import { decodeContribution } from "../src/accounts/contribution.js";
 import { decodeMarket } from "../src/accounts/market.js";
+import { decodeErSession } from "../src/accounts/erSession.js";
 import { assertAccount } from "../src/accounts/common.js";
 import {
   A,
@@ -44,6 +45,10 @@ class Buf {
   }
   u16(off: number, v: number): this {
     this.dv.setUint16(off, v, true);
+    return this;
+  }
+  u32(off: number, v: number): this {
+    this.dv.setUint32(off, v, true);
     return this;
   }
   u64(off: number, v: bigint): this {
@@ -139,5 +144,22 @@ describe("decoders", () => {
     expect(c.amount).toBe(424242n);
     expect(c.claimed).toBe(true);
     expect(c.bump).toBe(251);
+  });
+
+  it("decodeErSession reads market@8, validator@40, commitFrequencyMs@72", () => {
+    const buf = new Buf(ACCOUNT_SIZES.ErSession, AccountType.ErSession)
+      .u8(1, 255)
+      .u8(2, 1)
+      .key(8, A(40))
+      .key(40, A(41))
+      .u32(72, 30_000)
+      .i64(80, 1_700_000_000n)
+      .u64(88, 9n);
+    const s = decodeErSession(buf.bytes);
+    expect(s.market.toString()).toBe(A(40).toString());
+    expect(s.validator.toString()).toBe(A(41).toString());
+    expect(s.commitFrequencyMs).toBe(30_000);
+    expect(s.status).toBe(1);
+    expect(s.lastCommitSlot).toBe(9n);
   });
 });

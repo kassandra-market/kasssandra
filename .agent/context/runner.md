@@ -2,14 +2,16 @@
 id: context-runner
 title: The AI runner (runner/)
 tags: [context, runner, ai, offchain]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # The AI runner (`runner/`)
 
 `kassandra-runner` — an off-chain, **reproducible** binary that produces a
-categorical AI claim for a disputed oracle and (optionally, `--submit`) signs +
-sends the `submit_ai_claim` transaction.
+categorical AI claim for a disputed oracle. `--submit` signs + sends
+`submit_ai_claim` (in-house fallback). `--push-feed` signs + sends
+`PushAiOracleFeed` (the signer must be `AiOracleConfig.authority`); attestation
+is the ed25519 signature of the 97-byte claim payload.
 
 ## Pipeline (a black box: config in → 97-byte payload out)
 

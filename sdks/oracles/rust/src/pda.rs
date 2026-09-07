@@ -68,6 +68,21 @@ pub fn ai_claim(program_id: &Pubkey, oracle: &Pubkey, proposer: &Pubkey) -> (Pub
     Pubkey::find_program_address(&[b"claim", oracle.as_ref(), proposer.as_ref()], program_id)
 }
 
+/// ER-session companion PDA — seeds `[b"er_session", oracle]`.
+pub fn er_session(program_id: &Pubkey, oracle: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"er_session", oracle.as_ref()], program_id)
+}
+
+/// External AI-oracle config singleton — seeds `[b"ai_oracle_config"]`.
+pub fn ai_oracle_config(program_id: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"ai_oracle_config"], program_id)
+}
+
+/// External AI feed PDA — seeds `[b"ai_feed", oracle]`.
+pub fn ai_oracle_feed(program_id: &Pubkey, oracle: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"ai_feed", oracle.as_ref()], program_id)
+}
+
 /// The canonical KASS associated-token-account of `owner` — where the DAO
 /// treasury lives. Derived under the ATA program from `[owner, token_program, mint]`.
 pub fn kass_ata(owner: &Pubkey, kass_mint: &Pubkey) -> Pubkey {

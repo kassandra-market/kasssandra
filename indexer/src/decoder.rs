@@ -14,7 +14,7 @@ use solana_pubkey::Pubkey;
 /// Every `Ix` variant, listed once. Both the discriminant (`*ix as u8`) and the
 /// snake_case name (from the variant's own `Debug`) are derived from the SDK enum
 /// — there is no hand-written number→name table to drift from the program.
-const IX_VARIANTS: [Ix; 24] = [
+const IX_VARIANTS: [Ix; 30] = [
     Ix::SubmitFact,
     Ix::VoteFact,
     Ix::FinalizeFacts,
@@ -39,6 +39,12 @@ const IX_VARIANTS: [Ix; 24] = [
     Ix::CloseMarket,
     Ix::SweepOracle,
     Ix::WriteOracleMeta,
+    Ix::DelegateOracle,
+    Ix::CommitOracle,
+    Ix::UndelegateOracle,
+    Ix::SetAiOracleConfig,
+    Ix::PushAiOracleFeed,
+    Ix::ApplyExternalAiClaim,
 ];
 
 /// The Kassandra program id (from the SDK), as the `solana_pubkey::Pubkey` type

@@ -30,11 +30,15 @@ import {
   AccountType,
   KASSANDRA_PROGRAM_ID,
   decodeAiClaim,
+  decodeAiOracleFeed,
+  decodeErSession,
   decodeFact,
   decodeMarket,
   decodeOracle,
   decodeProposer,
   type AiClaim,
+  type AiOracleFeed,
+  type ErSession,
   type Fact,
   type Market,
   type Oracle,
@@ -64,6 +68,10 @@ export interface OracleDetail {
   aiClaims: { pubkey: string; aiClaim: AiClaim }[];
   /** The first challenge market for this oracle, if any exists (else `undefined`). */
   market?: { pubkey: string; market: Market };
+  /** MagicBlock ER-delegation record, if `DelegateOracle` has ever run. */
+  erSession?: { pubkey: string; session: ErSession };
+  /** Latest attested external AI feed, if a pusher has written one. */
+  aiFeed?: { pubkey: string; feed: AiOracleFeed };
 }
 
 /** Thrown by {@link fetchOracleDetail} when the oracle account is absent or the wrong type. */
@@ -179,6 +187,8 @@ function assembleDetailFromIndexed(
   const proposers: OracleDetail["proposers"] = [];
   const aiClaims: OracleDetail["aiClaims"] = [];
   let market: OracleDetail["market"];
+  let erSession: OracleDetail["erSession"];
+  let aiFeed: OracleDetail["aiFeed"];
   for (const a of accounts) {
     try {
       switch (a.accountType) {
@@ -194,12 +204,18 @@ function assembleDetailFromIndexed(
         case AccountType.Market:
           if (!market) market = { pubkey: a.pubkey, market: decodeMarket(a.data) };
           break;
+        case AccountType.ErSession:
+          if (!erSession) erSession = { pubkey: a.pubkey, session: decodeErSession(a.data) };
+          break;
+        case AccountType.AiOracleFeed:
+          if (!aiFeed) aiFeed = { pubkey: a.pubkey, feed: decodeAiOracleFeed(a.data) };
+          break;
       }
     } catch {
       // malformed/foreign child — skip
     }
   }
-  return { pubkey: oraclePubkey, oracle, facts, proposers, aiClaims, market };
+  return { pubkey: oraclePubkey, oracle, facts, proposers, aiClaims, market, erSession, aiFeed };
 }
 
 export async function fetchOracleDetail(
@@ -235,6 +251,8 @@ export async function fetchOracleDetail(
   const proposers: OracleDetail["proposers"] = [];
   const aiClaims: OracleDetail["aiClaims"] = [];
   let market: OracleDetail["market"];
+  let erSession: OracleDetail["erSession"];
+  let aiFeed: OracleDetail["aiFeed"];
   for (const { pubkey, account } of children) {
     const data = account.data;
     const key = pubkey.toString();
@@ -254,11 +272,17 @@ export async function fetchOracleDetail(
         case AccountType.Market:
           if (!market) market = { pubkey: key, market: decodeMarket(data) };
           break;
+        case AccountType.ErSession:
+          if (!erSession) erSession = { pubkey: key, session: decodeErSession(data) };
+          break;
+        case AccountType.AiOracleFeed:
+          if (!aiFeed) aiFeed = { pubkey: key, feed: decodeAiOracleFeed(data) };
+          break;
       }
     } catch {
       // Malformed / type-confused child — skip it, keep the rest.
     }
   }
 
-  return { pubkey: oraclePubkey, oracle, facts, proposers, aiClaims, market };
+  return { pubkey: oraclePubkey, oracle, facts, proposers, aiClaims, market, erSession, aiFeed };
 }

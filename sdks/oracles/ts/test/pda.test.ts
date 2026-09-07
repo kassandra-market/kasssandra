@@ -118,6 +118,22 @@ describe("PDA: market + escrow chain", () => {
   });
 });
 
+describe("PDA: ER + AI-oracle companions", () => {
+  it("erSession / aiOracleFeed are distinct from each other and from oracle", async () => {
+    const session = await pda.erSession(ORACLE);
+    const feed = await pda.aiOracleFeed(ORACLE);
+    expect(session.address.toString()).not.toBe(feed.address.toString());
+    expect(session.address.toString()).not.toBe(ORACLE.toString());
+  });
+
+  it("aiOracleConfig is a singleton (no pubkey seed)", async () => {
+    const a = await pda.aiOracleConfig();
+    const b = await pda.aiOracleConfig();
+    expect(a.address.toString()).toBe(b.address.toString());
+    expect(a.bump).toBe(b.bump);
+  });
+});
+
 describe("PDA: a custom programId is honored", () => {
   const OTHER_PROGRAM = new Address("11111111111111111111111111111111");
 

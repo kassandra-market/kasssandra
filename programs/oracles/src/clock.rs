@@ -12,6 +12,12 @@ pub fn now() -> Result<i64, ProgramError> {
     Ok(Clock::get()?.unix_timestamp)
 }
 
+/// Current slot, read from the `Clock` sysvar. Used to stamp and freshness-check
+/// the external AI oracle feed.
+pub fn slot() -> Result<u64, ProgramError> {
+    Ok(Clock::get()?.slot)
+}
+
 /// Require that the oracle is currently in phase `p`, else [`KassandraError::WrongPhase`].
 pub fn require_phase(o: &Oracle, p: Phase) -> ProgramResult {
     if o.phase != p.as_u8() {

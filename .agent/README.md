@@ -2,7 +2,7 @@
 id: agent-kb-index
 title: .agent knowledge base — index & protocol
 tags: [meta, index, maintenance]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # `.agent/` — the agent knowledge base
@@ -55,6 +55,7 @@ updated: YYYY-MM-DD
 - [`specs/market-program.md`](specs/market-program.md) — instructions, accounts, lifecycle.
 - [`specs/versioning-and-publishing.md`](specs/versioning-and-publishing.md) — single-source version + publish workflow.
 - [`specs/testing-infrastructure.md`](specs/testing-infrastructure.md) — LiteSVM, surfpool, ephemeral Postgres, Playwright.
+- [`specs/ephemeral-rollups-and-ai-oracle.md`](specs/ephemeral-rollups-and-ai-oracle.md) — MagicBlock ER + external AI feed.
 
 ### skills
 - [`skills/running-and-verifying.md`](skills/running-and-verifying.md) — how to build/test/lint reliably.
@@ -71,3 +72,4 @@ updated: YYYY-MM-DD
 - [`memories/external-crates-over-handrolled.md`](memories/external-crates-over-handrolled.md)
 - [`memories/scaled-amounts-ui.md`](memories/scaled-amounts-ui.md)
 - [`memories/markets-rust-v2-island.md`](memories/markets-rust-v2-island.md)
+- [`memories/magicblock-pinocchio-cpi.md`](memories/magicblock-pinocchio-cpi.md)

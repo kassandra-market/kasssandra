@@ -18,11 +18,12 @@ use tokio_postgres::Client;
 pub const TYPE_CONFIG: i16 = 1;
 pub const TYPE_MARKET: i16 = 2;
 pub const TYPE_CONTRIBUTION: i16 = 3;
+pub const TYPE_ER_SESSION: i16 = 4;
 
 const SCHEMA: &str = r#"
 CREATE TABLE IF NOT EXISTS market_accounts (
   pubkey       TEXT     PRIMARY KEY,
-  account_type SMALLINT NOT NULL,   -- 1=Config 2=Market 3=Contribution
+  account_type SMALLINT NOT NULL,   -- 1=Config 2=Market 3=Contribution 4=ErSession
   market_ref   TEXT,                -- Contribution.market (base58) for indexed lookup
   slot         BIGINT   NOT NULL,
   data         BYTEA    NOT NULL    -- raw Pod bytes; decoded on read

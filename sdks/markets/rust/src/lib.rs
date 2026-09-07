@@ -19,3 +19,6 @@ pub const IX_RESOLVE_MARKET: u8 = 8;
 pub const IX_COLLECT_FEE: u8 = 9;
 pub const IX_CLOSE_MARKET: u8 = 10;
 pub const IX_ADD_LIQUIDITY: u8 = 11;
+pub const IX_DELEGATE_MARKET: u8 = 12;
+pub const IX_COMMIT_MARKET: u8 = 13;
+pub const IX_UNDELEGATE_MARKET: u8 = 14;
