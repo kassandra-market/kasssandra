@@ -53,10 +53,8 @@ fn e2e_happy_uncontested_resolves() {
     let payer_base = ctx.payer_base;
     let base_mint = ctx.base_mint;
 
-    // Emission is DISABLED at genesis (fail-safe); enable the recommended curve
-    // before the first create so create_oracle mints into the vault as this test expects.
+    // No native-token minting. Genesis fee is 0.
     ctx.ensure_protocol();
-    ctx.enable_default_emission();
 
     // Genesis creation: fee_ema starts at 0, so the dynamic creation fee is 0.
     let bal_before = ctx.token_balance(payer_base);
@@ -76,7 +74,7 @@ fn e2e_happy_uncontested_resolves() {
     assert_eq!(
         ctx.mint_supply(base_mint),
         supply_before + emission,
-        "genesis fee is 0, so supply rose by exactly the minted emission"
+        "genesis fee is 0 and nothing is minted"
     );
     assert_eq!(ctx.oracle(oracle).phase, Phase::Proposal.as_u8());
 
@@ -116,33 +114,29 @@ fn e2e_happy_uncontested_resolves() {
     assert_eq!(o.phase, Phase::Resolved.as_u8(), "all-agree => Resolved");
     assert_eq!(o.resolved_option, 1, "resolved_option == agreed option");
     assert_eq!(o.dispute_bond_total, 0, "no dispute opened");
-    // No token CPI on the resolve path: the vault is untouched (still Σ bonds +
-    // the emission that will fund the uncontested reward distribution).
+    // No token CPI on the resolve path: the vault is untouched (still Σ bonds;
+    // reward_emission is 0 so there is nothing extra to distribute).
     assert_eq!(
         ctx.token_balance(vault),
         sum_bonds + emission,
-        "vault untouched on resolve (Σ bonds + emission)"
+        "vault untouched on resolve (Σ bonds)"
     );
 
-    // --- change #2: the uncontested (all-agree) Resolved DISTRIBUTES the emission
-    // Every proposer agreed on the winning option, so ALL of them are "correct":
-    // finalize_proposals folded the emission into `reward_pool` and stamped the
-    // whole proposer stake as the correct cohort. No facts/votes exist here, so
-    // bond_pool == 0 and the pool is pure emission.
+    // Uncontested Resolved: no slash, no minting → reward_pool == 0. Every
+    // agreeing proposer is "correct" and claims principal only.
     assert_eq!(
         o.reward_pool,
         o.bond_pool + emission,
-        "reward_pool folds the emission in"
+        "reward_pool folds the (zero) emission in"
     );
     assert_eq!(o.bond_pool, 0, "no slash on the uncontested path");
-    assert_eq!(o.reward_pool, emission, "pool is pure emission");
+    assert_eq!(o.reward_pool, 0, "no slash and no minting → empty reward pool");
     assert_eq!(
         o.total_correct_proposer_stake, sum_bonds,
         "every agreeing proposer counts as correct"
     );
 
-    // Each uncontested-correct proposer now claims `bond + pro-rata emission share`
-    // via the real S2 claim_proposer (previously they got only their bond back).
+    // Each uncontested-correct proposer claims principal only (`reward_pool == 0`).
     let nonce = ctx.seeded(oracle).nonce;
     let (pbucket, _) = reward::reward_buckets(
         o.reward_pool,
@@ -160,9 +154,9 @@ fn e2e_happy_uncontested_resolves() {
     for (auth, pda, pbond) in &handles {
         let expected_reward =
             reward::proposer_reward(*pbond, pbucket, o.total_correct_proposer_stake);
-        assert!(
-            expected_reward > 0,
-            "emission funds a positive uncontested reward"
+        assert_eq!(
+            expected_reward, 0,
+            "no slash and no minting → uncontested reward is 0"
         );
         let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey());
@@ -170,22 +164,19 @@ fn e2e_happy_uncontested_resolves() {
         assert_eq!(
             ctx.token_balance(dest),
             pbond + expected_reward,
-            "uncontested claim == bond + emission-funded reward"
+            "uncontested claim == bond (no reward)"
         );
         total_reward += expected_reward;
     }
 
-    // Conservation: Σ (bond + reward) + floor dust == vault (Σ bonds + emission).
+    // Conservation: Σ (bond + reward) + floor dust == vault (Σ bonds).
     let dust = ctx.token_balance(vault);
     assert_eq!(
         sum_bonds + total_reward + dust,
         sum_bonds + emission,
-        "Σ claims + dust == Σ bonds + emission"
+        "Σ claims + dust == Σ bonds"
     );
-    assert!(
-        dust <= emission,
-        "dust is only the floor-division remainder"
-    );
+    assert_eq!(dust, 0, "empty reward pool → vault drains exactly");
 }
 
 #[test]

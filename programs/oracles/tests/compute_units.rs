@@ -184,11 +184,11 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
         return;
     }
     let expected = std::fs::read_to_string(SNAPSHOT).unwrap_or_else(|_| {
-        panic!("missing {SNAPSHOT} — create it with `BLESS_CU=1 cargo test -p kassandra-oracles-program --test compute_units`")
+        panic!("missing {SNAPSHOT} — create it with `BLESS_CU=1 cargo test --workspace --test compute_units`")
     });
     assert_eq!(
         report, expected,
         "\nCU metering changed vs tests/compute_units.snap (see the report above). \
-         If intended, re-bless: BLESS_CU=1 cargo test -p kassandra-oracles-program --test compute_units\n",
+         If intended, re-bless: BLESS_CU=1 cargo test --workspace --test compute_units\n",
     );
 }

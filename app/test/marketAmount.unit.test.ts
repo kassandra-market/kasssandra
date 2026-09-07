@@ -18,8 +18,8 @@ describe('parseSolAmount', () => {
   })
 
   it('rejects empty / non-numeric input', () => {
-    expect(parseSolAmount('').error).toMatch(/enter a base amount/i)
-    expect(parseSolAmount('   ').error).toMatch(/enter a base amount/i)
+    expect(parseSolAmount('').error).toMatch(/enter a SOL amount/i)
+    expect(parseSolAmount('   ').error).toMatch(/enter a SOL amount/i)
     expect(parseSolAmount('abc').error).toMatch(/must be a number/i)
     expect(parseSolAmount('-1').error).toMatch(/must be a number/i) // sign not allowed
     expect(parseSolAmount('1e9').error).toMatch(/must be a number/i)
@@ -43,12 +43,12 @@ describe('balanceGateError', () => {
   })
 
   it('blocks a zero balance outright', () => {
-    expect(balanceGateError(undefined, 0n)).toMatch(/no base/i)
-    expect(balanceGateError(1n, 0n)).toMatch(/no base/i)
+    expect(balanceGateError(undefined, 0n)).toMatch(/no SOL/i)
+    expect(balanceGateError(1n, 0n)).toMatch(/no SOL/i)
   })
 
   it('blocks only when the amount exceeds the balance', () => {
-    expect(balanceGateError(150n, 100n)).toMatch(/exceeds your base balance/i)
+    expect(balanceGateError(150n, 100n)).toMatch(/exceeds your SOL balance/i)
     expect(balanceGateError(100n, 100n)).toBeUndefined() // equal is fine
     expect(balanceGateError(50n, 100n)).toBeUndefined()
     expect(balanceGateError(undefined, 100n)).toBeUndefined() // nothing entered yet
