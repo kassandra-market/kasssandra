@@ -73,3 +73,4 @@ updated: YYYY-MM-DD
 - [`memories/scaled-amounts-ui.md`](memories/scaled-amounts-ui.md)
 - [`memories/markets-rust-v2-island.md`](memories/markets-rust-v2-island.md)
 - [`memories/magicblock-pinocchio-cpi.md`](memories/magicblock-pinocchio-cpi.md)
+- [`memories/cu-snapshot-rebless.md`](memories/cu-snapshot-rebless.md)
