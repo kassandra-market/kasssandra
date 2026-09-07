@@ -25,7 +25,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     }
     let oracle_nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
 
-    let [oracle_ai, market_ai, ai_claim_ai, proposer_ai, question_ai, pass_amm_ai, fail_amm_ai, cv_prog_ai, cv_event_auth_ai, token_prog_ai, stake_vault_ai, base_vault_ai, base_vault_underlying_ai, pass_base_mint_ai, fail_base_mint_ai, oracle_pass_base_ai, oracle_fail_base_ai, escrow_vault_ai, proposer_usdc_ai, challenger_usdc_dest_ai, challenger_kass_ai, ..] =
+    let [oracle_ai, market_ai, ai_claim_ai, proposer_ai, question_ai, pass_amm_ai, fail_amm_ai, cv_prog_ai, cv_event_auth_ai, token_prog_ai, stake_vault_ai, base_vault_ai, base_vault_underlying_ai, pass_base_mint_ai, fail_base_mint_ai, oracle_pass_base_ai, oracle_fail_base_ai, escrow_vault_ai, proposer_usdc_ai, challenger_usdc_dest_ai, challenger_base_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -130,7 +130,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         &oracle.usdc_mint,
         &market.challenger,
     )?;
-    assert_token_account(challenger_kass_ai, &oracle.base_mint, &market.challenger)?;
+    assert_token_account(challenger_base_ai, &oracle.base_mint, &market.challenger)?;
 
     // --- slash trigger (u128): fail_twap * DEN > pass_twap * (DEN + NUM) -----
     // GUARD: `pass_twap == 0` ALWAYS survives. A zero pass TWAP means the pass
@@ -275,7 +275,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         // Successful challenge: SOL fee carved out of the (now-redeemed) bond in
         // stake_vault → challenger; full USDC escrow returned to the challenger.
         if base_fee > 0 {
-            Transfer::new(stake_vault_ai, challenger_kass_ai, oracle_ai, base_fee)
+            Transfer::new(stake_vault_ai, challenger_base_ai, oracle_ai, base_fee)
                 .invoke_signed(&[Signer::from(&oracle_seeds)])?;
         }
         if challenger_usdc > 0 {

@@ -26,7 +26,7 @@ function uriBytes(uri: Uint8Array | string): Uint8Array {
 
 // ---------------------------------------------------------------------------
 // SubmitFact (Ix=0) — processor/submit_fact.rs
-// Accounts: 0 oracle(w) 1 fact(w,PDA) 2 submitter(w,signer) 3 submitter_kass(w)
+// Accounts: 0 oracle(w) 1 fact(w,PDA) 2 submitter(w,signer) 3 submitter_base(w)
 //           4 stake_vault(w,PDA) 5 token program(ro) 6 system program(ro).
 // Payload: content_hash[32] ++ stake u64 ++ uri_len u16 ++ uri[uri_len].
 // ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ export async function submitFact(args: SubmitFactArgs): Promise<TransactionInstr
 // ---------------------------------------------------------------------------
 // VoteFact (Ix=1) — processor/vote_fact.rs
 // Accounts: 0 oracle(w) 1 fact(w) 2 fact_vote(w,PDA) 3 voter(w,signer)
-//           4 voter_kass(w) 5 stake_vault(w,PDA) 6 token program(ro) 7 system(ro).
+//           4 voter_base(w) 5 stake_vault(w,PDA) 6 token program(ro) 7 system(ro).
 // Payload: kind u8 ++ stake u64.
 // ---------------------------------------------------------------------------
 export interface VoteFactArgs {

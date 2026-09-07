@@ -101,7 +101,7 @@
 //! 17. challenger_usdc_vault — writable; `== market.challenger_usdc_vault` (USDC escrow)
 //! 18. proposer_usdc       — writable; proposer's USDC account (mint==usdc, owner==proposer.authority)
 //! 19. challenger_usdc_dest — writable; challenger's USDC account (mint==usdc, owner==market.challenger)
-//! 20. challenger_kass     — writable; challenger's SOL account (mint==base, owner==market.challenger)
+//! 20. challenger_base     — writable; challenger's SOL account (mint==base, owner==market.challenger)
 //!
 //! # Instruction payload (after the 1-byte discriminant)
 //! `oracle_nonce: u64 LE` (exactly 8 bytes) — the oracle PDA signer seed nonce,

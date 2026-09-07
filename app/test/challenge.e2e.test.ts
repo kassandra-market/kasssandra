@@ -190,8 +190,8 @@ describe.skipIf(!ENABLED)("RF4 challenge/ai-claim action layer over FORKED MetaD
     const requiredUsdc = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE;
     expect(await tokenBalance(f, escrow)).toBe(requiredUsdc);
     expect(m.challengerUsdc).toBe(requiredUsdc);
-    expect(await tokenBalance(f, market.oraclePassKass)).toBe(BOND);
-    expect(await tokenBalance(f, market.oracleFailKass)).toBe(BOND);
+    expect(await tokenBalance(f, market.oraclePassBase)).toBe(BOND);
+    expect(await tokenBalance(f, market.oracleFailBase)).toBe(BOND);
 
     // ================= settleChallenge via the APP builder =====================
     const oBefore = decodeOracle(await fetchAccount(f, c.oracle));
@@ -212,7 +212,7 @@ describe.skipIf(!ENABLED)("RF4 challenge/ai-claim action layer over FORKED MetaD
     const oAfter = decodeOracle(await fetchAccount(f, c.oracle));
     expect(oAfter.survivingCount).toBe(oBefore.survivingCount - 1);
     expect(oAfter.bondPool).toBe(oBefore.bondPool + (BOND - baseFee));
-    expect(await tokenBalance(f, payouts.challengerKass)).toBe(baseFee);
+    expect(await tokenBalance(f, payouts.challengerBase)).toBe(baseFee);
     expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + (BOND - baseFee));
     expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrowAmt);
     expect(await tokenBalance(f, payouts.proposerUsdc)).toBe(0n);

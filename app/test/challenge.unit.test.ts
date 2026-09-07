@@ -54,8 +54,8 @@ async function marketAccounts() {
     baseVaultUnderlying,
     passBaseMint,
     failBaseMint,
-    oraclePassKass,
-    oracleFailKass,
+    oraclePassBase,
+    oracleFailBase,
     cvEventAuthority,
     spotDao,
     usdcMint,
@@ -63,7 +63,7 @@ async function marketAccounts() {
     aiClaim,
     proposerUsdc,
     challengerUsdcDest,
-    challengerKass,
+    challengerBase,
   ] = await Promise.all(Array.from({ length: 20 }, () => key()));
   return {
     proposer,
@@ -76,8 +76,8 @@ async function marketAccounts() {
     baseVaultUnderlying,
     passBaseMint,
     failBaseMint,
-    oraclePassKass,
-    oracleFailKass,
+    oraclePassBase,
+    oracleFailBase,
     cvEventAuthority,
     spotDao,
     usdcMint,
@@ -85,7 +85,7 @@ async function marketAccounts() {
     aiClaim,
     proposerUsdc,
     challengerUsdcDest,
-    challengerKass,
+    challengerBase,
   };
 }
 
@@ -132,11 +132,11 @@ describe("buildSettleChallengeIxs", () => {
       baseVaultUnderlying: a.baseVaultUnderlying,
       passBaseMint: a.passBaseMint,
       failBaseMint: a.failBaseMint,
-      oraclePassKass: a.oraclePassKass,
-      oracleFailKass: a.oracleFailKass,
+      oraclePassBase: a.oraclePassBase,
+      oracleFailBase: a.oracleFailBase,
       proposerUsdc: a.proposerUsdc,
       challengerUsdcDest: a.challengerUsdcDest,
-      challengerKass: a.challengerKass,
+      challengerBase: a.challengerBase,
     });
     expect(ixs.length).toBe(1);
     expectIxMatches(
@@ -153,11 +153,11 @@ describe("buildSettleChallengeIxs", () => {
         baseVaultUnderlying: a.baseVaultUnderlying,
         passBaseMint: a.passBaseMint,
         failBaseMint: a.failBaseMint,
-        oraclePassKass: a.oraclePassKass,
-        oracleFailKass: a.oracleFailKass,
+        oraclePassBase: a.oraclePassBase,
+        oracleFailBase: a.oracleFailBase,
         proposerUsdc: a.proposerUsdc,
         challengerUsdcDest: a.challengerUsdcDest,
-        challengerKass: a.challengerKass,
+        challengerBase: a.challengerBase,
       }),
     );
   });
@@ -177,11 +177,11 @@ describe("buildSettleChallengeIxs", () => {
         baseVaultUnderlying: a.baseVaultUnderlying,
         passBaseMint: a.passBaseMint,
         failBaseMint: a.failBaseMint,
-        oraclePassKass: a.oraclePassKass,
-        oracleFailKass: a.oracleFailKass,
+        oraclePassBase: a.oraclePassBase,
+        oracleFailBase: a.oracleFailBase,
         proposerUsdc: a.proposerUsdc,
         challengerUsdcDest: a.challengerUsdcDest,
-        challengerKass: a.challengerKass,
+        challengerBase: a.challengerBase,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });

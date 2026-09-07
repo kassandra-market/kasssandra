@@ -48,7 +48,7 @@ fn settle_flip_slashed_then_disqualified_no_underflow() {
     );
     assert_eq!(ctx.read_pod::<Market>(f.market).settled, 1);
     // SOL routing: redeem +bond, base_fee → challenger.
-    assert_eq!(ctx.token_balance(f.challenger_kass), base_fee);
+    assert_eq!(ctx.token_balance(f.challenger_base), base_fee);
     assert_eq!(
         ctx.token_balance(f.stake_vault),
         stake_before + BOND - base_fee
@@ -86,7 +86,7 @@ fn settle_fee_rates_are_oracle_snapshotted() {
     // 5% of the bond → challenger; bond − fee → bond_pool (the new rate, not 1%).
     let base_fee = BOND * 5 / 100;
     assert_eq!(
-        ctx.token_balance(f.challenger_kass),
+        ctx.token_balance(f.challenger_base),
         base_fee,
         "settle used the retuned 5% SOL fee"
     );

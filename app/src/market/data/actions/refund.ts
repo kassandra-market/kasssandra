@@ -9,7 +9,7 @@
 import { TransactionInstruction } from "@solana/web3.js";
 import { refund } from "@kassandra-market/markets";
 import type { IndexerReads } from "../../lib/indexer";
-import { ensureKassAta, toAddress, type AddressInput } from "./ata";
+import { ensureBaseAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildRefundArgs {
   indexer: IndexerReads;
@@ -32,12 +32,12 @@ export async function buildRefundIxs(
   const baseMint = toAddress("SOL mint", args.baseMint);
   const contributor = toAddress("Contributor", args.contributor);
 
-  const { ata, createIx } = await ensureKassAta(args.indexer, contributor, baseMint);
+  const { ata, createIx } = await ensureBaseAta(args.indexer, contributor, baseMint);
 
   const ix = await refund({
     market,
     contributor,
-    contributorKassAta: ata,
+    contributorBaseAta: ata,
   });
 
   return createIx ? [createIx, ix] : [ix];

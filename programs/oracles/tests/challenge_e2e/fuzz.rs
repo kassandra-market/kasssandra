@@ -189,7 +189,7 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
         escrow_vault: payouts.escrow_vault,
         proposer_usdc: payouts.proposer_usdc,
         challenger_usdc_dest: payouts.challenger_usdc_dest,
-        challenger_kass: payouts.challenger_kass,
+        challenger_base: payouts.challenger_base,
     };
     let ix = settle_ix(
         &ctx, oracle, market, claim, proposer, m.question, pass_amm, fail_amm, &extras, nonce,
@@ -220,8 +220,8 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
 
     // SOL.
     prop_assert_eq!(
-        ctx.token_balance(payouts.challenger_kass),
-        model.challenger_kass()
+        ctx.token_balance(payouts.challenger_base),
+        model.challenger_base()
     );
     prop_assert_eq!(
         ctx.token_balance(stake_vault),
@@ -231,7 +231,7 @@ fn run_fuzz_case(fc: &FuzzCase) -> Result<(), TestCaseError> {
     prop_assert_eq!(
         ctx.token_balance(stake_vault)
             + ctx.token_balance(m.base_vault_underlying)
-            + ctx.token_balance(payouts.challenger_kass),
+            + ctx.token_balance(payouts.challenger_base),
         total_before,
         "SOL conservation incl. the base_fee carve-out"
     );

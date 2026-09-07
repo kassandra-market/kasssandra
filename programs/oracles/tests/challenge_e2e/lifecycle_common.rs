@@ -64,7 +64,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
     // submit_fact (FactProposal still open).
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_base(&submitter, 1_000_000);
+    let submitter_base = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     ctx.send(
@@ -73,7 +73,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
             oracle,
             fact,
             submitter.pubkey(),
-            submitter_kass,
+            submitter_base,
             vault,
             submit_fact_payload(&content_hash, 100, b"ipfs://fact"),
         ),
@@ -89,7 +89,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
     // vote approve well past the 2/3 quorum of dispute_bond_total (== 2*BOND).
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_base(&voter, 2 * BOND);
+    let voter_base = ctx.fund_base(&voter, 2 * BOND);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     ctx.send(
         vote_fact_ix(
@@ -98,7 +98,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
             fact,
             fact_vote,
             voter.pubkey(),
-            voter_kass,
+            voter_base,
             vault,
             vote_payload(VOTE_APPROVE, 2 * BOND),
         ),
@@ -197,21 +197,21 @@ pub(crate) fn assert_resolution_and_conservation(
 
     // SOL routing vs the independent reference.
     assert_eq!(
-        ctx.token_balance(x.challenger_kass),
-        model.challenger_kass()
+        ctx.token_balance(x.challenger_base),
+        model.challenger_base()
     );
     assert_eq!(
         ctx.token_balance(x.stake_vault),
         stake_before + model.stake_vault_delta(),
         "stake_vault delta == redeem − base_fee carve-out"
     );
-    // SOL conservation: stake_vault + underlying + challenger_kass == total
+    // SOL conservation: stake_vault + underlying + challenger_base == total
     // (the base_fee carve-out left the system to the challenger on disqualify; on
-    // survive challenger_kass == 0 and it reduces to the idle-bond conservation).
+    // survive challenger_base == 0 and it reduces to the idle-bond conservation).
     assert_eq!(
         ctx.token_balance(x.stake_vault)
             + ctx.token_balance(x.base_vault_underlying)
-            + ctx.token_balance(x.challenger_kass),
+            + ctx.token_balance(x.challenger_base),
         total_before,
         "SOL conservation incl. the base_fee carve-out",
     );

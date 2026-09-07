@@ -11,7 +11,7 @@ import { TransactionInstruction } from "@solana/web3.js";
 import { contribute } from "@kassandra-market/markets";
 import type { IndexerReads } from "../../lib/indexer";
 import { ValidationError } from "../writeAction";
-import { ensureKassAta, toAddress, type AddressInput } from "./ata";
+import { ensureBaseAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildContributeArgs {
   indexer: IndexerReads;
@@ -40,12 +40,12 @@ export async function buildContributeIxs(
     throw new ValidationError("Amount must be greater than zero.");
   }
 
-  const { ata, createIx } = await ensureKassAta(args.indexer, contributor, baseMint);
+  const { ata, createIx } = await ensureBaseAta(args.indexer, contributor, baseMint);
 
   const ix = await contribute({
     contributor,
     market,
-    contributorKassAta: ata,
+    contributorBaseAta: ata,
     amount: args.amount,
   });
 

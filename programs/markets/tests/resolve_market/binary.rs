@@ -7,9 +7,9 @@ fn resolve_yes_wins_and_redeems() {
     let (mut ctx, base, market, oracle, refs) = setup_active();
 
     // One user holds only the WINNING cYES, another holds only the LOSING cNO.
-    let (winner, win_kass, win_cyes, win_cno) =
+    let (winner, win_base, win_cyes, win_cno) =
         holder_of_yes_only(&mut ctx, base, &refs, SPLIT_AMT);
-    let (loser, lose_kass, lose_cyes, lose_cno) =
+    let (loser, lose_base, lose_cyes, lose_cno) =
         holder_of_no_only(&mut ctx, base, &refs, SPLIT_AMT);
 
     // Oracle resolves YES (option 0) → numerators [1,0].
@@ -46,21 +46,21 @@ fn resolve_yes_wins_and_redeems() {
     );
 
     // The cYES holder redeems and receives the FULL split amount 1:1.
-    let res = ctx.redeem(&winner, &refs, win_kass, win_cyes, win_cno);
+    let res = ctx.redeem(&winner, &refs, win_base, win_cyes, win_cno);
     assert!(res.is_ok(), "winner redeem: {res:?}");
-    assert_eq!(ctx.token_balance(win_kass), SPLIT_AMT, "cYES paid out 1:1");
+    assert_eq!(ctx.token_balance(win_base), SPLIT_AMT, "cYES paid out 1:1");
     assert_eq!(ctx.token_balance(win_cyes), 0, "cYES burned");
 
     // The cNO (losing leg) holder redeems and receives NOTHING.
-    let res = ctx.redeem(&loser, &refs, lose_kass, lose_cyes, lose_cno);
+    let res = ctx.redeem(&loser, &refs, lose_base, lose_cyes, lose_cno);
     assert!(res.is_ok(), "loser redeem: {res:?}");
-    assert_eq!(ctx.token_balance(lose_kass), 0, "losing cNO pays 0");
+    assert_eq!(ctx.token_balance(lose_base), 0, "losing cNO pays 0");
     assert_eq!(ctx.token_balance(lose_cno), 0, "cNO burned");
 }
 
 #[test]
 fn resolve_no_wins() {
-    let (mut ctx, _kass, market, oracle, refs) = setup_active();
+    let (mut ctx, _base, market, oracle, refs) = setup_active();
 
     // Oracle resolves NO (option 1) → numerators [0,1].
     ctx.set_oracle_resolved(oracle, 1);
@@ -180,7 +180,7 @@ fn resolve_fee_free_market_stamps_fee_collected() {
 
 #[test]
 fn resolve_rejects_unexpected_resolved_option() {
-    let (mut ctx, _kass, market, oracle, refs) = setup_active();
+    let (mut ctx, _base, market, oracle, refs) = setup_active();
     // A binary market only knows options 0/1; a Resolved oracle reporting option 2
     // is unexpected and must be rejected rather than silently mis-resolved.
     ctx.set_oracle_resolved(oracle, 2);
@@ -190,7 +190,7 @@ fn resolve_rejects_unexpected_resolved_option() {
 
 #[test]
 fn resolve_rejects_non_terminal_oracle() {
-    let (mut ctx, _kass, market, oracle, refs) = setup_active();
+    let (mut ctx, _base, market, oracle, refs) = setup_active();
     // Oracle is still in Proposal (non-terminal) from setup.
     let res = ctx.resolve_market(market, oracle, refs.question);
     assert_eq!(
@@ -201,7 +201,7 @@ fn resolve_rejects_non_terminal_oracle() {
 
 #[test]
 fn resolve_is_idempotent() {
-    let (mut ctx, _kass, market, oracle, refs) = setup_active();
+    let (mut ctx, _base, market, oracle, refs) = setup_active();
     ctx.set_oracle_resolved(oracle, 0);
     let res = ctx.resolve_market(market, oracle, refs.question);
     assert!(res.is_ok(), "first resolve: {res:?}");

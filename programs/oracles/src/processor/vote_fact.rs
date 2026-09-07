@@ -66,7 +66,7 @@ impl Args {
 pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]) -> ProgramResult {
     let args = Args::parse(payload)?;
 
-    let [oracle_ai, fact_ai, fact_vote_ai, voter_ai, voter_kass_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
+    let [oracle_ai, fact_ai, fact_vote_ai, voter_ai, voter_base_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -134,7 +134,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     )?;
 
     // --- escrow the stake into the vault (voter signs as authority) ---------
-    Transfer::new(voter_kass_ai, vault_ai, voter_ai, args.stake).invoke()?;
+    Transfer::new(voter_base_ai, vault_ai, voter_ai, args.stake).invoke()?;
 
     // --- initialize the FactVote --------------------------------------------
     let mut vote = FactVote::zeroed();

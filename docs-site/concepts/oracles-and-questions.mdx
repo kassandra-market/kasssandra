@@ -67,12 +67,10 @@ tracks an exponential moving average of recent creation activity (`fee.rs`):
 fee = fee_for_ema(decay_fee_ema(fee_ema, last_creation_unix, now))
 ```
 
-At genesis the EMA is zero, so **creation is free** — you can bootstrap into the system and
-earn SOL via emissions without having to acquire it first. As creations pile up the EMA
+At genesis the EMA is zero, so **creation is free**. As creations pile up the EMA
 rises (each creation bumps it by `FEE_EMA_INCREMENT`), and it decays with a one-day
-half-life (`FEE_EMA_HALFLIFE_SECS = 86_400`) as activity relaxes. The burn is the
-deflationary counterweight to work-to-earn emissions; there is **no USDC floor**. See
-[Economics](/concepts/economics) for the exact EMA math.
+half-life (`FEE_EMA_HALFLIFE_SECS = 86_400`) as activity relaxes. There is **no USDC
+floor**. See [Economics](/concepts/economics) for the exact EMA math.
 
 ## Binary and categorical questions
 

@@ -1,13 +1,13 @@
 ---
 title: "Economics"
-description: "Bonds, stakes, slashing, the bond pool, work-to-earn emissions on a decaying curve, and the dynamic EMA-based SOL creation fee that is burned — with the real constants and formulas."
+description: "Bonds, stakes, slashing, the bond pool, and the dynamic EMA-based SOL creation fee that is burned — with the real constants and formulas."
 ---
 
 Kassandra's honesty guarantee is economic. Every claim is backed by SOL that can be
-slashed; slashed SOL is redistributed to honest actors; new SOL is minted to honest
-participants on a decaying curve; and a burned, demand-responsive creation fee is the
-deflationary counterweight. This page ties those pieces to the real constants and formulas
-in the code.
+slashed; slashed SOL is redistributed to honest actors; and a burned, demand-responsive
+creation fee meters oracle spam. There is no native protocol token and no participation
+minting — rewards come from counterparties, not newly minted supply. This page ties those
+pieces to the real constants and formulas in the code.
 
 ## Bonds and stakes
 
@@ -22,8 +22,8 @@ Everything staking uses **SOL**, escrowed into the oracle's `stake_vault` PDA:
 The oracle tracks a conservation accumulator, `total_oracle_stake`, which equals the vault
 balance until a challenge splits a bond into a conditional vault. Design invariant 3 is
 **conservation of SOL**: for any oracle,
-`Σ stakes_in = Σ returned + Σ to_bond_pool + Σ burned + Σ emitted` — no SOL is created or
-destroyed outside emissions (mint) and the fee/dead-end burns.
+`Σ stakes_in = Σ returned + Σ to_bond_pool + Σ burned` — no SOL is created, and the only
+outflows besides returns are the creation-fee burn and dead-end slash burns.
 
 ## Slashing and the bond pool
 
@@ -43,8 +43,9 @@ dominant facts are **not** slashed — no penalty for honest redundancy.
 
 ## Rewards: buckets and pro-rata claims
 
-On `Resolved` (only), the oracle stamps a distributable `reward_pool = bond_pool +
-reward_emission` and splits it into two cohort buckets by config weights (`reward.rs`):
+On `Resolved` (only), the oracle stamps a distributable `reward_pool = bond_pool` (the
+pinned `reward_emission` field is always 0 at create — see [Tokens](/concepts/tokens))
+and splits it into two cohort buckets by config weights (`reward.rs`):
 
 ```
 proposer_bucket = reward_pool * PW / (PW + FW)
@@ -67,33 +68,9 @@ close the account. No global iteration, no one-transaction cap.
 
 <Info>
   On a dead-end there is **no reward** — `reward_pool == 0`, so every reward term is zero.
-  Stakers get only their non-slashed principal back; slashed amounts and the emission are
-  burned. See [Dead-end settlement](/concepts/dead-end-settlement).
+  Stakers get only their non-slashed principal back; slashed amounts are burned. See
+  [Dead-end settlement](/concepts/dead-end-settlement).
 </Info>
-
-## Emissions: work-to-earn on a decaying curve
-
-SOL is fair-launched: **no presale**, all supply enters via participation emissions. The
-emission for an oracle is computed at **creation**, from the remaining reservoir
-(`create_oracle.rs`):
-
-```
-reward_emission = (total_supply_cap − supply) * emission_num / emission_den   (u128 floor)
-```
-
-It is minted immediately into the oracle's `stake_vault` (signed by the `[b"mint_authority"]`
-PDA), then folded into `reward_pool` on `Resolved` or **burned back** on `InvalidDeadend`.
-Because the emission is a fixed fraction of the *remaining* reservoir, it is a **decaying
-curve** — early honest participation is rewarded more and supply asymptotes toward
-`total_supply_cap`. Recommended defaults are `EMISSION_NUM = 1`, `EMISSION_DEN = 1_000_000`
-(1/1e6 of the reservoir per creation) and `TOTAL_SUPPLY_CAP = 1e18` (1e9 SOL at 9 decimals).
-
-<Warning>
-  Emissions are **disabled at genesis.** `init_protocol` sets `emission_num = 0`,
-  `emission_den = 1`, and `total_supply_cap = 0` — it does **not** default to the
-  `EMISSION_*`/`TOTAL_SUPPLY_CAP` consts. Emission is turned on later by governance via
-  `set_config` (`init_protocol.rs`; program-instructions reference).
-</Warning>
 
 ## The dynamic creation fee (SOL, burned)
 
@@ -120,28 +97,27 @@ is: **decay → charge → bump → stamp** (`fee.rs`, `create_oracle.rs`):
 </Steps>
 
 The consequences: the fee is **0 at genesis** (`fee_ema` starts at 0, so early oracles are
-free — you bootstrap in and earn SOL via emissions without acquiring it first); it **rises
-with demand** as creations stack up; and it **relaxes as demand falls** through the daily
-half-life decay. The burn balances emissions with no USDC floor. Fee monotonicity — the fee
+free); it **rises with demand** as creations stack up; and it **relaxes as demand falls**
+through the daily half-life decay. There is **no USDC floor**. Fee monotonicity — the fee
 moves only as a function of the creation-rate EMA and is never negative — is design
 invariant 5.
 
 ## Governance
 
-SOL governs protocol config. The behavioral and monetary params live on the `Protocol`
-singleton and are updated wholesale by the DAO via `set_config` (`Ix=14`, bounds-checked).
-They do **not** touch oracles already in flight, which read from their creation-time snapshot.
-SOL governance (ideally via MetaDAO futarchy) is also the only authority that can resolve an
+Protocol config is governed by the DAO via `set_config`. The behavioral and monetary params
+live on the `Protocol` singleton and are updated wholesale (bounds-checked). They do **not**
+touch oracles already in flight, which read from their creation-time snapshot. The DAO
+(ideally via MetaDAO futarchy) is also the only authority that can resolve an
 [Invalid dead-end](/concepts/dead-end-settlement) oracle.
 
 ## Where to go next
 
 <CardGroup cols={3}>
   <Card title="Tokens" icon="coins" href="/concepts/tokens">
-    SOL and USDC — roles, demand drivers, and the burn-vs-mint balance.
+    SOL and USDC — roles and fee denomination. No native protocol token.
   </Card>
   <Card title="Dead-end settlement" icon="ban" href="/concepts/dead-end-settlement">
-    What happens to bonds, stakes, and emissions when there is no valid resolution.
+    What happens to bonds and stakes when there is no valid resolution.
   </Card>
   <Card title="Constants" icon="ruler" href="/protocol/constants">
     Every config constant with its value and meaning.

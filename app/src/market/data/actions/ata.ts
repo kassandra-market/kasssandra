@@ -4,7 +4,7 @@
  * The kassandra-market instructions transfer SOL out of / into the caller's
  * Associated Token Account. The SDK builders take that ATA address but do NOT
  * create it, so a first-time participant needs the account created in the same
- * transaction. {@link ensureKassAta} derives `ATA(owner, baseMint)` and, when the
+ * transaction. {@link ensureBaseAta} derives `ATA(owner, baseMint)` and, when the
  * account is absent, returns an idempotent create-ATA instruction to PREPEND.
  *
  * The create ix is the SDK's shared leaf builder (the ATA program's
@@ -52,7 +52,7 @@ export async function ensureAta(
 }
 
 /** {@link ensureAta} specialised to the SOL mint (the funding-form call sites). */
-export function ensureKassAta(
+export function ensureBaseAta(
   indexer: IndexerReads,
   owner: Address,
   baseMint: Address,

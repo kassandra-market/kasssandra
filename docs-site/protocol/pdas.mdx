@@ -20,7 +20,7 @@ matching TypeScript derivers are in [SDK · PDAs](/sdk/pdas).
 | AiClaim | `[b"claim", oracle_pubkey, proposer_pubkey]` | `submit_ai_claim.rs` |
 | Market | `[b"market", ai_claim_pubkey]` | `open_challenge.rs` |
 | Challenger USDC escrow | `[b"challenge_usdc", market_pubkey]` | `open_challenge.rs`; SPL token account, authority = oracle PDA |
-| Mint-authority | `[b"mint_authority"]` (`MINT_AUTHORITY_SEED`) | `create_oracle.rs`; SOL emission `MintTo` signer |
+| Mint-authority | `[b"mint_authority"]` (`MINT_AUTHORITY_SEED`) | Still derived by clients as account 9 of `create_oracle`; unused (no minting). |
 
 <Note>
 The **Oracle** PDA is re-derived from `oracle_nonce` inside every instruction whose payload carries the

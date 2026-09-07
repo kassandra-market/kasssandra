@@ -52,8 +52,8 @@ function mockMarket(): Market {
     usdcVault: A("UsdcVau1t11111111111111111111111111111111111"),
     passAmm: A("PassAmm1111111111111111111111111111111111111"),
     failAmm: A("Fai1Amm1111111111111111111111111111111111111"),
-    oraclePassKass: A("OPassKass11111111111111111111111111111111111"),
-    oracleFailKass: A("OFai1Kass11111111111111111111111111111111111"),
+    oraclePassBase: A("OPassKass11111111111111111111111111111111111"),
+    oracleFailBase: A("OFai1Kass11111111111111111111111111111111111"),
     challengerUsdcVault: A("Escrow111111111111111111111111111111111111111"),
     // twapEnd in the PAST → settle open.
     twapEnd: BigInt(Math.floor(Date.now() / 1000) - 600),

@@ -154,7 +154,7 @@ cannot move the goalposts. **PDA:** `[b"oracle", nonce_le]`.
 | `total_correct_proposer_stake` | u64 | 328 | Σ bond over surviving proposers whose `claim_option == resolved_option` |
 | `total_approved_fact_stake` | u64 | 336 | Σ (`fact.stake` + `fact.approve_stake`) over agreed facts |
 | `reward_pool` | u64 | 344 | distributable pool at resolution; `= bond_pool + reward_emission` on Resolved; 0 on InvalidDeadend |
-| `reward_emission` | u64 | 352 | SOL minted into stake_vault at create; folded into reward_pool on Resolved, burned on InvalidDeadend |
+| `reward_emission` | u64 | 352 | Always 0 at create (no native-token minting). Pinned in the Pod layout; folded into `reward_pool` on Resolved / burned on InvalidDeadend if a harness seeds a non-zero value. |
 
 ## OracleMeta — variable
 

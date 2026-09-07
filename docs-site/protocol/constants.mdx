@@ -11,11 +11,11 @@ move the goalposts). The SDK mirrors the defaults in its `CONFIG` object (see
 [SDK · Overview](/sdk/overview)).
 
 <Warning>
-**Genesis defaults differ from the emission consts.** `init_protocol` deliberately sets
-`emission_num = 0`, `emission_den = 1`, and `total_supply_cap = 0` — **emission is disabled at
-genesis**, regardless of the `EMISSION_*` / `TOTAL_SUPPLY_CAP` consts below. All fee, threshold, slash,
-reward, and challenge-fee params ARE defaulted to their consts (`init_protocol.rs`). Emission is a
-governance opt-in via `set_config`.
+**No native-token minting.** `create_oracle` always records `reward_emission = 0`.
+`init_protocol` sets `emission_num = 0`, `emission_den = 1`, and `total_supply_cap = 0`.
+The `EMISSION_*` / `TOTAL_SUPPLY_CAP` consts and the `set_config` emission fields remain
+in the wire layout (pinned) but do not mint anything. All fee, threshold, slash, reward,
+and challenge-fee params ARE defaulted to their consts (`init_protocol.rs`).
 </Warning>
 
 ## Windows & limits
@@ -82,16 +82,16 @@ Per creation (`create_oracle`): decay the EMA → charge `fee_for_ema` → bump 
 stamp `last_creation_unix`. Compile-time guards enforce `FEE_EMA_HALFLIFE_SECS > 0` and
 `FEE_EMA_SCALE > 0`.
 
-## Emission (governance opt-in)
+## Emission fields (unused)
+
+These consts and Protocol fields remain in the pinned layout from the former native-token
+design. `create_oracle` never mints; `reward_emission` is always 0.
 
 | Name | Type | Value | Meaning |
 | --- | --- | --- | --- |
-| `TOTAL_SUPPLY_CAP` | u64 | `1e18` (1e9 SOL @ 9dp) | Recommended supply cap; emission reservoir = `cap − supply`. Genesis default `0` (disabled). |
-| `EMISSION_NUM` | u64 | `1` | Recommended emission rate numerator (1/1e6 of the reservoir per creation). |
-| `EMISSION_DEN` | u64 | `1_000_000` (1e6) | Emission rate denominator. |
-
-Emission per creation (when enabled): `reward_emission = (total_supply_cap − supply)·emission_num /
-emission_den` (u128 floor), minted into `stake_vault` signed by `[b"mint_authority"]`.
+| `TOTAL_SUPPLY_CAP` | u64 | `1e18` (1e9 SOL @ 9dp) | Historical recommended cap. Genesis default `0`. |
+| `EMISSION_NUM` | u64 | `1` | Historical rate numerator. Genesis default `0`. |
+| `EMISSION_DEN` | u64 | `1_000_000` (1e6) | Historical rate denominator. |
 
 ## Other constants
 

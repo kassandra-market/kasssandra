@@ -11,7 +11,7 @@
  *
  *   - **Directly on the Market** (fields decoded from the on-chain account):
  *     `aiClaim`, `proposer`, `question`, `passAmm`, `failAmm`, `baseVault`,
- *     `oraclePassKass`, `oracleFailKass`.
+ *     `oraclePassBase`, `oracleFailBase`.
  *   - **Derived (CU2/CU3 derivations, reused import-only):**
  *     - `passBaseMint` / `failBaseMint` = `conditionalTokenMint(market.baseVault, 0/1)`;
  *     - `baseVaultUnderlying` = `associatedTokenAccount(market.baseVault, oracle.baseMint)`
@@ -26,7 +26,7 @@
  *       `proposerAuthority` (read off the decoded `Proposer` whose pubkey ==
  *       `market.proposer`, already fetched by `fetchOracleDetail`);
  *     - `challengerUsdcDest` = `ATA(market.challenger, oracle.usdcMint)`;
- *     - `challengerKass` = `ATA(market.challenger, oracle.baseMint)`.
+ *     - `challengerBase` = `ATA(market.challenger, oracle.baseMint)`.
  *
  * --- challengerUsdcDest vs the escrow (settle account 19 vs 17) ---
  * The settle handler (`processor/settle_challenge.rs`) reads TWO challenger-USDC
@@ -36,11 +36,11 @@
  * the handler binds it with `assert_token_account(.., oracle.usdc_mint,
  * market.challenger)` — an SPL token account, mint == usdc_mint, owner ==
  * market.challenger — i.e. `ATA(market.challenger, oracle.usdcMint)`. So the DEST
- * is the ATA, not the escrow. (Same shape for proposerUsdc / challengerKass.)
+ * is the ATA, not the escrow. (Same shape for proposerUsdc / challengerBase.)
  *
  * --- do the payout ATAs need creating? ---
  * settle ASSERTS the three payout destinations (proposerUsdc / challengerUsdcDest
- * / challengerKass) as existing SPL token accounts — it does NOT create them (it
+ * / challengerBase) as existing SPL token accounts — it does NOT create them (it
  * only `assert_token_account`s owner+mint, then transfers into them). On a real
  * cluster a payout ATA could be absent (e.g. the challenger never held SOL), and
  * settle would then fail the assert. So — when a `connection` is supplied — this
@@ -72,7 +72,7 @@ import { buildSettleChallengeIxs } from "./challenge";
 export interface BuildSettleFromMarketArgs {
   /**
    * RPC connection — when supplied, an idempotent create for each of the three
-   * payout ATAs (proposerUsdc / challengerUsdcDest / challengerKass) is prepended
+   * payout ATAs (proposerUsdc / challengerUsdcDest / challengerBase) is prepended
    * so settle never fails on an absent destination. Omit for the offline
    * byte-match (settle ix only).
    */
@@ -166,7 +166,7 @@ export async function buildSettleFromMarketIxs(
   ]);
 
   // --- derived: the three payout ATAs (settle account 18 / 19 / 20).
-  const [proposerUsdc, challengerUsdcDest, challengerKass] = await Promise.all([
+  const [proposerUsdc, challengerUsdcDest, challengerBase] = await Promise.all([
     associatedTokenAccount(proposerAuthority, oracle.usdcMint).then((p) => p.address),
     associatedTokenAccount(market.challenger, oracle.usdcMint).then((p) => p.address),
     associatedTokenAccount(market.challenger, oracle.baseMint).then((p) => p.address),
@@ -181,8 +181,8 @@ export async function buildSettleFromMarketIxs(
     passAmm: market.passAmm,
     failAmm: market.failAmm,
     baseVault: market.baseVault,
-    oraclePassKass: market.oraclePassKass,
-    oracleFailKass: market.oracleFailKass,
+    oraclePassBase: market.oraclePassBase,
+    oracleFailBase: market.oracleFailBase,
     // --- derived ---
     passBaseMint,
     failBaseMint,
@@ -190,7 +190,7 @@ export async function buildSettleFromMarketIxs(
     cvEventAuthority,
     proposerUsdc,
     challengerUsdcDest,
-    challengerKass,
+    challengerBase,
     programId: args.programId,
   });
 
@@ -202,7 +202,7 @@ export async function buildSettleFromMarketIxs(
     const creates = [
       createAtaIdempotentIx(payer, proposerUsdc, proposerAuthority, oracle.usdcMint),
       createAtaIdempotentIx(payer, challengerUsdcDest, market.challenger, oracle.usdcMint),
-      createAtaIdempotentIx(payer, challengerKass, market.challenger, oracle.baseMint),
+      createAtaIdempotentIx(payer, challengerBase, market.challenger, oracle.baseMint),
     ];
     return [...creates, ...settleIxs];
   }

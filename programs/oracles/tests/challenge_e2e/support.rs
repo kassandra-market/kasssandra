@@ -143,8 +143,8 @@ impl ConservationModel {
         }
     }
 
-    /// Expected `challenger_kass` balance after settle.
-    pub(crate) fn challenger_kass(&self) -> u64 {
+    /// Expected `challenger_base` balance after settle.
+    pub(crate) fn challenger_base(&self) -> u64 {
         if self.disqualify {
             self.base_fee
         } else {

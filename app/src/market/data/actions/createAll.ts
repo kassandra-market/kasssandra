@@ -20,7 +20,7 @@
  */
 import { flows } from "@kassandra-market/markets";
 import type { ActivateStep } from "./activate";
-import { ensureKassAta, toAddress, type AddressInput } from "./ata";
+import { ensureBaseAta, toAddress, type AddressInput } from "./ata";
 import { ValidationError } from "../writeAction";
 import type { IndexerReads } from "../../lib/indexer";
 
@@ -40,7 +40,7 @@ export interface BuildCreateAllArgs {
 
 /**
  * Build the ordered per-outcome create sequence for a categorical oracle. Derives
- * the creator's SOL ATA (the shared seed source) via {@link ensureKassAta} and
+ * the creator's SOL ATA (the shared seed source) via {@link ensureBaseAta} and
  * hands it to the SDK `createAllOutcomeMarkets` to get one `createMarket` ix per
  * outcome; wraps each in an {@link ActivateStep} whose `checkAccount` is that
  * outcome's market PDA (skip-if-exists). When the ATA is absent, its idempotent
@@ -58,7 +58,7 @@ export async function buildCreateAllSteps(args: BuildCreateAllArgs): Promise<Act
     throw new ValidationError("Seed amount must be greater than zero.");
   }
 
-  const { ata, createIx } = await ensureKassAta(args.indexer, creator, baseMint);
+  const { ata, createIx } = await ensureBaseAta(args.indexer, creator, baseMint);
 
   const { steps } = await flows.createAllOutcomeMarkets({
     oracle,

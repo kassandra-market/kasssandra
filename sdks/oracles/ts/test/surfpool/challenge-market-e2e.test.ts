@@ -228,8 +228,8 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
 
     // The bond was physically SPLIT into conditional SOL via the forked vault:
     // pass-SOL + fail-SOL each == BOND, and the underlying landed in the vault.
-    expect(await tokenBalance(f, market.oraclePassKass)).toBe(BOND);
-    expect(await tokenBalance(f, market.oracleFailKass)).toBe(BOND);
+    expect(await tokenBalance(f, market.oraclePassBase)).toBe(BOND);
+    expect(await tokenBalance(f, market.oracleFailBase)).toBe(BOND);
     expect(await tokenBalance(f, market.base.underlying)).toBe(BOND);
   }, 240_000);
 
@@ -286,11 +286,11 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     expect(oAfter.survivingCount).toBe(oBefore.survivingCount - 1);
     expect(oAfter.bondPool).toBe(oBefore.bondPool + (BOND - baseFee));
     // SOL: base_fee → challenger; bond − base_fee redeemed into stake_vault.
-    expect(await tokenBalance(f, payouts.challengerKass)).toBe(baseFee);
+    expect(await tokenBalance(f, payouts.challengerBase)).toBe(baseFee);
     expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + (BOND - baseFee));
     // The bond's conditional SOL was redeemed (holders burned, underlying drained).
-    expect(await tokenBalance(f, market.oraclePassKass)).toBe(0n);
-    expect(await tokenBalance(f, market.oracleFailKass)).toBe(0n);
+    expect(await tokenBalance(f, market.oraclePassBase)).toBe(0n);
+    expect(await tokenBalance(f, market.oracleFailBase)).toBe(0n);
     expect(await tokenBalance(f, market.base.underlying)).toBe(0n);
     // USDC: full escrow → challenger; no proposer fee.
     expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrow);
@@ -341,7 +341,7 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     expect(oAfter.bondPool).toBe(oBefore.bondPool); // no slash
     expect(oAfter.survivingCount).toBe(oBefore.survivingCount);
     expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + BOND);
-    expect(await tokenBalance(f, payouts.challengerKass)).toBe(0n);
+    expect(await tokenBalance(f, payouts.challengerBase)).toBe(0n);
     // USDC: fee → proposer, remainder → challenger (escrow fully accounted).
     expect(await tokenBalance(f, payouts.proposerUsdc)).toBe(usdcFee);
     expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrow - usdcFee);

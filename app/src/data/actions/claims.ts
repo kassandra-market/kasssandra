@@ -108,7 +108,7 @@ function createAtaIdempotentIx(
  * ix to prepend (payer == owner). The ATA address is always returned so the
  * builder passes it as the SDK `destBase`.
  */
-async function ensureKassAta(
+async function ensureBaseAta(
   connection: Connection,
   owner: Address,
   baseMint: Address,
@@ -140,7 +140,7 @@ export async function buildClaimProposerIxs(
 ): Promise<TransactionInstruction[]> {
   const nonce = requireNonce(args.oracleNonce);
   const authority = addr("authority", args.authority);
-  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr("baseMint", args.baseMint));
+  const { ata, createIx } = await ensureBaseAta(args.connection, authority, addr("baseMint", args.baseMint));
   const ix = await claimProposer({
     nonce,
     proposer: args.proposer,
@@ -170,7 +170,7 @@ export async function buildClaimFactIxs(
 ): Promise<TransactionInstruction[]> {
   const nonce = requireNonce(args.oracleNonce);
   const authority = addr("authority", args.authority);
-  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr("baseMint", args.baseMint));
+  const { ata, createIx } = await ensureBaseAta(args.connection, authority, addr("baseMint", args.baseMint));
   const ix = await claimFact({
     nonce,
     fact: args.fact,
@@ -202,7 +202,7 @@ export async function buildClaimFactVoteIxs(
 ): Promise<TransactionInstruction[]> {
   const nonce = requireNonce(args.oracleNonce);
   const voter = addr("voter", args.voter);
-  const { ata, createIx } = await ensureKassAta(args.connection, voter, addr("baseMint", args.baseMint));
+  const { ata, createIx } = await ensureBaseAta(args.connection, voter, addr("baseMint", args.baseMint));
   const ix = await claimFactVote({
     nonce,
     factVote: args.factVote,

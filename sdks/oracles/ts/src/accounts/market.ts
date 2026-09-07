@@ -27,9 +27,9 @@ export interface Market {
   /** Outcome-1 (fail) AMM. */
   failAmm: Address;
   /** Oracle-PDA-owned conditional-SOL token account (pass). */
-  oraclePassKass: Address;
+  oraclePassBase: Address;
   /** Oracle-PDA-owned conditional-SOL token account (fail). */
-  oracleFailKass: Address;
+  oracleFailBase: Address;
   /** Market-owned USDC escrow holding the challenger's staked USDC. */
   challengerUsdcVault: Address;
   /** `now + oracle.twap_window`; settle allowed only after this. */
@@ -56,8 +56,8 @@ export function decodeMarket(data: Uint8Array): Market {
     usdcVault: readPubkey(data, 200),
     passAmm: readPubkey(data, 232),
     failAmm: readPubkey(data, 264),
-    oraclePassKass: readPubkey(data, 296),
-    oracleFailKass: readPubkey(data, 328),
+    oraclePassBase: readPubkey(data, 296),
+    oracleFailBase: readPubkey(data, 328),
     challengerUsdcVault: readPubkey(data, 360),
     twapEnd: readI64LE(dv, 392),
     challengerUsdc: readU64LE(dv, 400),

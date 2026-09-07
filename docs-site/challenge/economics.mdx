@@ -9,7 +9,7 @@ proposer's locked **SOL bond** is the conditional collateral, and the challenger
 settlement moves value between them plus small directional fees. This page covers where
 every unit goes and why the incentives make honest, uncontested claims the default.
 
-For the broader protocol economics — bonds, emissions, and the dynamic fee — see
+For the broader protocol economics — bonds, slashing, and the dynamic fee — see
 [Concepts: economics](/concepts/economics).
 
 ## The two stakes
@@ -40,7 +40,7 @@ SPOT_PRICE_SCALE = 1_000_000_000_000               // 1e12
 
 `spot_price` is the v0.6 futarchy embedded spot TWAP, anchored to `Protocol.spot_dao`.
 Its `1e12` scale already folds in the SOL 9 dp ↔ USDC 6 dp decimal difference, so **no
-extra `10^Δdec` factor** is needed. Dimensionally `[KASS_raw] × [USDC_raw / KASS_raw] =
+extra `10^Δdec` factor** is needed. Dimensionally `[SOL_raw] × [USDC_raw / SOL_raw] =
 [USDC_raw]`.
 
 <Info>
@@ -98,7 +98,7 @@ independent reference model (`docs/plans/2026-06-29-kassandra-challenge-rework.m
 ```text
 USDC:  proposer_usdc + challenger_usdc_dest == escrow                     // both outcomes
 SOL (survive):     stake_vault + base_vault_underlying == total_oracle_stake
-SOL (disqualify):  stake_vault + base_vault_underlying + challenger_kass == total_oracle_stake
+SOL (disqualify):  stake_vault + base_vault_underlying + challenger_base == total_oracle_stake
 ```
 
 On disqualify the `base_fee` physically leaves `stake_vault` to the challenger, so
@@ -145,6 +145,6 @@ non-closure convention.
     The verdict formula and the exact token movements per outcome.
   </Card>
   <Card title="Concept: economics" icon="coins" href="/concepts/economics">
-    Bonds, emissions, and the protocol-wide incentive design.
+    Bonds, slashing, and the protocol-wide incentive design.
   </Card>
 </CardGroup>

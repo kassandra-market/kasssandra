@@ -140,10 +140,10 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
     // them; the ATAs must exist + hold the underlying to seed the two pools).
     const challenger = await Keypair.generate();
     await f.harness.airdrop(challenger.publicKey.toString(), 5_000_000_000);
-    const challengerKassAta = await ammV04.pda.ata(challenger.publicKey, f.baseMint.publicKey);
+    const challengerBaseAta = await ammV04.pda.ata(challenger.publicKey, f.baseMint.publicKey);
     const challengerUsdcAta = await ammV04.pda.ata(challenger.publicKey, f.usdcMint.publicKey);
     // SOL to split into seed conditional-SOL for BOTH pools + the escrow bond.
-    await setTokenAccountAt(f, challengerKassAta, f.baseMint.publicKey, challenger.publicKey, BASE_RESERVE * 4n);
+    await setTokenAccountAt(f, challengerBaseAta, f.baseMint.publicKey, challenger.publicKey, BASE_RESERVE * 4n);
     // USDC to split into seed conditional-USDC + fund the escrow (required = BOND/2000).
     await setTokenAccountAt(f, challengerUsdcAta, f.usdcMint.publicKey, challenger.publicKey, QUOTE_RESERVE * 4n + 10_000_000n);
 
@@ -212,7 +212,7 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
     const requiredUsdc = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE;
     expect(await tokenBalance(f, escrow)).toBe(requiredUsdc);
     expect(m.challengerUsdc).toBe(requiredUsdc);
-    expect(await tokenBalance(f, composed.oraclePassKass)).toBe(BOND);
-    expect(await tokenBalance(f, composed.oracleFailKass)).toBe(BOND);
+    expect(await tokenBalance(f, composed.oraclePassBase)).toBe(BOND);
+    expect(await tokenBalance(f, composed.oracleFailBase)).toBe(BOND);
   }, 300_000);
 });

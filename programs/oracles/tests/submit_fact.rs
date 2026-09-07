@@ -36,7 +36,7 @@ struct Fixture {
     oracle: Pubkey,
     vault: Pubkey,
     submitter: Keypair,
-    submitter_kass: Pubkey,
+    submitter_base: Pubkey,
     fact: Pubkey,
     content_hash: [u8; 32],
 }
@@ -58,7 +58,7 @@ fn fixture(stake: u64) -> Fixture {
 
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_base(&submitter, stake * 8);
+    let submitter_base = ctx.fund_base(&submitter, stake * 8);
 
     let content_hash = [0x42u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
@@ -67,7 +67,7 @@ fn fixture(stake: u64) -> Fixture {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     }
@@ -81,7 +81,7 @@ fn submit_fact_happy_path() {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     } = fixture(stake);
@@ -95,7 +95,7 @@ fn submit_fact_happy_path() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, stake, uri),
     );
@@ -130,7 +130,7 @@ fn submit_fact_duplicate_content_hash_fails() {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     } = fixture(stake);
@@ -140,7 +140,7 @@ fn submit_fact_duplicate_content_hash_fails() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, stake, b"first"),
     );
@@ -152,7 +152,7 @@ fn submit_fact_duplicate_content_hash_fails() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, stake, b"second"),
     );
@@ -175,7 +175,7 @@ fn submit_fact_wrong_phase_fails() {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     } = fixture(stake);
@@ -188,7 +188,7 @@ fn submit_fact_wrong_phase_fails() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, stake, b"x"),
     );
@@ -210,7 +210,7 @@ fn submit_fact_after_window_fails() {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     } = fixture(stake);
@@ -223,7 +223,7 @@ fn submit_fact_after_window_fails() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, stake, b"x"),
     );
@@ -247,7 +247,7 @@ fn submit_fact_zero_stake_ok_when_floor_zero() {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     } = fixture(stake);
@@ -262,7 +262,7 @@ fn submit_fact_zero_stake_ok_when_floor_zero() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, 0, b"x"),
     );
@@ -281,7 +281,7 @@ fn submit_fact_below_floor_fails() {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     } = fixture(stake);
@@ -292,7 +292,7 @@ fn submit_fact_below_floor_fails() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, 999, b"x"),
     );
@@ -317,7 +317,7 @@ fn submit_fact_oracle_type_confusion_fails() {
         oracle,
         vault,
         submitter,
-        submitter_kass,
+        submitter_base,
         fact,
         content_hash,
     } = fixture(stake);
@@ -336,7 +336,7 @@ fn submit_fact_oracle_type_confusion_fails() {
         not_an_oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         payload(&content_hash, stake, b"x"),
     );

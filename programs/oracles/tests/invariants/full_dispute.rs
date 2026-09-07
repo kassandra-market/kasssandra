@@ -84,7 +84,7 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
     for (i, f) in s.facts.iter().enumerate() {
         let submitter = Keypair::new();
         ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-        let submitter_kass = ctx.fund_base(&submitter, f.stake);
+        let submitter_base = ctx.fund_base(&submitter, f.stake);
         let content_hash = [(i as u8) + 1; 32];
         let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
         ctx.send(
@@ -93,7 +93,7 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
                 oracle,
                 fact,
                 submitter.pubkey(),
-                submitter_kass,
+                submitter_base,
                 vault,
                 submit_fact_payload(&content_hash, f.stake, b"ipfs://fact"),
             ),
@@ -114,7 +114,7 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
     {
         let submitter = Keypair::new();
         ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-        let submitter_kass = ctx.fund_base(&submitter, 1_000);
+        let submitter_base = ctx.fund_base(&submitter, 1_000);
         let content_hash = [0xEEu8; 32];
         let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
         let err = ctx
@@ -124,7 +124,7 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
                     oracle,
                     fact,
                     submitter.pubkey(),
-                    submitter_kass,
+                    submitter_base,
                     vault,
                     submit_fact_payload(&content_hash, 1_000, b"x"),
                 ),
@@ -350,7 +350,7 @@ fn cast_vote(
 ) -> Result<(), TestCaseError> {
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_base(&voter, stake);
+    let voter_base = ctx.fund_base(&voter, stake);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     ctx.send(
         vote_fact_ix(
@@ -359,7 +359,7 @@ fn cast_vote(
             fact,
             fact_vote,
             voter.pubkey(),
-            voter_kass,
+            voter_base,
             vault,
             vote_payload(kind, stake),
         ),

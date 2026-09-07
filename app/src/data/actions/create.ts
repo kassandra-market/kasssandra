@@ -141,7 +141,7 @@ function createAtaIdempotentIx(
  * (`getAccountInfo` null), return an idempotent create-ATA ix to prepend
  * (payer == owner == creator).
  */
-async function ensureCreatorKassAta(
+async function ensureCreatorBaseAta(
   connection: Connection,
   creator: Address,
   baseMint: Address,
@@ -266,7 +266,7 @@ export async function buildCreateOracleIxs(
   const nonce = args.nonce === undefined ? randomNonce() : BigInt(args.nonce);
   const oracle = (await pda.oracle(nonce, args.programId)).address;
 
-  const { ata, createIx } = await ensureCreatorKassAta(args.connection, creator, baseMint);
+  const { ata, createIx } = await ensureCreatorBaseAta(args.connection, creator, baseMint);
 
   const ix = await createOracle({
     nonce,

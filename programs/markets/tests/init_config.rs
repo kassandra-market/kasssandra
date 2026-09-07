@@ -69,7 +69,7 @@ fn init_config_twice_fails() {
 }
 
 #[test]
-fn init_config_rejects_non_mint_kass() {
+fn init_config_rejects_non_mint_base() {
     // A `base_mint` that is not an SPL mint (here: a nonexistent, non-token-owned
     // key) must be rejected — the config must record a real SOL mint.
     let mut ctx = TestCtx::new();

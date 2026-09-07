@@ -238,7 +238,7 @@ impl TestCtx {
     /// Fabricate the DAO treasury: an empty SOL token account AT the canonical
     /// `ATA(owner, base_mint)` address, owned (token authority) by `owner`.
     /// Returns the ATA address.
-    pub fn seed_kass_treasury(&mut self, owner: Pubkey) -> Pubkey {
+    pub fn seed_base_treasury(&mut self, owner: Pubkey) -> Pubkey {
         let ata = self.base_ata(owner);
         let state = TokenAccount {
             mint: self.base_mint,

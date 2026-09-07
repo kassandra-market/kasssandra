@@ -82,7 +82,7 @@ function requireVoteKind(kind: number): void {
  * (payer == owner == authority). The ATA address is always returned so the
  * caller passes it as the token account to the SDK builder.
  */
-async function ensureKassAta(
+async function ensureBaseAta(
   connection: Connection,
   authority: Address,
   baseMint: Address,
@@ -130,7 +130,7 @@ export async function buildProposeIxs(args: BuildProposeArgs): Promise<Transacti
   requirePositiveAmount("bond", args.bond);
   requireOption(args.option, args.optionsCount);
   const authority = addr(args.authority);
-  const { ata, createIx } = await ensureKassAta(args.connection, authority, addr(args.baseMint));
+  const { ata, createIx } = await ensureBaseAta(args.connection, authority, addr(args.baseMint));
   const ix = await propose({
     oracle: args.oracle,
     authority,
@@ -167,7 +167,7 @@ export async function buildSubmitFactIxs(
   requirePositiveAmount("stake", args.stake);
   requireUri(args.uri);
   const submitter = addr(args.submitter);
-  const { ata, createIx } = await ensureKassAta(args.connection, submitter, addr(args.baseMint));
+  const { ata, createIx } = await ensureBaseAta(args.connection, submitter, addr(args.baseMint));
   const ix = await submitFact({
     oracle: args.oracle,
     submitter,
@@ -205,7 +205,7 @@ export async function buildVoteFactIxs(
   requirePositiveAmount("stake", args.stake);
   requireVoteKind(args.kind);
   const voter = addr(args.voter);
-  const { ata, createIx } = await ensureKassAta(args.connection, voter, addr(args.baseMint));
+  const { ata, createIx } = await ensureBaseAta(args.connection, voter, addr(args.baseMint));
   const ix = await voteFact({
     oracle: args.oracle,
     fact: args.fact,

@@ -150,8 +150,8 @@ export interface MarketComposition {
   question: Address;
   base: VaultAccounts;
   usdc: VaultAccounts;
-  oraclePassKass: Address;
-  oracleFailKass: Address;
+  oraclePassBase: Address;
+  oracleFailBase: Address;
 }
 
 export async function composeMarket(f: Fixture, oracle: Address): Promise<MarketComposition> {
@@ -159,9 +159,9 @@ export async function composeMarket(f: Fixture, oracle: Address): Promise<Market
   const { question } = await composeQuestion(f, oracle, questionId, 2);
   const base = await composeVault(f, question, f.baseMint.publicKey);
   const usdc = await composeVault(f, question, f.usdcMint.publicKey);
-  const oraclePassKass = await fabricateTokenAccountMint(f, base.passMint, oracle, 0n);
-  const oracleFailKass = await fabricateTokenAccountMint(f, base.failMint, oracle, 0n);
-  return { question, base, usdc, oraclePassKass, oracleFailKass };
+  const oraclePassBase = await fabricateTokenAccountMint(f, base.passMint, oracle, 0n);
+  const oracleFailBase = await fabricateTokenAccountMint(f, base.failMint, oracle, 0n);
+  return { question, base, usdc, oraclePassBase, oracleFailBase };
 }
 
 /** openChallenge via `buildOpenChallengeIxs` → the app seam (challenger is fee-payer + signer). */
@@ -190,8 +190,8 @@ export async function openChallengeViaApp(
     baseVaultUnderlying: m.base.underlying,
     passBaseMint: m.base.passMint,
     failBaseMint: m.base.failMint,
-    oraclePassKass: m.oraclePassKass,
-    oracleFailKass: m.oracleFailKass,
+    oraclePassBase: m.oraclePassBase,
+    oracleFailBase: m.oracleFailBase,
     cvEventAuthority,
     spotDao: f.spotDao,
     usdcMint: f.usdcMint.publicKey,
@@ -205,7 +205,7 @@ export interface Payouts {
   escrowVault: Address;
   proposerUsdc: Address;
   challengerUsdcDest: Address;
-  challengerKass: Address;
+  challengerBase: Address;
 }
 
 /**
@@ -236,10 +236,10 @@ export async function settleChallengeViaApp(
   // The derived payout ATAs (owner: proposer.authority / challenger).
   const proposerUsdc = await ata(c.proposerAuthority, f.usdcMint.publicKey);
   const challengerUsdcDest = await ata(challenger.publicKey, f.usdcMint.publicKey);
-  const challengerKass = await ata(challenger.publicKey, f.baseMint.publicKey);
+  const challengerBase = await ata(challenger.publicKey, f.baseMint.publicKey);
   await setTokenAccountAt(f, proposerUsdc, f.usdcMint.publicKey, c.proposerAuthority, 0n);
   await setTokenAccountAt(f, challengerUsdcDest, f.usdcMint.publicKey, challenger.publicKey, 0n);
-  await setTokenAccountAt(f, challengerKass, f.baseMint.publicKey, challenger.publicKey, 0n);
+  await setTokenAccountAt(f, challengerBase, f.baseMint.publicKey, challenger.publicKey, 0n);
   const escrowVault = (await pda.challengeUsdcVault(market)).address;
 
   const twapEnd = decodedMarket.twapEnd;
@@ -265,12 +265,12 @@ export async function settleChallengeViaApp(
   expect(keys[12]).toBe(m.base.underlying.toString());
   expect(keys[13]).toBe(m.base.passMint.toString());
   expect(keys[14]).toBe(m.base.failMint.toString());
-  expect(keys[15]).toBe(m.oraclePassKass.toString());
-  expect(keys[16]).toBe(m.oracleFailKass.toString());
+  expect(keys[15]).toBe(m.oraclePassBase.toString());
+  expect(keys[16]).toBe(m.oracleFailBase.toString());
   expect(keys[18]).toBe(proposerUsdc.toString());
   expect(keys[19]).toBe(challengerUsdcDest.toString());
-  expect(keys[20]).toBe(challengerKass.toString());
+  expect(keys[20]).toBe(challengerBase.toString());
 
   await sendViaApp(f, f.payer, ixs, 1_400_000);
-  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerKass };
+  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerBase };
 }

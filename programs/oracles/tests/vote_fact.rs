@@ -53,7 +53,7 @@ fn setup(num_facts: usize, advance: bool) -> Setup {
     // A submitter that bankrolls all the fact stakes.
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_base(&submitter, 1_000_000);
+    let submitter_base = ctx.fund_base(&submitter, 1_000_000);
 
     let mut facts = Vec::with_capacity(num_facts);
     for i in 0..num_facts {
@@ -64,7 +64,7 @@ fn setup(num_facts: usize, advance: bool) -> Setup {
             oracle,
             fact,
             submitter.pubkey(),
-            submitter_kass,
+            submitter_base,
             vault,
             submit_fact_payload(&content_hash, 100, b"ipfs://fact"),
         );
@@ -91,8 +91,8 @@ fn setup(num_facts: usize, advance: bool) -> Setup {
 fn fund_voter(ctx: &mut TestCtx, base: u64) -> (Keypair, Pubkey) {
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_base(&voter, base);
-    (voter, voter_kass)
+    let voter_base = ctx.fund_base(&voter, base);
+    (voter, voter_base)
 }
 
 // ----- tests ----------------------------------------------------------------
@@ -107,7 +107,7 @@ fn vote_fact_approve_tallies_and_moves_stake() {
     } = setup(1, true);
     let fact = facts[0];
 
-    let (voter, voter_kass) = fund_voter(&mut ctx, 1_000);
+    let (voter, voter_base) = fund_voter(&mut ctx, 1_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
 
     let vault_before = ctx.token_balance(vault);
@@ -120,7 +120,7 @@ fn vote_fact_approve_tallies_and_moves_stake() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, stake),
     );
@@ -151,7 +151,7 @@ fn vote_fact_duplicate_tallies_duplicate_stake() {
     } = setup(1, true);
     let fact = facts[0];
 
-    let (voter, voter_kass) = fund_voter(&mut ctx, 1_000);
+    let (voter, voter_base) = fund_voter(&mut ctx, 1_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
 
     let stake = 700u64;
@@ -161,7 +161,7 @@ fn vote_fact_duplicate_tallies_duplicate_stake() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_DUPLICATE, stake),
     );
@@ -186,7 +186,7 @@ fn vote_fact_double_vote_same_fact_fails() {
     } = setup(1, true);
     let fact = facts[0];
 
-    let (voter, voter_kass) = fund_voter(&mut ctx, 1_000);
+    let (voter, voter_base) = fund_voter(&mut ctx, 1_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
 
     let ix1 = vote_fact_ix(
@@ -195,7 +195,7 @@ fn vote_fact_double_vote_same_fact_fails() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, 100),
     );
@@ -207,7 +207,7 @@ fn vote_fact_double_vote_same_fact_fails() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, 100),
     );
@@ -233,7 +233,7 @@ fn vote_fact_non_exclusive_across_facts() {
     let fact_b = facts[1];
 
     // One voter, votes the full stake on BOTH facts.
-    let (voter, voter_kass) = fund_voter(&mut ctx, 10_000);
+    let (voter, voter_base) = fund_voter(&mut ctx, 10_000);
     let stake = 400u64;
 
     for fact in [fact_a, fact_b] {
@@ -244,7 +244,7 @@ fn vote_fact_non_exclusive_across_facts() {
             fact,
             fact_vote,
             voter.pubkey(),
-            voter_kass,
+            voter_base,
             vault,
             vote_payload(VOTE_APPROVE, stake),
         );
@@ -267,7 +267,7 @@ fn vote_fact_wrong_phase_fails() {
     } = setup(1, false);
     let fact = facts[0];
 
-    let (voter, voter_kass) = fund_voter(&mut ctx, 1_000);
+    let (voter, voter_base) = fund_voter(&mut ctx, 1_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
 
     let ix = vote_fact_ix(
@@ -276,7 +276,7 @@ fn vote_fact_wrong_phase_fails() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, 100),
     );
@@ -306,7 +306,7 @@ fn vote_fact_zero_stake_ok_when_floor_zero() {
         "genesis oracle floor must be 0"
     );
 
-    let (voter, voter_kass) = fund_voter(&mut ctx, 1_000);
+    let (voter, voter_base) = fund_voter(&mut ctx, 1_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
 
     let ix = vote_fact_ix(
@@ -315,7 +315,7 @@ fn vote_fact_zero_stake_ok_when_floor_zero() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, 0),
     );
@@ -337,7 +337,7 @@ fn vote_fact_below_floor_fails() {
     let fact = facts[0];
     ctx.set_oracle_min_stake(oracle, 1_000);
 
-    let (voter, voter_kass) = fund_voter(&mut ctx, 1_000);
+    let (voter, voter_base) = fund_voter(&mut ctx, 1_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
 
     let ix = vote_fact_ix(
@@ -346,7 +346,7 @@ fn vote_fact_below_floor_fails() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, 999),
     );

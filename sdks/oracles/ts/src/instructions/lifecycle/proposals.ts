@@ -12,7 +12,7 @@ import { addr, ro, w } from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // Propose (Ix=11) — processor/propose.rs
-// Accounts: 0 oracle(w) 1 proposer(w,PDA) 2 authority(w,signer) 3 authority_kass(w)
+// Accounts: 0 oracle(w) 1 proposer(w,PDA) 2 authority(w,signer) 3 authority_base(w)
 //           4 stake_vault(w,PDA) 5 token program(ro) 6 system program(ro).
 // Payload (9): option u8 ++ bond u64.
 // ---------------------------------------------------------------------------

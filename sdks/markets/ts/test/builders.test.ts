@@ -177,7 +177,7 @@ describe("contribute (Ix 3)", () => {
     const ix = await contribute({
       contributor: CONTRIBUTOR,
       market: market.address,
-      contributorKassAta: CONTRIB_ATA,
+      contributorBaseAta: CONTRIB_ATA,
       amount: 777n,
     });
     expect(ix.data[0]).toBe(Ix.Contribute);
@@ -213,7 +213,7 @@ describe("cancel (Ix 4)", () => {
 describe("refund (Ix 5)", () => {
   it("empty payload, accounts [market(w), escrow(w), contribution(w), ata(w), contributor(w), token(ro)]", async () => {
     const market = await pda.market(ORACLE, 0);
-    const ix = await refund({ market: market.address, contributor: CONTRIBUTOR, contributorKassAta: CONTRIB_ATA });
+    const ix = await refund({ market: market.address, contributor: CONTRIBUTOR, contributorBaseAta: CONTRIB_ATA });
     expect(ix.data).toEqual(new Uint8Array([Ix.Refund]));
     const escrow = await pda.escrow(market.address);
     const contribution = await pda.contribution(market.address, CONTRIBUTOR);

@@ -18,5 +18,7 @@ is not needed for dispute security.
   layout (pinned) but is always 0 at create. `init_protocol` defaults
   `emission_num = 0` / `total_supply_cap = 0`.
 - Field rename: `kass_mint` → `base_mint`, `KassPrice` → `SpotPrice` (SOL/USDC
-  TWAP). Product names (`kassandra`, `kass_oracle`, program IDs) are unchanged.
+  TWAP). Token-account args follow (`oraclePassBase`, `challengerBase`,
+  `contributorBaseAta`, `ensureBaseAta`). Product names (`kassandra`,
+  `kass_oracle`, program IDs) are unchanged.
 - Historical `docs/plans/` still mention KASS; do not rewrite those.

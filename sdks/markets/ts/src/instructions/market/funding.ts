@@ -81,7 +81,7 @@ export interface ContributeArgs {
   /** The market being contributed to. */
   market: AddressInput;
   /** Contributor's SOL token account the stake transfers from. */
-  contributorKassAta: AddressInput;
+  contributorBaseAta: AddressInput;
   /** SOL to stake (raw base units). */
   amount: bigint | number;
   programId?: Address;
@@ -97,7 +97,7 @@ export async function contribute(args: ContributeArgs): Promise<TransactionInstr
       w(addr(args.market)),
       w(escrow.address),
       w(addr(args.contributor), true),
-      w(addr(args.contributorKassAta)),
+      w(addr(args.contributorBaseAta)),
       w(contribution.address),
       ro(TOKEN_PROGRAM_ID),
       ro(SYSTEM_PROGRAM_ID),
@@ -145,7 +145,7 @@ export interface RefundArgs {
    */
   contributor: AddressInput;
   /** Contributor's SOL token account the stake refunds to. */
-  contributorKassAta: AddressInput;
+  contributorBaseAta: AddressInput;
   programId?: Address;
 }
 
@@ -159,7 +159,7 @@ export async function refund(args: RefundArgs): Promise<TransactionInstruction> 
       w(addr(args.market)),
       w(escrow.address),
       w(contribution.address),
-      w(addr(args.contributorKassAta)),
+      w(addr(args.contributorBaseAta)),
       w(addr(args.contributor)),
       ro(TOKEN_PROGRAM_ID),
     ],

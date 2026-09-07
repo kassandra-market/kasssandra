@@ -325,8 +325,8 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
     expect(m.usdcVault.toString()).toBe(key32Addr(66));
     expect(m.passAmm.toString()).toBe(key32Addr(67));
     expect(m.failAmm.toString()).toBe(key32Addr(68));
-    expect(m.oraclePassKass.toString()).toBe(key32Addr(69));
-    expect(m.oracleFailKass.toString()).toBe(key32Addr(70));
+    expect(m.oraclePassBase.toString()).toBe(key32Addr(69));
+    expect(m.oracleFailBase.toString()).toBe(key32Addr(70));
     expect(m.challengerUsdcVault.toString()).toBe(key32Addr(71));
     expect(m.twapEnd).toBe(1_900_000_000n);
     expect(m.challengerUsdc).toBe(8_888n);

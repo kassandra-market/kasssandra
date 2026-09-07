@@ -237,7 +237,7 @@ pub(crate) struct SettleExtras {
     pub(crate) escrow_vault: Pubkey,
     pub(crate) proposer_usdc: Pubkey,
     pub(crate) challenger_usdc_dest: Pubkey,
-    pub(crate) challenger_kass: Pubkey,
+    pub(crate) challenger_base: Pubkey,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -280,7 +280,7 @@ pub(crate) fn settle_ix(
             AccountMeta::new(x.escrow_vault, false),
             AccountMeta::new(x.proposer_usdc, false),
             AccountMeta::new(x.challenger_usdc_dest, false),
-            AccountMeta::new(x.challenger_kass, false),
+            AccountMeta::new(x.challenger_base, false),
         ],
         data,
     }
@@ -304,7 +304,7 @@ pub(crate) struct Payouts {
     pub(crate) escrow_vault: Pubkey,
     pub(crate) proposer_usdc: Pubkey,
     pub(crate) challenger_usdc_dest: Pubkey,
-    pub(crate) challenger_kass: Pubkey,
+    pub(crate) challenger_base: Pubkey,
 }
 
 pub(crate) fn fabricate_payouts(
@@ -317,15 +317,15 @@ pub(crate) fn fabricate_payouts(
     let base = ctx.base_mint;
     let proposer_usdc = Pubkey::new_unique();
     let challenger_usdc_dest = Pubkey::new_unique();
-    let challenger_kass = Pubkey::new_unique();
+    let challenger_base = Pubkey::new_unique();
     fabricate_token_account(ctx, proposer_usdc, usdc, proposer_authority, 0);
     fabricate_token_account(ctx, challenger_usdc_dest, usdc, challenger, 0);
-    fabricate_token_account(ctx, challenger_kass, base, challenger, 0);
+    fabricate_token_account(ctx, challenger_base, base, challenger, 0);
     let (escrow_vault, _) = TestCtx::challenge_usdc_vault_pda(&ctx.program_id, &market);
     Payouts {
         escrow_vault,
         proposer_usdc,
         challenger_usdc_dest,
-        challenger_kass,
+        challenger_base,
     }
 }

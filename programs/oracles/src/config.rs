@@ -199,13 +199,13 @@ const _: () = assert!(FEE_EMA_SCALE > 0);
 /// adjustment is folded into the price itself, so the conversion is simply:
 ///
 /// ```text
-/// required_usdc (USDC base units) = bond_kass (SOL base units) × twap / SPOT_PRICE_SCALE
+/// required_usdc (USDC base units) = bond_base (SOL base units) × twap / SPOT_PRICE_SCALE
 /// ```
 ///
 /// computed in `u128` and checked back into `u64`. Worked example: SOL at
 /// $0.50 → twap `500_000_000`; a 1 SOL bond (`1e9` base units) escrows
 /// `1e9 × 5e8 / 1e12 = 500_000` USDC base units = $0.50. Sound dimensionally:
-/// `[KASS_raw] × [USDC_raw / KASS_raw] = [USDC_raw]`.
+/// `[SOL_raw] × [USDC_raw / SOL_raw] = [USDC_raw]`.
 pub const SPOT_PRICE_SCALE: u128 = 1_000_000_000_000;
 
 /// USDC fee charged on a FAILED challenge (the claim survives), paid out of the

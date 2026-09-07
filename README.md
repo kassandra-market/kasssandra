@@ -53,7 +53,7 @@ There is a **single app** (both `/oracles` and `/markets`) and a **single indexe
 
 | Path | What it is |
 | --- | --- |
-| [`programs/oracles/`](./programs/oracles) | The oracle Solana program, written in **Pinocchio** (not Anchor). Owns oracle state, phases, facts, AI claims, plurality, staking, emissions, and the dynamic fee. Program ID `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY`. |
+| [`programs/oracles/`](./programs/oracles) | The oracle Solana program, written in **Pinocchio** (not Anchor). Owns oracle state, phases, facts, AI claims, plurality, staking, and the dynamic fee. Program ID `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY`. |
 | [`programs/markets/`](./programs/markets) | The **prediction-market** program — a Pinocchio wrapper over MetaDAO v0.4 vault + amm, resolved by the oracle. |
 | [`runner/`](./runner) | The open-source AI runner (`kassandra-runner`). Applies the fixed interpretation to the agreed facts and produces a categorical answer plus verifiable metadata. |
 | [`sdks/oracles/ts/`](./sdks/oracles/ts) · [`sdks/markets/ts/`](./sdks/markets/ts) | Hand-written TypeScript clients (`@kassandra-market/oracles`, `@kassandra-market/markets`) — instruction builders, account decoders, PDA helpers. No IDL; layouts mirror the programs. |
@@ -137,7 +137,7 @@ See each package's README for details:
   by hand (8-byte sighash discriminators + account metas + Borsh args). The trade-off: more
   manual serialization in exchange for a smaller, cheaper, dependency-light program.
 - **On-chain:** request config, all stakes/bonds (SOL) and market collateral (USDC), the
-  fact set & approvals, AI-claim metadata, plurality result, market triggers, emissions,
+  fact set & approvals, AI-claim metadata, plurality result, market triggers,
   and dynamic-fee state.
 - **Off-chain:** model inference, private to each runner. No raw AI output on-chain — only
   the categorical claim and verifiable metadata.
@@ -155,6 +155,6 @@ See each package's README for details:
 ## Status
 
 Kassandra is under active development. The program, SDK, runner, and dApp are implemented
-and covered by LiteSVM and end-to-end (surfpool) tests; economic parameters (emission
-curve, fee-EMA constants, reward splits) are still being tuned. See `docs/plans/` for the
+and covered by LiteSVM and end-to-end (surfpool) tests; economic parameters (fee-EMA
+constants, reward splits) are still being tuned. See `docs/plans/` for the
 implementation history and open items.

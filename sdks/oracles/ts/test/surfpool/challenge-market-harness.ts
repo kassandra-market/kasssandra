@@ -173,15 +173,15 @@ export interface MarketComposition {
   question: Address;
   base: VaultAccounts;
   usdc: VaultAccounts;
-  oraclePassKass: Address;
-  oracleFailKass: Address;
+  oraclePassBase: Address;
+  oracleFailBase: Address;
 }
 
 export interface Payouts {
   escrowVault: Address;
   proposerUsdc: Address;
   challengerUsdcDest: Address;
-  challengerKass: Address;
+  challengerBase: Address;
 }
 
 // ---------------------------------------------------------------------------

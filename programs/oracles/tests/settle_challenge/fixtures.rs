@@ -103,7 +103,7 @@ pub(crate) struct SettleExtras {
     escrow_vault: Pubkey,
     proposer_usdc: Pubkey,
     challenger_usdc_dest: Pubkey,
-    challenger_kass: Pubkey,
+    challenger_base: Pubkey,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -146,7 +146,7 @@ pub(crate) fn settle_ix(
             AccountMeta::new(x.escrow_vault, false),
             AccountMeta::new(x.proposer_usdc, false),
             AccountMeta::new(x.challenger_usdc_dest, false),
-            AccountMeta::new(x.challenger_kass, false),
+            AccountMeta::new(x.challenger_base, false),
         ],
         data,
     }
@@ -176,7 +176,7 @@ pub(crate) fn question_resolution(ctx: &TestCtx, question: Pubkey) -> (u32, u32,
 /// decremented by the split — the SOL is still in-system, just escrowed). The
 /// challenge split is the ONLY path where SOL physically leaves `stake_vault`,
 /// so this asserts nothing was created or destroyed there.
-pub(crate) fn assert_kass_conserved(ctx: &TestCtx, oracle: Pubkey, base_vault_underlying: Pubkey) {
+pub(crate) fn assert_base_conserved(ctx: &TestCtx, oracle: Pubkey, base_vault_underlying: Pubkey) {
     let stake_vault = ctx.seeded(oracle).stake_vault;
     let total = ctx.oracle(oracle).total_oracle_stake;
     assert_eq!(
@@ -211,7 +211,7 @@ pub(crate) struct Fixture {
     pub(crate) escrow_vault: Pubkey,
     pub(crate) proposer_usdc: Pubkey,
     pub(crate) challenger_usdc_dest: Pubkey,
-    pub(crate) challenger_kass: Pubkey,
+    pub(crate) challenger_base: Pubkey,
 }
 
 impl Fixture {
@@ -227,7 +227,7 @@ impl Fixture {
             escrow_vault: self.escrow_vault,
             proposer_usdc: self.proposer_usdc,
             challenger_usdc_dest: self.challenger_usdc_dest,
-            challenger_kass: self.challenger_kass,
+            challenger_base: self.challenger_base,
         }
     }
 }
@@ -345,10 +345,10 @@ pub(crate) fn fixture_with_attack(
     let challenger_pk = challenger.pubkey();
     let proposer_usdc = Pubkey::new_unique();
     let challenger_usdc_dest = Pubkey::new_unique();
-    let challenger_kass = Pubkey::new_unique();
+    let challenger_base = Pubkey::new_unique();
     fabricate_token_account(&mut ctx, proposer_usdc, usdc_mint, proposer_authority, 0);
     fabricate_token_account(&mut ctx, challenger_usdc_dest, usdc_mint, challenger_pk, 0);
-    fabricate_token_account(&mut ctx, challenger_kass, base_mint, challenger_pk, 0);
+    fabricate_token_account(&mut ctx, challenger_base, base_mint, challenger_pk, 0);
     let (escrow_vault, _) = TestCtx::challenge_usdc_vault_pda(&ctx.program_id, &market);
 
     (
@@ -369,7 +369,7 @@ pub(crate) fn fixture_with_attack(
             escrow_vault,
             proposer_usdc,
             challenger_usdc_dest,
-            challenger_kass,
+            challenger_base,
         },
     )
 }

@@ -35,8 +35,8 @@ export interface ComposedMarket {
   failUsdcMint: Address;
   passAmm: Address;
   failAmm: Address;
-  oraclePassKass: Address;
-  oracleFailKass: Address;
+  oraclePassBase: Address;
+  oracleFailBase: Address;
   /** The challenger's USDC source account funding the escrow (its USDC ATA). */
   challengerUsdcSrc: Address;
 }

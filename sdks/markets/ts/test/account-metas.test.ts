@@ -145,7 +145,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
     const ix = await contribute({
       contributor: CONTRIBUTOR,
       market: market.address,
-      contributorKassAta: CONTRIB_ATA,
+      contributorBaseAta: CONTRIB_ATA,
       amount: 777n,
     });
     const escrow = await pda.escrow(market.address);
@@ -155,7 +155,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
         [market.address, "market"],
         [escrow.address, "escrow"],
         [CONTRIBUTOR, "contributor"],
-        [CONTRIB_ATA, "contributorKassAta"],
+        [CONTRIB_ATA, "contributorBaseAta"],
         [contribution.address, "contribution"],
         ...PROGRAMS,
       ]),
@@ -163,7 +163,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
       ["market", false, true],
       ["escrow", false, true],
       ["contributor", true, true],
-      ["contributorKassAta", false, true],
+      ["contributorBaseAta", false, true],
       ["contribution", false, true],
       ["tokenProgram", false, false],
       ["systemProgram", false, false],
@@ -189,7 +189,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
     const ix = await refund({
       market: market.address,
       contributor: CONTRIBUTOR,
-      contributorKassAta: CONTRIB_ATA,
+      contributorBaseAta: CONTRIB_ATA,
     });
     const escrow = await pda.escrow(market.address);
     const contribution = await pda.contribution(market.address, CONTRIBUTOR);
@@ -198,7 +198,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
         [market.address, "market"],
         [escrow.address, "escrow"],
         [contribution.address, "contribution"],
-        [CONTRIB_ATA, "contributorKassAta"],
+        [CONTRIB_ATA, "contributorBaseAta"],
         [CONTRIBUTOR, "contributor"],
         ...PROGRAMS,
       ]),
@@ -206,7 +206,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
       ["market", false, true],
       ["escrow", false, true],
       ["contribution", false, true],
-      ["contributorKassAta", false, true],
+      ["contributorBaseAta", false, true],
       ["contributor", false, true],
       ["tokenProgram", false, false],
     ]);

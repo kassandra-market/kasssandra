@@ -146,9 +146,9 @@ describe.skipIf(!ENABLED)(
       expect(m.feeBps).toBe(FEE_BPS);
       const escrow = m.escrowVault;
 
-      const c2Kass = await h.fundTokenAccount(base, c2.publicKey, 5_000_000_000n);
+      const c2Base = await h.fundTokenAccount(base, c2.publicKey, 5_000_000_000n);
       await h.sendIx(c2, [
-        await contribute({ contributor: c2.publicKey, market, contributorKassAta: c2Kass, amount: SEED_B }),
+        await contribute({ contributor: c2.publicKey, market, contributorBaseAta: c2Base, amount: SEED_B }),
       ]);
       m = decodeMarket(await h.getAccountData(market).then((d) => d!));
       expect(m.totalContributed).toBe(MIN_LIQ);

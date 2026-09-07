@@ -123,9 +123,9 @@ fn mint_mismatch_vs_protocol_fails() {
     let deadline = ctx.now() + 1_000;
 
     // A bogus SOL mint not equal to the protocol's canonical mint.
-    let fake_kass = Pubkey::new_unique();
+    let fake_base = Pubkey::new_unique();
     let (oracle_pda, _) = TestCtx::oracle_pda(&ctx.program_id, 1);
-    let ix = ctx.create_oracle_ix(1, 2, deadline, 600, oracle_pda, fake_kass, ctx.usdc_mint);
+    let ix = ctx.create_oracle_ix(1, 2, deadline, 600, oracle_pda, fake_base, ctx.usdc_mint);
     let res = ctx.send(ix, &[]);
     assert_eq!(
         custom_code(&res),

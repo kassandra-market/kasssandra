@@ -98,14 +98,14 @@ impl TestCtx {
         self.svm
             .airdrop(&authority.pubkey(), 1_000_000_000)
             .unwrap();
-        let authority_kass = self.fund_base(authority, bond.max(1));
+        let authority_base = self.fund_base(authority, bond.max(1));
         let (proposer_pda, _) = Self::proposer_pda(&self.program_id, &oracle, &authority.pubkey());
         let (vault, _) = Self::stake_vault_pda(&self.program_id, &oracle);
         let ix = self.propose_ix(
             oracle,
             proposer_pda,
             authority.pubkey(),
-            authority_kass,
+            authority_base,
             vault,
             option,
             bond,
@@ -123,7 +123,7 @@ impl TestCtx {
         oracle: Pubkey,
         proposer: Pubkey,
         authority: Pubkey,
-        authority_kass: Pubkey,
+        authority_base: Pubkey,
         vault: Pubkey,
         option: u8,
         bond: u64,
@@ -133,7 +133,7 @@ impl TestCtx {
             oracle,
             proposer,
             authority,
-            authority_kass,
+            authority_base,
             vault,
             option,
             bond,

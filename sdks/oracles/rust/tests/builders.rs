@@ -196,7 +196,7 @@ fn mega_instruction_account_counts() {
         challenger_usdc_vault: pk(17),
         proposer_usdc: pk(18),
         challenger_usdc_dest: pk(19),
-        challenger_kass: pk(20),
+        challenger_base: pk(20),
     };
     let ix = ix::settle_challenge(&PROGRAM_ID, &sc, 7);
     assert_eq!(ix.accounts.len(), 21);

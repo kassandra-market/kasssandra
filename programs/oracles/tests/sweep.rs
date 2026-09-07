@@ -70,7 +70,7 @@ impl Sweepable {
             let (p, _) = TestCtx::protocol_pda(&ctx.program_id);
             p
         };
-        let treasury = ctx.seed_kass_treasury(dao_authority);
+        let treasury = ctx.seed_base_treasury(dao_authority);
 
         if warp {
             ctx.warp(SWEEP_GRACE + 1);
@@ -180,7 +180,7 @@ fn sweep_wrong_treasury_fails() {
     let f = Sweepable::build(&mut ctx, &[], 7, true, true);
 
     // A SOL ATA of a DIFFERENT owner — not ATA(dao_authority, base_mint).
-    let wrong = ctx.seed_kass_treasury(Pubkey::new_unique());
+    let wrong = ctx.seed_base_treasury(Pubkey::new_unique());
     let ix = ctx.sweep_oracle_ix(
         f.seed.oracle,
         f.seed.nonce,

@@ -177,9 +177,9 @@ export async function composeMarket(f: Fixture, oracle: Address): Promise<Market
   const { question } = await composeQuestion(f, oracle, questionId, 2);
   const base = await composeVault(f, question, f.baseMint.publicKey);
   const usdc = await composeVault(f, question, f.usdcMint.publicKey);
-  const oraclePassKass = await fabricateTokenAccountMint(f, base.passMint, oracle, 0n);
-  const oracleFailKass = await fabricateTokenAccountMint(f, base.failMint, oracle, 0n);
-  return { question, base, usdc, oraclePassKass, oracleFailKass };
+  const oraclePassBase = await fabricateTokenAccountMint(f, base.passMint, oracle, 0n);
+  const oracleFailBase = await fabricateTokenAccountMint(f, base.failMint, oracle, 0n);
+  return { question, base, usdc, oraclePassBase, oracleFailBase };
 }
 
 /** Send the Kassandra `open_challenge` (program-signed `split_tokens` CPI →
@@ -211,8 +211,8 @@ export async function openChallengeReal(
       baseVaultUnderlying: m.base.underlying,
       passBaseMint: m.base.passMint,
       failBaseMint: m.base.failMint,
-      oraclePassKass: m.oraclePassKass,
-      oracleFailKass: m.oracleFailKass,
+      oraclePassBase: m.oraclePassBase,
+      oracleFailBase: m.oracleFailBase,
       cvEventAuthority,
       spotDao: f.spotDao,
       usdcMint: f.usdcMint.publicKey,
@@ -239,7 +239,7 @@ export async function settleChallengeReal(
 ): Promise<Payouts> {
   const proposerUsdc = await fabricateTokenAccountMint(f, f.usdcMint.publicKey, c.proposerAuthority, 0n);
   const challengerUsdcDest = await fabricateTokenAccountMint(f, f.usdcMint.publicKey, challenger.publicKey, 0n);
-  const challengerKass = await fabricateTokenAccountMint(f, f.baseMint.publicKey, challenger.publicKey, 0n);
+  const challengerBase = await fabricateTokenAccountMint(f, f.baseMint.publicKey, challenger.publicKey, 0n);
   const escrowVault = (await pda.challengeUsdcVault(market)).address;
   const cvEventAuthority = (await Address.findProgramAddress([enc.encode("__event_authority")], VLTX))[0];
 
@@ -261,16 +261,16 @@ export async function settleChallengeReal(
       baseVaultUnderlying: m.base.underlying,
       passBaseMint: m.base.passMint,
       failBaseMint: m.base.failMint,
-      oraclePassKass: m.oraclePassKass,
-      oracleFailKass: m.oracleFailKass,
+      oraclePassBase: m.oraclePassBase,
+      oracleFailBase: m.oracleFailBase,
       proposerUsdc,
       challengerUsdcDest,
-      challengerKass,
+      challengerBase,
     }),
     [],
     1_400_000,
   );
-  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerKass };
+  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerBase };
 }
 
 /** `create_amm` + `add_liquidity` for one (base, quote) conditional pair. Funds

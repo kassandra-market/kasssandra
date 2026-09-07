@@ -206,7 +206,7 @@ fn create_market_rejects_resolved_oracle() {
 
 #[test]
 fn create_market_rejects_wrong_mint() {
-    let (mut ctx, _kass, _auth) = setup();
+    let (mut ctx, _base, _auth) = setup();
     let other_mint = ctx.create_mint(9);
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();

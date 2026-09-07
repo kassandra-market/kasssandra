@@ -122,9 +122,9 @@ export interface BuildOpenChallengeArgs {
   /** Conditional-SOL mint idx 1 of base_vault (fail). */
   failBaseMint: AddressInput;
   /** Oracle-PDA-owned pass-SOL holder token account. */
-  oraclePassKass: AddressInput;
+  oraclePassBase: AddressInput;
   /** Oracle-PDA-owned fail-SOL holder token account. */
-  oracleFailKass: AddressInput;
+  oracleFailBase: AddressInput;
   /** Conditional-vault `#[event_cpi]` event authority PDA. */
   cvEventAuthority: AddressInput;
   /** The futarchy `Dao` (`== protocol.spot_dao`), spot_price source. */
@@ -152,8 +152,8 @@ export async function buildOpenChallengeIxs(
     baseVaultUnderlying: addr("baseVaultUnderlying", args.baseVaultUnderlying),
     passBaseMint: addr("passBaseMint", args.passBaseMint),
     failBaseMint: addr("failBaseMint", args.failBaseMint),
-    oraclePassKass: addr("oraclePassKass", args.oraclePassKass),
-    oracleFailKass: addr("oracleFailKass", args.oracleFailKass),
+    oraclePassBase: addr("oraclePassBase", args.oraclePassBase),
+    oracleFailBase: addr("oracleFailBase", args.oracleFailBase),
     cvEventAuthority: addr("cvEventAuthority", args.cvEventAuthority),
     spotDao: addr("spotDao", args.spotDao),
     usdcMint: addr("usdcMint", args.usdcMint),
@@ -193,15 +193,15 @@ export interface BuildSettleChallengeArgs {
   /** Conditional-SOL mint idx 1 of base_vault (fail). */
   failBaseMint: AddressInput;
   /** Oracle-PDA-owned pass-SOL holder (`== market.oracle_pass_base`). */
-  oraclePassKass: AddressInput;
+  oraclePassBase: AddressInput;
   /** Oracle-PDA-owned fail-SOL holder (`== market.oracle_fail_base`). */
-  oracleFailKass: AddressInput;
+  oracleFailBase: AddressInput;
   /** Proposer's USDC payout account (owner == proposer.authority). */
   proposerUsdc: AddressInput;
   /** Challenger's USDC payout account (owner == market.challenger). */
   challengerUsdcDest: AddressInput;
   /** Challenger's SOL payout account (owner == market.challenger). */
-  challengerKass: AddressInput;
+  challengerBase: AddressInput;
   programId?: Address;
 }
 
@@ -221,11 +221,11 @@ export async function buildSettleChallengeIxs(
     baseVaultUnderlying: addr("baseVaultUnderlying", args.baseVaultUnderlying),
     passBaseMint: addr("passBaseMint", args.passBaseMint),
     failBaseMint: addr("failBaseMint", args.failBaseMint),
-    oraclePassKass: addr("oraclePassKass", args.oraclePassKass),
-    oracleFailKass: addr("oracleFailKass", args.oracleFailKass),
+    oraclePassBase: addr("oraclePassBase", args.oraclePassBase),
+    oracleFailBase: addr("oracleFailBase", args.oracleFailBase),
     proposerUsdc: addr("proposerUsdc", args.proposerUsdc),
     challengerUsdcDest: addr("challengerUsdcDest", args.challengerUsdcDest),
-    challengerKass: addr("challengerKass", args.challengerKass),
+    challengerBase: addr("challengerBase", args.challengerBase),
     programId: args.programId,
   });
   return [ix];

@@ -50,7 +50,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
     // submit_fact (FactProposal window open).
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_base(&submitter, 1_000_000);
+    let submitter_base = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     ctx.send(
@@ -59,7 +59,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
             oracle,
             fact,
             submitter.pubkey(),
-            submitter_kass,
+            submitter_base,
             vault,
             submit_fact_payload(&content_hash, 300, b"ipfs://fact"),
         ),
@@ -75,7 +75,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
     // approve well past the 2/3 quorum of dispute_bond_total (== 2*bond == 2000).
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_base(&voter, 2_000);
+    let voter_base = ctx.fund_base(&voter, 2_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     ctx.send(
         vote_fact_ix(
@@ -84,7 +84,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
             fact,
             fact_vote,
             voter.pubkey(),
-            voter_kass,
+            voter_base,
             vault,
             vote_payload(VOTE_APPROVE, 2_000),
         ),

@@ -330,12 +330,12 @@ pub fn process(
     // this ix reduces by exactly `fee_lp`). Mirrors `activate`'s drain-to-empty
     // residual convention. `redeem_tokens` likewise burns the FULL cyes/cno holder
     // balances, which are `remove_liquidity`'s proceeds plus any donated dust there.
-    let fee_kass = {
+    let fee_base = {
         let d = escrow_ai.try_borrow()?;
         metadao::read_u64(&d, SPL_TOKEN_AMOUNT_OFFSET)?
     };
-    if fee_kass > 0 {
-        Transfer::new(escrow_ai, fee_dest_ai, market_ai, fee_kass)
+    if fee_base > 0 {
+        Transfer::new(escrow_ai, fee_dest_ai, market_ai, fee_base)
             .invoke_signed(&[Signer::from(&market_seeds)])?;
     }
 

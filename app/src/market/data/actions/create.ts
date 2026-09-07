@@ -13,7 +13,7 @@ import { TransactionInstruction } from "@solana/web3.js";
 import { createMarket } from "@kassandra-market/markets";
 import type { IndexerReads } from "../../lib/indexer";
 import { ValidationError } from "../writeAction";
-import { ensureKassAta, toAddress, type AddressInput } from "./ata";
+import { ensureBaseAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildCreateMarketArgs {
   indexer: IndexerReads;
@@ -53,7 +53,7 @@ export async function buildCreateMarketIxs(
     throw new ValidationError("Outcome index must be a non-negative whole number.");
   }
 
-  const { ata, createIx } = await ensureKassAta(args.indexer, creator, baseMint);
+  const { ata, createIx } = await ensureBaseAta(args.indexer, creator, baseMint);
 
   const ix = await createMarket({
     creator,

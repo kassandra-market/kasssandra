@@ -11,7 +11,7 @@
  *
  *   - the E2E's `fabricateTokenAccountMint(passKass, oracle, 0)` (an oracle-owned
  *     holder) → an idempotent ATA-create of the ORACLE PDA's conditional-SOL
- *     ATA (`oraclePassKass = ATA(oracle, passBaseMint)`);
+ *     ATA (`oraclePassBase = ATA(oracle, passBaseMint)`);
  *   - the E2E's `setTokenAccountAt(userBase, …, reserve*4)` (a fabricated
  *     conditional-token balance to seed the pools) → the challenger funds its OWN
  *     SOL/USDC, then `split_tokens` mints EQUAL pass+fail conditional tokens
@@ -136,17 +136,17 @@ export async function buildComposeAndOpenChallengeIxs(
   // Oracle-PDA-owned pass/fail conditional-SOL holder ATAs (the split_tokens
   // destinations open_challenge mints into). PRODUCTION equivalent of the E2E's
   // `fabricateTokenAccountMint(passKass, oracle, 0)`.
-  const [oraclePassKass, oracleFailKass] = await Promise.all([
+  const [oraclePassBase, oracleFailBase] = await Promise.all([
     associatedTokenAccount(oracle, passBaseMint).then((p) => p.address),
     associatedTokenAccount(oracle, failBaseMint).then((p) => p.address),
   ]);
 
   // The challenger's own token accounts.
   const [
-    challengerKass,
+    challengerBase,
     challengerUsdcSrc,
-    challengerPassKass,
-    challengerFailKass,
+    challengerPassBase,
+    challengerFailBase,
     challengerPassUsdc,
     challengerFailUsdc,
   ] = await Promise.all([
@@ -171,8 +171,8 @@ export async function buildComposeAndOpenChallengeIxs(
     failUsdcMint,
     passAmm,
     failAmm,
-    oraclePassKass,
-    oracleFailKass,
+    oraclePassBase,
+    oracleFailBase,
     challengerUsdcSrc,
   };
 
@@ -203,11 +203,11 @@ export async function buildComposeAndOpenChallengeIxs(
   // challenger's SOL/USDC into pass/fail conditional tokens to seed the pools. ──
   const fundSplitIxs: TransactionInstruction[] = [];
   // Oracle-owned pass/fail SOL holders (idempotent; the split_tokens targets).
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, oraclePassKass, oracle, passBaseMint));
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, oracleFailKass, oracle, failBaseMint));
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, oraclePassBase, oracle, passBaseMint));
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, oracleFailBase, oracle, failBaseMint));
   // The challenger's conditional-token ATAs (split destinations + add_liquidity sources).
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerPassKass, challenger, passBaseMint));
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerFailKass, challenger, failBaseMint));
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerPassBase, challenger, passBaseMint));
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerFailBase, challenger, failBaseMint));
   fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerPassUsdc, challenger, passUsdcMint));
   fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerFailUsdc, challenger, failUsdcMint));
 
@@ -218,9 +218,9 @@ export async function buildComposeAndOpenChallengeIxs(
       vault: baseVault,
       vaultUnderlying: baseVaultUnderlying,
       authority: challenger,
-      userUnderlying: challengerKass,
+      userUnderlying: challengerBase,
       conditionalMints: [passBaseMint, failBaseMint],
-      userConditionalAccounts: [challengerPassKass, challengerFailKass],
+      userConditionalAccounts: [challengerPassBase, challengerFailBase],
       amount: baseReserve,
     }),
   );
@@ -306,8 +306,8 @@ export async function buildComposeAndOpenChallengeIxs(
     baseVaultUnderlying,
     passBaseMint,
     failBaseMint,
-    oraclePassKass,
-    oracleFailKass,
+    oraclePassBase,
+    oracleFailBase,
     cvEventAuthority,
     spotDao: args.spotDao,
     usdcMint,

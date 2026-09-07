@@ -10,7 +10,7 @@
 import { SOL_DECIMALS } from "../lib/marketView";
 
 /** 10^SOL_DECIMALS — the base-unit scale for one whole SOL. */
-const KASS_SCALE = 10n ** BigInt(SOL_DECIMALS);
+const SOL_SCALE = 10n ** BigInt(SOL_DECIMALS);
 
 /**
  * Parse a human SOL amount (`"1.5"`, `"1000"`, `".25"`) into raw base units.
@@ -31,7 +31,7 @@ export function parseSolAmount(raw: string): { value?: bigint; error?: string } 
   if (frac.length > SOL_DECIMALS) {
     return { error: `SOL supports at most ${SOL_DECIMALS} decimal places.` };
   }
-  const value = BigInt(whole) * KASS_SCALE + BigInt(frac.padEnd(SOL_DECIMALS, "0") || "0");
+  const value = BigInt(whole) * SOL_SCALE + BigInt(frac.padEnd(SOL_DECIMALS, "0") || "0");
   if (value <= 0n) return { error: "Amount must be greater than zero." };
   return { value };
 }

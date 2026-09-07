@@ -100,7 +100,7 @@ fn e2e_fraud_full_lifecycle_swap_driven_disqualifies() {
         escrow_vault: payouts.escrow_vault,
         proposer_usdc: payouts.proposer_usdc,
         challenger_usdc_dest: payouts.challenger_usdc_dest,
-        challenger_kass: payouts.challenger_kass,
+        challenger_base: payouts.challenger_base,
     };
     let ix = settle_ix(
         &ctx, c.oracle, market, c.ai_claim, c.proposer, m.question, pass_amm, fail_amm, &extras,

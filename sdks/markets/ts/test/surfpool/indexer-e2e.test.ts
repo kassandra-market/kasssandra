@@ -77,7 +77,7 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
   let baseMint: string;
   let market: string;
   let oracle: string;
-  let walletKassAta: string;
+  let walletBaseAta: string;
 
   beforeAll(async () => {
     h = await MarketSurfpoolHarness.start({ port: SURF_PORT, fork: "mainnet" });
@@ -90,7 +90,7 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
     const base = await h.createMint(9, wallet.publicKey);
     baseMint = base.toString();
     const ata = await h.fundTokenAccount(base, wallet.publicKey, WALLET_KASS);
-    walletKassAta = ata.toString();
+    walletBaseAta = ata.toString();
     const feeDestination = await h.createTokenAccount(base, wallet.publicKey, 0n);
     await h.sendIx(wallet, [
       await initConfig({
@@ -234,7 +234,7 @@ describe.skipIf(!ENABLED)("indexer integration: index + relay against surfpool",
     const ix = await contribute({
       contributor: wallet.publicKey,
       market,
-      contributorKassAta: walletKassAta,
+      contributorBaseAta: walletBaseAta,
       amount: RELAY_CONTRIB,
     });
     const { body: bh } = await getJson<{ blockhash: string }>("/api/blockhash");

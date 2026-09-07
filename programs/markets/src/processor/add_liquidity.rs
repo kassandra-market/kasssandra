@@ -67,7 +67,7 @@ pub fn process(
         return Err(MarketError::ZeroAmount.into());
     }
 
-    let [market_ai, oracle_ai, depositor_ai, depositor_kass_ai, escrow_ai, question_ai, vault_ai, vault_underlying_ai, yes_mint_ai, no_mint_ai, market_cyes_ai, market_cno_ai, depositor_cyes_ai, depositor_cno_ai, amm_ai, lp_mint_ai, lp_vault_ai, amm_vault_base_ai, amm_vault_quote_ai, contribution_ai, cv_event_auth_ai, cv_prog_ai, amm_event_auth_ai, amm_prog_ai, token_prog_ai, system_prog_ai, ..] =
+    let [market_ai, oracle_ai, depositor_ai, depositor_base_ai, escrow_ai, question_ai, vault_ai, vault_underlying_ai, yes_mint_ai, no_mint_ai, market_cyes_ai, market_cno_ai, depositor_cyes_ai, depositor_cno_ai, amm_ai, lp_mint_ai, lp_vault_ai, amm_vault_base_ai, amm_vault_quote_ai, contribution_ai, cv_event_auth_ai, cv_prog_ai, amm_event_auth_ai, amm_prog_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -149,7 +149,7 @@ pub fn process(
     assert_key(depositor_cno_ai, &expect_dep_cno)?;
 
     // --- (1) depositor-signed SOL transfer into escrow ---------------------
-    Transfer::new(depositor_kass_ai, escrow_ai, depositor_ai, amount).invoke()?;
+    Transfer::new(depositor_base_ai, escrow_ai, depositor_ai, amount).invoke()?;
 
     // --- market-PDA signer seeds (shared by every program-signed CPI) -------
     market_signer_seeds!(market, oidx, mbump, market_seeds);

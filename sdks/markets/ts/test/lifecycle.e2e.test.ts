@@ -109,13 +109,13 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     // --- 3. contribute (second contributor) ----------------------------------
     const amount = 200_000n;
     const contributor = await ctx.fundedKeypair();
-    const contributorKassAta = await ctx.createTokenAccount(baseMint, contributor.publicKey, amount);
+    const contributorBaseAta = await ctx.createTokenAccount(baseMint, contributor.publicKey, amount);
 
     await ctx.sendOk(
       await contribute({
         contributor: contributor.publicKey,
         market: marketPda,
-        contributorKassAta,
+        contributorBaseAta,
         amount,
       }),
       [contributor],
@@ -125,7 +125,7 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     market = ctx.readMarket(marketPda);
     expect(market.totalContributed).toBe(seed + amount);
     expect(ctx.tokenBalance(escrowPda)).toBe(seed + amount);
-    expect(ctx.tokenBalance(contributorKassAta)).toBe(0n);
+    expect(ctx.tokenBalance(contributorBaseAta)).toBe(0n);
 
     const contributorContribPda = (await pda.contribution(marketPda, contributor.publicKey)).address;
     const contributorContrib = ctx.readContribution(contributorContribPda);
@@ -146,7 +146,7 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
     // and open_contributions decrements — its absence is the idempotency guard now.
     const creatorRentBefore = ctx.lamportsOf(creator.publicKey);
     await ctx.sendOk(
-      await refund({ market: marketPda, contributor: creator.publicKey, contributorKassAta: creatorBaseAta }),
+      await refund({ market: marketPda, contributor: creator.publicKey, contributorBaseAta: creatorBaseAta }),
       [],
       "refund(creator)",
     );
@@ -162,12 +162,12 @@ describe("litesvm lifecycle round-trip (Phase-1, no MetaDAO)", () => {
       await refund({
         market: marketPda,
         contributor: contributor.publicKey,
-        contributorKassAta: contributorKassAta,
+        contributorBaseAta: contributorBaseAta,
       }),
       [],
       "refund(contributor)",
     );
-    expect(ctx.tokenBalance(contributorKassAta)).toBe(amount);
+    expect(ctx.tokenBalance(contributorBaseAta)).toBe(amount);
     expect(ctx.exists(contributorContribPda)).toBe(false); // Contribution closed
     expect(ctx.lamportsOf(contributor.publicKey)).toBeGreaterThan(contributorRentBefore); // rent returned
     expect(ctx.tokenBalance(escrowPda)).toBe(0n);

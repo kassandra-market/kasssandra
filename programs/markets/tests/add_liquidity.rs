@@ -100,10 +100,10 @@ fn add_liquidity_skewed_pool_returns_remainder() {
     // Skew the pool: a trader sells cYES for cNO, so cYES reserve rises above cNO.
     let trader = Keypair::new();
     ctx.svm_airdrop(&trader.pubkey());
-    let t_kass = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
+    let t_base = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
     let t_cyes = ctx.create_token_account(refs.yes_mint, trader.pubkey(), 0);
     let t_cno = ctx.create_token_account(refs.no_mint, trader.pubkey(), 0);
-    let res = ctx.user_split(&trader, &refs, t_kass, t_cyes, t_cno, 2_000_000_000);
+    let res = ctx.user_split(&trader, &refs, t_base, t_cyes, t_cno, 2_000_000_000);
     assert!(res.is_ok(), "trader split: {res:?}");
     let res = ctx.user_swap(&trader, &refs, t_cyes, t_cno, SwapType::Sell, 1_000_000_000, 0);
     assert!(res.is_ok(), "trader swap: {res:?}");
@@ -173,10 +173,10 @@ fn add_liquidity_fairness_gross_lp_distribution() {
     // Skew the pool with a trade (accrues AMM swap fees into the reserves).
     let trader = Keypair::new();
     ctx.svm_airdrop(&trader.pubkey());
-    let t_kass = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
+    let t_base = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
     let t_cyes = ctx.create_token_account(refs.yes_mint, trader.pubkey(), 0);
     let t_cno = ctx.create_token_account(refs.no_mint, trader.pubkey(), 0);
-    assert!(ctx.user_split(&trader, &refs, t_kass, t_cyes, t_cno, 2_000_000_000).is_ok());
+    assert!(ctx.user_split(&trader, &refs, t_base, t_cyes, t_cno, 2_000_000_000).is_ok());
     assert!(ctx
         .user_swap(&trader, &refs, t_cyes, t_cno, SwapType::Sell, 800_000_000, 0)
         .is_ok());
@@ -245,10 +245,10 @@ fn add_liquidity_fee_path_consistent() {
     // Skew a little first so the pool is realistic.
     let trader = Keypair::new();
     ctx.svm_airdrop(&trader.pubkey());
-    let t_kass = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
+    let t_base = ctx.create_token_account(base, trader.pubkey(), 5_000_000_000);
     let t_cyes = ctx.create_token_account(refs.yes_mint, trader.pubkey(), 0);
     let t_cno = ctx.create_token_account(refs.no_mint, trader.pubkey(), 0);
-    assert!(ctx.user_split(&trader, &refs, t_kass, t_cyes, t_cno, 2_000_000_000).is_ok());
+    assert!(ctx.user_split(&trader, &refs, t_base, t_cyes, t_cno, 2_000_000_000).is_ok());
     assert!(ctx
         .user_swap(&trader, &refs, t_cyes, t_cno, SwapType::Sell, 600_000_000, 0)
         .is_ok());

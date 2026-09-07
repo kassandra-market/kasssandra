@@ -109,7 +109,7 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
     let donation: u64 = 250_000_000;
     let donor = Keypair::new();
     ctx.svm.airdrop(&donor.pubkey(), 1_000_000_000).unwrap();
-    let donor_kass_src = ctx.fund_base(&donor, donation);
+    let donor_base_src = ctx.fund_base(&donor, donation);
     let donor_pass = Pubkey::new_unique();
     let donor_fail = Pubkey::new_unique();
     fabricate_token_account(&mut ctx, donor_pass, m.pass_mint, donor.pubkey(), 0);
@@ -124,7 +124,7 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
             AccountMeta::new(m.base_vault, false),
             AccountMeta::new(m.base_vault_underlying, false),
             AccountMeta::new(donor.pubkey(), true),
-            AccountMeta::new(donor_kass_src, false),
+            AccountMeta::new(donor_base_src, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(cv_event_auth, false),
             AccountMeta::new_readonly(vault_id(), false),
@@ -172,7 +172,7 @@ fn donation_into_holder_inflates_stake_vault_not_theft() {
         escrow_vault: payouts.escrow_vault,
         proposer_usdc: payouts.proposer_usdc,
         challenger_usdc_dest: payouts.challenger_usdc_dest,
-        challenger_kass: payouts.challenger_kass,
+        challenger_base: payouts.challenger_base,
     };
     let ix = settle_ix(
         &ctx, oracle, market, claim, proposer, m.question, pass_amm, fail_amm, &extras, nonce,

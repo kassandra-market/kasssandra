@@ -237,7 +237,7 @@ the conditional-vault / token / system program ids. See
     OpenChallengeArgs {
       nonce, proposer, challenger, question,
       baseVault, usdcVault, passAmm, failAmm, baseVaultUnderlying,
-      passBaseMint, failBaseMint, oraclePassKass, oracleFailKass,
+      passBaseMint, failBaseMint, oraclePassBase, oracleFailBase,
       cvEventAuthority, spotDao, usdcMint, challengerUsdcSrc,
       programId?,
     }
@@ -253,8 +253,8 @@ the conditional-vault / token / system program ids. See
       nonce, aiClaim, proposer, question,
       passAmm, failAmm, cvEventAuthority,
       baseVault, baseVaultUnderlying, passBaseMint, failBaseMint,
-      oraclePassKass, oracleFailKass,
-      proposerUsdc, challengerUsdcDest, challengerKass,
+      oraclePassBase, oracleFailBase,
+      proposerUsdc, challengerUsdcDest, challengerBase,
       programId?,
     }
     ```

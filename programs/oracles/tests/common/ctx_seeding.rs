@@ -228,14 +228,14 @@ impl TestCtx {
         oracle: Pubkey,
         fail_usdc_num: u64,
         fail_usdc_den: u64,
-        success_kass_num: u64,
-        success_kass_den: u64,
+        success_base_num: u64,
+        success_base_den: u64,
     ) {
         let mut o = self.oracle(oracle);
         o.challenge_fail_usdc_fee_num = fail_usdc_num;
         o.challenge_fail_usdc_fee_den = fail_usdc_den;
-        o.challenge_success_base_fee_num = success_kass_num;
-        o.challenge_success_base_fee_den = success_kass_den;
+        o.challenge_success_base_fee_num = success_base_num;
+        o.challenge_success_base_fee_den = success_base_den;
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
     }
 

@@ -289,7 +289,7 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
     // 1) submit_fact (one fact) — FactProposal window still open.
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_base(&submitter, 1_000_000);
+    let submitter_base = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     let ix = submit_fact_ix(
@@ -297,7 +297,7 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         submit_fact_payload(&content_hash, 100, b"ipfs://fact"),
     );
@@ -316,7 +316,7 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
     //    (2000): approve 2000 clears `approve*3 >= 2000*2`.
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_base(&voter, 10_000);
+    let voter_base = ctx.fund_base(&voter, 10_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     let ix = vote_fact_ix(
         &ctx,
@@ -324,7 +324,7 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, 2_000),
     );

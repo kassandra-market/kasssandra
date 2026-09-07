@@ -59,7 +59,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     let option = payload[0];
     let bond = u64::from_le_bytes(payload[1..9].try_into().unwrap());
 
-    let [oracle_ai, proposer_ai, authority_ai, authority_kass_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
+    let [oracle_ai, proposer_ai, authority_ai, authority_base_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -136,7 +136,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // canonical mint. The SPL Transfer additionally proves the authority
     // (signer) owns/delegates it.
     {
-        let data = authority_kass_ai.try_borrow()?;
+        let data = authority_base_ai.try_borrow()?;
         if data.len() < 32 {
             return Err(KassandraError::InvalidAccount.into());
         }
@@ -149,7 +149,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // NOTE: this does Transfer-then-create_pda, the reverse of submit_fact's
     // create_pda-then-Transfer. The divergence is insignificant — both run in
     // one atomic instruction, so either order fully reverts on any failure.
-    Transfer::new(authority_kass_ai, vault_ai, authority_ai, bond).invoke()?;
+    Transfer::new(authority_base_ai, vault_ai, authority_ai, bond).invoke()?;
 
     // --- create the Proposer account (program-signed) -----------------------
     let rent = minimum_rent(Proposer::LEN)?;

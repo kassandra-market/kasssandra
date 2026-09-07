@@ -40,10 +40,10 @@ use kassandra_oracles_sdk::{accounts::{self, Oracle}, ix, pda, PROGRAM_ID};
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
 
-fn build_propose(oracle: Pubkey, authority: Pubkey, authority_kass: Pubkey, option: u8, bond: u64) -> Instruction {
+fn build_propose(oracle: Pubkey, authority: Pubkey, authority_base: Pubkey, option: u8, bond: u64) -> Instruction {
     let (proposer, _) = pda::proposer(&PROGRAM_ID, &oracle, &authority);
     let (stake_vault, _) = pda::stake_vault(&PROGRAM_ID, &oracle);
-    ix::propose(&PROGRAM_ID, oracle, proposer, authority, authority_kass, stake_vault, option, bond)
+    ix::propose(&PROGRAM_ID, oracle, proposer, authority, authority_base, stake_vault, option, bond)
 }
 
 // Decode an Oracle from account bytes fetched over RPC (unaligned-safe).

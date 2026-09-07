@@ -35,7 +35,7 @@ const PAYLOAD_LEN: usize = 8;
 /// Defense-in-depth on the conditional-SOL split destinations: the
 /// conditional_vault enforces the same constraints, but a clean local error is
 /// clearer than a downstream MetaDAO custom error and pins the recorded
-/// `Market.oracle_{pass,fail}_kass` contract for Task 11.
+/// `Market.oracle_{pass,fail}_base` contract for Task 11.
 pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]) -> ProgramResult {
     if payload.len() != PAYLOAD_LEN {
         return Err(ProgramError::InvalidInstructionData);

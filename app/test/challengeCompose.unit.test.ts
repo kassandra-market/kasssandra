@@ -106,10 +106,10 @@ describe("compose — PDA / ATA derivations", () => {
     expect(composed.failAmm.toString()).toBe(failAmm.toString());
 
     // oracle-owned pass/fail SOL holders = ATA(oracle, condBaseMint).
-    expect(composed.oraclePassKass.toString()).toBe(
+    expect(composed.oraclePassBase.toString()).toBe(
       (await associatedTokenAccount(oracle, composed.passBaseMint)).address.toString(),
     );
-    expect(composed.oracleFailKass.toString()).toBe(
+    expect(composed.oracleFailBase.toString()).toBe(
       (await associatedTokenAccount(oracle, composed.failBaseMint)).address.toString(),
     );
     // challenger USDC source = ATA(challenger, usdcMint).
@@ -181,17 +181,17 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
     // The two split ixs are the last two of the group.
     const [splitKass, splitUsdc] = fundSplit.ixs.slice(-2);
 
-    const challengerKass = (await associatedTokenAccount(f.challenger, f.baseMint)).address;
-    const challengerPassKass = (await associatedTokenAccount(f.challenger, composed.passBaseMint)).address;
-    const challengerFailKass = (await associatedTokenAccount(f.challenger, composed.failBaseMint)).address;
+    const challengerBase = (await associatedTokenAccount(f.challenger, f.baseMint)).address;
+    const challengerPassBase = (await associatedTokenAccount(f.challenger, composed.passBaseMint)).address;
+    const challengerFailBase = (await associatedTokenAccount(f.challenger, composed.failBaseMint)).address;
     const expSplitKass = await futarchy.splitTokens({
       question: composed.question,
       vault: composed.baseVault,
       vaultUnderlying: composed.baseVaultUnderlying,
       authority: f.challenger,
-      userUnderlying: challengerKass,
+      userUnderlying: challengerBase,
       conditionalMints: [composed.passBaseMint, composed.failBaseMint],
-      userConditionalAccounts: [challengerPassKass, challengerFailKass],
+      userConditionalAccounts: [challengerPassBase, challengerFailBase],
       amount: DEFAULT_BASE_RESERVE,
     });
     expectIxMatches(splitKass, expSplitKass);
@@ -276,8 +276,8 @@ describe("compose — the key ixs byte-match the SDK builders", () => {
       baseVaultUnderlying: composed.baseVaultUnderlying,
       passBaseMint: composed.passBaseMint,
       failBaseMint: composed.failBaseMint,
-      oraclePassKass: composed.oraclePassKass,
-      oracleFailKass: composed.oracleFailKass,
+      oraclePassBase: composed.oraclePassBase,
+      oracleFailBase: composed.oracleFailBase,
       cvEventAuthority,
       spotDao: f.spotDao,
       usdcMint: f.usdcMint,
@@ -300,8 +300,8 @@ describe("compose — the fund+split ATA-creates", () => {
     }
     // The oracle-holder creates carry owner == oracle (key[2]).
     expect(creates[0].keys[2].pubkey.toString()).toBe(composed.oracle.toString());
-    expect(creates[0].keys[1].pubkey.toString()).toBe(composed.oraclePassKass.toString());
-    expect(creates[1].keys[1].pubkey.toString()).toBe(composed.oracleFailKass.toString());
+    expect(creates[0].keys[1].pubkey.toString()).toBe(composed.oraclePassBase.toString());
+    expect(creates[1].keys[1].pubkey.toString()).toBe(composed.oracleFailBase.toString());
   });
 });
 

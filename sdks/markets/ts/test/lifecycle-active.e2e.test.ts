@@ -96,7 +96,7 @@ describe("litesvm full active-market lifecycle (compose → activate → trade �
     const c2 = await ctx.fundedKeypair();
     const c2Ata = await ctx.createTokenAccount(base, c2.publicKey, 5_000_000_000n);
     await ctx.sendOk(
-      await contribute({ contributor: c2.publicKey, market, contributorKassAta: c2Ata, amount: SEED_B }),
+      await contribute({ contributor: c2.publicKey, market, contributorBaseAta: c2Ata, amount: SEED_B }),
       [c2],
       "contribute",
     );

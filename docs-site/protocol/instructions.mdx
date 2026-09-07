@@ -34,9 +34,9 @@ phase semantics are in [Phases](/protocol/phases).
 
   <Accordion title="Ix 10 · CreateOracle — stand up an oracle" icon="star">
     Stands up a new oracle in `Phase::Proposal` with a future deadline, a program-controlled SOL
-    stake vault (`[b"vault", oracle]`, authority = oracle PDA), a burned EMA creation fee, and
-    optional emission minted into the vault (`processor/create_oracle.rs`). Snapshots all governable
-    params from the Protocol onto the Oracle.
+    stake vault (`[b"vault", oracle]`, authority = oracle PDA), and a burned EMA creation fee
+    (`processor/create_oracle.rs`). There is no native-token minting — `reward_emission` is
+    always recorded as 0. Snapshots all governable params from the Protocol onto the Oracle.
 
     **Accounts:** `0` protocol (writable) · `1` oracle PDA (writable, uninit; `[b"oracle", nonce_le]`)
     · `2` stake_vault PDA (writable, uninit; `[b"vault", oracle]`) · `3` creator (signer, writable) ·
@@ -48,8 +48,8 @@ phase semantics are in [Phases](/protocol/phases).
     on-chain by `WriteOracleMeta` (Ix 23), appended to the same transaction.
 
     **Errors:** `options_count < 2` → `InvalidOptionsCount`; `deadline < now` → `InvalidDeadline`;
-    `twap_window <= 0` → `InvalidInstructionData`; duplicate PDA / bad burn source → `InvalidAccount`;
-    emission mint-authority mismatch → `BadMintAuthority`.
+    `twap_window <= 0` → `InvalidInstructionData`; duplicate PDA / bad burn source → `InvalidAccount`.
+    Account 9 (historically the mint-authority PDA) is accepted and ignored.
   </Accordion>
 
   <Accordion title="Ix 23 · WriteOracleMeta — write on-chain metadata" icon="file-pen">
@@ -297,7 +297,7 @@ phase semantics are in [Phases](/protocol/phases).
     (writable) · `12` base_vault_underlying (writable) · `13` pass_base_mint (writable) · `14`
     fail_base_mint (writable) · `15` oracle_pass_base (writable) · `16` oracle_fail_base (writable) ·
     `17` challenger_usdc_vault (writable) · `18` proposer_usdc (writable) · `19` challenger_usdc_dest
-    (writable) · `20` challenger_kass (writable).
+    (writable) · `20` challenger_base (writable).
 
     **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
 

@@ -72,9 +72,9 @@ export interface OpenChallengeArgs {
   /** Conditional-SOL mint idx 1 of base_vault (fail). Writable. */
   failBaseMint: AddressInput;
   /** Oracle-PDA-owned pass-SOL holder token account. Writable. */
-  oraclePassKass: AddressInput;
+  oraclePassBase: AddressInput;
   /** Oracle-PDA-owned fail-SOL holder token account. Writable. */
-  oracleFailKass: AddressInput;
+  oracleFailBase: AddressInput;
   /** Conditional-vault `#[event_cpi]` event authority PDA. Read-only. */
   cvEventAuthority: AddressInput;
   /** The futarchy `Dao` (`== protocol.spot_dao`), spot_price source. Read-only. */
@@ -113,8 +113,8 @@ export async function openChallenge(args: OpenChallengeArgs): Promise<Transactio
       w(addr(args.baseVaultUnderlying)), // 11
       w(addr(args.passBaseMint)), // 12
       w(addr(args.failBaseMint)), // 13
-      w(addr(args.oraclePassKass)), // 14
-      w(addr(args.oracleFailKass)), // 15
+      w(addr(args.oraclePassBase)), // 14
+      w(addr(args.oracleFailBase)), // 15
       ro(CONDITIONAL_VAULT_ID), // 16
       ro(TOKEN_PROGRAM_ID), // 17
       ro(SYSTEM_PROGRAM_ID), // 18
@@ -140,7 +140,7 @@ export async function openChallenge(args: OpenChallengeArgs): Promise<Transactio
 //   8 cv_event_authority, 11 base_vault, 12 base_vault_underlying,
 //   13 pass_base_mint, 14 fail_base_mint, 15 oracle_pass_base,
 //   16 oracle_fail_base, 18 proposer_usdc, 19 challenger_usdc_dest,
-//   20 challenger_kass.
+//   20 challenger_base.
 // ---------------------------------------------------------------------------
 export interface SettleChallengeArgs {
   /** Oracle nonce — payload + derives the oracle/stake_vault PDAs. */
@@ -167,15 +167,15 @@ export interface SettleChallengeArgs {
   /** Conditional-SOL mint idx 1 of base_vault (fail). Writable. */
   failBaseMint: AddressInput;
   /** Oracle-PDA-owned pass-SOL holder (`== market.oracle_pass_base`). Writable. */
-  oraclePassKass: AddressInput;
+  oraclePassBase: AddressInput;
   /** Oracle-PDA-owned fail-SOL holder (`== market.oracle_fail_base`). Writable. */
-  oracleFailKass: AddressInput;
+  oracleFailBase: AddressInput;
   /** Proposer's USDC payout account (mint==usdc, owner==proposer.authority). Writable. */
   proposerUsdc: AddressInput;
   /** Challenger's USDC payout account (mint==usdc, owner==market.challenger). Writable. */
   challengerUsdcDest: AddressInput;
   /** Challenger's SOL payout account (mint==base, owner==market.challenger). Writable. */
-  challengerKass: AddressInput;
+  challengerBase: AddressInput;
   programId?: Address;
 }
 
@@ -205,12 +205,12 @@ export async function settleChallenge(args: SettleChallengeArgs): Promise<Transa
       w(addr(args.baseVaultUnderlying)), // 12
       w(addr(args.passBaseMint)), // 13
       w(addr(args.failBaseMint)), // 14
-      w(addr(args.oraclePassKass)), // 15
-      w(addr(args.oracleFailKass)), // 16
+      w(addr(args.oraclePassBase)), // 15
+      w(addr(args.oracleFailBase)), // 16
       w(escrowVault.address), // 17
       w(addr(args.proposerUsdc)), // 18
       w(addr(args.challengerUsdcDest)), // 19
-      w(addr(args.challengerKass)), // 20
+      w(addr(args.challengerBase)), // 20
     ],
     data: withDisc(Ix.SettleChallenge, u64LE(args.nonce)),
   });

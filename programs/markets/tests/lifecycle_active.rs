@@ -185,20 +185,20 @@ fn full_active_market_lifecycle_with_conservation() {
     //   • winner  → holds only cYES (drains cNO)  — the winning leg once YES resolves
     //   • loser   → holds only cNO  (drains cYES) — the losing leg
     //   • roundtrip → keeps BOTH legs; redeems both for an EXACT 1:1 round trip
-    let (winner, win_kass, win_cyes, win_cno) =
+    let (winner, win_base, win_cyes, win_cno) =
         single_leg_holder(&mut ctx, base, &refs, SPLIT_AMT, /*drain_yes=*/ false);
-    let (loser, lose_kass, lose_cyes, lose_cno) =
+    let (loser, lose_base, lose_cyes, lose_cno) =
         single_leg_holder(&mut ctx, base, &refs, SPLIT_AMT, /*drain_yes=*/ true);
 
     let roundtrip = Keypair::new();
     ctx.svm_airdrop(&roundtrip.pubkey());
-    let rt_kass = ctx.create_token_account(base, roundtrip.pubkey(), SPLIT_AMT);
+    let rt_base = ctx.create_token_account(base, roundtrip.pubkey(), SPLIT_AMT);
     let rt_cyes = ctx.create_token_account(refs.yes_mint, roundtrip.pubkey(), 0);
     let rt_cno = ctx.create_token_account(refs.no_mint, roundtrip.pubkey(), 0);
-    let res = ctx.user_split(&roundtrip, &refs, rt_kass, rt_cyes, rt_cno, SPLIT_AMT);
+    let res = ctx.user_split(&roundtrip, &refs, rt_base, rt_cyes, rt_cno, SPLIT_AMT);
     assert!(res.is_ok(), "roundtrip split: {res:?}");
     assert_eq!(
-        ctx.token_balance(rt_kass),
+        ctx.token_balance(rt_base),
         0,
         "roundtrip spent all SOL into the vault"
     );
@@ -301,24 +301,24 @@ fn full_active_market_lifecycle_with_conservation() {
     // ── Stage 7: redemptions ────────────────────────────────────────────────
     // Winner redeems the winning cYES 1:1; the drained (worthless) cNO is gone,
     // so the winner's round trip is EXACT: put SPLIT_AMT in, gets SPLIT_AMT back.
-    let res = ctx.redeem(&winner, &refs, win_kass, win_cyes, win_cno);
+    let res = ctx.redeem(&winner, &refs, win_base, win_cyes, win_cno);
     assert!(res.is_ok(), "winner redeem: {res:?}");
-    let winner_out = ctx.token_balance(win_kass);
+    let winner_out = ctx.token_balance(win_base);
     assert_eq!(winner_out, SPLIT_AMT, "winner paid full stake 1:1");
     assert!(winner_out > 0, "winner paid a positive amount");
 
     // Loser redeems the losing cNO → nothing. Their stake is forfeited (it sits
     // in the vault as the winning cYES they threw to the sink — never redeemed).
-    let res = ctx.redeem(&loser, &refs, lose_kass, lose_cyes, lose_cno);
+    let res = ctx.redeem(&loser, &refs, lose_base, lose_cyes, lose_cno);
     assert!(res.is_ok(), "loser redeem: {res:?}");
-    let loser_out = ctx.token_balance(lose_kass);
+    let loser_out = ctx.token_balance(lose_base);
     assert_eq!(loser_out, 0, "losing leg pays 0");
 
     // Roundtrip holder redeems BOTH legs: cYES pays 1:1, cNO pays 0 → exactly
     // their split back. This is the tight, dust-free traded-portion conservation.
-    let res = ctx.redeem(&roundtrip, &refs, rt_kass, rt_cyes, rt_cno);
+    let res = ctx.redeem(&roundtrip, &refs, rt_base, rt_cyes, rt_cno);
     assert!(res.is_ok(), "roundtrip redeem: {res:?}");
-    let roundtrip_out = ctx.token_balance(rt_kass);
+    let roundtrip_out = ctx.token_balance(rt_base);
     assert_eq!(
         roundtrip_out, SPLIT_AMT,
         "roundtrip conserves exactly (no dust)"

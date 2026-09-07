@@ -100,7 +100,7 @@ pub struct SettleChallengeAccounts {
     pub challenger_usdc_vault: Pubkey,
     pub proposer_usdc: Pubkey,
     pub challenger_usdc_dest: Pubkey,
-    pub challenger_kass: Pubkey,
+    pub challenger_base: Pubkey,
 }
 
 /// `SettleChallenge` (Ix 5) — read the market TWAP, apply the verdict, resolve
@@ -136,7 +136,7 @@ pub fn settle_challenge(
             AccountMeta::new(a.challenger_usdc_vault, false),
             AccountMeta::new(a.proposer_usdc, false),
             AccountMeta::new(a.challenger_usdc_dest, false),
-            AccountMeta::new(a.challenger_kass, false),
+            AccountMeta::new(a.challenger_base, false),
         ],
         data,
     )
