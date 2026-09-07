@@ -2,7 +2,7 @@
 id: spec-testing-infrastructure
 title: Testing infrastructure
 tags: [spec, testing, litesvm, surfpool, playwright, postgres]
-updated: 2026-07-10
+updated: 2026-09-07
 ---
 
 # Testing infrastructure
@@ -42,7 +42,11 @@ Four test surfaces, each with a specific harness.
   `playwright.config.ts` (default), `playwright.indexer.config.ts`,
   `playwright.candles.config.ts`.
 - The candle test asserts one interval toggle; flaky duplicates are handled by
-  scoping to the `Candle interval` group + `toHaveCount(1)` before clicking.
+  scoping to the `Window` group + `toHaveCount(1)` before clicking.
+- `/oracles` redirects to the unified `/markets` list. Do not assert the old
+  oracles-only copy (`Open markets`, `Oracle capital at stake`, heading
+  `Price history`). See
+  [`../memories/e2e-unified-list-selectors.md`](../memories/e2e-unified-list-selectors.md).
 - Amount inputs are **scaled** (type `5`, not `5000000000`).
 
 ## `make dev`

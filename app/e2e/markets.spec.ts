@@ -39,16 +39,17 @@ test('the Markets tab routes from Oracles and the list renders (no indexer → g
   await expect(page).toHaveURL(/\/markets$/)
 
   // The page shell renders (header + create entry point) regardless of data.
-  await expect(page.getByText('Open markets')).toBeVisible()
+  await expect(page.getByRole('heading', { name: /every dispute/i })).toBeVisible()
   await expect(page.getByRole('link', { name: /create a market/i }).first()).toBeVisible()
 
   // With no indexer in this stack, the list must DEGRADE GRACEFULLY — one of the
   // list states shows and the app does not white-screen (heading still present).
   await expect(
     page
-      .getByText(/could not load markets from the indexer/i)
-      .or(page.getByText(/no markets/i))
-      .or(page.getByLabel('Search markets'))
+      .getByText(/could not load the oracle or market lists/i)
+      .or(page.getByText(/nothing found yet/i))
+      .or(page.getByLabel('Search markets and oracles'))
+      .or(page.getByLabel('Capital at stake'))
       .first(),
   ).toBeVisible()
 
