@@ -118,6 +118,22 @@ impl TestCtx {
         res
     }
 
+    /// Like [`Self::send`] but only *partially* signs with the payer (and
+    /// `signers`). Extra `is_signer` accounts (e.g. the GPT-oracle identity
+    /// PDA) are left unsigned. Requires a context built with
+    /// [`Self::new_unverified`].
+    #[allow(clippy::result_large_err)]
+    pub fn send_unverified(&mut self, ix: Instruction, signers: &[&Keypair]) -> TransactionResult {
+        self.svm.expire_blockhash();
+        let blockhash = self.svm.latest_blockhash();
+        let mut all_signers: Vec<&Keypair> = Vec::with_capacity(signers.len() + 1);
+        all_signers.push(&self.payer);
+        all_signers.extend_from_slice(signers);
+        let mut tx = Transaction::new_with_payer(&[ix], Some(&self.payer.pubkey()));
+        tx.partial_sign(&all_signers, blockhash);
+        self.svm.send_transaction(tx)
+    }
+
     /// Send `ix` expecting success and return the compute units it consumed (also
     /// recorded in the CU meter). Convenience over `send(..).expect(..).compute_
     /// units_consumed` for metering call sites.

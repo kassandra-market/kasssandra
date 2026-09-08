@@ -167,7 +167,7 @@ fn set_config_request_callback_and_apply() {
     assert_eq!(pending.oracle, oracle.to_bytes().into());
 
     seed_identity(&mut ctx);
-    ctx.send(
+    ctx.send_unverified(
         callback_ix(&ctx, config, oracle, feed, r#"{"option_index": 1}"#),
         &[],
     )
@@ -294,7 +294,7 @@ fn callback_rejects_unparseable_response() {
         .unwrap();
     seed_identity(&mut ctx);
     let err = ctx
-        .send(callback_ix(&ctx, config, oracle, feed, "not a number"), &[])
+        .send_unverified(callback_ix(&ctx, config, oracle, feed, "not a number"), &[])
         .unwrap_err()
         .err;
     assert_eq!(
