@@ -5,8 +5,9 @@ description: "kassandra-runner — the reproducible off-chain resolver, its run/
 
 The runner is Kassandra's open-source, reproducible off-chain AI resolver. It is a **Rust binary**
 (crate `kassandra-runner`, library `kassandra_runner`, binary at `runner/src/main.rs`) — not a pnpm
-workspace member. Anyone can run it to **propose** a claim or to **verify** an existing claim before
-deciding whether to challenge.
+workspace member. Anyone can run it to **request** MagicBlock solana-gpt-oracle (`--request-ai`),
+to **propose** an in-house claim (`--submit`), or to **verify** an existing claim before deciding
+whether to challenge.
 
 The oracle's fixed interpretation comes from its on-chain `oracle_meta` account — the subject and
 option labels, plus a `uri` whose extended JSON carries the `promptTemplate`/`interpretation`; the
@@ -14,8 +15,8 @@ runner fetches that JSON and uses it only if `sha256(json) == uri_hash`. Given t
 oracle's agreed facts (`content_hash` + `uri`), and its categorical options, the runner: (1) fetches
 and verifies each fact against its `content_hash`, (2) assembles a byte-deterministic prompt, (3)
 completes it with a pinned model behind a generic `AiProvider` trait, (4) hashes the run into claim
-metadata, and (5) emits the chosen `option` plus the exact **97-byte** `submit_ai_claim` payload
-(`runner/README.md`).
+metadata, and (5) either requests the GPT oracle (`RequestAiOracle`) or emits the chosen `option`
+plus the exact **97-byte** `submit_ai_claim` payload (`runner/README.md`).
 
 ## Subcommands
 
@@ -93,19 +94,21 @@ The metadata payload is `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ optio
 on-chain `AiClaim` field offsets). See [AI claims](/concepts/ai-claims).
 </Info>
 
-## Keeper mode (`run --submit`)
+## Keeper mode (`run --submit` / `--request-ai`)
 
-With `--submit`, the runner does not just emit the claim — it **builds, signs, sends, and confirms**
-the `submit_ai_claim` transaction itself (`submit.rs`). Requirements:
+With `--submit`, the runner **builds, signs, sends, and confirms** the `submit_ai_claim`
+transaction (`submit.rs`) — the in-house fallback when `AiOracleConfig.enabled == 0`.
 
-- `--keypair <path>` MUST be the proposer's registered `authority` (Solana CLI 64-byte array).
+With `--request-ai` (alias `--push-feed`), it sends `RequestAiOracle` with the assembled user
+prompt (truncated to 700 bytes). `--llm-context <pubkey>` appends the GPT program, interaction
+PDA, and context so the tx CPIs `interact_with_llm`. The GPT identity PDA's later callback is
+what writes `AiOracleFeed`.
+
+Requirements for both keeper modes:
+
+- `--keypair <path>` MUST be a Solana CLI 64-byte array (for `--submit`, the proposer's
+  registered `authority`).
 - `--rpc-url` and an oracle are required.
-
-The Proposer PDA is derived as `[b"proposer", oracle, authority]`, and the transaction carries the
-runner's **own** 97-byte payload verbatim. The confirmed result is appended to the JSON under
-`submission` (signature, confirmation status, oracle, derived proposer, authority). A second submit
-for the same `(oracle, proposer)` fails with `DuplicateClaim` because the claim PDA
-`[b"claim", oracle, proposer]` already exists.
 
 ## Operating the runner
 

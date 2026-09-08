@@ -1,6 +1,6 @@
 ---
 title: "Account decoders"
-description: "The 7 Kassandra account decoders — decodeProtocol…decodeMarket — their signatures, on-chain accounts, sizes, and returned fields."
+description: "Kassandra account decoders — signatures, on-chain accounts, sizes, and returned fields."
 ---
 
 The SDK ships one decoder per on-chain Pod account. Each has the signature
@@ -20,28 +20,31 @@ byte (e.g. `phaseRaw`) and the parsed enum (e.g. `phase: Phase | undefined`, `un
 when the byte is out of range).
 </Note>
 
-## The seven decoders
+## The decoders
 
 | Decoder → type | On-chain account (`AccountType`) | Size (bytes) |
 | --- | --- | --- |
-| `decodeProtocol` → `Protocol` | Protocol singleton (`Protocol` = 7) | 368 |
-| `decodeOracle` → `Oracle` | Oracle (`Oracle` = 1) | 360 |
+| `decodeProtocol` → `Protocol` | Protocol singleton (`Protocol` = 7) | 392 |
+| `decodeOracle` → `Oracle` | Oracle (`Oracle` = 1) | 368 |
 | `decodeProposer` → `Proposer` | Proposer (`Proposer` = 2) | 96 |
 | `decodeFact` → `Fact` | Fact (`Fact` = 3) | 336 |
 | `decodeFactVote` → `FactVote` | FactVote (`FactVote` = 4) | 88 |
 | `decodeAiClaim` → `AiClaim` | AiClaim (`AiClaim` = 5) | 208 |
 | `decodeMarket` → `Market` | Market (`Market` = 6) | 416 |
+| `decodeErSession` → `ErSession` | ErSession (`ErSession` = 9) | 96 |
+| `decodeAiOracleConfig` → `AiOracleConfig` | AiOracleConfig (`AiOracleConfig` = 10) | 48 |
+| `decodeAiOracleFeed` → `AiOracleFeed` | AiOracleFeed (`AiOracleFeed` = 11) | 248 |
 
 ## Returned fields
 
 <AccordionGroup>
-  <Accordion title="decodeProtocol → Protocol (368 bytes)">
+  <Accordion title="decodeProtocol → Protocol (392 bytes)">
     Global config singleton. Fields: `admin, baseMint, usdcMint, feeEma, lastCreationUnix,
     bump, governanceSet, daoAuthority, spotDao` — plus the **22 governable params**
     (`emissionNum` … `challengeSuccessBaseFeeDen`). See the
     [Protocol layout](/protocol/accounts).
   </Accordion>
-  <Accordion title="decodeOracle → Oracle (360 bytes)">
+  <Accordion title="decodeOracle → Oracle (368 bytes)">
     Top-level dispute account. Fields include `creator, baseMint, usdcMint, stakeVault,
     deadline, phaseEndsAt, twapWindow, optionsCount, phaseRaw, phase: Phase | undefined,
     proposerCount, survivingCount, factCount, totalOracleStake, bondPool, disputeBondTotal,
@@ -72,6 +75,18 @@ when the byte is out of range).
     A challenge decision-market binding: `oracle, aiClaim, proposer, challenger, question,
     baseVault, usdcVault, passAmm, failAmm, oraclePassBase, oracleFailBase,
     challengerUsdcVault, twapEnd, challengerUsdc, settled, bump`.
+  </Accordion>
+  <Accordion title="decodeErSession → ErSession (96 bytes)">
+    MagicBlock ER record: `oracle, validator, status, commitFrequencyMs, delegatedAt,
+    lastCommitSlot, bump`.
+  </Accordion>
+  <Accordion title="decodeAiOracleConfig → AiOracleConfig (48 bytes)">
+    GPT-oracle singleton: `llmContext, maxStalenessSlots, source, enabled, bump`.
+  </Accordion>
+  <Accordion title="decodeAiOracleFeed → AiOracleFeed (248 bytes)">
+    Attested categorical feed: `oracle, option, slot, timestamp, modelId, paramsHash,
+    ioHash, attestation, updatedBy, bump`. `option === 0xFF` means pending (request
+    created, callback not yet written).
   </Accordion>
 </AccordionGroup>
 

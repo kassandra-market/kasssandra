@@ -23,8 +23,9 @@ conditional-vault and AMM programs for the challenge decision markets rather tha
   </Card>
   <Card title="AI runner" icon="robot" href="/architecture/runner">
     The reproducible off-chain resolver (`runner/`, Rust binary `kassandra-runner`). Turns an
-    oracle's prompt + agreed facts + options into a categorical answer plus the exact 97-byte
-    `submit_ai_claim` payload.
+    oracle's prompt + agreed facts + options into a categorical answer. With `--request-ai` it
+    asks MagicBlock solana-gpt-oracle to fill `AiOracleFeed`; `--submit` is the in-house
+    `submit_ai_claim` fallback.
   </Card>
   <Card title="dApp" icon="browser" href="/architecture/dapp">
     The frontend (`app/`, Vite + React 19). Browse oracles, create them, participate in every
@@ -54,10 +55,11 @@ linkage and the SOL/USDC price anchor. See [Challenge markets](/challenge/overvi
     and hand-decodes each account struct. A parity test (`sdks/oracles/ts/test/parity.test.ts`) keeps the two in
     lockstep.
   </Step>
-  <Step title="The runner produces the AI claim">
-    The runner reads the oracle on-chain, assembles a deterministic prompt, completes it with a
-    pinned model, and emits the exact bytes the `submit_ai_claim` instruction expects — which the SDK
-    can submit verbatim via its runner bridge.
+  <Step title="The runner requests the attested feed (or submits a fallback claim)">
+    The runner reads the oracle on-chain and assembles a deterministic prompt. `--request-ai`
+    sends `RequestAiOracle` so MagicBlock solana-gpt-oracle can callback-write `AiOracleFeed`.
+    `--submit` still emits the exact 97-byte `submit_ai_claim` payload (in-house fallback when
+    the feed is disabled).
   </Step>
   <Step title="The dApp drives the human-facing flow">
     Every write path is a pure `build*Ixs` action layer over the SDK, signed through a wallet

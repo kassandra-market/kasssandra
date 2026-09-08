@@ -65,7 +65,7 @@ export function ErAiOraclePanel({
               <dd className="tabular-nums text-platinum">{feed.feed.slot.toString()}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-4">
-              <dt>Pushed by</dt>
+              <dt>Written by</dt>
               <dd>
                 <Truncated value={feed.feed.updatedBy.toString()} label="GPT oracle identity" />
               </dd>

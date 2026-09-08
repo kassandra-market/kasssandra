@@ -81,8 +81,10 @@ Shared flags (`runner/README.md`, `runner/src/cli.rs`):
 | `--mock` | Deterministic `MockProvider` (offline, no key). Also enabled by `KASSANDRA_RUNNER_MOCK=1`. |
 | `--model <str>` | Override the pinned model (default `claude-opus-4-8`). |
 | `--max-tokens <n>` | Override `max_tokens` (default `4096`). |
-| `--submit` | (`run`) Keeper mode: sign + send + confirm the tx. Requires `--keypair` + `--rpc-url` + an oracle. |
-| `--keypair <path>` | (`run --submit`) Solana CLI keypair JSON. MUST be the proposer's `authority`. |
+| `--submit` | (`run`) Keeper mode: sign + send + confirm `submit_ai_claim`. Requires `--keypair` + `--rpc-url` + an oracle. |
+| `--request-ai` (`--push-feed`) | (`run`) Keeper mode: sign + send + confirm `RequestAiOracle` (MagicBlock GPT oracle). Can combine with `--submit`. |
+| `--llm-context <pubkey>` | (`run --request-ai`) MagicBlock `ContextAccount`; when set, the tx CPIs `interact_with_llm`. |
+| `--keypair <path>` | (`run --submit` / `--request-ai`) Solana CLI keypair JSON. For `--submit`, MUST be the proposer's `authority`. |
 | `--option <n>` | (`verify`) the submitted claim's option to compare. |
 | `--submitted-{model-id,params-hash,io-hash} <hex>` | (`verify`) optional submitted hashes to compare. |
 
@@ -96,7 +98,7 @@ Opus 4.8 rejects them with a 400. `ANTHROPIC_API_KEY` is read from the environme
 never hardcoded and never logged.
 </Warning>
 
-## Keeper mode (`run --submit`)
+## Keeper mode (`run --submit` / `--request-ai`)
 
 By default `run` only emits the payload. With `--submit` the runner becomes a self-contained keeper: after producing the claim it builds, signs, sends, and confirms the `submit_ai_claim` transaction, then reports the confirmed signature (`runner/src/submit.rs`):
 
@@ -108,7 +110,16 @@ kassandra-runner run --submit \
   --keypair ~/.config/solana/id.json
 ```
 
-The `--keypair` MUST be the proposer's registered `authority` — the Proposer PDA is derived as `[b"proposer", oracle, authority]` from the keypair's pubkey. The submitted tx carries the runner's **own** 97-byte payload verbatim, never recomputed. A second submit for the same `(oracle, proposer)` fails: the AiClaim PDA `[b"claim", oracle, proposer]` already exists (`DuplicateClaim`). Confirmation polls `getSignatureStatuses` to `confirmed` (~30s budget).
+`--request-ai` instead sends `RequestAiOracle` (the MagicBlock path). Add `--llm-context` so the remaining accounts CPI `interact_with_llm`:
+
+```sh
+kassandra-runner run --request-ai --llm-context <CONTEXT_PUBKEY> \
+  --oracle <ORACLE_PUBKEY_BASE58> \
+  --rpc-url https://api.mainnet-beta.solana.com \
+  --keypair ~/.config/solana/id.json
+```
+
+The `--keypair` for `--submit` MUST be the proposer's registered `authority` — the Proposer PDA is derived as `[b"proposer", oracle, authority]` from the keypair's pubkey. The submitted tx carries the runner's **own** 97-byte payload verbatim, never recomputed. A second submit for the same `(oracle, proposer)` fails: the AiClaim PDA `[b"claim", oracle, proposer]` already exists (`DuplicateClaim`). Confirmation polls `getSignatureStatuses` to `confirmed` (~30s budget).
 
 ## The 97-byte payload and determinism
 

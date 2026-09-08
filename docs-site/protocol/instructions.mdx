@@ -1,12 +1,13 @@
 ---
 title: "Instructions"
-description: "Complete reference for all 24 Kassandra instructions (Ix 0–23): accounts, payloads, phase gates, and errors."
+description: "Complete reference for all 30 Kassandra instructions (Ix 0–29) plus the 8-byte MagicBlock and GPT-oracle callbacks."
 ---
 
-The program exposes **24 instructions**. The first byte of `instruction_data` is the discriminant
+The program exposes **30 instructions**. The first byte of `instruction_data` is the discriminant
 (the `Ix` value); the remaining bytes are the payload, parsed inside each processor
 (`programs/oracles/src/instruction.rs`, `processor/mod.rs`). Discriminants are a stable contract —
-never renumbered, only appended.
+never renumbered, only appended. Two 8-byte discriminators (undelegate callback, GPT-oracle
+callback) are intercepted in `process_instruction` *before* 1-byte dispatch.
 
 <Info>
 **Reading the account lists.** Slot numbers are the processor's destructure order. "signer" is
@@ -436,6 +437,91 @@ phase semantics are in [Phases](/protocol/phases).
   </Accordion>
 </AccordionGroup>
 
+## Ephemeral rollups & MagicBlock AI oracle
+
+<AccordionGroup>
+  <Accordion title="Ix 24 · DelegateOracle — record ER session" icon="layer-group">
+    Create/update the `[b"er_session", oracle]` companion PDA (`processor/delegate_oracle.rs`).
+    Short form writes only Kassandra state. When MagicBlock remaining accounts are present, CPIs
+    the Delegation Program.
+
+    **Accounts (short):** `0` oracle (writable) · `1` er_session (writable) · `2` payer (signer,
+    writable) · `3` system program.
+
+    **Payload (44 bytes):** `nonce: u64 LE` ++ `commit_frequency_ms: u32 LE` ++ `validator: [u8;32]`.
+    `commit_frequency_ms == 0` stamps the 30s default; all-zero validator means Magic Router default.
+
+    **Errors:** already delegated → `AlreadyDelegated`.
+  </Accordion>
+
+  <Accordion title="Ix 25 · CommitOracle — stamp last commit" icon="floppy-disk">
+    Stamp `last_commit_slot` on the `ErSession` (`processor/commit_oracle.rs`). Optional Magic
+    Program `schedule_commit` CPI when remaining accounts are present.
+
+    **Accounts (short):** `0` oracle (writable) · `1` er_session (writable). **Payload:** empty.
+
+    **Errors:** session not delegated → `NotDelegated`.
+  </Accordion>
+
+  <Accordion title="Ix 26 · UndelegateOracle — mark undelegated" icon="layer-minus">
+    Mark the `ErSession` undelegated (`processor/undelegate_oracle.rs`). Optional
+    commit-and-undelegate CPI. The validator later invokes the 8-byte MagicBlock undelegate
+    callback (`[196, 28, 41, 206, 48, 37, 51, 167]`).
+
+    **Accounts (short):** `0` oracle (writable) · `1` er_session (writable). **Payload:** empty.
+
+    **Errors:** session not delegated → `NotDelegated`.
+  </Accordion>
+
+  <Accordion title="Ix 27 · SetAiOracleConfig — GPT context + enable" icon="sliders">
+    DAO-gated create-or-update of the `[b"ai_oracle_config"]` singleton
+    (`processor/set_ai_oracle_config.rs`). Stores the MagicBlock `ContextAccount` as
+    `llm_context`. Enabling requires a non-default context.
+
+    **Accounts:** `0` protocol · `1` config (writable) · `2` authority (signer — `admin`
+    pre-handoff, `dao_authority` post) · `3` system program.
+
+    **Payload (42 bytes):** `llm_context: [u8;32]` ++ `max_staleness_slots: u64 LE` ++
+    `source: u8` ++ `enabled: u8`. `source` is `0` reserved / `1` MagicBlock / `2` Switchboard
+    (reserved). `max_staleness_slots` must be `> 0`.
+
+    **Errors:** zero staleness, unknown source, or enabled with default context → `InvalidConfig`;
+    wrong signer → `Unauthorized`.
+  </Accordion>
+
+  <Accordion title="Ix 28 · RequestAiOracle — interact_with_llm" icon="comments">
+    Permissionless. Creates `[b"ai_feed", oracle]` with `option = 0xFF` (pending) if missing,
+    then optionally CPIs MagicBlock `interact_with_llm` (`processor/request_ai_oracle.rs`).
+    The feed is **not** written here — MagicBlock's off-chain oracle later CPIs Kassandra's
+    8-byte callback (`sha256("global:callback_from_gpt_oracle")[..8]` =
+    `[0x3b, 0x24, 0x82, 0x78, 0x4d, 0x6f, 0xac, 0x00]`), which requires the GPT identity PDA
+    (`[b"identity"]` under `LLMrieZ…`) as signer.
+
+    **Accounts:** `0` config · `1` oracle · `2` feed (writable) · `3` payer (signer, writable)
+    · `4` system program · `[5` GPT program · `6` interaction (writable) · `7` llm_context`]
+    when CPI-ing.
+
+    **Payload:** `text_len: u32 LE` ++ `text` (max 700 bytes). Forwarded to `interact_with_llm`.
+
+    **Errors:** feed disabled → `AiOracleDisabled`; default `llm_context` → `InvalidConfig`;
+    text too long → `InvalidInstructionData`. Callback parse failure → `InvalidAiOracleResponse`.
+  </Accordion>
+
+  <Accordion title="Ix 29 · ApplyExternalAiClaim — stamp from feed" icon="stamp">
+    In `Phase::AiClaim`, create this proposer's `AiClaim` from the live `AiOracleFeed`
+    (`processor/apply_external_ai_claim.rs`). One proposer per transaction. Flip-slash
+    semantics match `submit_ai_claim`. When the feed is disabled, use `SubmitAiClaim` instead.
+
+    **Accounts:** `0` oracle · `1` proposer (writable) · `2` claim (writable, uninit) ·
+    `3` config · `4` feed · `5` payer (signer, writable) · `6` system program. **Payload:** empty.
+
+    **Errors:** wrong phase / closed window → `WrongPhase` / `WindowClosed`; disabled config →
+    `AiOracleDisabled`; feed `oracle` mismatch → `AiOracleMismatch`; stale slot →
+    `StaleAiOracle`; pending `0xFF` or out-of-range option → `InvalidOption`; already claimed →
+    `DuplicateClaim`.
+  </Accordion>
+</AccordionGroup>
+
 ## Full discriminant table
 
 | Ix | Name | Group | Payload |
@@ -464,3 +550,9 @@ phase semantics are in [Phases](/protocol/phases).
 | 21 | `CloseMarket` | Close | 8 |
 | 22 | `SweepOracle` | Sweep | 8 |
 | 23 | `WriteOracleMeta` | Lifecycle | variable |
+| 24 | `DelegateOracle` | ER | 44 |
+| 25 | `CommitOracle` | ER | 0 |
+| 26 | `UndelegateOracle` | ER | 0 |
+| 27 | `SetAiOracleConfig` | AI oracle | 42 |
+| 28 | `RequestAiOracle` | AI oracle | variable (4 + text) |
+| 29 | `ApplyExternalAiClaim` | AI claim | 0 |

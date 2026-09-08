@@ -5,9 +5,9 @@ description: "How the open-source runner applies a fixed interpretation to an ag
 
 When an oracle enters a dispute, the question "what is the answer?" is settled by having an
 AI **apply the fixed interpretation** to the agreed evidence. The AI does not decide the
-policy — that was fixed at creation. It executes it. This page explains the runner, exactly
-what lands on-chain in an `AiClaim`, and why the whole thing is enforced by economics and
-markets rather than by on-chain verification.
+policy — that was fixed at creation. It executes it. The protocol's attested source is
+MagicBlock **solana-gpt-oracle**; the open-source runner can *request* that feed, or still
+submit an in-house `AiClaim` when the feed is disabled.
 
 ## The runner
 
@@ -45,10 +45,11 @@ runner also ships a deterministic `MockProvider` (`--mock` or `KASSANDRA_RUNNER_
 the whole pipeline runs offline and keyless for testing.
 
 <Tip>
-  The runner has two subcommands. `run` resolves the oracle and emits (or, with `--submit`,
-  signs and sends) the claim. `verify` re-runs the pipeline and tells you `"matches (no
-  challenge)"` versus `"differs (consider challenging)"` — the exact tool a would-be
-  challenger uses before opening a market.
+  The runner has two keeper modes on `run`. `--request-ai` (alias `--push-feed`) signs and
+  sends `RequestAiOracle` with the assembled user prompt; pass `--llm-context` so the tx
+  CPIs MagicBlock `interact_with_llm`. `--submit` still signs `submit_ai_claim` (in-house
+  fallback). `verify` re-runs the pipeline and tells you `"matches (no challenge)"` versus
+  `"differs (consider challenging)"`.
 </Tip>
 
 ## What goes on-chain: the `AiClaim`

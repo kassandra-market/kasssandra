@@ -70,7 +70,7 @@ pub struct SubmissionOutput {
     pub authority: String,
 }
 
-/// The on-chain feed-push result appended to a `--push-feed` run.
+/// The on-chain `RequestAiOracle` result appended to a `--request-ai` run.
 #[derive(Clone, Debug, Serialize)]
 pub struct FeedSubmissionOutput {
     /// The confirmed transaction signature (base58).

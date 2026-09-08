@@ -2,7 +2,7 @@
 id: context-app
 title: The dApp (app/)
 tags: [context, app, react, vite]
-updated: 2026-09-07
+updated: 2026-09-08
 ---
 
 # The dApp (`app/`)
@@ -28,6 +28,8 @@ indexer's read API; writes via the SDK instruction builders.
 
 - `app/src/pages` — routes (OracleDetail, CreateOracle, Markets, MarketDetail…).
 - `app/src/components/{oracles,markets}` — feature components + `actions/` (the write forms).
+  AiClaim phase shows `SubmitAiClaimForm` (in-house fallback), `RequestAiOracleForm`
+  (MagicBlock `interact_with_llm`), and `ApplyExternalAiClaimForm` (stamp from `AiOracleFeed`).
 - `app/src/data` — oracle-side data/actions; `app/src/market/` — market-side data/hooks/lib.
 - `app/src/lib` — shared utils (base58, base64, oracleView formatters, cluster).
   Direct mode uses `VITE_MAGIC_ROUTER_URL` (when set) as the RPC for non-localnet

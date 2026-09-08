@@ -54,7 +54,7 @@ export function OracleActions({
   proposers?: string[]
   /** Fact-PDA pubkeys (the finalize-facts tail). */
   facts?: string[]
-  /** Latest attested feed, if a pusher has written one. */
+  /** Latest attested feed, if the GPT-oracle callback has written one. */
   aiFeed?: { pubkey: string; feed: AiOracleFeed }
 }) {
   const baseMint = oracle.baseMint

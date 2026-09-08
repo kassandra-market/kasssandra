@@ -29,7 +29,7 @@ the runner bridge, and the namespaced external submodules `futarchy`, `ammV04`, 
 There is no code generation. Instead:
 
 - **Instruction builders** hand-encode `data = [disc_byte, ...payload_LE]` for each of the program's
-  23 instructions.
+  30 instructions (plus the 8-byte GPT-oracle callback helper).
 - **Account decoders** hand-parse each `#[repr(C)]` struct, validating the `account_type` tag and
   exact byte size.
 - **PDA derivers** reproduce the exact seed bytes the program uses.

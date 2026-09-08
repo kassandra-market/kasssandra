@@ -1,19 +1,25 @@
 ---
 title: "AI claims"
-description: "The AI-resolution phase — locked-in proposers rerun the runner over the agreed facts, resubmit a value plus reproducibility metadata, and are slashed for no-shows and flips."
+description: "The AI-resolution phase — MagicBlock solana-gpt-oracle fills AiOracleFeed; proposers apply it or fall back to the in-house runner, then no-shows and flips are slashed."
 ---
 
-Once the agreed fact set is settled, the oracle enters the **AI-claim** phase. Here each
-locked-in proposer reruns the open-source runner over the *agreed facts* — applying the
-oracle's fixed interpretation — and resubmits a value backed by reproducibility metadata.
-This is where a dispute can quietly collapse: proposers who see the evidence may converge on
-the same answer.
+Once the agreed fact set is settled, the oracle enters the **AI-claim** phase. The protocol's
+attested source is **MagicBlock [solana-gpt-oracle](https://github.com/magicblock-labs/super-smart-contracts/blob/main/programs/solana-gpt-oracle/src/lib.rs)**
+(`LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab`): `request_ai_oracle` CPIs `interact_with_llm`,
+the GPT identity PDA signs a callback that writes `AiOracleFeed`, and `apply_external_ai_claim`
+stamps each proposer's `AiClaim` from that feed.
+
+The in-house runner remains the **fallback** when `AiOracleConfig.enabled == 0`: each locked-in
+proposer reruns it over the agreed facts and submits with `submit_ai_claim`. Either path can
+collapse the dispute if proposers converge.
 
 ## Who submits, and why the value can change
 
-The only actors who put values on-chain are the **proposers** from the proposal window —
-the ones now locked in by the dispute. "Anyone can run the AI" means anyone may run the
-runner to *verify and challenge*; only proposers submit claims (design §5).
+The **AiClaim** accounts that count toward plurality still belong to the **proposers** from
+the proposal window — the ones locked in by the dispute. Anyone may request the MagicBlock
+feed or crank `apply_external_ai_claim` for a proposer; only the in-house `submit_ai_claim`
+path requires the proposer's authority as signer. Anyone may also run the runner to *verify
+and challenge*.
 
 A proposer's AI claim value **may differ** from the `original_option` they proposed. That is
 by design: after seeing the agreed evidence run through the fixed interpretation, an honest
@@ -26,9 +32,24 @@ converge, the dispute collapses toward a single plurality without ever needing a
   survives into the challenge phase. See slashing below.
 </Info>
 
-## Submitting a claim
+## Attested feed (MagicBlock)
 
-A proposer submits with `submit_ai_claim` (`Ix::SubmitAiClaim = 3`) during `Phase::AiClaim`
+When `SetAiOracleConfig` has `enabled = 1` and a MagicBlock `ContextAccount` in `llm_context`:
+
+1. Anyone may `request_ai_oracle` (`Ix=28`) with the prompt text (max 700 bytes). This creates
+   `[b"ai_feed", oracle]` with `option = 0xFF` (pending) and, when remaining accounts are
+   present, CPIs `interact_with_llm`.
+2. MagicBlock's off-chain oracle later CPIs Kassandra's 8-byte callback. The GPT identity PDA
+   (`[b"identity"]`) must sign. The payload is a Borsh `String`; the program parses
+   `{"option_index": N}` (runner schema), `{"option": N}`, or a bare integer.
+3. `apply_external_ai_claim` (`Ix=29`) copies that option onto one proposer per transaction
+   (same flip-slash rules as `submit_ai_claim`). Pending `0xFF` and stale feeds are rejected.
+
+Challenge markets remain the economic override of a faulty feed.
+
+## Submitting a fallback claim
+
+When the feed is disabled, a proposer submits with `submit_ai_claim` (`Ix::SubmitAiClaim = 3`) during `Phase::AiClaim`
 (`submit_ai_claim.rs`). There is **no token CPI** — the proposer's bond is already escrowed;
 this instruction only records the claim. It:
 

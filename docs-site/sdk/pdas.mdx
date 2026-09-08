@@ -1,6 +1,6 @@
 ---
 title: "PDA derivers"
-description: "The 11 Kassandra PDA helpers — exact signatures, the address each derives, and its seed components."
+description: "The Kassandra PDA helpers — exact signatures, the address each derives, and its seed components."
 ---
 
 The SDK derives every program-derived address for you. The helpers live in
@@ -18,7 +18,7 @@ Two conventions apply to all of them:
 Address arguments accept an `AddressInput = Address | string`. For the on-chain seed
 definitions these mirror, see [Program PDAs](/protocol/pdas).
 
-## The eleven helpers
+## The helpers
 
 | Helper | Signature | Derives | Seeds |
 | --- | --- | --- | --- |
@@ -32,6 +32,11 @@ definitions these mirror, see [Program PDAs](/protocol/pdas).
 | `aiClaim` | `(oracleAddr, proposerAddr, programId?)` | AiClaim | `[b"claim", oracle, proposer]` |
 | `market` | `(aiClaimAddr, programId?)` | Market | `[b"market", ai_claim]` |
 | `challengeUsdcVault` | `(marketAddr, programId?)` | USDC escrow SPL account | `[b"challenge_usdc", market]` |
+| `erSession` | `(oracleAddr, programId?)` | ER session companion | `[b"er_session", oracle]` |
+| `aiOracleConfig` | `(programId?)` | AI-oracle config singleton | `[b"ai_oracle_config"]` |
+| `aiOracleFeed` | `(oracleAddr, programId?)` | Per-oracle AI feed | `[b"ai_feed", oracle]` |
+| `gptOracleIdentity` | `()` | GPT identity PDA | `[b"identity"]` under `GPT_ORACLE_PROGRAM_ID` |
+| `gptOracleInteraction` | `(payer, context)` | GPT interaction PDA | `[b"interaction", payer, context]` under GPT |
 | `associatedTokenAccount` | `(owner, mint)` | Owner's ATA (SPL) | `[owner, TOKEN_PROGRAM, mint]` under `ATA_PROGRAM_ID` |
 
 <Note>
