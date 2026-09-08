@@ -13,8 +13,8 @@ export interface AiOracleConfig {
   enabled: boolean;
   /** `AI_ORACLE_SOURCE_*`. */
   source: number;
-  /** Signer allowed to `pushAiOracleFeed`. */
-  authority: Address;
+  /** MagicBlock `ContextAccount` (created via `create_llm_context`). */
+  llmContext: Address;
   maxStalenessSlots: bigint;
 }
 
@@ -27,7 +27,7 @@ export function decodeAiOracleConfig(data: Uint8Array): AiOracleConfig {
     bump: readU8(dv, 1),
     enabled: readBool(dv, 2),
     source: readU8(dv, 3),
-    authority: readPubkey(data, 8),
+    llmContext: readPubkey(data, 8),
     maxStalenessSlots: readU64LE(dv, 40),
   };
 }

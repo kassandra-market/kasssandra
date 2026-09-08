@@ -2,7 +2,7 @@
 id: context-overview
 title: System overview
 tags: [context, architecture]
-updated: 2026-09-07
+updated: 2026-09-08
 ---
 
 # System overview
@@ -19,9 +19,10 @@ about *which evidence is real*, not *what it means*.
 1. **Create** — prompt + immutable interpretation + categorical options + deadline; pay a dynamic SOL creation fee (burned).
 2. **Propose** — after the deadline, proposers submit a value + SOL bond. All agree → **Resolved** immediately (no AI, no markets).
 3. **Dispute** (on conflict) — proposers lock in; a **fact proposal** window then a disjoint **fact voting** window freeze the agreed evidence set.
-4. **AI claim** — an attested `AiOracleFeed` is applied onto proposers
-   (`ApplyExternalAiClaim`), or the in-house [runner](runner.md) stamps
-   `SubmitAiClaim` when the feed is disabled.
+4. **AI claim** — MagicBlock solana-gpt-oracle fills `AiOracleFeed` (via
+   `RequestAiOracle` + callback); `ApplyExternalAiClaim` stamps proposers.
+   The in-house [runner](runner.md) still stamps `SubmitAiClaim` when the feed
+   is disabled.
 5. **Challenge market** — a MetaDAO-style decision market can override a faulty AI claim; TWAP over a window decides.
 6. **Settle / finalize** — the oracle resolves (or hits an invalid dead-end); winners claim, losers are slashed.
 
@@ -40,7 +41,8 @@ See [`../specs/oracle-program.md`](../specs/oracle-program.md) and
       │                          ▲
       └── TS SDKs (oracles, markets) build the instructions
                                  │
-   runner (off-chain AI) ── PushAiOracleFeed / SubmitAiClaim ──▶ oracle program
+   runner (off-chain) ── RequestAiOracle / SubmitAiClaim ──▶ oracle program
+                         (MagicBlock GPT oracle writes the feed via callback)
 ```
 
 - **Programs** are pinocchio-based, bytemuck-`Pod` account layouts, no Anchor. → [`programs.md`](programs.md)

@@ -15,6 +15,7 @@ use crate::instruction::Ix;
 
 pub mod advance_phase;
 pub mod apply_external_ai_claim;
+pub mod callback_from_gpt_oracle;
 pub mod claims;
 pub mod close_ai_claim;
 pub mod close_market;
@@ -30,7 +31,7 @@ pub mod init_protocol;
 pub mod spot_price;
 pub mod open_challenge;
 pub mod propose;
-pub mod push_ai_oracle_feed;
+pub mod request_ai_oracle;
 pub mod resolve_deadend;
 pub mod set_ai_oracle_config;
 pub mod set_config;
@@ -80,7 +81,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], data: &[u8]) -
         Ix::CommitOracle => commit_oracle::process(program_id, accounts, payload),
         Ix::UndelegateOracle => undelegate_oracle::process(program_id, accounts, payload),
         Ix::SetAiOracleConfig => set_ai_oracle_config::process(program_id, accounts, payload),
-        Ix::PushAiOracleFeed => push_ai_oracle_feed::process(program_id, accounts, payload),
+        Ix::RequestAiOracle => request_ai_oracle::process(program_id, accounts, payload),
         Ix::ApplyExternalAiClaim => apply_external_ai_claim::process(program_id, accounts, payload),
     }
 }

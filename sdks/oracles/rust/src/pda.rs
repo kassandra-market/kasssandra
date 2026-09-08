@@ -83,6 +83,23 @@ pub fn ai_oracle_feed(program_id: &Pubkey, oracle: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[b"ai_feed", oracle.as_ref()], program_id)
 }
 
+/// MagicBlock solana-gpt-oracle program id.
+const GPT_ORACLE_PROGRAM_ID: Pubkey =
+    Pubkey::from_str_const("LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab");
+
+/// MagicBlock solana-gpt-oracle identity PDA — seeds `[b"identity"]`.
+pub fn gpt_oracle_identity() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"identity"], &GPT_ORACLE_PROGRAM_ID)
+}
+
+/// MagicBlock interaction PDA — seeds `[b"interaction", payer, context]`.
+pub fn gpt_oracle_interaction(payer: &Pubkey, context: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[b"interaction", payer.as_ref(), context.as_ref()],
+        &GPT_ORACLE_PROGRAM_ID,
+    )
+}
+
 /// The canonical SOL associated-token-account of `owner` — where the DAO
 /// treasury lives. Derived under the ATA program from `[owner, token_program, mint]`.
 pub fn base_ata(owner: &Pubkey, base_mint: &Pubkey) -> Pubkey {

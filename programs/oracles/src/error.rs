@@ -184,6 +184,9 @@ pub enum KassandraError {
     /// `apply_external_ai_claim` was given a feed whose `oracle` pubkey does not
     /// match the instruction's oracle account.
     AiOracleMismatch = 41,
+    /// GPT-oracle callback payload was not a Borsh string carrying a parseable
+    /// categorical `option_index` (or the option was out of range).
+    InvalidAiOracleResponse = 42,
 }
 
 impl From<KassandraError> for ProgramError {

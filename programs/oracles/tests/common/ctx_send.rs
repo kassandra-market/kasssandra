@@ -27,7 +27,9 @@ pub fn ix_name(disc: u8) -> &'static str {
         19 => "claim_fact_vote",
         20 => "close_ai_claim",
         21 => "close_market",
-        22 => "sweep_oracle",
+        27 => "set_ai_oracle_config",
+        28 => "request_ai_oracle",
+        29 => "apply_external_ai_claim",
         _ => "unknown",
     }
 }

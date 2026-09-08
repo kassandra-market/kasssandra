@@ -50,7 +50,7 @@ describe("parity guard: Ix discriminants (instruction.rs 0..=29)", () => {
     CommitOracle: 25,
     UndelegateOracle: 26,
     SetAiOracleConfig: 27,
-    PushAiOracleFeed: 28,
+    RequestAiOracle: 28,
     ApplyExternalAiClaim: 29,
   };
 
@@ -130,7 +130,7 @@ describe("parity guard: account sizes (tests/state_layout.rs)", () => {
   });
 });
 
-describe("parity guard: KassandraError (error.rs 0..=41)", () => {
+describe("parity guard: KassandraError (error.rs 0..=42)", () => {
   // Pinned from programs/oracles/src/error.rs.
   const PINNED: Record<string, number> = {
     NotImplemented: 0,
@@ -175,6 +175,7 @@ describe("parity guard: KassandraError (error.rs 0..=41)", () => {
     StaleAiOracle: 39,
     AiOracleDisabled: 40,
     AiOracleMismatch: 41,
+    InvalidAiOracleResponse: 42,
   };
 
   it("matches every KassandraError by name and value", () => {
@@ -183,9 +184,9 @@ describe("parity guard: KassandraError (error.rs 0..=41)", () => {
     }
   });
 
-  it("has exactly 42 errors (0..=41)", () => {
+  it("has exactly 43 errors (0..=42)", () => {
     const numericValues = Object.values(KassandraError).filter((v) => typeof v === "number");
-    expect(numericValues.length).toBe(42);
+    expect(numericValues.length).toBe(43);
   });
 
   it("decodeError maps a custom code to its name + a non-empty message", () => {

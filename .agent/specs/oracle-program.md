@@ -29,7 +29,7 @@ Crate `kassandra-oracles-program` (`programs/oracles`). Pinocchio; single-byte
 | 10 | CreateOracle | 22 | SweepOracle |
 | 11 | Propose | 23 | WriteOracleMeta |
 | 24 | DelegateOracle | 27 | SetAiOracleConfig |
-| 25 | CommitOracle | 28 | PushAiOracleFeed |
+| 25 | CommitOracle | 28 | RequestAiOracle |
 | 26 | UndelegateOracle | 29 | ApplyExternalAiClaim |
 
 Instruction `data` = `[disc_byte, ...payload]`, payload mirrors the processor's
@@ -49,7 +49,7 @@ byte layout (LE ints, pubkeys as 32 raw bytes). The SDKs build these byte-exactl
 | 7 | Protocol | `Protocol` (392 B) | governance singleton |
 | 8 | OracleMeta | companion PDA | subject + option labels on-chain; `uri`+`uri_hash` bind extended JSON |
 | 9 | ErSession | `ErSession` (96 B) | `[b"er_session", oracle]` MagicBlock delegation record |
-| 10 | AiOracleConfig | `AiOracleConfig` (48 B) | `[b"ai_oracle_config"]` pusher authority + staleness |
+| 10 | AiOracleConfig | `AiOracleConfig` (48 B) | `[b"ai_oracle_config"]` GPT `llm_context` + staleness |
 | 11 | AiOracleFeed | `AiOracleFeed` (248 B) | `[b"ai_feed", oracle]` latest attested categorical answer |
 
 Every Pod account starts with `account_type: u8` at offset 0

@@ -12,7 +12,7 @@ use solana_pubkey::Pubkey;
 use crate::constants::SUBMIT_AI_CLAIM_PAYLOAD_LEN;
 use crate::rpc::JsonRpc;
 use crate::submit::build::{
-    build_push_ai_oracle_feed_ix, build_signed_transaction, encode_transaction,
+    build_request_ai_oracle_ix, build_signed_transaction, encode_transaction,
 };
 use crate::submit::error::SubmitError;
 
@@ -178,13 +178,13 @@ pub async fn submit_and_confirm(
     confirm(rpc, &signature, opts).await
 }
 
-/// Fetch a blockhash, sign + send `PushAiOracleFeed`, and confirm it.
-/// Attestation is the ed25519 signature of the 97-byte claim payload.
-pub async fn push_feed_and_confirm(
+/// Fetch a blockhash, sign + send `RequestAiOracle`, and confirm it.
+pub async fn request_ai_oracle_and_confirm(
     rpc: &dyn JsonRpc,
     oracle: &Pubkey,
-    authority: &Keypair,
-    payload: &[u8; SUBMIT_AI_CLAIM_PAYLOAD_LEN],
+    payer: &Keypair,
+    text: &[u8],
+    llm_context: Option<&Pubkey>,
     opts: ConfirmOptions,
 ) -> Result<Confirmation, SubmitError> {
     use solana_message::Message;
@@ -192,12 +192,10 @@ pub async fn push_feed_and_confirm(
     use solana_transaction::Transaction;
 
     let blockhash = get_latest_blockhash(rpc).await?;
-    let authority_pubkey = authority.pubkey();
-    let sig = authority.sign_message(payload);
-    let attestation: [u8; 64] = sig.as_ref().try_into().expect("ed25519 signature is 64 bytes");
-    let ix = build_push_ai_oracle_feed_ix(oracle, &authority_pubkey, payload, &attestation);
-    let message = Message::new_with_blockhash(&[ix], Some(&authority_pubkey), &blockhash);
-    let tx = Transaction::new(&[authority], message, blockhash);
+    let payer_pubkey = payer.pubkey();
+    let ix = build_request_ai_oracle_ix(oracle, &payer_pubkey, text, llm_context);
+    let message = Message::new_with_blockhash(&[ix], Some(&payer_pubkey), &blockhash);
+    let tx = Transaction::new(&[payer], message, blockhash);
     let tx_base64 = encode_transaction(&tx);
     let signature = send_transaction(rpc, &tx_base64).await?;
     confirm(rpc, &signature, opts).await

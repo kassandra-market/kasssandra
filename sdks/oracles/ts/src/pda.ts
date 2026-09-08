@@ -16,7 +16,7 @@
 import { Address } from "@solana/web3.js";
 
 import { u64LE } from "./bytes.js";
-import { ATA_PROGRAM_ID, KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
+import { ATA_PROGRAM_ID, GPT_ORACLE_PROGRAM_ID, KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
 
 /** Anything that can name an account: a web3.js `Address`/`PublicKey` or a base58 string. */
 export type AddressInput = Address | string;
@@ -124,6 +124,24 @@ export function aiOracleConfig(programId?: Address): Promise<Pda> {
 /** Per-oracle AI feed PDA — seeds `[b"ai_feed", oracle]`. */
 export function aiOracleFeed(oracleAddr: AddressInput, programId?: Address): Promise<Pda> {
   return derive([enc.encode("ai_feed"), pubkeyBytes(oracleAddr)], programId);
+}
+
+/** MagicBlock solana-gpt-oracle identity PDA — seeds `[b"identity"]`. */
+export function gptOracleIdentity(): Promise<Pda> {
+  return Address.findProgramAddress([enc.encode("identity")], GPT_ORACLE_PROGRAM_ID).then(
+    ([address, bump]) => ({ address, bump }),
+  );
+}
+
+/** MagicBlock interaction PDA — seeds `[b"interaction", payer, context]`. */
+export function gptOracleInteraction(
+  payer: AddressInput,
+  context: AddressInput,
+): Promise<Pda> {
+  return Address.findProgramAddress(
+    [enc.encode("interaction"), pubkeyBytes(payer), pubkeyBytes(context)],
+    GPT_ORACLE_PROGRAM_ID,
+  ).then(([address, bump]) => ({ address, bump }));
 }
 
 /**

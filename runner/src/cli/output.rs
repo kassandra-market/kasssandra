@@ -41,7 +41,7 @@ pub struct RunOutput {
     /// mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub submission: Option<SubmissionOutput>,
-    /// The result of `--push-feed` (writes `AiOracleFeed` via `PushAiOracleFeed`).
+    /// The result of `--request-ai` (CPI MagicBlock `interact_with_llm`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feed_submission: Option<FeedSubmissionOutput>,
     /// The exact 97-byte `submit_ai_claim` payload as raw bytes — the SAME bytes
@@ -50,6 +50,9 @@ pub struct RunOutput {
     /// recomputing it.
     #[serde(skip)]
     pub submit_ai_claim_payload: [u8; SUBMIT_AI_CLAIM_PAYLOAD_LEN],
+    /// Truncated assembled user prompt for `RequestAiOracle` (not serialized).
+    #[serde(skip)]
+    pub request_text: Vec<u8>,
 }
 
 /// The on-chain submission result appended to a `--submit` run.
@@ -78,7 +81,7 @@ pub struct FeedSubmissionOutput {
     pub oracle: String,
     /// The `AiOracleFeed` PDA (base58).
     pub feed: String,
-    /// The signing authority = the `--keypair` pubkey (must be `AiOracleConfig.authority`).
+    /// The signing authority = the `--keypair` pubkey.
     pub authority: String,
 }
 

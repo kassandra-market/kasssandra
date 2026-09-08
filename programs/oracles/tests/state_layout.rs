@@ -164,7 +164,7 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(ErSession, last_commit_slot), 88);
 
     assert_eq!(offset_of!(AiOracleConfig, account_type), 0);
-    assert_eq!(offset_of!(AiOracleConfig, authority), 8);
+    assert_eq!(offset_of!(AiOracleConfig, llm_context), 8);
     assert_eq!(offset_of!(AiOracleConfig, max_staleness_slots), 40);
 
     assert_eq!(offset_of!(AiOracleFeed, account_type), 0);

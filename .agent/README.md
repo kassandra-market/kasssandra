@@ -73,6 +73,7 @@ updated: YYYY-MM-DD
 - [`memories/scaled-amounts-ui.md`](memories/scaled-amounts-ui.md)
 - [`memories/markets-rust-v2-island.md`](memories/markets-rust-v2-island.md)
 - [`memories/magicblock-pinocchio-cpi.md`](memories/magicblock-pinocchio-cpi.md)
+- [`memories/solana-gpt-oracle.md`](memories/solana-gpt-oracle.md)
 - [`memories/cu-snapshot-rebless.md`](memories/cu-snapshot-rebless.md)
 - [`memories/e2e-unified-list-selectors.md`](memories/e2e-unified-list-selectors.md)
 - [`memories/no-native-token.md`](memories/no-native-token.md)

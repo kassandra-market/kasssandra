@@ -259,21 +259,10 @@ fn apply_external_ai_claim_has_empty_payload() {
 }
 
 #[test]
-fn push_ai_oracle_feed_payload_is_161_plus_disc() {
-    let ix = ix::push_ai_oracle_feed(
-        &PROGRAM_ID,
-        pk(1),
-        pk(2),
-        pk(3),
-        pk(4),
-        1,
-        &[0x11; 32],
-        &[0x22; 32],
-        &[0x33; 32],
-        &[0x44; 64],
-    );
-    assert_eq!(ix.data[0], Ix::PushAiOracleFeed as u8);
-    assert_eq!(ix.data.len(), 1 + 161);
-    assert_eq!(ix.data[1], 1);
+fn request_ai_oracle_payload_is_len_prefixed() {
+    let ix = ix::request_ai_oracle(&PROGRAM_ID, pk(1), pk(2), pk(3), pk(4), b"hi");
+    assert_eq!(ix.data[0], Ix::RequestAiOracle as u8);
+    assert_eq!(&ix.data[1..5], &2u32.to_le_bytes());
+    assert_eq!(&ix.data[5..], b"hi");
     assert_eq!(ix.accounts.len(), 5);
 }

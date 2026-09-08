@@ -73,42 +73,39 @@ pub fn build_submit_ai_claim_ix(
     )
 }
 
-/// Build the `PushAiOracleFeed` instruction from the runner's 97-byte claim
-/// payload (`model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option`). The
-/// on-wire feed payload is `option ++ hashes ++ attestation[64]`.
-pub fn build_push_ai_oracle_feed_ix(
+/// Build the `RequestAiOracle` instruction. `text` is the user prompt
+/// forwarded to MagicBlock `interact_with_llm` (truncated by the caller).
+pub fn build_request_ai_oracle_ix(
     oracle: &Pubkey,
-    authority: &Pubkey,
-    payload: &[u8; SUBMIT_AI_CLAIM_PAYLOAD_LEN],
-    attestation: &[u8; 64],
+    payer: &Pubkey,
+    text: &[u8],
+    llm_context: Option<&Pubkey>,
 ) -> Instruction {
-    let mut model_id = [0u8; 32];
-    let mut params_hash = [0u8; 32];
-    let mut io_hash = [0u8; 32];
-    model_id.copy_from_slice(&payload[0..32]);
-    params_hash.copy_from_slice(&payload[32..64]);
-    io_hash.copy_from_slice(&payload[64..96]);
-    let option = payload[96];
     let program_id = program_id();
     let config = kassandra_oracles_sdk::pda::ai_oracle_config(&program_id).0;
     let feed = kassandra_oracles_sdk::pda::ai_oracle_feed(&program_id, oracle).0;
-    kassandra_oracles_sdk::ix::push_ai_oracle_feed(
-        &program_id,
-        config,
-        *oracle,
-        feed,
-        *authority,
-        option,
-        &model_id,
-        &params_hash,
-        &io_hash,
-        attestation,
-    )
+    match llm_context {
+        Some(ctx) => {
+            let interaction = kassandra_oracles_sdk::pda::gpt_oracle_interaction(payer, ctx).0;
+            kassandra_oracles_sdk::ix::request_ai_oracle_with_gpt(
+                &program_id,
+                config,
+                *oracle,
+                feed,
+                *payer,
+                text,
+                interaction,
+                *ctx,
+            )
+        }
+        None => kassandra_oracles_sdk::ix::request_ai_oracle(
+            &program_id, config, *oracle, feed, *payer, text,
+        ),
+    }
 }
 
-/// Discriminant of `PushAiOracleFeed` (Ix 28).
-pub const PUSH_AI_ORACLE_FEED_DISCRIMINANT: u8 =
-    kassandra_oracles_sdk::Ix::PushAiOracleFeed as u8;
+/// Discriminant of `RequestAiOracle` (Ix 28).
+pub const REQUEST_AI_ORACLE_DISCRIMINANT: u8 = kassandra_oracles_sdk::Ix::RequestAiOracle as u8;
 
 /// Load a Solana CLI JSON keypair file (a 64-byte JSON array: 32 secret ++ 32
 /// public) into a [`Keypair`]. Clear errors on a missing file, non-array JSON,

@@ -35,6 +35,7 @@ import {
   applyExternalAiClaim,
   openChallenge,
   pda,
+  requestAiOracle,
   settleChallenge,
   submitAiClaim,
 } from "@kassandra-market/oracles";
@@ -304,6 +305,36 @@ export async function buildApplyExternalAiClaimIxs(
     oracle: addr("oracle", args.oracle),
     proposerAuthority: addr("proposerAuthority", args.proposerAuthority),
     payer: addr("payer", args.payer),
+    programId: args.programId,
+  });
+  return [ix];
+}
+
+// ---------------------------------------------------------------------------
+// request_ai_oracle — ask MagicBlock solana-gpt-oracle to fill AiOracleFeed.
+// ---------------------------------------------------------------------------
+export interface BuildRequestAiOracleArgs {
+  oracle: AddressInput;
+  payer: AddressInput;
+  /** User text forwarded to `interact_with_llm`. */
+  text: string;
+  /** MagicBlock ContextAccount; when omitted the ix is short-form (no CPI). */
+  llmContext?: AddressInput;
+  programId?: Address;
+}
+
+export async function buildRequestAiOracleIxs(
+  args: BuildRequestAiOracleArgs,
+): Promise<TransactionInstruction[]> {
+  const text = args.text.trim();
+  if (!text) {
+    throw new ValidationError("text", "A prompt text is required to request the GPT oracle.");
+  }
+  const ix = await requestAiOracle({
+    oracle: addr("oracle", args.oracle),
+    payer: addr("payer", args.payer),
+    text,
+    llmContext: args.llmContext ? addr("llmContext", args.llmContext) : undefined,
     programId: args.programId,
   });
   return [ix];

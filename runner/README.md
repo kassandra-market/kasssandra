@@ -264,8 +264,9 @@ provided, the submitted hashes) to a submitted claim, advising
 | `--rpc-url <url>` | Solana JSON-RPC url used with `--oracle`. |
 | `--prompt-file <path>` | Interpretation text file used with `--oracle`; its `sha256` must equal the on-chain `prompt_hash`. |
 | `--submit` | (`run`) Keeper mode: sign + send + confirm the `submit_ai_claim` tx. Requires `--keypair` + `--rpc-url` + an oracle. Default is emit-only. |
-| `--push-feed` | (`run`) Keeper mode: sign + send + confirm `PushAiOracleFeed`. Signer must be `AiOracleConfig.authority`. Can combine with `--submit`. |
-| `--keypair <path>` | (`run --submit` / `--push-feed`) Solana CLI keypair JSON (64-byte array) that signs the tx. |
+| `--request-ai` (`--push-feed`) | (`run`) Keeper mode: sign + send + confirm `RequestAiOracle` (MagicBlock GPT oracle). Can combine with `--submit`. |
+| `--llm-context <pubkey>` | (`run --request-ai`) MagicBlock `ContextAccount`; when set, the tx CPIs `interact_with_llm`. |
+| `--keypair <path>` | (`run --submit` / `--request-ai`) Solana CLI keypair JSON (64-byte array) that signs the tx. |
 | `--mock` | Use the deterministic `MockProvider` (offline, no key). Also enabled by `KASSANDRA_RUNNER_MOCK=1`. |
 | `--model <str>` | Override the pinned model string (default `claude-opus-4-8`). |
 | `--max-tokens <n>` | Override `max_tokens` (default `4096`). |

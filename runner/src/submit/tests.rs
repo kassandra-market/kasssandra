@@ -52,8 +52,8 @@ fn discriminant_is_submit_ai_claim() {
 }
 
 #[test]
-fn discriminant_is_push_ai_oracle_feed() {
-    assert_eq!(PUSH_AI_ORACLE_FEED_DISCRIMINANT, 28);
+fn discriminant_is_request_ai_oracle() {
+    assert_eq!(REQUEST_AI_ORACLE_DISCRIMINANT, 28);
 }
 
 #[test]
@@ -102,21 +102,15 @@ fn ix_builder_has_exact_metas_and_data() {
 }
 
 #[test]
-fn push_feed_ix_has_exact_metas_and_data() {
+fn request_ai_oracle_ix_has_exact_metas_and_data() {
     let oracle = oracle_pk();
-    let authority = sample_keypair().pubkey();
-    let payload = sample_payload(1);
-    let attestation = [0x44u8; 64];
-    let ix = build_push_ai_oracle_feed_ix(&oracle, &authority, &payload, &attestation);
+    let payer = sample_keypair().pubkey();
+    let ix = build_request_ai_oracle_ix(&oracle, &payer, b"hi", None);
 
     assert_eq!(ix.program_id, program_id());
-    assert_eq!(ix.data[0], PUSH_AI_ORACLE_FEED_DISCRIMINANT);
-    assert_eq!(ix.data.len(), 1 + 161);
-    assert_eq!(ix.data[1], 1); // option is first on the feed wire
-    assert_eq!(&ix.data[2..34], &payload[0..32]);
-    assert_eq!(&ix.data[34..66], &payload[32..64]);
-    assert_eq!(&ix.data[66..98], &payload[64..96]);
-    assert_eq!(&ix.data[98..162], &attestation[..]);
+    assert_eq!(ix.data[0], REQUEST_AI_ORACLE_DISCRIMINANT);
+    assert_eq!(&ix.data[1..5], &2u32.to_le_bytes());
+    assert_eq!(&ix.data[5..], b"hi");
 
     let program_id = program_id();
     let config = kassandra_oracles_sdk::pda::ai_oracle_config(&program_id).0;
@@ -127,7 +121,7 @@ fn push_feed_ix_has_exact_metas_and_data() {
     assert!(!ix.accounts[1].is_writable);
     assert_eq!(ix.accounts[2].pubkey, feed);
     assert!(ix.accounts[2].is_writable);
-    assert_eq!(ix.accounts[3].pubkey, authority);
+    assert_eq!(ix.accounts[3].pubkey, payer);
     assert!(ix.accounts[3].is_signer);
     assert!(ix.accounts[3].is_writable);
 }

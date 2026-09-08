@@ -42,13 +42,13 @@ export function ApplyExternalAiClaimForm({
           Apply external AI claim
         </h3>
         <p className="mt-1 font-inter text-[13px] text-silver">
-          Stamp this proposer’s on-chain claim from the attested feed
+          Stamp this proposer’s on-chain claim from the MagicBlock GPT-oracle feed
           {feed ? ` (option ${feed.feed.option})` : ''}. Requires the external AI
           oracle to be enabled and the feed to be fresh.
         </p>
         <p className="mt-1 font-inter text-[12px] text-silver">
           The connected wallet must be a proposer on this oracle; it also pays the
-          claim-PDA rent.
+          claim-PDA rent. Request the MagicBlock answer first if the feed is empty.
         </p>
       </div>
       <ConnectGate connected={action.connected}>
