@@ -30,8 +30,8 @@ function Note({ children }: { children: React.ReactNode }) {
  * The Manage-tab PARTICIPATION surface — the wallet-signed write FORMS plus the
  * permissionless phase-advance CRANK, phase-gated and co-located so both live in
  * one place: propose + finalize-proposals in Proposal, submit-fact + advance-to-
- * fact-voting in FactProposal, submit-AI-claim + finalize-AI-claims in AiClaim, the
- * finalize-facts / finalize-oracle cranks in FactVoting / Challenge, and the sweep
+ * fact-voting in FactProposal, request-AI + apply-feed + finalize-AI-claims in
+ * AiClaim, the finalize-facts / finalize-oracle cranks in FactVoting / Challenge, and the sweep
  * once settled. Voting is per-fact (on the Facts tab); the challenge market is
  * composed beside this in Manage; the Overview mirrors the crank's countdown and
  * routes here when it unlocks. Read-only browsing is intact when disconnected.
