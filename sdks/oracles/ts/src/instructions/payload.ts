@@ -8,19 +8,18 @@
  * prepends the 1-byte discriminant. The encodings match the `*_at` / `to_le_bytes`
  * reads in the Rust processors.
  */
-import { Address } from "@solana/web3.js";
-import type { AccountMeta } from "@solana/web3.js";
+import type { Address, AccountMeta } from "@solana/web3.js";
 
 import { concatBytes, i64LE, u16LE, u32LE, u64LE, u8 } from "../bytes.js";
 import { Ix } from "../constants.js";
-import type { AddressInput } from "../pda.js";
+import { type AddressInput, toAddress } from "../pda.js";
 
 // Re-exported for the instruction builders that import them from here.
 export { u8, u16LE, u32LE, u64LE, i64LE, concatBytes };
 
-/** Coerce an `AddressInput` into a web3.js `Address`. */
+/** Coerce an `AddressInput` into this module's web3.js `Address`. */
 export function addr(a: AddressInput): Address {
-  return a instanceof Address ? a : new Address(a);
+  return toAddress(a);
 }
 
 /** Writable account meta. */
@@ -35,7 +34,7 @@ export function ro(pubkey: Address, isSigner = false): AccountMeta {
 
 /** The 32 raw bytes of a pubkey (the on-wire form of an `[u8; 32]` payload field). */
 export function pubkeyBytes(value: AddressInput): Uint8Array {
-  return (value instanceof Address ? value : new Address(value)).toBytes();
+  return toAddress(value).toBytes();
 }
 
 /** A fixed-length `[u8; len]` field; throws if `bytes` is the wrong length. */

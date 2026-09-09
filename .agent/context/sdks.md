@@ -2,7 +2,7 @@
 id: context-sdks
 title: Client SDKs
 tags: [context, sdk, rust, typescript]
-updated: 2026-09-07
+updated: 2026-09-09
 ---
 
 # Client SDKs
@@ -41,6 +41,8 @@ there is no cross-crate drift.
 - The TS SDKs target the **class-`Address`** web3.js (no codecs) in their hot
   paths; `@solana/kit` (which has codecs) appears only in `litesvm-interop.ts` +
   tests. Numeric/LE byte helpers are hand-rolled in each package's `bytes.ts`.
+  Playwright Node (`globalSetup`) can load two web3.js copies — `pda.toAddress`
+  reconstructs from base58 when `instanceof` fails.
   ([`../memories/web3js-address-variant.md`](../memories/web3js-address-variant.md))
 - `@kassandra-market/markets` exports `flows.createAtaIdempotentInstruction` and
   the MetaDAO builders the app reuses (don't re-implement these in the app).

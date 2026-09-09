@@ -7,7 +7,7 @@
  *   proposal      — Proposal, window open        → wallet proposes
  *   factProposal  — dispute → FactProposal open   → wallet submits a fact
  *   factVoting    — → FactVoting (1 fact)         → wallet votes
- *   aiClaim       — → AiClaim, WALLET is proposer → wallet submits an AI claim
+ *   aiClaim       — → AiClaim, WALLET is proposer → wallet applies GPT feed
  *   finalizeReady — Proposal, window ELAPSED      → wallet cranks finalize
  *   resolved      — uncontested → Resolved,
  *                   WALLET is a winning proposer  → wallet claims
@@ -104,7 +104,7 @@ async function globalSetup(): Promise<() => Promise<void>> {
     await approveVote(ctx, o, fact)
     await advanceToAiClaim(ctx, o, 4n, fact)
     await keepWindowOpen(ctx, o)
-    await writeGptFeed((pk, u) => ctx.harness.setAccount(pk, u), o, 0)
+    await writeGptFeed((pk, u) => ctx.harness.setAccount(pk, u), o.toString(), 0)
     oracles.aiClaim = {
       nonce: '4',
       address: o.toString(),

@@ -321,7 +321,7 @@ export async function submitAiClaimAs(
     ctx,
     await stampGptClaimForAuthority(
       (pk, u) => ctx.harness.setAccount(pk, u),
-      oracle,
+      oracle.toString(),
       authority,
       option,
       { modelId: claim.modelId, paramsHash: claim.paramsHash, ioHash: claim.ioHash },

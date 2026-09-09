@@ -114,4 +114,20 @@ describe("ER + AI-oracle instruction builders", () => {
     expect(ix.keys[2].pubkey.toString()).toBe(claim.address.toString());
     expect(ix.keys[5].isSigner).toBe(true);
   });
+
+  it("applyExternalAiClaim: foreign Address-like (duplicate web3.js copy)", async () => {
+    // Playwright's Node loader can resolve two copies of `@solana/web3.js`.
+    // A foreign object fails `instanceof Address` and `new Address(obj)` throws.
+    const foreignAuthority = {
+      toString: () => AUTHORITY,
+      toBytes: () => new Address(AUTHORITY).toBytes(),
+    };
+    const ix = await applyExternalAiClaim({
+      oracle: ORACLE,
+      proposerAuthority: foreignAuthority as unknown as Address,
+      payer: ADMIN,
+    });
+    const proposer = await pda.proposer(ORACLE, AUTHORITY);
+    expect(ix.keys[1].pubkey.toString()).toBe(proposer.address.toString());
+  });
 });

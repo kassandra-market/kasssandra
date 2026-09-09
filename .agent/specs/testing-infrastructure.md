@@ -2,7 +2,7 @@
 id: spec-testing-infrastructure
 title: Testing infrastructure
 tags: [spec, testing, litesvm, surfpool, playwright, postgres]
-updated: 2026-09-07
+updated: 2026-09-09
 ---
 
 # Testing infrastructure
@@ -48,6 +48,9 @@ Four test surfaces, each with a specific harness.
   `Price history`). See
   [`../memories/e2e-unified-list-selectors.md`](../memories/e2e-unified-list-selectors.md).
 - Amount inputs are **scaled** (type `5`, not `5000000000`).
+- Playwright `globalSetup` resolves **two copies** of `@solana/web3.js` (app vs
+  SDK). Pass base58 strings into SDK builders; see
+  [`../memories/web3js-address-variant.md`](../memories/web3js-address-variant.md).
 
 ## `make dev`
 

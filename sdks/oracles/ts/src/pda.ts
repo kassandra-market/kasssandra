@@ -29,9 +29,22 @@ export interface Pda {
 
 const enc = new TextEncoder();
 
+/**
+ * Coerce an {@link AddressInput} into **this module's** `Address` class.
+ *
+ * Playwright's Node loader can resolve two copies of `@solana/web3.js`. A
+ * foreign `Address` fails `instanceof` here, and `new Address(foreignObject)`
+ * throws `Invalid public key input`. Reconstruct from base58 (`String(a)` /
+ * `.toString()`) so callers can pass either copy.
+ */
+export function toAddress(a: AddressInput): Address {
+  if (a instanceof Address) return a;
+  return new Address(String(a));
+}
+
 /** 32 raw bytes of an address (the seed form of a pubkey). */
 function pubkeyBytes(a: AddressInput): Uint8Array {
-  return (a instanceof Address ? a : new Address(a)).toBytes();
+  return toAddress(a).toBytes();
 }
 
 async function derive(seeds: Array<Uint8Array>, programId: Address = KASSANDRA_PROGRAM_ID): Promise<Pda> {
