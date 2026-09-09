@@ -5,8 +5,8 @@ description: "How a MetaDAO decision market becomes the final arbiter over a fau
 
 A **challenge market** is a MetaDAO v0.4 decision (futarchy) market that Kassandra
 uses to arbitrate a disputed AI claim. When a proposer's AI claim looks fraudulent, a
-challenger opens a binary conditional market on the proposer's **KASS bond**
-(pass-KASS vs fail-KASS, each priced in conditional USDC); traders move a
+challenger opens a binary conditional market on the proposer's **SOL bond**
+(pass-SOL vs fail-SOL, each priced in conditional USDC); traders move a
 time-weighted average price (TWAP); after a window closes, settlement reads the TWAP
 and either **disqualifies** the proposer (fraud) or lets the claim **survive**
 (honest). The market — not the AI, and not a committee — is the ultimate arbiter of
@@ -17,7 +17,7 @@ programs by hand-reconstructing their wire format: an 8-byte sighash discriminat
 ordered account metas, and Borsh args. All of the CPI wire code for the challenge
 stack lives in `programs/oracles/src/cpi/metadao.rs` (the v0.4 standalone
 conditional vault + AMM). The separate v0.6 futarchy + Meteora stack in
-`programs/oracles/src/cpi/metadao_v06.rs` is the governance / `kass_price` layer,
+`programs/oracles/src/cpi/metadao_v06.rs` is the governance / `spot_price` layer,
 **not** the challenge market.
 
 ## Why challenge markets exist
@@ -36,13 +36,13 @@ can price. The market lets capital, not authority, override a faulty AI claim.
 
 <CardGroup cols={2}>
   <Card title="Proposer" icon="user-shield">
-    Made the AI claim. Their locked KASS **bond** is the conditional collateral: it is
-    split into idle pass-KASS + fail-KASS and is slashed if the market disqualifies
+    Made the AI claim. Their locked SOL **bond** is the conditional collateral: it is
+    split into idle pass-SOL + fail-SOL and is slashed if the market disqualifies
     them.
   </Card>
   <Card title="Challenger" icon="gavel">
-    Opens the market and **escrows USDC** sized to the bond's value via `kass_price`.
-    Seeds the pools and typically trades the fail side. Earns a KASS fee if the
+    Opens the market and **escrows USDC** sized to the bond's value via `spot_price`.
+    Seeds the pools and typically trades the fail side. Earns a SOL fee if the
     challenge succeeds.
   </Card>
   <Card title="Traders" icon="arrow-right-arrow-left">
@@ -55,7 +55,7 @@ can price. The market lets capital, not authority, override a faulty AI claim.
   </Card>
 </CardGroup>
 
-The design is a **conditional-stake market**: pass-KASS and fail-KASS are fungible
+The design is a **conditional-stake market**: pass-SOL and fail-SOL are fungible
 across participants, so the TWAP prices *a unit of the proposer's stake conditional on
 the claim surviving (pass) vs being disqualified (fail)*, regardless of whose tokens
 trade. The bond's own conditional tokens stay **idle — never LP'd** — so the bond
@@ -96,17 +96,17 @@ flowchart LR
 <Steps>
   <Step title="Compose (challenger, off-chain)">
     The challenger builds the MetaDAO market in their own transactions: a binary
-    question, the KASS and USDC conditional vaults, a `split`, and the two seeded
+    question, the SOL and USDC conditional vaults, a `split`, and the two seeded
     pass/fail AMMs. See [Composing a market](/challenge/composing).
   </Step>
   <Step title="Open (open_challenge, Ix=4)">
     Kassandra verifies and records those accounts, program-splits the proposer's bond
-    into idle pass/fail-KASS, escrows the challenger's USDC, and flips the claim to
+    into idle pass/fail-SOL, escrows the challenger's USDC, and flips the claim to
     challenged. It does **not** create the MetaDAO accounts.
   </Step>
   <Step title="Trade (swap)">
     Traders buy/sell pass and fail. To disqualify, they buy the fail pool (raising the
-    fail-KASS price). See [Trading](/challenge/trading).
+    fail-SOL price). See [Trading](/challenge/trading).
   </Step>
   <Step title="Crank (crank_that_twap)">
     Permissionless cranks fold the price into the slot-weighted TWAP, rate-limited to
@@ -123,7 +123,7 @@ flowchart LR
 
 <CardGroup cols={2}>
   <Card title="Conditional vaults" icon="vault" href="/challenge/conditional-vaults">
-    Splitting KASS and USDC into pass/fail conditional tokens, and redeeming on
+    Splitting SOL and USDC into pass/fail conditional tokens, and redeeming on
     resolution.
   </Card>
   <Card title="AMMs and the TWAP" icon="chart-line" href="/challenge/amms-and-twap">

@@ -50,7 +50,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
     // submit_fact (FactProposal window open).
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_kass(&submitter, 1_000_000);
+    let submitter_base = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     ctx.send(
@@ -59,7 +59,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
             oracle,
             fact,
             submitter.pubkey(),
-            submitter_kass,
+            submitter_base,
             vault,
             submit_fact_payload(&content_hash, 300, b"ipfs://fact"),
         ),
@@ -75,7 +75,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
     // approve well past the 2/3 quorum of dispute_bond_total (== 2*bond == 2000).
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_kass(&voter, 2_000);
+    let voter_base = ctx.fund_base(&voter, 2_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     ctx.send(
         vote_fact_ix(
@@ -84,7 +84,7 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
             fact,
             fact_vote,
             voter.pubkey(),
-            voter_kass,
+            voter_base,
             vault,
             vote_payload(VOTE_APPROVE, 2_000),
         ),
@@ -162,14 +162,9 @@ fn e2e_resolved_full_settlement_real_dispute() {
     let o = ctx.oracle(d.oracle);
     assert_eq!(o.phase, Phase::Resolved as u8, "terminal: Resolved");
     assert_eq!(o.resolved_option, 0);
-    // Emission is ON by default: the real create_oracle minted a `reward_emission`
-    // into the vault, and the Resolved finalize folds it ON TOP of the physical
-    // bond_pool (the flip slash on P1). Both terms are positive, and the vault
-    // still holds Σ stakes + the emission (it is distributed via the claims below).
-    assert!(
-        o.reward_emission > 0,
-        "genesis create minted a real emission"
-    );
+    // Emission is gone: the real create_oracle never mints. The Resolved
+    // finalize folds reward_emission (0) on TOP of the physical bond_pool.
+    assert_eq!(o.reward_emission, 0, "create_oracle never mints");
     assert_eq!(
         o.reward_pool,
         o.bond_pool + o.reward_emission,
@@ -184,7 +179,7 @@ fn e2e_resolved_full_settlement_real_dispute() {
 
     // ---- claim every fact vote, then the submitter (votes-first ordering) -----
     let vote = ctx.fact_vote(d.fact_vote);
-    let voter_dest = ctx.fund_kass(&d.voter, 0);
+    let voter_dest = ctx.fund_base(&d.voter, 0);
     let expected_vote =
         vote.stake + reward::fact_reward(vote.stake, fbucket, o.total_approved_fact_stake);
     let ix = ctx.claim_fact_vote_ix(
@@ -206,7 +201,7 @@ fn e2e_resolved_full_settlement_real_dispute() {
     total_claimed += expected_vote;
 
     let fact = ctx.fact(d.fact);
-    let submitter_dest = ctx.fund_kass(&d.fact_submitter, 0);
+    let submitter_dest = ctx.fund_base(&d.fact_submitter, 0);
     let expected_sub =
         fact.stake + reward::fact_reward(fact.stake, fbucket, o.total_approved_fact_stake);
     let ix = ctx.claim_fact_ix(
@@ -236,7 +231,7 @@ fn e2e_resolved_full_settlement_real_dispute() {
             0
         };
         let expected = base + reward;
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(d.oracle, d.nonce, *pda, dest, d.vault, auth.pubkey());
         ctx.send(ix, &[]).expect("claim_proposer");
         assert_eq!(
@@ -291,7 +286,7 @@ fn e2e_invalid_deadend_full_returns_real_dispute() {
 
     // Fact vote + submitter: full stake back on InvalidDeadend.
     let vote = ctx.fact_vote(d.fact_vote);
-    let voter_dest = ctx.fund_kass(&d.voter, 0);
+    let voter_dest = ctx.fund_base(&d.voter, 0);
     let ix = ctx.claim_fact_vote_ix(
         d.oracle,
         d.nonce,
@@ -310,7 +305,7 @@ fn e2e_invalid_deadend_full_returns_real_dispute() {
     total_claimed += vote.stake;
 
     let fact = ctx.fact(d.fact);
-    let submitter_dest = ctx.fund_kass(&d.fact_submitter, 0);
+    let submitter_dest = ctx.fund_base(&d.fact_submitter, 0);
     let ix = ctx.claim_fact_ix(
         d.oracle,
         d.nonce,
@@ -333,7 +328,7 @@ fn e2e_invalid_deadend_full_returns_real_dispute() {
         let p = ctx.proposer(*pda);
         let expected = p.bond - p.slashed_amount;
         total_slash += p.slashed_amount;
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(d.oracle, d.nonce, *pda, dest, d.vault, auth.pubkey());
         ctx.send(ix, &[]).expect("claim_proposer");
         assert_eq!(ctx.token_balance(dest), expected);

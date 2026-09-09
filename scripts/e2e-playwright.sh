@@ -8,8 +8,8 @@
 #   2. Ensures @playwright/test + the Chromium browser are installed.
 #   3. Runs `playwright test`, which:
 #        - globalSetup boots a headless surfpool validator, deploys the program,
-#          inits the protocol, mints KASS/USDC, GENERATES + FUNDS a wallet
-#          keypair (SOL + KASS ATA), and seeds oracles;
+#          inits the protocol, mints SOL/USDC, GENERATES + FUNDS a wallet
+#          keypair (SOL + SOL ATA), and seeds oracles;
 #        - webServer starts the Vite dev server pointed at surfpool in e2e mode
 #          (VITE_E2E=1) so the real-signing e2e wallet drives the funded key;
 #        - the specs inject the funded keypair and drive the app in a browser;

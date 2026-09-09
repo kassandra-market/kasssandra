@@ -182,8 +182,8 @@ export async function buildAdvancePhaseIxs(
 export interface BuildFinalizeFactsArgs {
   /** The oracle to finalize (past its fact-voting window). */
   oracle: AddressInput;
-  /** Canonical KASS mint (`oracle.kassMint` from the read layer). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (`oracle.baseMint` from the read layer). */
+  baseMint: AddressInput;
   /**
    * The writable tail — a non-empty subset of the oracle's Fact PDAs
    * (`detail.facts[].pubkey`), or its Proposer PDAs in the no-facts dead-end.
@@ -209,7 +209,7 @@ export async function buildFinalizeFactsIxs(
     }));
   const ix = await finalizeFacts({
     nonce,
-    kassMint: args.kassMint,
+    baseMint: args.baseMint,
     tail,
     programId: args.programId,
   });
@@ -245,8 +245,8 @@ export async function buildFinalizeAiClaimsIxs(
 export interface BuildFinalizeOracleArgs {
   /** The oracle to finalize (past its challenge window, no open markets). */
   oracle: AddressInput;
-  /** Canonical KASS mint (`oracle.kassMint` from the read layer). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (`oracle.baseMint` from the read layer). */
+  baseMint: AddressInput;
   /** The FULL proposer-PDA set (`detail.proposers[].pubkey`), read-only tail. */
   proposers: ReadonlyArray<AddressInput>;
   /** The oracle nonce; resolved via {@link resolveOracleNonce} when omitted. */
@@ -268,7 +268,7 @@ export async function buildFinalizeOracleIxs(
     }));
   const ix = await finalizeOracle({
     nonce,
-    kassMint: args.kassMint,
+    baseMint: args.baseMint,
     proposers,
     programId: args.programId,
   });

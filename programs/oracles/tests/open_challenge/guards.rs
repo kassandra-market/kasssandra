@@ -19,9 +19,9 @@ fn open_challenge_twice_is_already_challenged() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );
@@ -53,9 +53,9 @@ fn open_challenge_against_disqualified_proposer_fails() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );
@@ -84,9 +84,9 @@ fn open_challenge_wrong_phase_fails() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );
@@ -114,9 +114,9 @@ fn open_challenge_after_window_fails() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );
@@ -156,7 +156,7 @@ fn open_challenge_question_not_bound_to_oracle_fails() {
     // Build the market with a DIFFERENT resolver — its question.oracle will not
     // equal the Kassandra oracle PDA, so settle could never resolve it.
     let bogus_resolver = Pubkey::new_unique();
-    let (m, oracle_pass_kass, oracle_fail_kass) = setup_market(&mut ctx, bogus_resolver);
+    let (m, oracle_pass_base, oracle_fail_base) = setup_market(&mut ctx, bogus_resolver);
 
     let (market, _) =
         Pubkey::find_program_address(&[b"market", ai_claim.as_ref()], &ctx.program_id);
@@ -174,8 +174,8 @@ fn open_challenge_question_not_bound_to_oracle_fails() {
         challenger.pubkey(),
         &m,
         stake_vault,
-        oracle_pass_kass,
-        oracle_fail_kass,
+        oracle_pass_base,
+        oracle_fail_base,
         // The question.oracle binding fails before escrow pricing, so these
         // escrow accounts are never read (placeholders).
         Pubkey::new_unique(),

@@ -4,8 +4,8 @@ description: "The pass/fail pools (MetaDAO AMM v0.4.2), how they're seeded, and 
 ---
 
 Each challenge market has **two** constant-product AMMs from MetaDAO's standalone
-**v0.4.2** AMM: a **pass pool** trading pass-KASS against pass-USDC, and a **fail
-pool** trading fail-KASS against fail-USDC. Kassandra stays on this AMM specifically
+**v0.4.2** AMM: a **pass pool** trading pass-SOL against pass-USDC, and a **fail
+pool** trading fail-SOL against fail-USDC. Kassandra stays on this AMM specifically
 because it carries a built-in **slot-weighted delayed-TWAP** oracle — the exact price
 signal the settle verdict reads. (The v0.6 Meteora stack used for governance has no
 TWAP, which is why the challenge market does not use it.)
@@ -24,8 +24,8 @@ Defined as `AMM_ID` in `programs/oracles/src/cpi/metadao.rs:56-59`, and as
 
 | Pool | Base mint | Quote mint | What its price means |
 | --- | --- | --- | --- |
-| **Pass** | pass-KASS | pass-USDC | USDC value of a unit of the bond **if the claim survives** |
-| **Fail** | fail-KASS | fail-USDC | USDC value of a unit of the bond **if the claim is disqualified** |
+| **Pass** | pass-SOL | pass-USDC | USDC value of a unit of the bond **if the claim survives** |
+| **Fail** | fail-SOL | fail-USDC | USDC value of a unit of the bond **if the claim is disqualified** |
 
 Each pool PDA is `[b"amm__", base_mint, quote_mint]` (note the **double** trailing
 underscore) under the AMM program. The LP mint is `[b"amm_lp_mint", amm]`, and the
@@ -45,13 +45,13 @@ twap_start_delay_slots               = 0
 add_liquidity(quote_amount = quoteReserve, max_base_amount = baseReserve)
 ```
 
-The defaults are 100 KASS (9 dp) base and 100 USDC (6 dp) quote, which seeds an initial
+The defaults are 100 SOL (9 dp) base and 100 USDC (6 dp) quote, which seeds an initial
 price of `1.0`. The huge `twap_max_observation_change_per_update` means a single crank
 folds the new price with **no clamp** on how far it can move per update.
 
 <Info>
   `twap_initial_observation` uses `PRICE_SCALE = 1e12` — every price the oracle stores
-  is a `1e12`-scaled integer of **quote per base** (raw-USDC per raw-KASS, with the
+  is a `1e12`-scaled integer of **quote per base** (raw-USDC per raw-SOL, with the
   9 dp ↔ 6 dp decimal difference already folded into the raw ratio).
 </Info>
 
@@ -143,7 +143,7 @@ hold a price for a meaningful fraction of the window, not just the last slot.
 </Warning>
 
 <Note>
-  The v0.6 futarchy spot oracle used by `kass_price` is the analogous but
+  The v0.6 futarchy spot oracle used by `spot_price` is the analogous but
   **timestamp-weighted** version — `aggregator / (last_updated_ts − (created_at_ts +
   start_delay_seconds))` (`programs/oracles/src/cpi/metadao_v06.rs:385-415`). That
   one anchors the challenger's USDC escrow size, not the verdict.

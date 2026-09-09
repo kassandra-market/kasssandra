@@ -1,7 +1,7 @@
 //! `vote_fact`: stake-weighted approve/duplicate vote on a fact during the
 //! `FactVoting` window.
 //!
-//! Any KASS holder may vote. A vote escrows `stake` KASS into the oracle's
+//! Any SOL holder may vote. A vote escrows `stake` SOL into the oracle's
 //! stake vault and records a per-`(fact, voter)` [`FactVote`] PDA, so a voter
 //! can vote at most once per fact. Voting is **non-exclusive across facts**: a
 //! voter may vote on many facts and their full stake counts on each — stake is
@@ -22,7 +22,7 @@
 //! 1. fact             — writable, owned by this program; `fact.oracle == oracle`
 //! 2. fact_vote PDA    — writable, uninitialized (created here)
 //! 3. voter            — signer, writable (funds rent + stake authority)
-//! 4. voter KASS       — writable token account, source of the stake
+//! 4. voter SOL       — writable token account, source of the stake
 //! 5. stake vault      — writable token account; must equal `oracle.stake_vault`
 //! 6. token program
 //! 7. system program
@@ -66,7 +66,7 @@ impl Args {
 pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]) -> ProgramResult {
     let args = Args::parse(payload)?;
 
-    let [oracle_ai, fact_ai, fact_vote_ai, voter_ai, voter_kass_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
+    let [oracle_ai, fact_ai, fact_vote_ai, voter_ai, voter_base_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -134,7 +134,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     )?;
 
     // --- escrow the stake into the vault (voter signs as authority) ---------
-    Transfer::new(voter_kass_ai, vault_ai, voter_ai, args.stake).invoke()?;
+    Transfer::new(voter_base_ai, vault_ai, voter_ai, args.stake).invoke()?;
 
     // --- initialize the FactVote --------------------------------------------
     let mut vote = FactVote::zeroed();

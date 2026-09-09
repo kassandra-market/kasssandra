@@ -72,7 +72,7 @@ async function submit(
     ```ts
     await submit(svm, payer, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
 
@@ -101,8 +101,8 @@ async function submit(
       deadline,
       twapWindow: 600n,
       creator: payer.publicKey,
-      creatorKassToken: creatorKass.publicKey,
-      kassMint: kassMint.publicKey,
+      creatorBaseToken: creatorBase.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
     // The question + option labels are written on-chain by a separate
@@ -123,7 +123,7 @@ async function submit(
     await submit(svm, payer, await propose({
       oracle: oraclePda.address,
       authority: authority.publicKey,
-      authorityKass: authorityKass.publicKey,
+      authorityBase: authorityBase.publicKey,
       option: agreedOption,
       bond,
     }), [authority]); // the proposing authority co-signs

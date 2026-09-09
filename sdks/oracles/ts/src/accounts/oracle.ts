@@ -22,9 +22,9 @@ import {
 export interface Oracle {
   accountType: AccountType.Oracle;
   creator: Address;
-  kassMint: Address;
+  baseMint: Address;
   usdcMint: Address;
-  /** PDA token account holding all KASS bonds/stakes. */
+  /** PDA token account holding all SOL bonds/stakes. */
   stakeVault: Address;
   /** Unix deadline; proposals rejected before this. */
   deadline: bigint;
@@ -42,9 +42,9 @@ export interface Oracle {
   /** Proposers not disqualified. */
   survivingCount: number;
   factCount: number;
-  /** Conservation accumulator (KASS base units). */
+  /** Conservation accumulator (SOL base units). */
   totalOracleStake: bigint;
-  /** Accumulated slashed KASS (base units). */
+  /** Accumulated slashed SOL (base units). */
   bondPool: bigint;
   /** Σ proposer bonds, fixed at dispute start; fact-quorum denominator. */
   disputeBondTotal: bigint;
@@ -73,16 +73,16 @@ export interface Oracle {
   // Challenge-fee config snapshot.
   challengeFailUsdcFeeNum: bigint;
   challengeFailUsdcFeeDen: bigint;
-  challengeSuccessKassFeeNum: bigint;
-  challengeSuccessKassFeeDen: bigint;
+  challengeSuccessBaseFeeNum: bigint;
+  challengeSuccessBaseFeeDen: bigint;
   // Settlement resolution totals (0 until resolution).
   totalCorrectProposerStake: bigint;
   totalApprovedFactStake: bigint;
   rewardPool: bigint;
-  /** KASS emission minted into the stake vault at creation. */
+  /** SOL emission minted into the stake vault at creation. */
   rewardEmission: bigint;
   /**
-   * Activity-scaled minimum stake (KASS base units) for propose / submit_fact /
+   * Activity-scaled minimum stake (SOL base units) for propose / submit_fact /
    * vote_fact on this oracle, snapshotted at creation. 0 at genesis / low activity
    * (free participation) or while the floor is disabled.
    */
@@ -99,7 +99,7 @@ export function decodeOracle(data: Uint8Array): Oracle {
   return {
     accountType: AccountType.Oracle,
     creator: readPubkey(data, 8),
-    kassMint: readPubkey(data, 40),
+    baseMint: readPubkey(data, 40),
     usdcMint: readPubkey(data, 72),
     stakeVault: readPubkey(data, 104),
     deadline: readI64LE(dv, 136),
@@ -134,8 +134,8 @@ export function decodeOracle(data: Uint8Array): Oracle {
     rewardFactWeight: readU64LE(dv, 288),
     challengeFailUsdcFeeNum: readU64LE(dv, 296),
     challengeFailUsdcFeeDen: readU64LE(dv, 304),
-    challengeSuccessKassFeeNum: readU64LE(dv, 312),
-    challengeSuccessKassFeeDen: readU64LE(dv, 320),
+    challengeSuccessBaseFeeNum: readU64LE(dv, 312),
+    challengeSuccessBaseFeeDen: readU64LE(dv, 320),
     totalCorrectProposerStake: readU64LE(dv, 328),
     totalApprovedFactStake: readU64LE(dv, 336),
     rewardPool: readU64LE(dv, 344),

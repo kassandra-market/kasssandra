@@ -48,7 +48,7 @@ function ro(pubkey: AddressInput, isSigner = false): AccountMeta {
 export interface CreateAmmArgs {
   /** Rent payer + signer. */
   payer: AddressInput;
-  /** Base-token mint (the conditional-KASS mint in the challenge flow). */
+  /** Base-token mint (the conditional-SOL mint in the challenge flow). */
   baseMint: AddressInput;
   /** Quote-token mint (the conditional-USDC mint). */
   quoteMint: AddressInput;

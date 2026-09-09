@@ -36,13 +36,13 @@ when the byte is out of range).
 
 <AccordionGroup>
   <Accordion title="decodeProtocol → Protocol (368 bytes)">
-    Global config singleton. Fields: `admin, kassMint, usdcMint, feeEma, lastCreationUnix,
-    bump, governanceSet, daoAuthority, kassDao` — plus the **22 governable params**
-    (`emissionNum` … `challengeSuccessKassFeeDen`). See the
+    Global config singleton. Fields: `admin, baseMint, usdcMint, feeEma, lastCreationUnix,
+    bump, governanceSet, daoAuthority, spotDao` — plus the **22 governable params**
+    (`emissionNum` … `challengeSuccessBaseFeeDen`). See the
     [Protocol layout](/protocol/accounts).
   </Accordion>
   <Accordion title="decodeOracle → Oracle (360 bytes)">
-    Top-level dispute account. Fields include `creator, kassMint, usdcMint, stakeVault,
+    Top-level dispute account. Fields include `creator, baseMint, usdcMint, stakeVault,
     deadline, phaseEndsAt, twapWindow, optionsCount, phaseRaw, phase: Phase | undefined,
     proposerCount, survivingCount, factCount, totalOracleStake, bondPool, disputeBondTotal,
     settledCount, aiFinalizedCount, bump, resolvedOption, openChallengeCount`,
@@ -70,7 +70,7 @@ when the byte is out of range).
   </Accordion>
   <Accordion title="decodeMarket → Market (416 bytes)">
     A challenge decision-market binding: `oracle, aiClaim, proposer, challenger, question,
-    kassVault, usdcVault, passAmm, failAmm, oraclePassKass, oracleFailKass,
+    baseVault, usdcVault, passAmm, failAmm, oraclePassBase, oracleFailBase,
     challengerUsdcVault, twapEnd, challengerUsdc, settled, bump`.
   </Accordion>
 </AccordionGroup>

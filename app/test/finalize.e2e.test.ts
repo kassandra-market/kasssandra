@@ -19,7 +19,7 @@
  * `surfnet_timeTravel` clock jumps (mirrors the SDK lifecycle E2E).
  *
  * The near-cap v0/ALT finalize path is NOT re-seeded here (it needs a 40-proposer
- * set, each with a funded KASS account) — it is unit-covered (`needsAlt` flips at
+ * set, each with a funded SOL account) — it is unit-covered (`needsAlt` flips at
  * MAX_LEGACY_TAIL) and proven on real chain by the SDK's own `v0-alt-e2e`.
  *
  * Gated: skips (never fails) unless `KASSANDRA_E2E=1` AND surfpool + the `.so`
@@ -63,7 +63,7 @@ const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady();
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
 }
 
@@ -83,9 +83,9 @@ describe.skipIf(!ENABLED)("finalize/crank action layer over a real surfpool clus
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -98,12 +98,12 @@ describe.skipIf(!ENABLED)("finalize/crank action layer over a real surfpool clus
       data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
     });
 
-    f = { harness, payer, kassMint, usdcMint };
+    f = { harness, payer, baseMint, usdcMint };
     await sendIx(
       f,
       await pda.initProtocol({
         admin: payer.publicKey,
-        kassMint: kassMint.publicKey,
+        baseMint: baseMint.publicKey,
         usdcMint: usdcMint.publicKey,
       }),
     );
@@ -141,13 +141,13 @@ describe.skipIf(!ENABLED)("finalize/crank action layer over a real surfpool clus
     // --- submit a fact (setup) ---
     const submitter = await Keypair.generate();
     await f.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000);
-    const submitterKass = await fundKass(f, submitter.publicKey, 1_000_000n);
+    const submitterBase = await fundBase(f, submitter.publicKey, 1_000_000n);
     await sendIx(
       f,
       await submitFact({
         oracle,
         submitter: submitter.publicKey,
-        submitterKass,
+        submitterBase,
         contentHash,
         stake: 100n,
         uri: "ipfs://fact",
@@ -164,14 +164,14 @@ describe.skipIf(!ENABLED)("finalize/crank action layer over a real surfpool clus
     // --- vote to approve the fact (setup) ---
     const voter = await Keypair.generate();
     await f.harness.airdrop(voter.publicKey.toString(), 2_000_000_000);
-    const voterKass = await fundKass(f, voter.publicKey, 10_000n);
+    const voterBase = await fundBase(f, voter.publicKey, 10_000n);
     await sendIx(
       f,
       await voteFact({
         oracle,
         fact,
         voter: voter.publicKey,
-        voterKass,
+        voterBase,
         kind: VOTE_APPROVE,
         stake: 2_000n,
       }),
@@ -183,7 +183,7 @@ describe.skipIf(!ENABLED)("finalize/crank action layer over a real surfpool clus
     await crank(
       await buildFinalizeFactsIxs({
         oracle,
-        kassMint: f.kassMint.publicKey,
+        baseMint: f.baseMint.publicKey,
         facts: [fact],
         oracleNonce: nonce,
       }),
@@ -221,7 +221,7 @@ describe.skipIf(!ENABLED)("finalize/crank action layer over a real surfpool clus
     await crank(
       await buildFinalizeOracleIxs({
         oracle,
-        kassMint: f.kassMint.publicKey,
+        baseMint: f.baseMint.publicKey,
         proposers: proposerPdas,
         oracleNonce: nonce,
       }),
@@ -257,19 +257,19 @@ async function fetchAccount(f: Fixture, address: Address, timeoutMs = 15_000): P
   throw new Error(`account ${address} did not appear within ${timeoutMs}ms`);
 }
 
-async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
+async function fundBase(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
   const acct = await Keypair.generate();
   await f.harness.setAccount(acct.publicKey.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(f.kassMint.publicKey.toBytes(), owner.toBytes(), amount)),
+    data: toHex(tokenAccountBytes(f.baseMint.publicKey.toBytes(), owner.toBytes(), amount)),
   });
   return acct.publicKey;
 }
 
 async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number): Promise<void> {
-  const creatorKass = await fundKass(f, f.payer.publicKey, 10n ** 15n);
+  const creatorBase = await fundBase(f, f.payer.publicKey, 10n ** 15n);
   const nowUnix = await f.harness.clockUnixTimestamp();
   await sendIx(
     f,
@@ -279,8 +279,8 @@ async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number)
       deadline: nowUnix + 1_000n,
       twapWindow: 600n,
       creator: f.payer.publicKey,
-      creatorKassToken: creatorKass,
-      kassMint: f.kassMint.publicKey,
+      creatorBaseToken: creatorBase,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
     }),
   );
@@ -304,10 +304,10 @@ async function proposeReal(
 ): Promise<{ authority: Keypair; proposer: Address }> {
   const authority = await Keypair.generate();
   await f.harness.airdrop(authority.publicKey.toString(), 2_000_000_000);
-  const authorityKass = await fundKass(f, authority.publicKey, bond * 10n);
+  const authorityBase = await fundBase(f, authority.publicKey, bond * 10n);
   await sendIx(
     f,
-    await propose({ oracle, authority: authority.publicKey, authorityKass, option, bond }),
+    await propose({ oracle, authority: authority.publicKey, authorityBase, option, bond }),
     [authority],
   );
   return { authority, proposer: (await pda.proposer(oracle, authority.publicKey)).address };

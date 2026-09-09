@@ -29,7 +29,7 @@ the check that `open_challenge` deferred. In `verify_and_read_twap`
 - be owned by `AMM_ID` and carry the `Amm` account discriminator
   (`8f f5 c8 11 4a d6 c4 87`);
 - match this market's mints — `pass_amm.{base, quote} ==
-  conditional_token_mint_pda(kass_vault, 0)` / `(usdc_vault, 0)`; `fail_amm` is the same
+  conditional_token_mint_pda(base_vault, 0)` / `(usdc_vault, 0)`; `fail_amm` is the same
   at index 1; and `pass_amm != fail_amm`.
 
 It then reads the stored TWAP with **no crank** (`:23-34`):
@@ -136,9 +136,9 @@ Once `disqualify` is decided, settle applies the outcome
     disqualify (`settle_challenge.rs:427`).
   </Step>
   <Step title="redeem_tokens">
-    A program-signed CPI redeems the bond's **idle** conditional KASS from the
+    A program-signed CPI redeems the bond's **idle** conditional SOL from the
     oracle-PDA-owned holders. The winning side redeems 1:1, the losing side → 0, so the
-    **full bond KASS** lands back in `oracle.stake_vault` regardless of outcome
+    **full bond SOL** lands back in `oracle.stake_vault` regardless of outcome
     (`:471`).
   </Step>
   <Step title="Route directional fees + update oracle state">
@@ -149,10 +149,10 @@ Once `disqualify` is decided, settle applies the outcome
 
 ### Disqualify (fail-win, challenge SUCCEEDED)
 
-- `kass_fee = bond × challenge_success_kass_fee_num/den` (default `1/100`) → the
-  **challenger's** KASS (paid from `stake_vault`).
+- `base_fee = bond × challenge_success_base_fee_num/den` (default `1/100`) → the
+  **challenger's** SOL (paid from `stake_vault`).
 - The **full** `challenger_usdc` escrow → returned to the challenger.
-- `bond − kass_fee` is the proposer's `bond_pool` contribution (== `slashed_amount`);
+- `bond − base_fee` is the proposer's `bond_pool` contribution (== `slashed_amount`);
   `surviving_count -= 1`; `proposer.disqualified = slashed = 1`.
 
 ### Survive (pass-win, challenge FAILED)
@@ -177,9 +177,9 @@ finite, each has a fixed window, and each settles exactly once.
 ## Settle account graph
 
 The SDK derives most accounts; the caller supplies the market-specific ones. The
-processor pins `stake_vault`, `kass_vault`, the escrow, and the conditional holders to
+processor pins `stake_vault`, `base_vault`, the escrow, and the conditional holders to
 the recorded `Oracle` / `Market`, and binds the three payout token accounts by mint +
-owner (`proposer_usdc ↔ proposer.authority`, `challenger_usdc/kass ↔ market.challenger`),
+owner (`proposer_usdc ↔ proposer.authority`, `challenger_usdc/base ↔ market.challenger`),
 so a settle cranker **cannot redirect funds**
 (`docs/plans/2026-06-29-kassandra-challenge-rework.md`, C2 delta).
 

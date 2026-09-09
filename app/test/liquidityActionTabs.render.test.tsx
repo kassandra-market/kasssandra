@@ -15,8 +15,8 @@ vi.mock("../src/market/hooks/useWriteAction", () => ({
     run: async () => {},
   }),
 }));
-vi.mock("../src/market/hooks/useKassBalance", () => ({
-  useKassBalance: () => ({ balance: 5_000_000_000n, loading: false, refetch: () => {} }),
+vi.mock("../src/market/hooks/useSolBalance", () => ({
+  useSolBalance: () => ({ balance: 5_000_000_000n, loading: false, refetch: () => {} }),
 }));
 vi.mock("../src/components/markets/actions/ConnectGate", () => ({
   ConnectGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -30,7 +30,7 @@ import { MarketLiquidityActions } from "../src/components/markets/actions/Market
 
 const detail = {
   pubkey: "Market1111",
-  market: { status: MarketStatus.Active, kassMint: { toString: () => "Kass1111" }, lpMint: { toString: () => "Lp1111" } },
+  market: { status: MarketStatus.Active, baseMint: { toString: () => "Kass1111" }, lpMint: { toString: () => "Lp1111" } },
   contributions: [],
   reserves: { base: 1_000_000_000n, quote: 1_000_000_000n },
 } as never;

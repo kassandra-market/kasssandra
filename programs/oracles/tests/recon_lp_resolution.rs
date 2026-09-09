@@ -8,7 +8,7 @@
 //! after trading has shifted the reserves gets back a PRICE-DEPENDENT mix of
 //! (base, quote) — pro-rata the pool's reserves AT REMOVAL, not what was
 //! deposited. This is the mechanic that collides with a bond being a clean
-//! slashable KASS quantity.
+//! slashable SOL quantity.
 //!
 //! `create_amm` + `add_liquidity` + `swap` + `crank_that_twap` are already
 //! proven against the same binary in `settle_challenge.rs`; `redeem_tokens`
@@ -22,7 +22,7 @@
 //! KEPT after C3 (deliberately, not folded in): this is the ONLY coverage of
 //! `remove_liquidity` against the real AMM binary, and it pins the IMPERMANENT-
 //! LOSS finding that MOTIVATED the escrow/idle-bond design — the bond is split
-//! into idle conditional KASS and redeemed (winning side 1:1) rather than LP'd,
+//! into idle conditional SOL and redeemed (winning side 1:1) rather than LP'd,
 //! so it round-trips cleanly. That idle-bond path is now driven end-to-end by
 //! `challenge_e2e.rs` (real open → AMM → settle, both outcomes) +
 //! `settle_challenge.rs`; this file remains the empirical "why not LP the bond"
@@ -114,10 +114,10 @@ fn remove_liquidity_returns_price_dependent_mix() {
     ctx.svm.add_program(amm_id(), AMM_SO).unwrap();
 
     let payer = ctx.payer.pubkey();
-    let base_mint = ctx.kass_mint; // 9 dp
+    let base_mint = ctx.base_mint; // 9 dp
     let quote_mint = ctx.usdc_mint; // 6 dp
 
-    // Initial deposit: 100 KASS base, 100 USDC quote (price 1.0 -> scaled 1e9).
+    // Initial deposit: 100 SOL base, 100 USDC quote (price 1.0 -> scaled 1e9).
     let base_reserve: u64 = 100_000_000_000;
     let quote_reserve: u64 = 100_000_000;
 
@@ -263,10 +263,10 @@ fn remove_liquidity_returns_price_dependent_mix() {
         "withdrawn quote == pool reserve at removal"
     );
 
-    // THE CRUX: an LP who deposited base_reserve KASS does NOT get base_reserve
-    // KASS back. After a price-up swap they get LESS base and MORE quote — a
+    // THE CRUX: an LP who deposited base_reserve SOL does NOT get base_reserve
+    // SOL back. After a price-up swap they get LESS base and MORE quote — a
     // price-dependent mix. A bond deposited as this base liquidity is therefore
-    // NOT cleanly recoverable as its original KASS quantity.
+    // NOT cleanly recoverable as its original SOL quantity.
     assert!(
         withdrawn_base < base_reserve,
         "IL: got back LESS base than deposited ({withdrawn_base} < {base_reserve})"

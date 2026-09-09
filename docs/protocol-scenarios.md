@@ -14,12 +14,12 @@ the verification checklist — they're where a bug would let value leak.
 
 - **Creator** — opens a market and seeds the first stake. No special powers after
   creation (rent recipient at close).
-- **Contributor** — stakes KASS into a `Funding` market. Recorded in a
+- **Contributor** — stakes SOL into a `Funding` market. Recorded in a
   `Contribution` PDA. Later claims LP (if activated) or a refund (if cancelled).
 - **Cranker** — anyone. All lifecycle transitions after creation are
   **permissionless** cranks; the program pins every output to recorded state so a
   cranker can never redirect funds to itself.
-- **Futarchy authority** (`Config.authority`) — the KASS DAO; the only key that may
+- **Futarchy authority** (`Config.authority`) — the SOL DAO; the only key that may
   `update_config`.
 - **Upgrade authority** — the program's on-chain BPF upgrade authority; the only key
   that may `init_config` (genesis).
@@ -61,7 +61,7 @@ LP can escape before the protocol fee is cut.
 ### 3.1 `InitConfig` (Ix 0) — genesis
 
 **Caller:** the program's upgrade authority (a signer). **Accounts:** config, payer,
-kass_mint, fee_destination, system_program, **program_data**.
+base_mint, fee_destination, system_program, **program_data**.
 
 Steps:
 1. Assert payload = `authority[32] ++ min_liquidity[8] ++ fee_bps[2] ++ fee_destination[32]`.
@@ -70,14 +70,14 @@ Steps:
    Loader `ProgramData` account (pinned to its canonical PDA + loader-owned) and
    requires `Some(upgrade_authority) == payer`. Rejects an immutable program.
 4. `fee_destination` account key matches the payload; `fee_bps ≤ MAX_FEE_BPS` (1000
-   = 10%); `kass_mint` is SPL-token-owned; `fee_destination` is an SPL account on
-   `kass_mint`.
+   = 10%); `base_mint` is SPL-token-owned; `fee_destination` is an SPL account on
+   `base_mint`.
 5. Config PDA `["config"]` re-derived; **re-init guard by tag** (already-`Config` →
    `AlreadyInitialized`).
 6. Create-or-adopt the account (tolerates a pre-funded singleton — `Transfer` top-up
    if short, then PDA-signed `Allocate` + `Assign`), write `Config`.
 
-**End state:** `Config` exists with the futarchy authority, KASS mint, liquidity
+**End state:** `Config` exists with the futarchy authority, SOL mint, liquidity
 floor, and protocol fee. **The authority in `Config` is a payload arg** — the
 deployer bootstraps, then hands governance to the DAO (which may differ from the
 upgrade authority).
@@ -86,7 +86,7 @@ upgrade authority).
 
 **Caller:** `Config.authority`. Sets `min_liquidity`, `fee_bps`, `fee_destination`
 (all at once). Guards: signer == `config.authority` else `Unauthorized`; `fee_bps ≤
-MAX_FEE_BPS`; new `fee_destination` is an SPL account on `kass_mint`. Does **not**
+MAX_FEE_BPS`; new `fee_destination` is an SPL account on `base_mint`. Does **not**
 touch existing markets (they snapshot their fee/floor at creation).
 
 ---
@@ -96,17 +96,17 @@ touch existing markets (they snapshot their fee/floor at creation).
 ### Scenario A: YES wins
 
 **A1. `CreateMarket` (Ix 2).** Creator submits `seed_amount ++ outcome_index`.
-- Guards: signer; `kass_mint == config.kass_mint`; `seed_amount > 0`;
+- Guards: signer; `base_mint == config.base_mint`; `seed_amount > 0`;
   `outcome_index < oracle.options_count`; `oracle.phase < Resolved` (can't open on a
   settled oracle); market PDA is empty (one sub-market per `(oracle, outcome)`).
 - Effects: create `Market` (status `Funding`, `fee_bps`/`min_liquidity` snapshot from
-  `Config`); create the KASS `escrow` token account (authority = market PDA);
+  `Config`); create the SOL `escrow` token account (authority = market PDA);
   transfer `seed_amount` into escrow; create the creator's `Contribution`.
   `total_contributed = seed_amount`, `open_contributions = 1`.
 
-**A2. `Contribute` (Ix 3), repeated.** Each contributor adds `amount` KASS.
+**A2. `Contribute` (Ix 3), repeated.** Each contributor adds `amount` SOL.
 - Guards: signer; market is `Funding`; `escrow == market.escrow_vault`; `amount > 0`.
-- Effects: KASS transferred into escrow; `Contribution` created (or **incremented**
+- Effects: SOL transferred into escrow; `Contribution` created (or **incremented**
   for a repeat contributor); `total_contributed += amount`; `open_contributions += 1`
   **only for a brand-new contributor** (a top-up doesn't double-count).
 
@@ -114,11 +114,11 @@ touch existing markets (they snapshot their fee/floor at creation).
 - Guards: market `Funding`; `total_contributed ≥ min_liquidity` else `NotFunded`;
   oracle **non-terminal** (a resolved oracle → `OracleResolved`, take the cancel
   exit); the composed MetaDAO accounts are re-derived + owner-checked + field-bound
-  (Question oracle-authority == market PDA; vault underlying == KASS; cYES/cNO mints
+  (Question oracle-authority == market PDA; vault underlying == SOL; cYES/cNO mints
   derive from the vault; AMM derives from the mints; **pool must be empty**).
 - Effects (all program-signed with the market seeds): create the transient
   Market-PDA-owned `cyes`/`cno`/`lp_vault` token accounts; `split_tokens` the full
-  escrow KASS → equal cYES + cNO; `add_liquidity` seeds the pool **50/50** (base ==
+  escrow SOL → equal cYES + cNO; `add_liquidity` seeds the pool **50/50** (base ==
   quote == `total_contributed`); measure minted LP → `lp_total`; record all bindings;
   status → `Active`. Escrow is now empty.
 
@@ -141,7 +141,7 @@ AMM directly. The market program isn't involved in trades; the SDK/app drive the
 **A7. `CollectFee` (Ix 9).** Permissionless crank (skipped by A6 for fee-free/no-LP
 markets).
 - Guards: `fee_collected == 0` (idempotency → `AlreadySettled`); market terminal
-  (`Resolved`/`Void`); config + `fee_destination` (on KASS) bound; every MetaDAO
+  (`Resolved`/`Void`); config + `fee_destination` (on SOL) bound; every MetaDAO
   binding re-verified.
 - Accrued math (u128, floor, conservative): `pool_value = (base·num0 + quote·num1)/
   denom`; `realized_full = lp_total·pool_value/supply`; `accrued =
@@ -149,7 +149,7 @@ markets).
   just set the flag**); `accrued_lp = lp_total·accrued/realized_full`; `fee_lp =
   accrued_lp·fee_bps/10000`.
 - Effects (program-signed): `remove_liquidity(fee_lp)` → cYES/cNO; `redeem_tokens`
-  → KASS into escrow; **transfer the redeemed KASS → `fee_destination`** (the KASS
+  → SOL into escrow; **transfer the redeemed SOL → `fee_destination`** (the SOL
   futarchy); `lp_total -= fee_lp`; `fee_collected = 1`.
 
 **A8. `ClaimLp` (Ix 7), repeated per contributor.** Permissionless.
@@ -208,7 +208,7 @@ below floor).
 - Guards: market `Cancelled`; `escrow` bound; `Contribution` belongs to this market;
   **destination owned by `contribution.contributor`** (no redirect); passed
   `contributor` == `contribution.contributor`.
-- Effect: program-signed transfer of **exactly `contribution.amount`** KASS from
+- Effect: program-signed transfer of **exactly `contribution.amount`** SOL from
   escrow → the contributor; **close the `Contribution`** (rent → contributor; absence
   == idempotency); `open_contributions -= 1`.
 
@@ -233,7 +233,7 @@ guards (`Cancelled` vs activated) are mutually exclusive.
 - **Dust contributor** — if `floor(share) == 0`, `claim_lp` skips the transfer but
   still closes the `Contribution` (so it can't wedge a retry loop and can't block
   `close_market`).
-- **Donated dust** — KASS a griefer sends into `escrow`, or rounding dust, is swept to
+- **Donated dust** — SOL a griefer sends into `escrow`, or rounding dust, is swept to
   `fee_destination` by `collect_fee` (harmless: LP claims are off `lp_total`, which
   only decreases by exactly `fee_lp`).
 
@@ -252,7 +252,7 @@ behaviors — assert them explicitly.
 | F4 | `init/update_config` with `fee_bps > 1000` | governance guardrail | `InvalidFee` |
 | F5 | `create_market` with `outcome_index ≥ options_count` | invalid outcome | `InvalidOutcome` |
 | F6 | `create_market`/`activate` on a resolved oracle | terminal oracle can't open/activate | `OracleResolved` |
-| F7 | `create_market` with a non-KASS mint | must match `config.kass_mint` | `WrongMint` |
+| F7 | `create_market` with a non-SOL mint | must match `config.base_mint` | `WrongMint` |
 | F8 | `contribute` / `create_market` with `amount == 0` | zero stake | `ZeroAmount` |
 | F9 | `activate` below the floor | `total_contributed < min_liquidity` | `NotFunded` |
 | F10 | `activate` into a non-empty pool | front-run of the 50/50 seed | `PoolNotEmpty` |

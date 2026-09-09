@@ -14,7 +14,7 @@ The novel idea: **interpretation is fixed at oracle creation**, so disputes redu
 (subjective). An AI applies that fixed interpretation to an agreed fact set, and a
 MetaDAO-style decision market is the ultimate arbiter that can override a faulty AI claim.
 
-No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashing) and by
+No zkTLS, no TEEs. Honesty is enforced **economically** (SOL staking and slashing) and by
 **markets** (the final arbiter of truth).
 
 <CardGroup cols={2}>
@@ -43,11 +43,11 @@ No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashi
 <Steps>
   <Step title="Create">
     A creator posts a prompt, immutable interpretation rules, categorical options, and a
-    deadline, and pays a dynamic KASS creation fee (burned). Config is immutable after
+    deadline, and pays a dynamic SOL creation fee (burned). Config is immutable after
     creation.
   </Step>
   <Step title="Propose">
-    After the deadline, proposers submit a categorical value plus a KASS bond — no proofs.
+    After the deadline, proposers submit a categorical value plus a SOL bond — no proofs.
     If everyone agrees, the oracle **resolves** immediately: no AI, no markets.
   </Step>
   <Step title="Dispute (only on conflict)">
@@ -66,7 +66,7 @@ No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashi
   <Step title="Resolve or dead-end">
     After the last market settles, the final plurality over surviving proposers is
     computed. If nothing survives (or a tie), the oracle reaches an **Invalid dead-end**,
-    resolvable only by KASS governance.
+    resolvable only by SOL governance.
   </Step>
 </Steps>
 
@@ -75,7 +75,7 @@ No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashi
 <CardGroup cols={2}>
   <Card title="programs/oracles" icon="microchip" href="/architecture/program">
     The core Solana program, written in **Pinocchio** (not Anchor). Owns oracle state,
-    phases, facts, AI claims, plurality, staking, emissions, and the dynamic fee.
+    phases, facts, AI claims, plurality, staking, and the dynamic fee.
   </Card>
   <Card title="sdk" icon="js" href="/sdk/overview">
     A hand-written TypeScript client — instruction builders, account decoders, and PDA
@@ -90,7 +90,7 @@ No zkTLS, no TEEs. Honesty is enforced **economically** (KASS staking and slashi
     (`/markets`) sections, served by one Vite + React dApp.
   </Card>
   <Card title="programs/markets" icon="chart-line" href="/market/overview">
-    A KASS-denominated **AMM prediction market** that wraps MetaDAO v0.4
+    A SOL-denominated **AMM prediction market** that wraps MetaDAO v0.4
     vault + amm and defers resolution to the Kassandra oracle. One indexer serves both.
   </Card>
 </CardGroup>

@@ -75,3 +75,4 @@ updated: YYYY-MM-DD
 - [`memories/magicblock-pinocchio-cpi.md`](memories/magicblock-pinocchio-cpi.md)
 - [`memories/cu-snapshot-rebless.md`](memories/cu-snapshot-rebless.md)
 - [`memories/e2e-unified-list-selectors.md`](memories/e2e-unified-list-selectors.md)
+- [`memories/no-native-token.md`](memories/no-native-token.md)

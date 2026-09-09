@@ -25,7 +25,7 @@ mod resolve;
 
 // ----- instruction builder --------------------------------------------------
 
-/// Delegates to the shared harness builder (S3 account order: oracle, kass_mint,
+/// Delegates to the shared harness builder (S3 account order: oracle, base_mint,
 /// stake_vault, token program, then the read-only proposer tail; payload =
 /// oracle nonce). The proposers are READ-ONLY (finalize only reads
 /// claim_option / disqualified).

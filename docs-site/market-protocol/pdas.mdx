@@ -13,9 +13,9 @@ derivers live in `sdks/markets/rust/src/pda.rs`; the TypeScript mirrors are in
 
 | Account | Seeds | Purpose |
 | --- | --- | --- |
-| Config (singleton) | `[b"config"]` | governed config; authority = KASS futarchy |
+| Config (singleton) | `[b"config"]` | governed config; authority = SOL futarchy |
 | Market | `[b"market", oracle, [outcome_index]]` | per-outcome binary sub-market (binary = `outcome_index` 0) |
-| Escrow vault | `[b"escrow", market]` | SPL token account on KASS, authority = Market PDA; holds contributions |
+| Escrow vault | `[b"escrow", market]` | SPL token account on SOL, authority = Market PDA; holds contributions |
 | Contribution | `[b"contribution", market, contributor]` | per-contributor stake record |
 | cYES holder | `[b"cyes", market]` | transient Market-PDA-owned cYES token account (split destination) |
 | cNO holder | `[b"cno", market]` | transient Market-PDA-owned cNO token account (split destination) |
@@ -49,7 +49,7 @@ the caller to be (`sdks/markets/rust/src/pda.rs:17`). It is **not** derived unde
 
 `activate`, `collect_fee`, and `resolve_market` bind several PDAs derived under
 **other** programs — the MetaDAO conditional_vault and the v0.4 AMM (the Question,
-the KASS conditional vault, the cYES/cNO conditional-token mints, the AMM, its LP
+the SOL conditional vault, the cYES/cNO conditional-token mints, the AMM, its LP
 mint, its per-mint vault ATAs, and each program's event-authority PDA). These are
 re-derived and owner-checked in the processors (`processor/activate.rs`) but are not
 kassandra-market PDAs. See [Activation](/market/activation).

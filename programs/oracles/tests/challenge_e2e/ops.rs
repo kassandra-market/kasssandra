@@ -181,9 +181,9 @@ pub(crate) fn open_challenge_ix(
     pass_amm: Pubkey,
     fail_amm: Pubkey,
     stake_vault: Pubkey,
-    oracle_pass_kass: Pubkey,
-    oracle_fail_kass: Pubkey,
-    kass_dao: Pubkey,
+    oracle_pass_base: Pubkey,
+    oracle_fail_base: Pubkey,
+    spot_dao: Pubkey,
     challenger_usdc_src: Pubkey,
     nonce: u64,
 ) -> Instruction {
@@ -202,22 +202,22 @@ pub(crate) fn open_challenge_ix(
             AccountMeta::new(market, false),
             AccountMeta::new(challenger, true),
             AccountMeta::new_readonly(m.question, false),
-            AccountMeta::new(m.kass_vault, false),
+            AccountMeta::new(m.base_vault, false),
             AccountMeta::new_readonly(m.usdc_vault, false),
             AccountMeta::new_readonly(pass_amm, false),
             AccountMeta::new_readonly(fail_amm, false),
             AccountMeta::new(stake_vault, false),
-            AccountMeta::new(m.kass_vault_underlying, false),
+            AccountMeta::new(m.base_vault_underlying, false),
             AccountMeta::new(m.pass_mint, false),
             AccountMeta::new(m.fail_mint, false),
-            AccountMeta::new(oracle_pass_kass, false),
-            AccountMeta::new(oracle_fail_kass, false),
+            AccountMeta::new(oracle_pass_base, false),
+            AccountMeta::new(oracle_fail_base, false),
             AccountMeta::new_readonly(vault_id(), false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(system_program::ID, false),
             AccountMeta::new_readonly(cv_event_auth, false),
             AccountMeta::new_readonly(protocol, false),
-            AccountMeta::new_readonly(kass_dao, false),
+            AccountMeta::new_readonly(spot_dao, false),
             AccountMeta::new_readonly(ctx.usdc_mint, false),
             AccountMeta::new(challenger_usdc_src, false),
             AccountMeta::new(escrow_vault, false),
@@ -228,16 +228,16 @@ pub(crate) fn open_challenge_ix(
 
 pub(crate) struct SettleExtras {
     pub(crate) stake_vault: Pubkey,
-    pub(crate) kass_vault: Pubkey,
-    pub(crate) kass_vault_underlying: Pubkey,
+    pub(crate) base_vault: Pubkey,
+    pub(crate) base_vault_underlying: Pubkey,
     pub(crate) pass_mint: Pubkey,
     pub(crate) fail_mint: Pubkey,
-    pub(crate) oracle_pass_kass: Pubkey,
-    pub(crate) oracle_fail_kass: Pubkey,
+    pub(crate) oracle_pass_base: Pubkey,
+    pub(crate) oracle_fail_base: Pubkey,
     pub(crate) escrow_vault: Pubkey,
     pub(crate) proposer_usdc: Pubkey,
     pub(crate) challenger_usdc_dest: Pubkey,
-    pub(crate) challenger_kass: Pubkey,
+    pub(crate) challenger_base: Pubkey,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -271,16 +271,16 @@ pub(crate) fn settle_ix(
             AccountMeta::new_readonly(cv_event_auth, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new(x.stake_vault, false),
-            AccountMeta::new(x.kass_vault, false),
-            AccountMeta::new(x.kass_vault_underlying, false),
+            AccountMeta::new(x.base_vault, false),
+            AccountMeta::new(x.base_vault_underlying, false),
             AccountMeta::new(x.pass_mint, false),
             AccountMeta::new(x.fail_mint, false),
-            AccountMeta::new(x.oracle_pass_kass, false),
-            AccountMeta::new(x.oracle_fail_kass, false),
+            AccountMeta::new(x.oracle_pass_base, false),
+            AccountMeta::new(x.oracle_fail_base, false),
             AccountMeta::new(x.escrow_vault, false),
             AccountMeta::new(x.proposer_usdc, false),
             AccountMeta::new(x.challenger_usdc_dest, false),
-            AccountMeta::new(x.challenger_kass, false),
+            AccountMeta::new(x.challenger_base, false),
         ],
         data,
     }
@@ -304,7 +304,7 @@ pub(crate) struct Payouts {
     pub(crate) escrow_vault: Pubkey,
     pub(crate) proposer_usdc: Pubkey,
     pub(crate) challenger_usdc_dest: Pubkey,
-    pub(crate) challenger_kass: Pubkey,
+    pub(crate) challenger_base: Pubkey,
 }
 
 pub(crate) fn fabricate_payouts(
@@ -314,18 +314,18 @@ pub(crate) fn fabricate_payouts(
     challenger: Pubkey,
 ) -> Payouts {
     let usdc = ctx.usdc_mint;
-    let kass = ctx.kass_mint;
+    let base = ctx.base_mint;
     let proposer_usdc = Pubkey::new_unique();
     let challenger_usdc_dest = Pubkey::new_unique();
-    let challenger_kass = Pubkey::new_unique();
+    let challenger_base = Pubkey::new_unique();
     fabricate_token_account(ctx, proposer_usdc, usdc, proposer_authority, 0);
     fabricate_token_account(ctx, challenger_usdc_dest, usdc, challenger, 0);
-    fabricate_token_account(ctx, challenger_kass, kass, challenger, 0);
+    fabricate_token_account(ctx, challenger_base, base, challenger, 0);
     let (escrow_vault, _) = TestCtx::challenge_usdc_vault_pda(&ctx.program_id, &market);
     Payouts {
         escrow_vault,
         proposer_usdc,
         challenger_usdc_dest,
-        challenger_kass,
+        challenger_base,
     }
 }

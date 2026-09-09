@@ -1,4 +1,4 @@
-//! `propose` integration tests (Task H3): proposer registration with a KASS
+//! `propose` integration tests (Task H3): proposer registration with a SOL
 //! bond, the deadline gate, the proposal-window logic (normal / empty-window
 //! seeding / closed-with-proposers), and the on-chain `MAX_PROPOSERS` cap.
 //!
@@ -167,7 +167,7 @@ fn propose_option_out_of_range_fails() {
 #[test]
 fn propose_zero_bond_ok_when_floor_zero() {
     // Bootstrapping: at genesis / low activity the snapshotted `min_stake` is 0, so
-    // a 0 bond is accepted — anyone can propose with no premined KASS. (A 0-bond
+    // a 0 bond is accepted — anyone can propose with no premined SOL. (A 0-bond
     // proposer is weightless but still counted by plurality.)
     let mut ctx = TestCtx::new();
     let oracle = setup(&mut ctx, 1, 3);

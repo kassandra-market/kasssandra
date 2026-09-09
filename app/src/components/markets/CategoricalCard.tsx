@@ -5,7 +5,7 @@ import { Button, Card } from "../ui";
 import { StatusChip } from "./StatusChip";
 import { FundingBar } from "./FundingBar";
 import { ConnectGate } from "./actions/ConnectGate";
-import { KassBalanceLine } from "./actions/formPrimitives";
+import { SolBalanceLine } from "./actions/formPrimitives";
 import type { OracleGroup } from "../../market/data/markets";
 import {
   buildBulkActivateSteps,
@@ -17,11 +17,11 @@ import {
   type BulkFundingEntry,
 } from "../../market/data/actions";
 import { useActionSequence } from "../../market/hooks/useActionSequence";
-import { useKassBalance } from "../../market/hooks/useKassBalance";
+import { useSolBalance } from "../../market/hooks/useSolBalance";
 import { useIndexer } from "../../market/lib/indexer";
-import { parseKassAmount, balanceGateError } from "../../market/data/amount";
+import { parseSolAmount, balanceGateError } from "../../market/data/amount";
 import {
-  formatKass,
+  formatSol,
   formatProbability,
   groupStatus,
   normalizeOddsAcrossGroup,
@@ -167,7 +167,7 @@ export function CategoricalCard({
       <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 pt-1 font-inter text-[13px] text-silver">
         <div className="flex gap-1">
           <dt className="text-silver">TVL</dt>
-          <dd className="font-medium text-platinum">{formatKass(tvl)} KASS</dd>
+          <dd className="font-medium text-platinum">{formatSol(tvl)} SOL</dd>
         </div>
       </dl>
 
@@ -177,7 +177,7 @@ export function CategoricalCard({
 }
 
 /**
- * Funding CTA for a categorical group: an inline "total KASS" amount input
+ * Funding CTA for a categorical group: an inline "total SOL" amount input
  * that splits UNIFORMLY across every still-Funding outcome ({@link uniformSplit},
  * the same default `GroupLiquidityPanel` uses on the detail page) — or, once
  * EVERY Funding outcome is already at its own floor, a one-click bulk launch
@@ -200,9 +200,9 @@ function FundGroupCta({
   funding: OracleGroup["markets"];
   onSuccess?: () => void;
 }) {
-  const kassMint = funding[0].market.kassMint.toString();
+  const baseMint = funding[0].market.baseMint.toString();
   const indexer = useIndexer();
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(kassMint);
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useSolBalance(baseMint);
   const seq = useActionSequence(() => {
     refetchBalance();
     onSuccess?.();
@@ -221,7 +221,7 @@ function FundGroupCta({
     }));
 
   // Every outcome already over its own floor with ZERO additional deposit —
-  // the group just needs the activation crank, no KASS to raise.
+  // the group just needs the activation crank, no SOL to raise.
   const readyNow = outcomesReadyToActivate(fundingEntries(null), false);
   const allFunded = readyNow.length === funding.length;
 
@@ -229,7 +229,7 @@ function FundGroupCta({
     if (seq.busy || !seq.address) return;
     setError(undefined);
     try {
-      const built = await buildBulkActivateSteps({ kassMint, payer: seq.address, entries: readyNow });
+      const built = await buildBulkActivateSteps({ baseMint, payer: seq.address, entries: readyNow });
       await seq.run(built, 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -239,10 +239,10 @@ function FundGroupCta({
   const onDeposit = async (e: FormEvent) => {
     e.preventDefault();
     setError(undefined);
-    const parsed = parseKassAmount(amount);
+    const parsed = parseSolAmount(amount);
     if (parsed.error) return setError(parsed.error);
     if (!parsed.value || parsed.value <= 0n) return setError("Enter an amount to deposit.");
-    const gate = balanceGateError(parsed.value, balance, "KASS");
+    const gate = balanceGateError(parsed.value, balance, "SOL");
     if (gate) return setError(gate);
     if (!seq.address) return;
 
@@ -255,7 +255,7 @@ function FundGroupCta({
     try {
       const built: ActivateStep[] = await buildBulkContributeSteps({
         indexer,
-        kassMint,
+        baseMint,
         contributor: seq.address,
         entries: contributeEntries,
       });
@@ -264,7 +264,7 @@ function FundGroupCta({
       const readyToActivate = outcomesReadyToActivate(fundingEntries(shares), false);
       if (readyToActivate.length > 0) {
         built.push(
-          ...(await buildBulkActivateSteps({ kassMint, payer: seq.address, entries: readyToActivate })),
+          ...(await buildBulkActivateSteps({ baseMint, payer: seq.address, entries: readyToActivate })),
         );
       }
       await seq.run(built, 0);
@@ -302,13 +302,13 @@ function FundGroupCta({
               <input
                 type="text"
                 inputMode="decimal"
-                placeholder={`Total (KASS) · split across ${funding.length}`}
+                placeholder={`Total (SOL) · split across ${funding.length}`}
                 value={amount}
                 onChange={(e) => {
                   setAmount(e.target.value);
                   setError(undefined);
                 }}
-                aria-label="Total amount to deposit across all Funding outcomes, in KASS"
+                aria-label="Total amount to deposit across all Funding outcomes, in SOL"
                 aria-invalid={Boolean(error)}
                 className={`min-w-0 flex-1 rounded-tag border bg-liquid-kelp px-3 py-2 font-inter text-[13px] text-platinum placeholder:text-silver focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss ${error ? "border-coral/60" : "border-hairline"}`}
               />
@@ -322,7 +322,7 @@ function FundGroupCta({
                 {seq.busy ? "Staking…" : "Stake"}
               </Button>
             </form>
-            <KassBalanceLine balance={balance} loading={balanceLoading} format={formatKass} />
+            <SolBalanceLine balance={balance} loading={balanceLoading} format={formatSol} />
           </>
         )}
         {error ? <p className="font-inter text-[12px] text-coral">{error}</p> : null}

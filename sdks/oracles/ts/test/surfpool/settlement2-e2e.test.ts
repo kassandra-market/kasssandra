@@ -40,7 +40,7 @@ import {
   advancePastPhaseEnd,
   createOracleReal,
   fetchAccount,
-  fundKass,
+  fundBase,
   fundSigner,
   isClosed,
   openProposals,
@@ -83,7 +83,7 @@ describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real pr
     const subStake = 300n;
     await sendIx(f, await submitFact({
       oracle, submitter: submitter.publicKey,
-      submitterKass: await fundKass(f, submitter.publicKey, 1_000_000n),
+      submitterBase: await fundBase(f, submitter.publicKey, 1_000_000n),
       contentHash: hash, stake: subStake, uri: "ipfs://fact",
     }), [submitter]);
     const fact = (await pda.fact(oracle, hash)).address;
@@ -95,12 +95,12 @@ describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real pr
     const voter = await fundSigner(f);
     await sendIx(f, await voteFact({
       oracle, fact, voter: voter.publicKey,
-      voterKass: await fundKass(f, voter.publicKey, 10_000n),
+      voterBase: await fundBase(f, voter.publicKey, 10_000n),
       kind: VOTE_APPROVE, stake: voteStake,
     }), [voter]);
 
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
+    await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [fact] }));
 
     // Distinct claim options 0/1 → plurality tie → InvalidDeadend.
     for (let i = 0; i < props.length; i++) {
@@ -113,7 +113,7 @@ describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real pr
     await advancePastPhaseEnd(f, oracle);
     await sendIx(f, await finalizeAiClaims({ oracle, proposers: props.map((p) => p.proposer) }));
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeOracle({ nonce, kassMint: f.kassMint.publicKey, proposers: props.map((p) => p.proposer) }));
+    await sendIx(f, await finalizeOracle({ nonce, baseMint: f.baseMint.publicKey, proposers: props.map((p) => p.proposer) }));
 
     const o = decodeOracle(await fetchAccount(f, oracle));
     expect(o.phase).toBe(Phase.InvalidDeadend);
@@ -123,18 +123,18 @@ describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real pr
 
     // Fact vote + submitter: full stake back (no reward, no slash on this arm).
     {
-      const dest = await fundKass(f, voter.publicKey, 0n);
+      const dest = await fundBase(f, voter.publicKey, 0n);
       await sendIx(f, await claimFactVote({
         nonce, factVote: (await pda.factVote(fact, voter.publicKey)).address,
-        fact, destKass: dest, rentRecipient: voter.publicKey,
+        fact, destBase: dest, rentRecipient: voter.publicKey,
       }));
       expect(await tokenBalance(f, dest)).toBe(voteStake);
       totalClaimed += voteStake;
     }
     {
       const factStake = decodeFact(await fetchAccount(f, fact)).stake;
-      const dest = await fundKass(f, submitter.publicKey, 0n);
-      await sendIx(f, await claimFact({ nonce, fact, destKass: dest, rentRecipient: submitter.publicKey }));
+      const dest = await fundBase(f, submitter.publicKey, 0n);
+      await sendIx(f, await claimFact({ nonce, fact, destBase: dest, rentRecipient: submitter.publicKey }));
       expect(await tokenBalance(f, dest)).toBe(factStake);
       expect(await isClosed(f, fact)).toBe(true);
       totalClaimed += factStake;
@@ -144,8 +144,8 @@ describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real pr
     for (const { authority, proposer } of props) {
       const p = decodeProposer(await fetchAccount(f, proposer));
       const expected = p.bond - p.slashedAmount;
-      const dest = await fundKass(f, authority.publicKey, 0n);
-      await sendIx(f, await claimProposer({ nonce, proposer, destKass: dest, rentRecipient: authority.publicKey }));
+      const dest = await fundBase(f, authority.publicKey, 0n);
+      await sendIx(f, await claimProposer({ nonce, proposer, destBase: dest, rentRecipient: authority.publicKey }));
       expect(await tokenBalance(f, dest)).toBe(expected);
       expect(await isClosed(f, proposer)).toBe(true);
       totalClaimed += expected;
@@ -163,7 +163,7 @@ describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real pr
     const treasuryBefore = await tokenBalance(f, f.treasury);
     await f.harness.advanceToUnix(o.phaseEndsAt + SWEEP_GRACE + 1n);
     await sendIx(f, await sweepOracle({
-      nonce, kassMint: f.kassMint.publicKey, daoAuthority: f.daoAuthority, creator: f.payer.publicKey,
+      nonce, baseMint: f.baseMint.publicKey, daoAuthority: f.daoAuthority, creator: f.payer.publicKey,
     }));
     expect(await tokenBalance(f, f.treasury)).toBe(treasuryBefore + dust);
     expect(await isClosed(f, vault)).toBe(true);

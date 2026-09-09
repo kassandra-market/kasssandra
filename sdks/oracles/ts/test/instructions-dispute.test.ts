@@ -27,9 +27,9 @@ import {
 } from "../src/instructions/index.js";
 import {
   AUTHORITY,
-  AUTHORITY_KASS,
+  AUTHORITY_BASE,
   FACT,
-  KASS_MINT,
+  BASE_MINT,
   ORACLE,
   PROPOSER,
   bytesOf,
@@ -49,7 +49,7 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
     const ix = await submitFact({
       oracle: ORACLE,
       submitter: AUTHORITY,
-      submitterKass: AUTHORITY_KASS,
+      submitterBase: AUTHORITY_BASE,
       contentHash,
       stake,
       uri,
@@ -69,7 +69,7 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
       [ORACLE, false, true],
       [fact.address.toString(), false, true],
       [AUTHORITY, true, true],
-      [AUTHORITY_KASS, false, true],
+      [AUTHORITY_BASE, false, true],
       [stakeVault.address.toString(), false, true],
       [TOKEN_PROGRAM_ID.toString(), false, false],
       [SYSTEM_PROGRAM_ID.toString(), false, false],
@@ -82,7 +82,7 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
     const ix = await submitFact({
       oracle: ORACLE,
       submitter: AUTHORITY,
-      submitterKass: AUTHORITY_KASS,
+      submitterBase: AUTHORITY_BASE,
       contentHash,
       stake: 1n,
       uri,
@@ -104,7 +104,7 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
       oracle: ORACLE,
       fact: FACT,
       voter: AUTHORITY,
-      voterKass: AUTHORITY_KASS,
+      voterBase: AUTHORITY_BASE,
       kind,
       stake,
     });
@@ -118,24 +118,24 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
       [FACT, false, true],
       [factVote.address.toString(), false, true],
       [AUTHORITY, true, true],
-      [AUTHORITY_KASS, false, true],
+      [AUTHORITY_BASE, false, true],
       [stakeVault.address.toString(), false, true],
       [TOKEN_PROGRAM_ID.toString(), false, false],
       [SYSTEM_PROGRAM_ID.toString(), false, false],
     ]);
   });
 
-  it("finalizeFacts: nonce u64 payload, oracle/kass_mint/stake_vault/token + writable tail", async () => {
+  it("finalizeFacts: nonce u64 payload, oracle/base_mint/stake_vault/token + writable tail", async () => {
     const nonce = 7n;
     const tail = [FACT, PROPOSER, AUTHORITY];
-    const ix = await finalizeFacts({ nonce, kassMint: KASS_MINT, tail });
+    const ix = await finalizeFacts({ nonce, baseMint: BASE_MINT, tail });
     expect(ix.data).toEqual(bytesOf(Ix.FinalizeFacts, leU64(nonce)));
 
     const oracle = await pda.oracle(nonce);
     const stakeVault = await pda.stakeVault(oracle.address);
     expect(metaTriples(ix.keys)).toEqual([
       [oracle.address.toString(), false, true],
-      [KASS_MINT, false, true],
+      [BASE_MINT, false, true],
       [stakeVault.address.toString(), false, true],
       [TOKEN_PROGRAM_ID.toString(), false, false],
       [FACT, false, true],
@@ -190,10 +190,10 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
     ]);
   });
 
-  it("finalizeOracle: nonce u64 payload, oracle/kass_mint/stake_vault/token + ro proposer tail", async () => {
+  it("finalizeOracle: nonce u64 payload, oracle/base_mint/stake_vault/token + ro proposer tail", async () => {
     const nonce = 7n;
     const proposers = [PROPOSER, AUTHORITY];
-    const ix = await finalizeOracle({ nonce, kassMint: KASS_MINT, proposers });
+    const ix = await finalizeOracle({ nonce, baseMint: BASE_MINT, proposers });
 
     expect(ix.data).toEqual(bytesOf(Ix.FinalizeOracle, leU64(nonce)));
 
@@ -201,7 +201,7 @@ describe("D3b dispute builders — submit/vote facts, AI claim, finalize", () =>
     const stakeVault = await pda.stakeVault(oracle.address);
     expect(metaTriples(ix.keys)).toEqual([
       [oracle.address.toString(), false, true],
-      [KASS_MINT, false, true],
+      [BASE_MINT, false, true],
       [stakeVault.address.toString(), false, true],
       [TOKEN_PROGRAM_ID.toString(), false, false],
       [PROPOSER, false, false],

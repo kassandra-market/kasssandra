@@ -35,10 +35,10 @@ export async function fixture() {
   const nonce = 100n;
   const proposer = (await Keypair.generate()).publicKey;
   const challenger = (await Keypair.generate()).publicKey;
-  const kassMint = (await Keypair.generate()).publicKey;
+  const baseMint = (await Keypair.generate()).publicKey;
   const usdcMint = (await Keypair.generate()).publicKey;
-  const kassDao = (await Keypair.generate()).publicKey;
-  return { nonce, proposer, challenger, kassMint, usdcMint, kassDao };
+  const spotDao = (await Keypair.generate()).publicKey;
+  return { nonce, proposer, challenger, baseMint, usdcMint, spotDao };
 }
 
 export async function build(over: Partial<Parameters<typeof buildComposeAndOpenChallengeIxs>[0]> = {}) {
@@ -48,9 +48,9 @@ export async function build(over: Partial<Parameters<typeof buildComposeAndOpenC
     oracleNonce: f.nonce,
     proposer: f.proposer,
     challenger: f.challenger,
-    kassMint: f.kassMint,
+    baseMint: f.baseMint,
     usdcMint: f.usdcMint,
-    kassDao: f.kassDao,
+    spotDao: f.spotDao,
     ...over,
   });
 }

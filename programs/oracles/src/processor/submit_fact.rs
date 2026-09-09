@@ -1,6 +1,6 @@
 //! `submit_fact`: propose a supporting fact during the `FactProposal` window.
 //!
-//! Creates a per-`content_hash` [`Fact`] PDA, escrows the submitter's KASS
+//! Creates a per-`content_hash` [`Fact`] PDA, escrows the submitter's SOL
 //! stake into the oracle's stake vault, and bumps the oracle's fact bookkeeping.
 //!
 //! # Fact PDA seeds (CONTRACT)
@@ -15,7 +15,7 @@
 //! 0. oracle           — writable, owned by this program
 //! 1. fact PDA         — writable, uninitialized (created here)
 //! 2. submitter        — signer, writable (funds rent + stake authority)
-//! 3. submitter KASS   — writable token account, source of the stake
+//! 3. submitter SOL   — writable token account, source of the stake
 //! 4. stake vault      — writable token account; must equal `oracle.stake_vault`
 //! 5. token program
 //! 6. system program
@@ -78,7 +78,7 @@ impl<'a> Args<'a> {
 pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]) -> ProgramResult {
     let args = Args::parse(payload)?;
 
-    let [oracle_ai, fact_ai, submitter_ai, submitter_kass_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
+    let [oracle_ai, fact_ai, submitter_ai, submitter_base_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -143,7 +143,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     )?;
 
     // --- escrow the stake into the vault (submitter signs as authority) -----
-    Transfer::new(submitter_kass_ai, vault_ai, submitter_ai, args.stake).invoke()?;
+    Transfer::new(submitter_base_ai, vault_ai, submitter_ai, args.stake).invoke()?;
 
     // --- initialize the Fact ------------------------------------------------
     let mut fact = Fact::zeroed();

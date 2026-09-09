@@ -18,7 +18,7 @@
 //! * **Proposer PDA** — seeds
 //!   `[b"proposer", oracle_pubkey.as_ref(), authority_pubkey.as_ref()]`;
 //!   program = [`kassandra_oracles_program::ID`].
-//! * **Stake vault** — an SPL token account on the KASS mint whose **owner
+//! * **Stake vault** — an SPL token account on the SOL mint whose **owner
 //!   (token authority) is the Oracle PDA**, so the program can sign transfers
 //!   out of it later via the oracle PDA seeds. The vault's address is an
 //!   arbitrary fresh pubkey; it is stored in `Oracle.stake_vault`. Because it
@@ -35,8 +35,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use bytemuck::Zeroable;
 use kassandra_oracles_program::config::{
-    CHALLENGE_FAIL_USDC_FEE_DEN, CHALLENGE_FAIL_USDC_FEE_NUM, CHALLENGE_SUCCESS_KASS_FEE_DEN,
-    CHALLENGE_SUCCESS_KASS_FEE_NUM, EMISSION_DEN, EMISSION_NUM, FLIP_SLASH_DEN, FLIP_SLASH_NUM,
+    CHALLENGE_FAIL_USDC_FEE_DEN, CHALLENGE_FAIL_USDC_FEE_NUM, CHALLENGE_SUCCESS_BASE_FEE_DEN,
+    CHALLENGE_SUCCESS_BASE_FEE_NUM, EMISSION_DEN, EMISSION_NUM, FLIP_SLASH_DEN, FLIP_SLASH_NUM,
     MARKET_THRESHOLD_DEN, MARKET_THRESHOLD_NUM, PHASE_WINDOW, PROPOSAL_WINDOW, THRESHOLD_DEN,
     THRESHOLD_NUM, TOTAL_SUPPLY_CAP,
 };
@@ -73,27 +73,27 @@ pub const TWAP_WINDOW: i64 = 600;
 pub const DEADLINE_DELTA: i64 = 1_000;
 
 /// SPL Associated Token Account program id — the DAO treasury (SW1 sweep target)
-/// is the canonical KASS ATA of `dao_authority`, derived under this program.
+/// is the canonical SOL ATA of `dao_authority`, derived under this program.
 pub const ATA_PROGRAM_ID: Pubkey =
     solana_pubkey::pubkey!("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
-/// KASS mint decimals.
-pub const KASS_DECIMALS: u8 = 9;
+/// SOL mint decimals.
+pub const SOL_DECIMALS: u8 = 9;
 /// USDC mint decimals.
 pub const USDC_DECIMALS: u8 = 6;
 
-/// Deterministic `kass_price` TWAP the harness blesses for challenge-escrow
-/// tests: raw USDC per raw KASS × `1e12` (== KASS at $0.50). With a 1 KASS bond
+/// Deterministic `spot_price` TWAP the harness blesses for challenge-escrow
+/// tests: raw USDC per raw SOL × `1e12` (== SOL at $0.50). With a 1 SOL bond
 /// (`1e9` base units) this escrows `1e9 × 5e8 / 1e12 = 500_000` USDC base units.
-pub const KASS_PRICE_TWAP: u128 = 500_000_000;
-/// The `kass_price` fixed-point scale (`KASS_PRICE_SCALE`), mirrored here so
+pub const SPOT_PRICE_TWAP: u128 = 500_000_000;
+/// The `spot_price` fixed-point scale (`SPOT_PRICE_SCALE`), mirrored here so
 /// tests compute the expected escrow without importing the program const.
-pub const KASS_PRICE_SCALE: u128 = 1_000_000_000_000;
+pub const SPOT_PRICE_SCALE: u128 = 1_000_000_000_000;
 
-/// Expected challenger USDC escrow for `bond` KASS base units at
-/// [`KASS_PRICE_TWAP`]: `bond × twap / KASS_PRICE_SCALE` (the on-chain formula).
+/// Expected challenger USDC escrow for `bond` SOL base units at
+/// [`SPOT_PRICE_TWAP`]: `bond × twap / SPOT_PRICE_SCALE` (the on-chain formula).
 pub fn required_escrow_usdc(bond: u64) -> u64 {
-    (bond as u128 * KASS_PRICE_TWAP / KASS_PRICE_SCALE) as u64
+    (bond as u128 * SPOT_PRICE_TWAP / SPOT_PRICE_SCALE) as u64
 }
 
 /// Specification for one proposer to seed into a disputed oracle.
@@ -101,7 +101,7 @@ pub fn required_escrow_usdc(bond: u64) -> u64 {
 pub struct ProposerSpec {
     /// The categorical option this proposer originally proposed.
     pub option: u8,
-    /// KASS bond (base units) this proposer has locked.
+    /// SOL bond (base units) this proposer has locked.
     pub bond: u64,
 }
 
@@ -114,7 +114,7 @@ pub struct SeededProposer {
     pub pda: Pubkey,
     /// Original proposed option.
     pub option: u8,
-    /// Locked KASS bond (base units).
+    /// Locked SOL bond (base units).
     pub bond: u64,
 }
 
@@ -126,7 +126,7 @@ pub struct SeededOracle {
     pub bump: u8,
     /// `nonce` used to derive the Oracle PDA.
     pub nonce: u64,
-    /// Token account holding all KASS bonds; owner == [`SeededOracle::pda`].
+    /// Token account holding all SOL bonds; owner == [`SeededOracle::pda`].
     pub stake_vault: Pubkey,
     /// Proposers seeded into this oracle, in spec order.
     pub proposers: Vec<SeededProposer>,
@@ -138,17 +138,17 @@ pub struct SeededOracle {
 /// `to_payload()`) keep working unchanged.
 pub use kassandra_oracles_sdk::ConfigParams;
 
-/// LiteSVM-backed test context with KASS/USDC mints and helpers for seeding
+/// LiteSVM-backed test context with SOL/USDC mints and helpers for seeding
 /// disputed oracles directly into account storage.
 pub struct TestCtx {
     pub svm: LiteSVM,
     pub payer: Keypair,
-    pub kass_mint: Pubkey,
+    pub base_mint: Pubkey,
     pub usdc_mint: Pubkey,
-    /// A KASS token account owned by the payer, funded and backed by mint supply
+    /// A SOL token account owned by the payer, funded and backed by mint supply
     /// (so a real `Burn` decrements both balance and supply). Used as the
     /// creator's burn source for `create_oracle`'s dynamic fee.
-    pub payer_kass: Pubkey,
+    pub payer_base: Pubkey,
     pub program_id: Pubkey,
     /// Monotonic counter for fresh oracle nonces.
     next_nonce: u64,
@@ -190,8 +190,8 @@ impl TestCtx {
     }
 
     /// Remove `delta` base units from an existing SPL token account's balance
-    /// (saturating), rewriting its account data in place. Used to model KASS that
-    /// physically left a vault (e.g. the `settle_challenge` `kass_fee` payout).
+    /// (saturating), rewriting its account data in place. Used to model SOL that
+    /// physically left a vault (e.g. the `settle_challenge` `base_fee` payout).
     fn sub_token_balance(&mut self, addr: Pubkey, delta: u64) {
         let acc = self
             .svm
@@ -264,9 +264,9 @@ impl TestCtx {
     /// Increase an existing fabricated mint's `supply` by `delta`, rewriting its
     /// account data in place. Keeps fabricated token balances backed by supply
     /// so a real `Burn` does not underflow.
-    /// Current SPL supply of the canonical KASS mint.
-    pub fn kass_supply(&self) -> u64 {
-        let acc = self.svm.get_account(&self.kass_mint).expect("kass mint");
+    /// Current SPL supply of the canonical SOL mint.
+    pub fn base_supply(&self) -> u64 {
+        let acc = self.svm.get_account(&self.base_mint).expect("base mint");
         Mint::unpack(&acc.data).expect("not a mint").supply
     }
 
@@ -277,7 +277,7 @@ impl TestCtx {
     /// for this to match the actual mint; used to size the vault/pool/supply
     /// deltas. Call BEFORE the create (supply changes after the mint).
     pub fn expected_creation_emission(&self) -> u64 {
-        let reservoir = TOTAL_SUPPLY_CAP.saturating_sub(self.kass_supply());
+        let reservoir = TOTAL_SUPPLY_CAP.saturating_sub(self.base_supply());
         ((reservoir as u128) * (EMISSION_NUM as u128) / (EMISSION_DEN as u128)) as u64
     }
 

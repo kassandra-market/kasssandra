@@ -40,9 +40,9 @@ function fakeConnection(present: Set<string> = new Set()): Connection {
 }
 
 async function marketFixture(): Promise<Market> {
-  const kassVault = (await Keypair.generate()).publicKey;
+  const baseVault = (await Keypair.generate()).publicKey;
   const usdcVault = (await Keypair.generate()).publicKey;
-  return { kassVault, usdcVault } as unknown as Market;
+  return { baseVault, usdcVault } as unknown as Market;
 }
 
 function keyShape(ix: TransactionInstruction) {
@@ -70,7 +70,7 @@ describe("conditional-token mint + amm/ATA derivations", () => {
     ] as const) {
       const { base, quote } = await poolMints(m, pool);
       const [expBase] = await Address.findProgramAddress(
-        [enc.encode("conditional_token"), m.kassVault.toBytes(), Uint8Array.of(idx)],
+        [enc.encode("conditional_token"), m.baseVault.toBytes(), Uint8Array.of(idx)],
         VLTX,
       );
       const [expQuote] = await Address.findProgramAddress(
@@ -80,7 +80,7 @@ describe("conditional-token mint + amm/ATA derivations", () => {
       expect(base.toString()).toBe(expBase.toString());
       expect(quote.toString()).toBe(expQuote.toString());
       // conditionalTokenMint() agrees with poolMints().
-      expect((await conditionalTokenMint(m.kassVault, idx)).toString()).toBe(expBase.toString());
+      expect((await conditionalTokenMint(m.baseVault, idx)).toString()).toBe(expBase.toString());
     }
   });
 

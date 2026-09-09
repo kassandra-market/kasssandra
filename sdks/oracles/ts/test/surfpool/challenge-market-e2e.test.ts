@@ -24,13 +24,13 @@
  *
  *   3. OPEN A CHALLENGE — drive the full Kassandra dispute core to `Challenge`
  *      (real instructions, clock advanced via `surfnet_timeTravel`), COMPOSE the
- *      MetaDAO market (real `initialize_question` + KASS/USDC `initialize_
+ *      MetaDAO market (real `initialize_question` + SOL/USDC `initialize_
  *      conditional_vault` CPIs; the pass/fail AMMs are placeholder accounts
  *      owned by the AMM program — `open_challenge` only checks AMM OWNERSHIP),
  *      then call the Kassandra `openChallenge` instruction. Its program-signed
  *      `split_tokens` CPI runs against the FORKED conditional_vault. Asserts the
  *      `Market` PDA is created, `ai_claim.challenged == 1`, the USDC escrow is
- *      funded, and the bond was physically split into conditional KASS. This is
+ *      funded, and the bond was physically split into conditional SOL. This is
  *      a Kassandra instruction that CPIs into a forked MetaDAO program and
  *      succeeds.
  *
@@ -62,8 +62,8 @@ import { buildDaoBlob } from "./futarchy-dao.js";
 import {
   ENABLED,
   type Fixture,
-  KASS_PRICE_TWAP,
-  KASS_PRICE_SCALE,
+  SPOT_PRICE_TWAP,
+  SPOT_PRICE_SCALE,
   BOND,
   BASE_RESERVE,
   QUOTE_NEUTRAL,
@@ -110,9 +110,9 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -126,34 +126,34 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     });
 
     // Fabricate a futarchy-owned `Dao` carrying a deterministic spot TWAP
-    // (== KASS_PRICE_TWAP), then `set_governance` records it as protocol.kass_dao
-    // so open_challenge's `kass_price` returns a positive escrow size. Mirrors
-    // the Rust harness `bless_kass_price` / `build_dao_blob`.
-    const kassDao = (await Keypair.generate()).publicKey;
-    await harness.setAccount(kassDao.toString(), {
+    // (== SPOT_PRICE_TWAP), then `set_governance` records it as protocol.spot_dao
+    // so open_challenge's `spot_price` returns a positive escrow size. Mirrors
+    // the Rust harness `bless_spot_price` / `build_dao_blob`.
+    const spotDao = (await Keypair.generate()).publicKey;
+    await harness.setAccount(spotDao.toString(), {
       lamports: 5_000_000,
       owner: FUTARCHY_ID.toString(),
       executable: false,
-      data: toHex(buildDaoBlob(KASS_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n, 0)),
+      data: toHex(buildDaoBlob(SPOT_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n, 0)),
     });
 
-    f = { harness, payer, kassMint, usdcMint, kassDao };
+    f = { harness, payer, baseMint, usdcMint, spotDao };
 
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
     // One-shot governance handoff. The G1-hardened set_governance requires
-    // dao_authority == the Squads v4 vault PDA derived for kass_dao
-    // (multisig create_key == kass_dao → multisig → vault idx 0), so derive it
+    // dao_authority == the Squads v4 vault PDA derived for spot_dao
+    // (multisig create_key == spot_dao → multisig → vault idx 0), so derive it
     // rather than passing a stand-in (else KassandraError::DaoAuthorityMismatch).
-    const multisig = (await futarchy.pda.squadsMultisig(kassDao)).address;
+    const multisig = (await futarchy.pda.squadsMultisig(spotDao)).address;
     const daoAuthority = (await futarchy.pda.squadsVault(multisig, 0)).address;
     await sendIx(f, await setGovernance({
       authority: payer.publicKey,
       daoAuthority,
-      kassDao,
+      spotDao,
     }));
   }, 120_000);
 
@@ -213,7 +213,7 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     expect(m.proposer.toString()).toBe(c.proposer.toString());
     expect(m.challenger.toString()).toBe(challenger.publicKey.toString());
     expect(m.question.toString()).toBe(market.question.toString());
-    expect(m.kassVault.toString()).toBe(market.kass.vault.toString());
+    expect(m.baseVault.toString()).toBe(market.base.vault.toString());
 
     // ai_claim flipped to challenged.
     expect(decodeAiClaim(await fetchAccount(f, c.aiClaim)).challenged).toBe(true);
@@ -222,15 +222,15 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
 
     // USDC escrow funded with the on-chain-computed required amount (BOND/2000).
     const escrow = (await pda.challengeUsdcVault(marketPda)).address;
-    const requiredUsdc = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE;
+    const requiredUsdc = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE;
     expect(await tokenBalance(f, escrow)).toBe(requiredUsdc);
     expect(m.challengerUsdc).toBe(requiredUsdc);
 
-    // The bond was physically SPLIT into conditional KASS via the forked vault:
-    // pass-KASS + fail-KASS each == BOND, and the underlying landed in the vault.
-    expect(await tokenBalance(f, market.oraclePassKass)).toBe(BOND);
-    expect(await tokenBalance(f, market.oracleFailKass)).toBe(BOND);
-    expect(await tokenBalance(f, market.kass.underlying)).toBe(BOND);
+    // The bond was physically SPLIT into conditional SOL via the forked vault:
+    // pass-SOL + fail-SOL each == BOND, and the underlying landed in the vault.
+    expect(await tokenBalance(f, market.oraclePassBase)).toBe(BOND);
+    expect(await tokenBalance(f, market.oracleFailBase)).toBe(BOND);
+    expect(await tokenBalance(f, market.base.underlying)).toBe(BOND);
   }, 240_000);
 
   it("DISQUALIFY: real swap-driven FAIL-pool TWAP clears the 10% margin → settle slashes", async () => {
@@ -243,11 +243,11 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     // price up, then TWO cranks ≥150 slots apart accumulate the post-swap price
     // into the slot-weighted TWAP — so the disqualify decision is driven by REAL
     // trading moving the TWAP past `pass + 10% threshold`, not a seeded price.
-    const passAmm = await buildPool(f, market.kass.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
-    const failAmm = await buildPool(f, market.kass.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const passAmm = await buildPool(f, market.base.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const failAmm = await buildPool(f, market.base.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
     await crankPool(f, passAmm);
     // 90 USDC BUY drains the fail pool's base hard → instantaneous price ≈ 3.5e9.
-    await swapBuy(f, market.kass.failMint, market.usdc.failMint, 90_000_000n);
+    await swapBuy(f, market.base.failMint, market.usdc.failMint, 90_000_000n);
     await crankPool(f, failAmm); // records the post-swap price
     await crankPool(f, failAmm); // accumulates it: TWAP ≈ (1e9 + 3.5e9)/2 ≫ 1.1e9
 
@@ -270,28 +270,28 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     const payouts = await settleChallengeReal(f, nonce, c, market, marketPda, challenger, passAmm, failAmm);
 
     // --- ASSERT the disqualify economics over RPC ---
-    const escrow = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE; // 500_000
-    const kassFee = BOND / 100n; // CHALLENGE_SUCCESS_KASS_FEE = 1/100
+    const escrow = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE; // 500_000
+    const baseFee = BOND / 100n; // CHALLENGE_SUCCESS_KASS_FEE = 1/100
     // Question resolved FAIL-side [0,1].
     expect(questionResolution(await fetchAccount(f, market.question))).toEqual([0, 1]);
     // Market settled + counter back to 0.
     expect(decodeMarket(await fetchAccount(f, marketPda)).settled).toBe(true);
     expect(decodeOracle(await fetchAccount(f, c.oracle)).openChallengeCount).toBe(0);
-    // Proposer disqualified + slashed `bond − kass_fee` into bond_pool.
+    // Proposer disqualified + slashed `bond − base_fee` into bond_pool.
     const p = decodeProposer(await fetchAccount(f, c.proposer));
     expect(p.disqualified).toBe(true);
     expect(p.slashed).toBe(true);
-    expect(p.slashedAmount).toBe(BOND - kassFee);
+    expect(p.slashedAmount).toBe(BOND - baseFee);
     const oAfter = decodeOracle(await fetchAccount(f, c.oracle));
     expect(oAfter.survivingCount).toBe(oBefore.survivingCount - 1);
-    expect(oAfter.bondPool).toBe(oBefore.bondPool + (BOND - kassFee));
-    // KASS: kass_fee → challenger; bond − kass_fee redeemed into stake_vault.
-    expect(await tokenBalance(f, payouts.challengerKass)).toBe(kassFee);
-    expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + (BOND - kassFee));
-    // The bond's conditional KASS was redeemed (holders burned, underlying drained).
-    expect(await tokenBalance(f, market.oraclePassKass)).toBe(0n);
-    expect(await tokenBalance(f, market.oracleFailKass)).toBe(0n);
-    expect(await tokenBalance(f, market.kass.underlying)).toBe(0n);
+    expect(oAfter.bondPool).toBe(oBefore.bondPool + (BOND - baseFee));
+    // SOL: base_fee → challenger; bond − base_fee redeemed into stake_vault.
+    expect(await tokenBalance(f, payouts.challengerBase)).toBe(baseFee);
+    expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + (BOND - baseFee));
+    // The bond's conditional SOL was redeemed (holders burned, underlying drained).
+    expect(await tokenBalance(f, market.oraclePassBase)).toBe(0n);
+    expect(await tokenBalance(f, market.oracleFailBase)).toBe(0n);
+    expect(await tokenBalance(f, market.base.underlying)).toBe(0n);
     // USDC: full escrow → challenger; no proposer fee.
     expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrow);
     expect(await tokenBalance(f, payouts.proposerUsdc)).toBe(0n);
@@ -304,8 +304,8 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     const market = await composeMarket(f, c.oracle);
 
     // Both pools at the neutral seeded price (1e9) → pass == fail → survives.
-    const passAmm = await buildPool(f, market.kass.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
-    const failAmm = await buildPool(f, market.kass.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const passAmm = await buildPool(f, market.base.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const failAmm = await buildPool(f, market.base.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
     await crankPool(f, passAmm);
     await crankPool(f, failAmm);
 
@@ -328,7 +328,7 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     const payouts = await settleChallengeReal(f, nonce, c, market, marketPda, challenger, passAmm, failAmm);
 
     // --- ASSERT the survive economics over RPC ---
-    const escrow = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE; // 500_000
+    const escrow = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE; // 500_000
     const usdcFee = escrow / 100n; // CHALLENGE_FAIL_USDC_FEE = 1/100
     // Question resolved PASS-side [1,0].
     expect(questionResolution(await fetchAccount(f, market.question))).toEqual([1, 0]);
@@ -341,7 +341,7 @@ describe.skipIf(!ENABLED)("surfpool challenge-market on FORKED MetaDAO (T4)", ()
     expect(oAfter.bondPool).toBe(oBefore.bondPool); // no slash
     expect(oAfter.survivingCount).toBe(oBefore.survivingCount);
     expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + BOND);
-    expect(await tokenBalance(f, payouts.challengerKass)).toBe(0n);
+    expect(await tokenBalance(f, payouts.challengerBase)).toBe(0n);
     // USDC: fee → proposer, remainder → challenger (escrow fully accounted).
     expect(await tokenBalance(f, payouts.proposerUsdc)).toBe(usdcFee);
     expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrow - usdcFee);

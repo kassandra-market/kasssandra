@@ -27,7 +27,7 @@ pub mod finalize_oracle;
 pub mod finalize_proposals;
 pub mod guards;
 pub mod init_protocol;
-pub mod kass_price;
+pub mod spot_price;
 pub mod open_challenge;
 pub mod propose;
 pub mod push_ai_oracle_feed;
@@ -68,7 +68,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], data: &[u8]) -
         Ix::SetGovernance => set_governance::process(program_id, accounts, payload),
         Ix::SetConfig => set_config::process(program_id, accounts, payload),
         Ix::ResolveDeadend => resolve_deadend::process(program_id, accounts, payload),
-        Ix::KassPrice => kass_price::process(program_id, accounts, payload),
+        Ix::SpotPrice => spot_price::process(program_id, accounts, payload),
         Ix::ClaimProposer => claims::claim_proposer(program_id, accounts, payload),
         Ix::ClaimFact => claims::claim_fact(program_id, accounts, payload),
         Ix::ClaimFactVote => claims::claim_fact_vote(program_id, accounts, payload),

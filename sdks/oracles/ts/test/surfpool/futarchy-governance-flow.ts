@@ -18,7 +18,7 @@ import { type Fixture, sendIx } from "./futarchy-governance-harness.js";
 
 /**
  * Boot surfpool FORKING MAINNET (so MetaDAO's deployed programs execute over
- * RPC), fund the payer, materialise real KASS (9dp) + USDC (6dp) mints, and run
+ * RPC), fund the payer, materialise real SOL (9dp) + USDC (6dp) mints, and run
  * the real `initialize_protocol`. Returns the fixture with `dao/multisig/vault`
  * still unset (call `bootstrapDao` to fill them).
  */
@@ -31,11 +31,11 @@ export async function setupFixture(port: number): Promise<Fixture> {
   const payer = await Keypair.generate();
   await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
-  // Real KASS (9dp) + USDC (MUST be 6dp — initialize_dao `mint::decimals = 6`).
+  // Real SOL (9dp) + USDC (MUST be 6dp — initialize_dao `mint::decimals = 6`).
   const mintAuth = await pda.mintAuthority();
-  const kassMint = await Keypair.generate();
+  const baseMint = await Keypair.generate();
   const usdcMint = await Keypair.generate();
-  await harness.setAccount(kassMint.publicKey.toString(), {
+  await harness.setAccount(baseMint.publicKey.toString(), {
     lamports: 1_000_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
@@ -51,7 +51,7 @@ export async function setupFixture(port: number): Promise<Fixture> {
   const f: Fixture = {
     harness,
     payer,
-    kassMint,
+    baseMint,
     usdcMint,
     dao: undefined as unknown as Address,
     multisig: undefined as unknown as Address,
@@ -62,7 +62,7 @@ export async function setupFixture(port: number): Promise<Fixture> {
     f,
     await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }),
   );
@@ -72,7 +72,7 @@ export async function setupFixture(port: number): Promise<Fixture> {
 /**
  * Real `initialize_dao` (creates the Dao + the Squads multisig with
  * create_key==Dao + vault atomically; treasury fetched live) → the G1-hardened
- * `set_governance(kass_dao=Dao, dao_authority=vault)`. Mutates `f` in place with
+ * `set_governance(spot_dao=Dao, dao_authority=vault)`. Mutates `f` in place with
  * the resulting `dao`, `multisig`, and `vault`.
  */
 export async function bootstrapDao(f: Fixture): Promise<void> {
@@ -86,7 +86,7 @@ export async function bootstrapDao(f: Fixture): Promise<void> {
   const boot = await futarchy.bootstrapGovernance({
     payer: f.payer.publicKey,
     daoCreator: f.payer.publicKey,
-    kassMint: f.kassMint.publicKey,
+    baseMint: f.baseMint.publicKey,
     usdcMint: f.usdcMint.publicKey,
     squadsProgramConfigTreasury: treasury,
     nonce,

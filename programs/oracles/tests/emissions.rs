@@ -1,38 +1,23 @@
-//! Task S3 emission tests: the KASS mint-authority bootstrap, mint-at-creation
-//! from the supply reservoir, the InvalidDeadend burn-back, and the
-//! mint-authority guard.
-//!
-//! `create_oracle` mints `reward_emission = (total_supply_cap − kass_supply) ·
-//! emission_num/den` into the new oracle's `stake_vault`, program-signed by the
-//! mint-authority PDA. The reward is computed on the CURRENT (pre-burn) supply and
-//! the SAME value drives the creation-fee recapture (see `crate::fee`). On
-//! `Resolved`, `finalize_oracle` folds it into `reward_pool`; on `InvalidDeadend`,
-//! it burns it back. Emission is ON by default (the recommended curve); these
-//! tests pin an exact `(cap, num, den)` via `set_config` for deterministic sizing.
+//! Native-token emission is gone: `create_oracle` never mints SOL/USDC.
+//! `Oracle.reward_emission` stays in the Pod layout (always 0 at create).
+//! Seeded-emission tests below still drive finalize_oracle fold/burn of a
+//! harness-stamped `reward_emission` so settlement math stays covered.
 
 mod common;
 use common::*;
 
 use kassandra_oracles_program::{
-    error::KassandraError,
     reward,
     state::{Phase, CLAIM_OPTION_NONE},
 };
-use solana_instruction_error::InstructionError;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
-use solana_transaction_error::TransactionError;
 
-/// Recommended-curve test values: cap 2e15 (the harness funds the payer 1e15, so
-/// the reservoir is ~1e15) at rate 1/1_000_000 → a clean 1e9-scale emission.
+/// Test emission-config values (no longer minted; used only to prove create
+/// ignores them).
 const CAP: u64 = 2_000_000_000_000_000;
 const NUM: u64 = 1;
 const DEN: u64 = 1_000_000;
-
-/// floor((cap − supply)·num/den), the on-chain emission formula.
-fn emission_for(supply: u64, cap: u64, num: u64, den: u64) -> u64 {
-    ((cap as u128 - supply as u128) * num as u128 / den as u128) as u64
-}
 
 /// init_protocol + governance handoff (dao_authority = payer) + a `set_config`
 /// that OVERWRITES the emission params with a chosen `(cap, num, den)`. Emission is
@@ -56,62 +41,44 @@ fn enable_emission(ctx: &mut TestCtx, cap: u64, num: u64, den: u64) {
 }
 
 #[test]
-fn create_oracle_mints_emission_into_vault() {
+fn create_oracle_never_mints_even_when_emission_configured() {
     let mut ctx = TestCtx::new();
     enable_emission(&mut ctx, CAP, NUM, DEN);
 
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     let deadline = ctx.now() + 1_000;
     let (oracle, res) = ctx.create_oracle(0, 2, deadline, 600);
     assert!(res.is_ok(), "create_oracle: {res:?}");
 
-    // Genesis creation → fee 0 → no burn; emission on the full reservoir.
-    let expected = emission_for(supply_before, CAP, NUM, DEN);
-    assert!(expected > 0, "test must exercise a positive emission");
     let o = ctx.oracle(oracle);
-    assert_eq!(
-        o.reward_emission, expected,
-        "oracle.reward_emission recorded"
-    );
-
-    // Supply rose by exactly the emission (the reservoir shrank by it).
-    assert_eq!(ctx.mint_supply(ctx.kass_mint), supply_before + expected);
-    assert_eq!(
-        CAP - ctx.mint_supply(ctx.kass_mint),
-        CAP - supply_before - expected
-    );
-
-    // The minted KASS is physically in the stake_vault.
+    assert_eq!(o.reward_emission, 0, "no native-token minting");
+    assert_eq!(ctx.mint_supply(ctx.base_mint), supply_before);
     let (vault, _) = TestCtx::stake_vault_pda(&ctx.program_id, &oracle);
-    assert_eq!(ctx.token_balance(vault), expected);
+    assert_eq!(ctx.token_balance(vault), 0);
 }
 
 #[test]
-fn fee_burned_before_emission_computed_on_pre_burn_supply() {
+fn fee_still_burns_without_minting() {
     let mut ctx = TestCtx::new();
     enable_emission(&mut ctx, CAP, NUM, DEN);
 
-    // Genesis creation is free (no burn).
     let deadline = ctx.now() + 1_000_000;
     let (_o0, res) = ctx.create_oracle(0, 2, deadline, 600);
     assert!(res.is_ok(), "genesis create: {res:?}");
 
-    // Second rapid creation: a positive fee is burned BEFORE the emission mint.
-    let bal_pre = ctx.token_balance(ctx.payer_kass);
-    let supply_pre = ctx.mint_supply(ctx.kass_mint);
+    let bal_pre = ctx.token_balance(ctx.payer_base);
+    let supply_pre = ctx.mint_supply(ctx.base_mint);
     let (o1, res) = ctx.create_oracle(1, 2, deadline, 600);
     assert!(res.is_ok(), "second create: {res:?}");
 
-    let fee = bal_pre - ctx.token_balance(ctx.payer_kass);
+    let fee = bal_pre - ctx.token_balance(ctx.payer_base);
     assert!(fee > 0, "a second rapid creation burns a fee");
-
-    let e1 = ctx.oracle(o1).reward_emission;
-    // Emission is computed on the CURRENT (pre-burn) supply and the SAME value is
-    // both what the recapture fee is derived from AND what is minted — computed
-    // once, before the burn (the fee depends on the reward, so the reward can't
-    // depend on the post-burn supply without a circular dependency).
-    let expected = emission_for(supply_pre, CAP, NUM, DEN);
-    assert_eq!(e1, expected, "emission uses the pre-burn supply");
+    assert_eq!(ctx.oracle(o1).reward_emission, 0);
+    assert_eq!(
+        ctx.mint_supply(ctx.base_mint),
+        supply_pre - fee,
+        "supply drops by the burned fee only"
+    );
 }
 
 #[test]
@@ -169,7 +136,7 @@ fn resolved_folds_emission_into_reward_pool_and_claim() {
     let bond0 = ctx.proposers(oracle)[0].bond;
     let pda0 = ctx.proposers(oracle)[0].pda;
     let nonce = ctx.seeded(oracle).nonce;
-    let dest = ctx.fund_kass(&auth0, 0);
+    let dest = ctx.fund_base(&auth0, 0);
     let ix = ctx.claim_proposer_ix(oracle, nonce, pda0, dest, vault, auth0.pubkey());
     ctx.send(ix, &[]).expect("claim should succeed");
 
@@ -204,7 +171,7 @@ fn invalid_deadend_burns_emission_back() {
     ctx.set_reward_emission(oracle, emission);
 
     let vault = ctx.seeded(oracle).stake_vault;
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     assert_eq!(ctx.token_balance(vault), 2_000 + emission);
 
     ctx.warp(WINDOW + 1);
@@ -222,7 +189,7 @@ fn invalid_deadend_burns_emission_back() {
         "emission burned out of the vault"
     );
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before - emission,
         "burn-back returned the emission to the reservoir"
     );
@@ -231,24 +198,17 @@ fn invalid_deadend_burns_emission_back() {
 }
 
 #[test]
-fn mint_authority_mismatch_rejected() {
+fn mint_authority_mismatch_does_not_block_create() {
     let mut ctx = TestCtx::new();
     enable_emission(&mut ctx, CAP, NUM, DEN);
-    // Point the canonical KASS mint's authority at a non-PDA key: emission can no
-    // longer be trusted, so the mint at create_oracle is rejected.
+    // Native-token minting is gone, so a non-PDA mint authority is irrelevant.
     let payer = ctx.payer.pubkey();
-    ctx.set_kass_mint_authority(payer);
+    ctx.set_base_mint_authority(payer);
 
     let deadline = ctx.now() + 1_000;
-    let (_o, res) = ctx.create_oracle(0, 2, deadline, 600);
-    let err = res.unwrap_err().err;
-    assert_eq!(
-        err,
-        TransactionError::InstructionError(
-            0,
-            InstructionError::Custom(KassandraError::BadMintAuthority as u32),
-        ),
-    );
+    let (oracle, res) = ctx.create_oracle(0, 2, deadline, 600);
+    assert!(res.is_ok(), "create_oracle: {res:?}");
+    assert_eq!(ctx.oracle(oracle).reward_emission, 0);
 }
 
 #[test]
@@ -260,14 +220,14 @@ fn cap_zero_emits_nothing() {
     let mut ctx = TestCtx::new();
     enable_emission(&mut ctx, 0, NUM, DEN);
 
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     let deadline = ctx.now() + 1_000;
     let (oracle, res) = ctx.create_oracle(0, 2, deadline, 600);
     assert!(res.is_ok(), "create with cap 0: {res:?}");
 
     assert_eq!(ctx.oracle(oracle).reward_emission, 0);
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before,
         "supply unchanged"
     );
@@ -281,11 +241,11 @@ fn emission_num_zero_emits_nothing() {
     let mut ctx = TestCtx::new();
     enable_emission(&mut ctx, CAP, 0, DEN);
 
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     let deadline = ctx.now() + 1_000;
     let (oracle, res) = ctx.create_oracle(0, 2, deadline, 600);
     assert!(res.is_ok(), "create with emission_num 0: {res:?}");
 
     assert_eq!(ctx.oracle(oracle).reward_emission, 0);
-    assert_eq!(ctx.mint_supply(ctx.kass_mint), supply_before);
+    assert_eq!(ctx.mint_supply(ctx.base_mint), supply_before);
 }

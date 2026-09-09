@@ -50,7 +50,7 @@ export const PROGRAMS: Array<[Address, string]> = [
 
 // Distinct placeholder args reused across the kassandra-market builders.
 export const PAYER = A(1);
-export const KASS_MINT = A(2);
+export const BASE_MINT = A(2);
 export const AUTHORITY = A(3);
 export const ORACLE = A(4);
 export const CREATOR = A(5);

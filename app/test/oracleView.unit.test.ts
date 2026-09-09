@@ -1,14 +1,14 @@
 /**
  * Offline unit tests for the pure presentation helpers in `src/lib/oracleView.ts`
  * — phase → chip mapping, id/hash truncation + hex, thousands grouping, scaled
- * KASS formatting, and the hand-rolled relative-deadline / window labels. No React,
+ * SOL formatting, and the hand-rolled relative-deadline / window labels. No React,
  * no chain; `Date.now()` is faked for the relative-time assertions.
  */
 import { Phase } from '@kassandra-market/oracles'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  formatKass,
+  formatSol,
   groupDigits,
   hashHex,
   hashPreview,
@@ -101,23 +101,23 @@ describe('groupDigits', () => {
   })
 })
 
-describe('formatKass', () => {
+describe('formatSol', () => {
   it('scales raw base units by 9 decimals, trimming the fraction', () => {
-    expect(formatKass(0n)).toBe('0')
-    expect(formatKass(1_000_000_000n)).toBe('1') // exactly 1 KASS
-    expect(formatKass(1_500_000_000n)).toBe('1.5')
-    expect(formatKass(500_000_000n)).toBe('0.5') // sub-1 amount
-    expect(formatKass(1n)).toBe('0.000000001') // one base unit
+    expect(formatSol(0n)).toBe('0')
+    expect(formatSol(1_000_000_000n)).toBe('1') // exactly 1 SOL
+    expect(formatSol(1_500_000_000n)).toBe('1.5')
+    expect(formatSol(500_000_000n)).toBe('0.5') // sub-1 amount
+    expect(formatSol(1n)).toBe('0.000000001') // one base unit
   })
 
   it('groups the whole part and trims trailing fraction zeros', () => {
-    expect(formatKass(1_234_567_000_000_000n)).toBe('1,234,567')
-    expect(formatKass(2_100_000_000n)).toBe('2.1')
-    expect(formatKass(1_050_000_000n)).toBe('1.05')
+    expect(formatSol(1_234_567_000_000_000n)).toBe('1,234,567')
+    expect(formatSol(2_100_000_000n)).toBe('2.1')
+    expect(formatSol(1_050_000_000n)).toBe('1.05')
   })
 
   it('handles negative amounts', () => {
-    expect(formatKass(-1_500_000_000n)).toBe('-1.5')
+    expect(formatSol(-1_500_000_000n)).toBe('-1.5')
   })
 })
 

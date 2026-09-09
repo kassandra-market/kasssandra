@@ -1,7 +1,7 @@
 //! `propose`: register a proposal against an oracle during its proposal window.
 //!
 //! After the creation-time `deadline`, anyone registers a proposal = a
-//! categorical `option` + a KASS `bond`. The bond is escrowed into the oracle's
+//! categorical `option` + a SOL `bond`. The bond is escrowed into the oracle's
 //! stake vault and one [`Proposer`] PDA per (oracle, authority) is created. The
 //! `MAX_PROPOSERS` cap is enforced ON-CHAIN here: this is the liveness guarantee
 //! that keeps the one-shot `finalize_oracle` inside a single transaction's
@@ -24,7 +24,7 @@
 //! 0. oracle            — writable, owned by this program
 //! 1. proposer PDA      — writable, uninitialized (created here)
 //! 2. authority         — signer, writable (funds rent + bond-transfer authority)
-//! 3. authority KASS    — writable token account, source of the bond
+//! 3. authority SOL    — writable token account, source of the bond
 //! 4. stake vault       — writable token account; must equal `oracle.stake_vault`
 //! 5. token program
 //! 6. system program
@@ -59,7 +59,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     let option = payload[0];
     let bond = u64::from_le_bytes(payload[1..9].try_into().unwrap());
 
-    let [oracle_ai, proposer_ai, authority_ai, authority_kass_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
+    let [oracle_ai, proposer_ai, authority_ai, authority_base_ai, vault_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -76,7 +76,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // Bootstrapping: the bond must clear the oracle's snapshotted activity-scaled
     // floor. At genesis / low activity the floor is 0, so a 0 bond (a weightless
     // proposer — still counted by plurality) is accepted; the floor grows with
-    // creation activity to re-price Sybil registration once KASS circulates.
+    // creation activity to re-price Sybil registration once SOL circulates.
     if bond < oracle.min_stake {
         return Err(KassandraError::BelowMinStake.into());
     }
@@ -132,15 +132,15 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         return Err(KassandraError::DuplicateProposer.into());
     }
 
-    // Defensive: the bond source must be a KASS token account on this oracle's
+    // Defensive: the bond source must be a SOL token account on this oracle's
     // canonical mint. The SPL Transfer additionally proves the authority
     // (signer) owns/delegates it.
     {
-        let data = authority_kass_ai.try_borrow()?;
+        let data = authority_base_ai.try_borrow()?;
         if data.len() < 32 {
             return Err(KassandraError::InvalidAccount.into());
         }
-        if data[0..32] != oracle.kass_mint.to_bytes() {
+        if data[0..32] != oracle.base_mint.to_bytes() {
             return Err(KassandraError::InvalidAccount.into());
         }
     }
@@ -149,7 +149,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // NOTE: this does Transfer-then-create_pda, the reverse of submit_fact's
     // create_pda-then-Transfer. The divergence is insignificant — both run in
     // one atomic instruction, so either order fully reverts on any failure.
-    Transfer::new(authority_kass_ai, vault_ai, authority_ai, bond).invoke()?;
+    Transfer::new(authority_base_ai, vault_ai, authority_ai, bond).invoke()?;
 
     // --- create the Proposer account (program-signed) -----------------------
     let rent = minimum_rent(Proposer::LEN)?;

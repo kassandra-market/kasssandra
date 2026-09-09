@@ -11,7 +11,7 @@ import type { OracleSummary } from '../data/oracles'
 import type { MarketSummary } from '../market/data/markets'
 import type { OracleMetaView } from '../hooks/useOracleMeta'
 import { oracleBonds } from './oracleStats'
-import { phaseView, formatKass, truncateMiddle } from './oracleView'
+import { phaseView, formatSol, truncateMiddle } from './oracleView'
 import { impliedYesProbability, formatProbability, statusLabel, statusTone } from '../market/lib/marketView'
 
 /** Chip tone set spanning both the oracle phase tones and the market status tones. */
@@ -79,14 +79,14 @@ function oracleCard(o: OracleSummary, meta: Map<string, OracleMetaView>): HeroCa
     title: meta.get(o.pubkey)?.subject?.trim() || `Oracle ${truncateMiddle(o.pubkey)}`,
     status: pv.label,
     tone: pv.tone as HeroTone,
-    metricAccent: `${formatKass(oracleBonds(o.oracle))} KASS`,
+    metricAccent: `${formatSol(oracleBonds(o.oracle))} SOL`,
     metricLabel: 'at stake',
   }
 }
 
 function marketCard(m: MarketSummary, meta: Map<string, OracleMetaView>): HeroCard {
   const prob = formatProbability(impliedYesProbability(m.reserves))
-  const liquidity = `${formatKass(m.market.totalContributed)} KASS`
+  const liquidity = `${formatSol(m.market.totalContributed)} SOL`
   const hasProb = prob !== '—'
   return {
     id: m.pubkey,

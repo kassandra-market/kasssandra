@@ -9,7 +9,7 @@ source: programs/markets/src/{instruction.rs,state.rs,processor/}
 # Market program spec
 
 Crate `kassandra-markets-program` (`programs/markets`). Pinocchio; single-byte
-`Ix`; bytemuck-`Pod` accounts. A prediction/decision market funded in KASS that
+`Ix`; bytemuck-`Pod` accounts. A prediction/decision market funded in SOL that
 composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
 
 ## Instructions (`Ix`, `instruction.rs`)
@@ -18,8 +18,8 @@ composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
 |---|---|---|
 | 0 | InitConfig | Init the governed `Config` singleton |
 | 1 | UpdateConfig | Governance update (min_liquidity, fee_bps, fee_destination) |
-| 2 | CreateMarket | Create a market on an oracle outcome, seed KASS |
-| 3 | Contribute | Add KASS funding (LP) |
+| 2 | CreateMarket | Create a market on an oracle outcome, seed SOL |
+| 3 | Contribute | Add SOL funding (LP) |
 | 4 | Cancel | Cancel a still-Funding market |
 | 5 | Refund | Refund a contributor from a cancelled market |
 | 6 | Activate | Compose done → drain escrow → seed the cYES/cNO pool (→ Active) |
@@ -27,7 +27,7 @@ composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
 | 8 | ResolveMarket | Resolve to the winning outcome |
 | 9 | CollectFee | Protocol fee collection |
 | 10 | CloseMarket | Reap a settled market (account closes) |
-| 11 | AddLiquidity | Add KASS liquidity to an Active cYES/cNO pool |
+| 11 | AddLiquidity | Add SOL liquidity to an Active cYES/cNO pool |
 | 12 | DelegateMarket | Create/update per-market `ErSession`; optional MagicBlock CPI |
 | 13 | CommitMarket | Stamp last-commit slot; optional Magic Program commit CPI |
 | 14 | UndelegateMarket | Mark undelegated; optional commit-and-undelegate CPI |
@@ -36,7 +36,7 @@ composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
 
 - `Config` — governed singleton (min_liquidity, fee_bps, fee_destination, authority).
 - `Market` — status (Funding/Active/…; `status` byte at offset 154, Active == 1),
-  min_liquidity, total_contributed, KASS/USDC vaults, outcome index, settled flag.
+  min_liquidity, total_contributed, SOL/USDC vaults, outcome index, settled flag.
 - `Contribution` — per-LP contribution amount.
 - `ErSession` (96 B, tag 4) — `[b"er_session", market]` MagicBlock delegation record.
 
@@ -52,13 +52,13 @@ CreateMarket (Funding) ──Contribute*──▶ (funded to floor)
 - **Compose** is a client-side sequence (SDK `flows.composeMarketInstructions`, 3
   ixs) that stands up the MetaDAO question + conditional vault + AMM; **Activate**
   drains the funding escrow into the pool.
-- Trading: **buy** splits KASS into a cYES+cNO pair and swaps the unwanted leg;
-  **sell** unwinds a held leg back to KASS.
+- Trading: **buy** splits SOL into a cYES+cNO pair and swaps the unwanted leg;
+  **sell** unwinds a held leg back to SOL.
 
 ## Tokens
 
-- Base = KASS (9 dp). In the challenge/futarchy AMM the quote = USDC (6 dp);
-  conditional tokens inherit their vault's decimals (conditional-KASS 9,
+- Base = SOL (9 dp). In the challenge/futarchy AMM the quote = USDC (6 dp);
+  conditional tokens inherit their vault's decimals (conditional-SOL 9,
   conditional-USDC 6). Always scale by the right decimals in UIs
   ([`../memories/scaled-amounts-ui.md`](../memories/scaled-amounts-ui.md)).
 

@@ -19,31 +19,31 @@ swap { swap_type: u8, input_amount: u64, output_amount_min: u64 }
 // swap_type: 0 = Buy (quote → base), 1 = Sell (base → quote)
 ```
 
-- **Buy** (`swap_type = 0`) spends **quote** (USDC) to receive **base** (KASS), which
-  pushes the conditional-KASS price **up**.
-- **Sell** (`swap_type = 1`) spends **base** (KASS) to receive **quote** (USDC), which
-  pushes the conditional-KASS price **down**.
+- **Buy** (`swap_type = 0`) spends **quote** (USDC) to receive **base** (SOL), which
+  pushes the conditional-SOL price **up**.
+- **Sell** (`swap_type = 1`) spends **base** (SOL) to receive **quote** (USDC), which
+  pushes the conditional-SOL price **down**.
 
 ## Betting semantics
 
-Because the pass pool prices pass-KASS in pass-USDC and the fail pool prices fail-KASS
+Because the pass pool prices pass-SOL in pass-USDC and the fail pool prices fail-SOL
 in fail-USDC, the direction you trade and the pool you trade in together express your
 bet:
 
 | You believe | Do this | Effect on TWAP |
 | --- | --- | --- |
-| The claim is **fraud** | **Buy** the fail pool with fail-USDC (raise fail-KASS) | fail up → toward disqualify |
-| The claim is **fraud** | (or) **Sell** pass-KASS → pass-USDC (lower pass-KASS) | pass down → toward disqualify |
-| The claim is **honest** | **Buy** the pass pool (raise pass-KASS) / keep fail neutral | pass up / fail flat → survive |
+| The claim is **fraud** | **Buy** the fail pool with fail-USDC (raise fail-SOL) | fail up → toward disqualify |
+| The claim is **fraud** | (or) **Sell** pass-SOL → pass-USDC (lower pass-SOL) | pass down → toward disqualify |
+| The claim is **honest** | **Buy** the pass pool (raise pass-SOL) / keep fail neutral | pass up / fail flat → survive |
 
 The verdict compares `fail_twap` against `pass_twap` (see [Settlement](/challenge/settle)),
 so a challenge succeeds when fail is driven sufficiently above pass. In practice the
-challenger and fraud-believers **buy fail** (raising the fail-KASS price) while leaving
+challenger and fraud-believers **buy fail** (raising the fail-SOL price) while leaving
 the pass pool neutral — the cleanest way to push `fail_twap * DEN > pass_twap * (DEN +
 NUM)`.
 
 <Info>
-  pass-KASS and fail-KASS are **fungible across all participants**. The TWAP therefore
+  pass-SOL and fail-SOL are **fungible across all participants**. The TWAP therefore
   reflects the conditional value of a unit of the proposer's stake regardless of whose
   tokens are trading — the market prices the *stake*, not any individual's position.
 </Info>
@@ -54,7 +54,7 @@ NUM)`.
 const ix = await ammV04.swap({
   payer, baseMint, quoteMint,
   swapType: ammV04.SwapType.Buy,   // Buy = 0, Sell = 1
-  inputAmount: 90_000_000n,        // e.g. 90 USDC (6 dp) to buy fail-KASS
+  inputAmount: 90_000_000n,        // e.g. 90 USDC (6 dp) to buy fail-SOL
   minOutputAmount: 0n,
 });
 ```

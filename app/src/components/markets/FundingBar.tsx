@@ -1,9 +1,9 @@
 import type { Market } from "@kassandra-market/markets";
-import { formatKass, fundingProgress } from "../../market/lib/marketView";
+import { formatSol, fundingProgress } from "../../market/lib/marketView";
 
 /**
  * A funding-progress bar for a market in the Funding phase: a hairline track with
- * a chestnut fill at `totalContributed / minLiquidity`, plus the raw KASS figures
+ * a chestnut fill at `totalContributed / minLiquidity`, plus the raw SOL figures
  * beneath. `funded` markets read as complete (full bar, "funded" note).
  */
 export function FundingBar({ market }: { market: Pick<Market, "totalContributed" | "minLiquidity"> }) {
@@ -25,9 +25,9 @@ export function FundingBar({ market }: { market: Pick<Market, "totalContributed"
         />
       </div>
       <p className="font-inter text-[12px] text-silver">
-        <span className="font-medium text-platinum">{formatKass(market.totalContributed)}</span>
+        <span className="font-medium text-platinum">{formatSol(market.totalContributed)}</span>
         {" / "}
-        {formatKass(market.minLiquidity)} KASS
+        {formatSol(market.minLiquidity)} SOL
         {funded ? <span className="text-aqua"> · funded</span> : null}
       </p>
     </div>

@@ -1,7 +1,7 @@
 # `@kassandra-market/markets`
 
 A hand-written, IDL-free TypeScript SDK for the **kassandra-market** Solana
-program — a USDC/KASS AMM prediction market built on the Kassandra oracle and the
+program — a USDC/SOL AMM prediction market built on the Kassandra oracle and the
 MetaDAO v0.4 `conditional_vault` + `amm` primitives.
 
 It exposes:
@@ -44,7 +44,7 @@ import { pda, metadao, flows, decodeMarket, MarketStatus } from "@kassandra-mark
 ### (a) Keeper — bring a funded market live: `compose → activate`
 
 Before a market can be activated, a client stands up its MetaDAO scaffolding
-(a `Question` whose resolver is the Market PDA, a KASS `ConditionalVault` minting
+(a `Question` whose resolver is the Market PDA, a SOL `ConditionalVault` minting
 cYES/cNO, and the cYES/cNO AMM pool). `composeMarketInstructions` returns that
 ordered instruction list **and every derived address** (`refs`); `activateInstruction`
 wires those refs into the on-chain `activate`.
@@ -53,14 +53,14 @@ wires those refs into the on-chain `activate`.
 const market = (await pda.market(oracle)).address;
 
 const { instructions, refs } = await flows.composeMarketInstructions({
-  market, oracle, kassMint, payer,
+  market, oracle, baseMint, payer,
 });
 // Send the 3 composition ixs (each may be its own tx); they must land in order
 // and need a raised compute budget (SetComputeUnitLimit). Then activate:
 const activateIx = await flows.activateInstruction({ refs, payer });
 ```
 
-`activate` splits the escrowed KASS into balanced cYES/cNO, seeds the pool 50/50,
+`activate` splits the escrowed SOL into balanced cYES/cNO, seeds the pool 50/50,
 mints LP into the market's `lp_vault`, and flips the market to `Active`. The pool
 must be **empty** at activate — the twap seed constants
 (`TWAP_INITIAL_OBSERVATION` = `1e12`, `TWAP_MAX_OBSERVATION_CHANGE_PER_UPDATE` =
@@ -72,23 +72,23 @@ builder.
 
 ### (b) Trader — take / close a position (+ the Jupiter any-token boundary)
 
-`buyInstructions` splits KASS 1:1 into a cYES+cNO pair, then swaps the unwanted leg
+`buyInstructions` splits SOL 1:1 into a cYES+cNO pair, then swaps the unwanted leg
 on the AMM to net a directional YES/NO position; `sellInstructions` is the mirror
-(swap the held leg back toward balance, then merge to KASS). App code never derives
+(swap the held leg back toward balance, then merge to SOL). App code never derives
 conditional tokens — the flows do (defaulting to the user's ATAs), and the SAME
 resolved cYES/cNO accounts are threaded into both the split and the swap so they
 never disagree.
 
 ```ts
 const { instructions, userYesAta } = await flows.buyInstructions({
-  refs, user, outcome: "yes", kassAmount: 1_000_000n, userKassAta,
+  refs, user, outcome: "yes", kassAmount: 1_000_000n, userBaseAta,
   outputAmountMin, // slippage guard from a pool quote
 });
 ```
 
 > **PRECONDITION — the user's token accounts must already exist.** The MetaDAO
 > split / swap / merge / redeem instructions carry no ATA/System program, so they
-> **cannot** create the user's cYES/cNO (or the redeem KASS) accounts. For a fresh
+> **cannot** create the user's cYES/cNO (or the redeem SOL) accounts. For a fresh
 > wallet, prepend the idempotent creators first:
 >
 > ```ts
@@ -101,13 +101,13 @@ const { instructions, userYesAta } = await flows.buyInstructions({
 > **COMPUTE** — a `split` + AMM `swap` CPI (buy) or `swap` + `merge` (sell) can
 > exceed the 200k default; prepend a `SetComputeUnitLimit`, as with `activate`.
 
-**Any-token entry via Jupiter.** A trader holding USDC/SOL/etc. swaps into KASS via
-Jupiter first, then feeds the KASS into a `buy`. The SDK is offline and does **not**
+**Any-token entry via Jupiter.** A trader holding USDC/SOL/etc. swaps into SOL via
+Jupiter first, then feeds the SOL into a `buy`. The SDK is offline and does **not**
 call the network — it only *shapes* the request and *combines* instructions:
 
 ```ts
 const req = flows.buildJupiterEntryRequest({
-  inputMint: usdc, outputMint: kassMint, amount, slippageBps: 50, userPublicKey,
+  inputMint: usdc, outputMint: baseMint, amount, slippageBps: 50, userPublicKey,
 });
 // ── APP does the HTTP work ──────────────────────────────────────────────
 //   GET  {req.baseUrl}/quote  with req.quote
@@ -127,13 +127,13 @@ the actual `fetch` to `quote-api.jup.ag`. No SDK test touches the network.
 
 Once the Kassandra oracle is terminal, crank `resolveMarket` (bridges the result
 into the MetaDAO question), then holders redeem: `redeemInstructions` burns the
-holder's full cYES+cNO and pays the resolved KASS per the winning numerators
+holder's full cYES+cNO and pays the resolved SOL per the winning numerators
 (a YES winner's cYES pays 1:1, the losing leg pays 0).
 
 ```ts
 const resolveIx = await resolveMarket({ market, oracle, question: refs.question, cvEventAuthority: refs.cvEventAuthority });
-// … send it, then (ensuring the cYES/cNO + KASS accounts exist — see the buy note):
-const { instructions } = await flows.redeemInstructions({ refs, user, userKassAta });
+// … send it, then (ensuring the cYES/cNO + SOL accounts exist — see the buy note):
+const { instructions } = await flows.redeemInstructions({ refs, user, userBaseAta });
 ```
 
 ## Wire-format parity

@@ -71,7 +71,7 @@ fn e2e_resolved_with_emission_real_finalize_and_claims() {
         let reward = reward::proposer_reward(p.bond, pbucket, o.total_correct_proposer_stake);
         assert!(reward > 0, "emission funds a positive proposer reward");
         let expected = p.bond + reward;
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey());
         ctx.send(ix, &[]).expect("claim_proposer");
         assert_eq!(
@@ -126,7 +126,7 @@ fn e2e_invalid_deadend_emission_burned_full_returns() {
 
     let vault = ctx.seeded(oracle).stake_vault;
     let nonce = ctx.seeded(oracle).nonce;
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     assert_eq!(ctx.token_balance(vault), 4_000 + emission);
 
     // REAL finalize_oracle → InvalidDeadend, burning the emission back.
@@ -142,7 +142,7 @@ fn e2e_invalid_deadend_emission_burned_full_returns() {
         "emission burned out of the vault"
     );
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before - emission,
         "burn-back returned the emission to the reservoir"
     );
@@ -152,7 +152,7 @@ fn e2e_invalid_deadend_emission_burned_full_returns() {
     let mut total_claimed = 0u64;
     for (auth, pda) in auths.iter().zip(&pdas) {
         let bond = ctx.proposer(*pda).bond;
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey());
         ctx.send(ix, &[]).expect("claim_proposer");
         assert_eq!(ctx.token_balance(dest), bond, "full bond back on dead-end");
@@ -165,7 +165,7 @@ fn e2e_invalid_deadend_emission_burned_full_returns() {
 // ---------------------------------------------------------------------------
 // Test 5 — the S3-flagged combination: InvalidDeadend AFTER a settled challenge,
 // WITH emission present. Verifies the burn-back of BOTH emission AND the slashed
-// bond_pool (with NO double-count of the kass_fee already paid out at settle) +
+// bond_pool (with NO double-count of the base_fee already paid out at settle) +
 // full survivor returns + the forfeit of the challenge-disqualified proposer all
 // conserve and FULLY DRAIN the vault (no stranding), plus close_market /
 // close_ai_claim. (Dispute + challenge SEEDED to the post-settle state; finalize
@@ -175,7 +175,7 @@ fn e2e_invalid_deadend_emission_burned_full_returns() {
 #[test]
 fn e2e_deadend_after_settled_challenge_with_emission() {
     let mut ctx = TestCtx::new();
-    // Three proposers. P0 was successfully challenged (disqualified, kass_fee left
+    // Three proposers. P0 was successfully challenged (disqualified, base_fee left
     // the vault to the challenger). P1/P2 survive but claim DISTINCT options → the
     // surviving plurality ties → InvalidDeadend.
     let oracle = ctx.seed_disputed_oracle(&[
@@ -199,10 +199,10 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
         .map(|p| p.authority.insecure_clone())
         .collect();
 
-    // P0: settled-challenge disqualify. kass_fee = 100 left the vault; bond_pool
-    // gains bond − kass_fee == 900; surviving_count drops to 2.
-    let kass_fee = 100u64;
-    ctx.seed_challenge_disqualify(oracle, pdas[0], kass_fee);
+    // P0: settled-challenge disqualify. base_fee = 100 left the vault; bond_pool
+    // gains bond − base_fee == 900; surviving_count drops to 2.
+    let base_fee = 100u64;
+    ctx.seed_challenge_disqualify(oracle, pdas[0], base_fee);
 
     // Survivors tie: P1 claims 0, P2 claims 1.
     ctx.set_proposer_claim_option(pdas[1], 0);
@@ -215,13 +215,13 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
 
     let vault = ctx.seeded(oracle).stake_vault;
     let nonce = ctx.seeded(oracle).nonce;
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
-    // P0's settled-challenge slash sits in bond_pool (= bond − kass_fee == 900).
+    let supply_before = ctx.mint_supply(ctx.base_mint);
+    // P0's settled-challenge slash sits in bond_pool (= bond − base_fee == 900).
     let bond_pool = ctx.oracle(oracle).bond_pool;
-    assert_eq!(bond_pool, 1_000 - kass_fee, "P0 slash in bond_pool");
-    // Vault = Σ bonds (3000) − kass_fee (100) + emission (555).
+    assert_eq!(bond_pool, 1_000 - base_fee, "P0 slash in bond_pool");
+    // Vault = Σ bonds (3000) − base_fee (100) + emission (555).
     let vault_initial = ctx.token_balance(vault);
-    assert_eq!(vault_initial, 3_000 - kass_fee + emission);
+    assert_eq!(vault_initial, 3_000 - base_fee + emission);
 
     // Seed a SETTLED Market + empty escrow + an AiClaim for the disqualified P0,
     // so the closes have something to reclaim.
@@ -232,9 +232,9 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
     let ai_claim = ctx.seed_ai_claim(oracle, pdas[0], auths[0].pubkey());
 
     // REAL finalize_oracle → InvalidDeadend, burning BOTH the emission AND the
-    // slashed bond_pool (P0's 900) back. Crucially NO double-count: the kass_fee
+    // slashed bond_pool (P0's 900) back. Crucially NO double-count: the base_fee
     // (100) already left the vault to the challenger at settle time and was
-    // recorded as `bond − kass_fee` in bond_pool, so burning bond_pool burns only
+    // recorded as `bond − base_fee` in bond_pool, so burning bond_pool burns only
     // the 900 still physically in the vault.
     ctx.warp(WINDOW + 1);
     ctx.send(ctx.finalize_oracle_ix(oracle, &pdas), &[])
@@ -247,15 +247,15 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
     );
     assert_eq!(o.reward_pool, 0);
     assert_eq!(
-        ctx.mint_supply(ctx.kass_mint),
+        ctx.mint_supply(ctx.base_mint),
         supply_before - emission - bond_pool,
-        "emission AND slashed bond_pool burned back (no double-count of the kass_fee)"
+        "emission AND slashed bond_pool burned back (no double-count of the base_fee)"
     );
     let vault_after_burn = ctx.token_balance(vault);
     assert_eq!(
         vault_after_burn,
-        3_000 - kass_fee - bond_pool,
-        "vault = Σ bonds − kass_fee_out − burned bond_pool == survivors' returnable principal"
+        3_000 - base_fee - bond_pool,
+        "vault = Σ bonds − base_fee_out − burned bond_pool == survivors' returnable principal"
     );
     assert_eq!(
         vault_after_burn, 2_000,
@@ -270,7 +270,7 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
         if i == 0 {
             assert_eq!(expected, 0, "disqualified P0 forfeits the whole bond");
         }
-        let dest = ctx.fund_kass(auth, 0);
+        let dest = ctx.fund_base(auth, 0);
         let ix = ctx.claim_proposer_ix(oracle, nonce, *pda, dest, vault, auth.pubkey());
         ctx.send(ix, &[]).expect("claim_proposer");
         assert_eq!(ctx.token_balance(dest), expected);
@@ -278,9 +278,9 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
         total_claimed += expected;
     }
 
-    // The disqualified P0's `bond − kass_fee` (900) was BURNED (it funded the now-
+    // The disqualified P0's `bond − base_fee` (900) was BURNED (it funded the now-
     // burned bond_pool), so unlike before it is NOT stranded as dust: the vault
-    // fully drains to 0. The kass_fee (100) had already left to the challenger at
+    // fully drains to 0. The base_fee (100) had already left to the challenger at
     // settle time.
     let dust = ctx.token_balance(vault);
     assert_eq!(total_claimed, 2_000, "P1 + P2 full bonds");
@@ -288,7 +288,7 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
         dust, 0,
         "no stranding: P0's forfeited bond_pool was burned, vault drained"
     );
-    // KASS conservation across the WHOLE settled-challenge dead-end:
+    // SOL conservation across the WHOLE settled-challenge dead-end:
     //   vault_after_burn == Σ payouts + dust.
     assert_eq!(
         total_claimed + dust,
@@ -296,9 +296,9 @@ fn e2e_deadend_after_settled_challenge_with_emission() {
         "Σ payouts + dust == post-burn vault"
     );
     assert_eq!(
-        total_claimed + dust + kass_fee + emission + bond_pool,
+        total_claimed + dust + base_fee + emission + bond_pool,
         3_000 + emission,
-        "full KASS accounting: payouts + dust + kass_fee_out + emission_burned + bond_pool_burned == Σ bonds + emission",
+        "full SOL accounting: payouts + dust + base_fee_out + emission_burned + bond_pool_burned == Σ bonds + emission",
     );
 
     // ---- REAL closes: AiClaim + Market + escrow rent reclamation ---------------

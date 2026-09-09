@@ -10,7 +10,7 @@ scripts/e2e-playwright.sh
 
 It builds the program `.so` + the SDK + Chromium, then runs Playwright, whose
 `globalSetup` boots surfpool, deploys the program, inits the protocol, mints
-KASS/USDC, generates + funds the wallet keypair, and **seeds one oracle per action
+SOL/USDC, generates + funds the wallet keypair, and **seeds one oracle per action
 into the phase where that action is legal**. The specs inject the keypair
 (`window.__E2E_WALLET_SECRET__` → the real-signing e2e wallet, `VITE_E2E=1`),
 perform the UI action, and assert the **persistent on-chain effect** (the UI
@@ -31,7 +31,7 @@ port (8899 / 8940), and Vite server (5173 / 5174), so they never collide.
 - `seed.ts` — reusable phase drivers (create → dispute → FactProposal → FactVoting
   → AiClaim → Challenge), + `keepWindowOpen` (patches `phase_ends_at` to the far
   future, since surfpool time-travel is forward-only and a window closed by later
-  seeding can't be re-entered by rewinding the clock), + `fabricateKassDao` /
+  seeding can't be re-entered by rewinding the clock), + `fabricateSpotDao` /
   `seedDeadendOracle` for the admin ops.
 - `onchain.ts` — read/decode accounts, a forward clock set, and `patchProtocol`
   (fabricate the governance field an admin op is gated on).
@@ -67,7 +67,7 @@ two runs cover the **entire protocol surface**.
 | `setGovernance` | admin.spec | ✅ |
 | `setConfig` | admin.spec | ✅ |
 | `resolveDeadend` | admin.spec | ✅ |
-| `kassPrice` | admin.spec | ✅ |
+| `spotPrice` | admin.spec | ✅ |
 
 The four DAO ops had **no UI** — the `/admin` page + `data/actions/admin.ts` were
 built for them. Each is gated on-chain by `Protocol.admin`/`dao_authority`; a real

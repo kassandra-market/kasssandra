@@ -7,25 +7,25 @@ use solana_pubkey::Pubkey;
 use super::build;
 
 // ===================================================================== Ix 13
-/// `SetGovernance` (Ix 13) — record `dao_authority` + `kass_dao`. The `kass_dao`
-/// account must equal the payload `kass_dao`.
+/// `SetGovernance` (Ix 13) — record `dao_authority` + `spot_dao`. The `spot_dao`
+/// account must equal the payload `spot_dao`.
 pub fn set_governance(
     program_id: &Pubkey,
     protocol: Pubkey,
     authority: Pubkey,
     dao_authority: Pubkey,
-    kass_dao: Pubkey,
+    spot_dao: Pubkey,
 ) -> Instruction {
     let mut data = Vec::with_capacity(1 + 64);
     data.push(Ix::SetGovernance as u8);
     data.extend_from_slice(&dao_authority.to_bytes());
-    data.extend_from_slice(&kass_dao.to_bytes());
+    data.extend_from_slice(&spot_dao.to_bytes());
     build(
         program_id,
         vec![
             AccountMeta::new(protocol, false),
             AccountMeta::new_readonly(authority, true),
-            AccountMeta::new_readonly(kass_dao, false),
+            AccountMeta::new_readonly(spot_dao, false),
         ],
         data,
     )
@@ -74,14 +74,14 @@ pub fn resolve_deadend(
 }
 
 // ===================================================================== Ix 16
-/// `KassPrice` (Ix 16) — read the governance-anchored KASS/USDC spot TWAP.
-pub fn kass_price(program_id: &Pubkey, protocol: Pubkey, kass_dao: Pubkey) -> Instruction {
+/// `SpotPrice` (Ix 16) — read the governance-anchored SOL/USDC spot TWAP.
+pub fn spot_price(program_id: &Pubkey, protocol: Pubkey, spot_dao: Pubkey) -> Instruction {
     build(
         program_id,
         vec![
             AccountMeta::new_readonly(protocol, false),
-            AccountMeta::new_readonly(kass_dao, false),
+            AccountMeta::new_readonly(spot_dao, false),
         ],
-        vec![Ix::KassPrice as u8],
+        vec![Ix::SpotPrice as u8],
     )
 }

@@ -26,7 +26,7 @@ function uriBytes(uri: Uint8Array | string): Uint8Array {
 
 // ---------------------------------------------------------------------------
 // SubmitFact (Ix=0) — processor/submit_fact.rs
-// Accounts: 0 oracle(w) 1 fact(w,PDA) 2 submitter(w,signer) 3 submitter_kass(w)
+// Accounts: 0 oracle(w) 1 fact(w,PDA) 2 submitter(w,signer) 3 submitter_base(w)
 //           4 stake_vault(w,PDA) 5 token program(ro) 6 system program(ro).
 // Payload: content_hash[32] ++ stake u64 ++ uri_len u16 ++ uri[uri_len].
 // ---------------------------------------------------------------------------
@@ -35,11 +35,11 @@ export interface SubmitFactArgs {
   oracle: AddressInput;
   /** Submitter (signer): pays the Fact rent + authorizes the stake transfer. */
   submitter: AddressInput;
-  /** Submitter's KASS token account — the stake source. */
-  submitterKass: AddressInput;
+  /** Submitter's SOL token account — the stake source. */
+  submitterBase: AddressInput;
   /** 32-byte fact content hash (seeds the Fact PDA `[b"fact", oracle, hash]`). */
   contentHash: Uint8Array;
-  /** KASS stake escrowed for the fact (> 0). */
+  /** SOL stake escrowed for the fact (> 0). */
   stake: bigint | number;
   /** Fact uri (<= 200 bytes); a string is utf-8 encoded. */
   uri: Uint8Array | string;
@@ -67,7 +67,7 @@ export async function submitFact(args: SubmitFactArgs): Promise<TransactionInstr
       w(oracle),
       w(fact.address),
       w(addr(args.submitter), true),
-      w(addr(args.submitterKass)),
+      w(addr(args.submitterBase)),
       w(stakeVault.address),
       ro(TOKEN_PROGRAM_ID),
       ro(SYSTEM_PROGRAM_ID),
@@ -79,7 +79,7 @@ export async function submitFact(args: SubmitFactArgs): Promise<TransactionInstr
 // ---------------------------------------------------------------------------
 // VoteFact (Ix=1) — processor/vote_fact.rs
 // Accounts: 0 oracle(w) 1 fact(w) 2 fact_vote(w,PDA) 3 voter(w,signer)
-//           4 voter_kass(w) 5 stake_vault(w,PDA) 6 token program(ro) 7 system(ro).
+//           4 voter_base(w) 5 stake_vault(w,PDA) 6 token program(ro) 7 system(ro).
 // Payload: kind u8 ++ stake u64.
 // ---------------------------------------------------------------------------
 export interface VoteFactArgs {
@@ -89,11 +89,11 @@ export interface VoteFactArgs {
   fact: AddressInput;
   /** Voter (signer): pays the FactVote rent + authorizes the stake transfer. */
   voter: AddressInput;
-  /** Voter's KASS token account — the stake source. */
-  voterKass: AddressInput;
+  /** Voter's SOL token account — the stake source. */
+  voterBase: AddressInput;
   /** `VOTE_APPROVE = 0` / `VOTE_DUPLICATE = 1`. */
   kind: number;
-  /** KASS stake escrowed for the vote (> 0). */
+  /** SOL stake escrowed for the vote (> 0). */
   stake: bigint | number;
   programId?: Address;
 }
@@ -114,7 +114,7 @@ export async function voteFact(args: VoteFactArgs): Promise<TransactionInstructi
       w(fact),
       w(factVote.address),
       w(addr(args.voter), true),
-      w(addr(args.voterKass)),
+      w(addr(args.voterBase)),
       w(stakeVault.address),
       ro(TOKEN_PROGRAM_ID),
       ro(SYSTEM_PROGRAM_ID),
@@ -125,7 +125,7 @@ export async function voteFact(args: VoteFactArgs): Promise<TransactionInstructi
 
 // ---------------------------------------------------------------------------
 // FinalizeFacts (Ix=2) — processor/finalize_facts.rs
-// Accounts: 0 oracle(w) 1 kass_mint(w) 2 stake_vault(w,PDA) 3 token program(ro),
+// Accounts: 0 oracle(w) 1 base_mint(w) 2 stake_vault(w,PDA) 3 token program(ro),
 //           then a WRITABLE tail (a non-empty subset of the oracle's facts, or
 //           its proposers in the no-facts dead-end branch).
 // Payload: oracle_nonce u64 (re-derives the oracle PDA signer for the no-facts
@@ -134,8 +134,8 @@ export async function voteFact(args: VoteFactArgs): Promise<TransactionInstructi
 export interface FinalizeFactsArgs {
   /** Oracle nonce — payload + derives the oracle/stake_vault PDAs. */
   nonce: bigint | number;
-  /** Canonical KASS mint (`== oracle.kass_mint`); the no-facts dead-end burn target. */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (`== oracle.base_mint`); the no-facts dead-end burn target. */
+  baseMint: AddressInput;
   /**
    * The tail: a non-empty subset of the oracle's Fact PDAs, or (when the oracle
    * has no facts) a subset of its Proposer PDAs. Each is writable.
@@ -153,7 +153,7 @@ export async function finalizeFacts(args: FinalizeFactsArgs): Promise<Transactio
     programId,
     keys: [
       w(oracle.address),
-      w(addr(args.kassMint)),
+      w(addr(args.baseMint)),
       w(stakeVault.address),
       ro(TOKEN_PROGRAM_ID),
       ...args.tail.map((k) => w(addr(k))),
@@ -239,7 +239,7 @@ export async function finalizeAiClaims(
 
 // ---------------------------------------------------------------------------
 // FinalizeOracle (Ix=6) — processor/finalize_oracle.rs
-// Accounts: 0 oracle(w) 1 kass_mint(w) 2 stake_vault(w,PDA) 3 token program(ro),
+// Accounts: 0 oracle(w) 1 base_mint(w) 2 stake_vault(w,PDA) 3 token program(ro),
 //           then the FULL proposer set as a READ-ONLY tail (`proposer_count`).
 // Payload: oracle_nonce u64 (re-derives the oracle PDA signer for the
 //          InvalidDeadend emission burn-back).
@@ -247,8 +247,8 @@ export async function finalizeAiClaims(
 export interface FinalizeOracleArgs {
   /** Oracle nonce — payload + derives the oracle/stake_vault PDAs. */
   nonce: bigint | number;
-  /** Canonical KASS mint (`== oracle.kass_mint`); the burn-back target. */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (`== oracle.base_mint`); the burn-back target. */
+  baseMint: AddressInput;
   /** The FULL proposer-PDA set (exactly `proposer_count`), each read-only. */
   proposers: ReadonlyArray<AddressInput>;
   programId?: Address;
@@ -263,7 +263,7 @@ export async function finalizeOracle(args: FinalizeOracleArgs): Promise<Transact
     programId,
     keys: [
       w(oracle.address),
-      w(addr(args.kassMint)),
+      w(addr(args.baseMint)),
       w(stakeVault.address),
       ro(TOKEN_PROGRAM_ID),
       ...args.proposers.map((p) => ro(addr(p))),

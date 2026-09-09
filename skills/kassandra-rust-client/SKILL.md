@@ -27,7 +27,7 @@ kassandra-oracles-sdk = { git = "https://github.com/Dodecahedr0x/kassandra", pac
   `ix::close_*`, `ix::sweep_oracle`.
 - **`kassandra_oracles_sdk::pda::*`** — return `(Pubkey, u8)`: `pda::oracle(&PROGRAM_ID, nonce)`,
   `pda::proposer(&PROGRAM_ID, &oracle, &authority)`, `pda::stake_vault`, `pda::fact`, `pda::vote`,
-  `pda::ai_claim`, `pda::protocol`, `pda::mint_authority`, `pda::challenge_usdc_vault`, `pda::kass_ata`.
+  `pda::ai_claim`, `pda::protocol`, `pda::mint_authority`, `pda::challenge_usdc_vault`, `pda::base_ata`.
 - **`kassandra_oracles_sdk::accounts`** — the layout structs (`Oracle`, `Proposer`, `Fact`, `FactVote`,
   `AiClaim`, `Market`, `Protocol`) + `decode::<T>` (zero-copy, aligned) and `read::<T>` (owned
   copy, unaligned-safe — use this for RPC buffers), plus sentinels `CLAIM_OPTION_NONE`,
@@ -40,10 +40,10 @@ use kassandra_oracles_sdk::{accounts::{self, Oracle}, ix, pda, PROGRAM_ID};
 use solana_instruction::Instruction;
 use solana_pubkey::Pubkey;
 
-fn build_propose(oracle: Pubkey, authority: Pubkey, authority_kass: Pubkey, option: u8, bond: u64) -> Instruction {
+fn build_propose(oracle: Pubkey, authority: Pubkey, authority_base: Pubkey, option: u8, bond: u64) -> Instruction {
     let (proposer, _) = pda::proposer(&PROGRAM_ID, &oracle, &authority);
     let (stake_vault, _) = pda::stake_vault(&PROGRAM_ID, &oracle);
-    ix::propose(&PROGRAM_ID, oracle, proposer, authority, authority_kass, stake_vault, option, bond)
+    ix::propose(&PROGRAM_ID, oracle, proposer, authority, authority_base, stake_vault, option, bond)
 }
 
 // Decode an Oracle from account bytes fetched over RPC (unaligned-safe).

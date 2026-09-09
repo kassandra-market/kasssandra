@@ -56,7 +56,7 @@ const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady();
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
 }
 
@@ -71,9 +71,9 @@ describe.skipIf(!ENABLED)("oracle read data layer over a seeded surfpool cluster
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -86,10 +86,10 @@ describe.skipIf(!ENABLED)("oracle read data layer over a seeded surfpool cluster
       data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
     });
 
-    f = { harness, payer, kassMint, usdcMint };
+    f = { harness, payer, baseMint, usdcMint };
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
 
@@ -126,13 +126,13 @@ describe.skipIf(!ENABLED)("oracle read data layer over a seeded surfpool cluster
     const contentHash = new Uint8Array(32).fill(0x07);
     const submitter = await Keypair.generate();
     await f.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000);
-    const submitterKass = await fundKass(f, submitter.publicKey, 1_000_000n);
+    const submitterBase = await fundBase(f, submitter.publicKey, 1_000_000n);
     await sendIx(
       f,
       await submitFact({
         oracle: o3,
         submitter: submitter.publicKey,
-        submitterKass,
+        submitterBase,
         contentHash,
         stake: 100n,
         uri: "ipfs://seeded-fact",
@@ -146,14 +146,14 @@ describe.skipIf(!ENABLED)("oracle read data layer over a seeded surfpool cluster
     await sendIx(f, await advancePhase({ oracle: o3 }));
     const voter = await Keypair.generate();
     await f.harness.airdrop(voter.publicKey.toString(), 2_000_000_000);
-    const voterKass = await fundKass(f, voter.publicKey, 10_000n);
+    const voterBase = await fundBase(f, voter.publicKey, 10_000n);
     await sendIx(
       f,
       await voteFact({
         oracle: o3,
         fact: factPda,
         voter: voter.publicKey,
-        voterKass,
+        voterBase,
         kind: VOTE_APPROVE,
         stake: 2_000n,
       }),
@@ -162,7 +162,7 @@ describe.skipIf(!ENABLED)("oracle read data layer over a seeded surfpool cluster
 
     // advance → finalize_facts → AiClaim → submit_ai_claim (fabricated metadata)
     await advancePastPhaseEnd(f, o3);
-    await sendIx(f, await finalizeFacts({ nonce: 3n, kassMint: f.kassMint.publicKey, tail: [factPda] }));
+    await sendIx(f, await finalizeFacts({ nonce: 3n, baseMint: f.baseMint.publicKey, tail: [factPda] }));
     await sendIx(
       f,
       await submitAiClaim({
@@ -247,19 +247,19 @@ async function fetchAccount(f: Fixture, address: Address, timeoutMs = 15_000): P
   throw new Error(`account ${address} did not appear within ${timeoutMs}ms`);
 }
 
-async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
+async function fundBase(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
   const acct = await Keypair.generate();
   await f.harness.setAccount(acct.publicKey.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(f.kassMint.publicKey.toBytes(), owner.toBytes(), amount)),
+    data: toHex(tokenAccountBytes(f.baseMint.publicKey.toBytes(), owner.toBytes(), amount)),
   });
   return acct.publicKey;
 }
 
 async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number): Promise<void> {
-  const creatorKass = await fundKass(f, f.payer.publicKey, 10n ** 15n);
+  const creatorBase = await fundBase(f, f.payer.publicKey, 10n ** 15n);
   const nowUnix = await f.harness.clockUnixTimestamp();
   // Distinct deadlines per nonce so fetchOracles' deadline-desc sort is exercised.
   await sendIx(
@@ -270,8 +270,8 @@ async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number)
       deadline: nowUnix + 1_000n + nonce * 100n,
       twapWindow: 600n,
       creator: f.payer.publicKey,
-      creatorKassToken: creatorKass,
-      kassMint: f.kassMint.publicKey,
+      creatorBaseToken: creatorBase,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
     }),
   );
@@ -299,10 +299,10 @@ async function proposeRealWithAuthority(
 ): Promise<{ authority: Keypair; proposer: Address }> {
   const authority = await Keypair.generate();
   await f.harness.airdrop(authority.publicKey.toString(), 2_000_000_000);
-  const authorityKass = await fundKass(f, authority.publicKey, bond * 10n);
+  const authorityBase = await fundBase(f, authority.publicKey, bond * 10n);
   await sendIx(
     f,
-    await propose({ oracle, authority: authority.publicKey, authorityKass, option, bond }),
+    await propose({ oracle, authority: authority.publicKey, authorityBase, option, bond }),
     [authority],
   );
   const proposer = (await pda.proposer(oracle, authority.publicKey)).address;

@@ -80,7 +80,7 @@ export function stageOf(entry: UnifiedEntry): UnifiedStage {
  * Capital-at-stake, for the "biggest first" sort: an oracle-only entry's bond
  * economics ({@link oracleBonds}), or a market group's total contributed (TVL,
  * summed across its sub-markets). Different economics, same "how much is
- * riding on this" intent — both raw KASS base units.
+ * riding on this" intent — both raw SOL base units.
  */
 export function valueOf(entry: UnifiedEntry): bigint {
   if (entry.kind === 'oracle') return oracleBonds(entry.summary.oracle)

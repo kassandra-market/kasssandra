@@ -1,10 +1,10 @@
 /**
  * RF3 offline unit tests for the create-oracle action (default suite — no network).
  *
- * A mock {@link Connection} reports the creator's KASS ATA absent or present.
+ * A mock {@link Connection} reports the creator's SOL ATA absent or present.
  * We assert `buildCreateOracleIxs`:
  *   - emits a `createOracle` ix whose `data` + `keys` byte-for-byte match the SDK
- *     builder for the SAME inputs (the derived creator ATA as `creatorKassToken`
+ *     builder for the SAME inputs (the derived creator ATA as `creatorBaseToken`
  *     and the derived Oracle PDA), and appends `writeOracleMeta` when options are
  *     given;
  *   - prepends the idempotent create-ATA ix ONLY when the ATA is absent;
@@ -43,17 +43,17 @@ function keyShape(ix: TransactionInstruction) {
 
 async function fixture() {
   const creator = (await Keypair.generate()).publicKey;
-  const kassMint = (await Keypair.generate()).publicKey;
+  const baseMint = (await Keypair.generate()).publicKey;
   const usdcMint = (await Keypair.generate()).publicKey;
-  const ata = (await associatedTokenAccount(creator, kassMint)).address;
-  return { creator, kassMint, usdcMint, ata };
+  const ata = (await associatedTokenAccount(creator, baseMint)).address;
+  return { creator, baseMint, usdcMint, ata };
 }
 
 const FUTURE = BigInt(Math.floor(Date.now() / 1000) + 7 * 24 * 3600);
 
 describe("buildCreateOracleIxs", () => {
   it("emits only the createOracle ix when the ATA exists, matching the SDK builder", async () => {
-    const { creator, kassMint, usdcMint, ata } = await fixture();
+    const { creator, baseMint, usdcMint, ata } = await fixture();
     const nonce = 42n;
     const question = "Did the SpaceX Starship reach orbit before 2027?";
     const built = await buildCreateOracleIxs({
@@ -63,7 +63,7 @@ describe("buildCreateOracleIxs", () => {
       optionsCount: 3,
       deadline: FUTURE,
       creator,
-      kassMint,
+      baseMint,
       usdcMint,
     });
 
@@ -79,8 +79,8 @@ describe("buildCreateOracleIxs", () => {
       deadline: FUTURE,
       twapWindow: 3600n,
       creator,
-      creatorKassToken: ata,
-      kassMint,
+      creatorBaseToken: ata,
+      baseMint,
       usdcMint,
     });
     expect(built.ixs[0].programId.toString()).toBe(expected.programId.toString());
@@ -89,7 +89,7 @@ describe("buildCreateOracleIxs", () => {
   });
 
   it("appends the writeOracleMeta ix and derives options_count from the labels", async () => {
-    const { creator, kassMint, usdcMint } = await fixture();
+    const { creator, baseMint, usdcMint } = await fixture();
     const question = "Which team wins?";
     const options = ["Red", "Blue", "Draw"];
     const built = await buildCreateOracleIxs({
@@ -99,7 +99,7 @@ describe("buildCreateOracleIxs", () => {
       options,
       deadline: FUTURE,
       creator,
-      kassMint,
+      baseMint,
       usdcMint,
       appOrigin: "https://app.test",
     });
@@ -128,15 +128,15 @@ describe("buildCreateOracleIxs", () => {
       deadline: FUTURE,
       twapWindow: 3600n,
       creator,
-      creatorKassToken: (await associatedTokenAccount(creator, kassMint)).address,
-      kassMint,
+      creatorBaseToken: (await associatedTokenAccount(creator, baseMint)).address,
+      baseMint,
       usdcMint,
     });
     expect(Array.from(built.ixs[0].data)).toEqual(Array.from(expected.data));
   });
 
   it("prepends an idempotent create-ATA ix when the creator's ATA is absent", async () => {
-    const { creator, kassMint, usdcMint, ata } = await fixture();
+    const { creator, baseMint, usdcMint, ata } = await fixture();
     const built = await buildCreateOracleIxs({
       connection: mockConnection(false),
       nonce: 7n,
@@ -144,7 +144,7 @@ describe("buildCreateOracleIxs", () => {
       optionsCount: 2,
       deadline: FUTURE,
       creator,
-      kassMint,
+      baseMint,
       usdcMint,
     });
     expect(built.ixs.length).toBe(2);
@@ -156,7 +156,7 @@ describe("buildCreateOracleIxs", () => {
     expect(create.keys[0].isSigner).toBe(true);
     expect(create.keys[1].pubkey.toString()).toBe(ata.toString());
     expect(create.keys[2].pubkey.toString()).toBe(creator.toString());
-    expect(create.keys[3].pubkey.toString()).toBe(kassMint.toString());
+    expect(create.keys[3].pubkey.toString()).toBe(baseMint.toString());
 
     const expected = await createOracle({
       nonce: 7n,
@@ -164,22 +164,22 @@ describe("buildCreateOracleIxs", () => {
       deadline: FUTURE,
       twapWindow: 3600n,
       creator,
-      creatorKassToken: ata,
-      kassMint,
+      creatorBaseToken: ata,
+      baseMint,
       usdcMint,
     });
     expect(keyShape(action)).toEqual(keyShape(expected));
   });
 
   it("generates a random nonce when none is supplied (Oracle PDA matches it)", async () => {
-    const { creator, kassMint, usdcMint } = await fixture();
+    const { creator, baseMint, usdcMint } = await fixture();
     const built = await buildCreateOracleIxs({
       connection: mockConnection(true),
       question: "Q?",
       optionsCount: 2,
       deadline: FUTURE,
       creator,
-      kassMint,
+      baseMint,
       usdcMint,
     });
     expect(built.nonce).toBeGreaterThanOrEqual(0n);
@@ -187,7 +187,7 @@ describe("buildCreateOracleIxs", () => {
   });
 
   it("rejects an options count below 2", async () => {
-    const { creator, kassMint, usdcMint } = await fixture();
+    const { creator, baseMint, usdcMint } = await fixture();
     await expect(
       buildCreateOracleIxs({
         connection: mockConnection(true),
@@ -195,14 +195,14 @@ describe("buildCreateOracleIxs", () => {
         optionsCount: 1,
         deadline: FUTURE,
         creator,
-        kassMint,
+        baseMint,
         usdcMint,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("rejects a past deadline", async () => {
-    const { creator, kassMint, usdcMint } = await fixture();
+    const { creator, baseMint, usdcMint } = await fixture();
     await expect(
       buildCreateOracleIxs({
         connection: mockConnection(true),
@@ -210,14 +210,14 @@ describe("buildCreateOracleIxs", () => {
         optionsCount: 2,
         deadline: BigInt(Math.floor(Date.now() / 1000) - 100),
         creator,
-        kassMint,
+        baseMint,
         usdcMint,
       }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("rejects an empty question", async () => {
-    const { creator, kassMint, usdcMint } = await fixture();
+    const { creator, baseMint, usdcMint } = await fixture();
     await expect(
       buildCreateOracleIxs({
         connection: mockConnection(true),
@@ -225,7 +225,7 @@ describe("buildCreateOracleIxs", () => {
         optionsCount: 2,
         deadline: FUTURE,
         creator,
-        kassMint,
+        baseMint,
         usdcMint,
       }),
     ).rejects.toBeInstanceOf(ValidationError);

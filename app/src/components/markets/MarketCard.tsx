@@ -11,9 +11,9 @@ import { WriteStatusRegion } from "./actions/WriteStatusRegion";
 import { buildActivateSequence, buildContributeIxs, type ActivateStep } from "../../market/data/actions";
 import { useWriteAction } from "../../market/hooks/useWriteAction";
 import { useActionSequence } from "../../market/hooks/useActionSequence";
-import { parseKassAmount } from "../../market/data/amount";
+import { parseSolAmount } from "../../market/data/amount";
 import type { MarketSummary } from "../../market/data/markets";
-import { formatKass, fundingProgress, impliedYesProbability, truncateMiddle } from "../../market/lib/marketView";
+import { formatSol, fundingProgress, impliedYesProbability, truncateMiddle } from "../../market/lib/marketView";
 import type { OracleMetaView } from "../../hooks/useOracleMeta";
 
 const focusRing =
@@ -111,7 +111,7 @@ export function MarketCard({
         <dl className="mt-auto flex flex-wrap gap-x-5 gap-y-1 pt-1 font-inter text-[13px] text-silver">
           <div className="flex gap-1">
             <dt className="text-silver">TVL</dt>
-            <dd className="font-medium text-platinum">{formatKass(market.totalContributed)} KASS</dd>
+            <dd className="font-medium text-platinum">{formatSol(market.totalContributed)} SOL</dd>
           </div>
         </dl>
       </Link>
@@ -137,14 +137,14 @@ function StakeCta({
   market: Market;
   onSuccess?: () => void;
 }) {
-  const kassMint = market.kassMint.toString();
+  const baseMint = market.baseMint.toString();
   const action = useWriteAction(onSuccess);
   const [amount, setAmount] = useState("");
   const [amountError, setAmountError] = useState<string | undefined>();
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const parsed = parseKassAmount(amount);
+    const parsed = parseSolAmount(amount);
     if (parsed.error) {
       setAmountError(parsed.error);
       return;
@@ -154,7 +154,7 @@ function StakeCta({
       buildContributeIxs({
         indexer: action.indexer,
         market: pubkey,
-        kassMint,
+        baseMint,
         contributor: action.address!,
         amount: parsed.value!,
       }),
@@ -168,13 +168,13 @@ function StakeCta({
           <input
             type="text"
             inputMode="decimal"
-            placeholder="Amount (KASS)"
+            placeholder="Amount (SOL)"
             value={amount}
             onChange={(e) => {
               setAmount(e.target.value);
               setAmountError(undefined);
             }}
-            aria-label="Amount to stake, in KASS"
+            aria-label="Amount to stake, in SOL"
             aria-invalid={Boolean(amountError)}
             className={`min-w-0 flex-1 rounded-tag border bg-liquid-kelp px-3 py-2 font-inter text-[13px] text-platinum placeholder:text-silver focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss ${amountError ? "border-coral/60" : "border-hairline"}`}
           />
@@ -211,7 +211,7 @@ function LaunchCta({
         (await buildActivateSequence({
           market: pubkey,
           oracle: market.oracle,
-          kassMint: market.kassMint,
+          baseMint: market.baseMint,
           payer: seq.address!,
         }));
       setSteps(built);

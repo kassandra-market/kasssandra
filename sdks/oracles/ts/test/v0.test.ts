@@ -45,11 +45,11 @@ describe("v0 + ALT finalize path (offline)", () => {
   const PROPOSER_COUNT = 40;
   const proposers = Array.from({ length: PROPOSER_COUNT }, (_, i) => fakeAddress(i + 1000));
   const payer = fakeAddress(1);
-  const kassMint = fakeAddress(2);
+  const baseMint = fakeAddress(2);
   const blockhash = "11111111111111111111111111111111" as Blockhash;
 
   it("legacy compiled message overflows the 1232-byte packet at 40 proposers", async () => {
-    const ix = await finalizeOracle({ nonce: 7n, kassMint, proposers });
+    const ix = await finalizeOracle({ nonce: 7n, baseMint, proposers });
     const legacy = new TransactionMessage({
       payerKey: payer,
       recentBlockhash: blockhash,
@@ -60,7 +60,7 @@ describe("v0 + ALT finalize path (offline)", () => {
   });
 
   it("v0 message over the ALT references the proposers by index and fits the packet", async () => {
-    const ix = await finalizeOracle({ nonce: 7n, kassMint, proposers });
+    const ix = await finalizeOracle({ nonce: 7n, baseMint, proposers });
 
     // Mock the resolved ALT holding exactly the proposer PDAs.
     const alt = new AddressLookupTableAccount({

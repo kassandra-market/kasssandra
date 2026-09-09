@@ -2,7 +2,7 @@
 
 The core on-chain program for [Kassandra](../../README.md) — a decentralized, AI-assisted
 optimistic oracle on Solana. It owns oracle requests, proposal windows, fact
-proposal/voting, the AI-claim registry, plurality computation, slash/recompute, KASS
+proposal/voting, the AI-claim registry, plurality computation, slash/recompute, SOL
 staking & emissions, and the dynamic creation fee.
 
 - **Program ID:** `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY` (`src/lib.rs`)
@@ -40,7 +40,7 @@ integration tests (which load MetaDAO's program binaries — see
 | `error.rs` | `KassandraError` codes (0..=35). |
 | `reward.rs` | Emission / reward-bucket math (proposer + fact rewards). |
 | `fee.rs` | Dynamic creation-fee EMA (half-life decay + interpolation). |
-| `price.rs` | KASS price read from the futarchy DAO TWAP. |
+| `price.rs` | SOL price read from the futarchy DAO TWAP. |
 | `plurality.rs` | Strict-plurality / mode computation with tie handling. |
 | `clock.rs` | Slot/timestamp helpers. |
 | `cpi/` | Hand-built CPI into MetaDAO (`metadao.rs` = v0.4 vault+AMM, `metadao_v06.rs` = v0.6 futarchy/Meteora). |
@@ -51,7 +51,7 @@ integration tests (which load MetaDAO's program binaries — see
 
 | Ix | Name | Purpose |
 | --- | --- | --- |
-| 0 | `SubmitFact` | Post a candidate fact (evidence) with a KASS stake. |
+| 0 | `SubmitFact` | Post a candidate fact (evidence) with a SOL stake. |
 | 1 | `VoteFact` | Approve or mark-duplicate a fact by stake. |
 | 2 | `FinalizeFacts` | Settle the fact-voting phase incrementally (batched). |
 | 3 | `SubmitAiClaim` | Resubmit a value + AI-claim metadata over the agreed facts. |
@@ -62,12 +62,12 @@ integration tests (which load MetaDAO's program binaries — see
 | 8 | `FinalizeAiClaims` | Close the AI-claim window. |
 | 9 | `InitProtocol` | Initialize the singleton `Protocol` account. |
 | 10 | `CreateOracle` | Create an oracle (immutable config, burn the creation fee). |
-| 11 | `Propose` | Submit a categorical value with a KASS bond. |
+| 11 | `Propose` | Submit a categorical value with a SOL bond. |
 | 12 | `FinalizeProposals` | Close the proposal window (resolve or open a dispute). |
 | 13 | `SetGovernance` | Set the governance authority. |
 | 14 | `SetConfig` | Update governable protocol config. |
 | 15 | `ResolveDeadend` | Governance resolution of an Invalid dead-end oracle. |
-| 16 | `KassPrice` | Refresh the cached KASS price from the DAO TWAP. |
+| 16 | `SpotPrice` | Refresh the cached SOL price from the DAO TWAP. |
 | 17 | `ClaimProposer` | Claim a proposer's reward / bond return. |
 | 18 | `ClaimFact` | Claim a fact submitter's reward / stake. |
 | 19 | `ClaimFactVote` | Claim a fact voter's reward / stake. |

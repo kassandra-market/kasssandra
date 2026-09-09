@@ -22,20 +22,20 @@ fn setup_underfunded_market() -> (TestCtx, Pubkey /*oracle*/, Pubkey /*market*/)
     setup_market_with_seed(200_000_000)
 }
 
-/// Stand up a `Funding` market seeding `seed` KASS against a fresh oracle in the
+/// Stand up a `Funding` market seeding `seed` SOL against a fresh oracle in the
 /// (non-terminal) Proposal phase.
 fn setup_market_with_seed(seed: u64) -> (TestCtx, Pubkey /*oracle*/, Pubkey /*market*/) {
     let mut ctx = TestCtx::new();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_config, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQUIDITY);
+    let (_config, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQUIDITY);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 2_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, seed);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 2_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, seed);
     assert!(res.is_ok(), "{res:?}");
     (ctx, oracle, market)
 }

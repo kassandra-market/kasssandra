@@ -44,8 +44,8 @@ pub fn process(
     if fee_bps > MAX_FEE_BPS {
         return Err(MarketError::InvalidFee.into());
     }
-    // The fee destination must be an SPL token account on the canonical KASS mint.
-    if read_token_mint(fee_destination_ai)? != config.kass_mint {
+    // The fee destination must be an SPL token account on the canonical SOL mint.
+    if read_token_mint(fee_destination_ai)? != config.base_mint {
         return Err(MarketError::InvalidAccount.into());
     }
 

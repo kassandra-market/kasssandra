@@ -13,14 +13,14 @@ impl TestCtx {
     /// for `activate`), using the sdks/oracles/rust builders: `initialize_question`
     /// (oracle-authority = the MARKET PDA, question_id = the kassandra oracle
     /// address bytes, num_outcomes = 2), `initialize_conditional_vault`
-    /// (underlying = `kass_mint`, creating cYES/cNO mints idx 0/1), and
+    /// (underlying = `base_mint`, creating cYES/cNO mints idx 0/1), and
     /// `create_amm` (base = cYES, quote = cNO, balanced 1e12 initial observation).
     /// Each is its own compute-budgeted transaction. Returns all derived addresses.
     pub fn compose_metadao_market(
         &mut self,
         market: Pubkey,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
     ) -> MetaDaoRefs {
         use kassandra_markets_sdk::metadao as md;
         let payer = self.payer.pubkey();
@@ -31,12 +31,12 @@ impl TestCtx {
         let ix_q = md::initialize_question(&payer, &market, &question_id, 2);
         self.send_many(&[ix_q], &[]).expect("initialize_question");
 
-        // (2) initialize_conditional_vault — underlying == kass_mint.
-        let (vault, _) = md::vault(&question, &kass_mint);
-        let vault_underlying_ata = md::ata(&vault, &kass_mint);
+        // (2) initialize_conditional_vault — underlying == base_mint.
+        let (vault, _) = md::vault(&question, &base_mint);
+        let vault_underlying_ata = md::ata(&vault, &base_mint);
         let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
         let (no_mint, _) = md::conditional_token_mint(&vault, 1);
-        let ix_v = md::initialize_conditional_vault(&payer, &question, &kass_mint, 2);
+        let ix_v = md::initialize_conditional_vault(&payer, &question, &base_mint, 2);
         self.send_many(&[ix_v], &[])
             .expect("initialize_conditional_vault");
 
@@ -72,8 +72,8 @@ impl TestCtx {
     /// Send an `Activate` instruction (fee-payer signs and pays rent for the
     /// three market-owned token accounts). Returns the LiteSVM result.
     #[allow(clippy::result_large_err)]
-    pub fn activate(&mut self, oracle: Pubkey, kass_mint: Pubkey) -> TransactionResult {
-        self.activate_at(oracle, kass_mint, 0)
+    pub fn activate(&mut self, oracle: Pubkey, base_mint: Pubkey) -> TransactionResult {
+        self.activate_at(oracle, base_mint, 0)
     }
 
     /// Send an `Activate` instruction for the `outcome_index` sub-market. Returns
@@ -82,13 +82,13 @@ impl TestCtx {
     pub fn activate_at(
         &mut self,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         outcome_index: u8,
     ) -> TransactionResult {
         let ix = kassandra_markets_sdk::ix::activate(
             &self.payer.pubkey(),
             &oracle,
-            &kass_mint,
+            &base_mint,
             outcome_index,
         );
         self.send_many(&[ix], &[])
@@ -183,22 +183,22 @@ impl TestCtx {
     }
 
     /// Send a `CollectFee` instruction (permissionless crank). Derives every
-    /// account from `oracle` + `kass_mint` + the given `fee_destination`; a 1.4M-CU
+    /// account from `oracle` + `base_mint` + the given `fee_destination`; a 1.4M-CU
     /// budget is prepended for the remove_liquidity → redeem → transfer CPIs.
     #[allow(clippy::result_large_err)]
     pub fn collect_fee(
         &mut self,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         fee_destination: Pubkey,
     ) -> TransactionResult {
-        let ix = kassandra_markets_sdk::ix::collect_fee(&oracle, &kass_mint, &fee_destination, 0);
+        let ix = kassandra_markets_sdk::ix::collect_fee(&oracle, &base_mint, &fee_destination, 0);
         self.send_many(&[ix], &[])
     }
 
-    /// Send an `AddLiquidity` (Ix 11): `depositor` deposits `amount` KASS into the
-    /// live pool for `market`. Fabricates the depositor's canonical KASS/cYES/cNO
-    /// ATAs (KASS pre-funded with `amount`), reads the live pool reserves to compute
+    /// Send an `AddLiquidity` (Ix 11): `depositor` deposits `amount` SOL into the
+    /// live pool for `market`. Fabricates the depositor's canonical SOL/cYES/cNO
+    /// ATAs (SOL pre-funded with `amount`), reads the live pool reserves to compute
     /// the balanced `quote_amount`/`max_base_amount`, and submits (depositor signs;
     /// a CU budget is prepended for the two CPIs). Returns `(depositor_cyes_ata,
     /// depositor_cno_ata, result)` so the test can assert the returned remainder.
@@ -207,16 +207,16 @@ impl TestCtx {
         &mut self,
         depositor: &Keypair,
         oracle: Pubkey,
-        kass_mint: Pubkey,
+        base_mint: Pubkey,
         refs: &MetaDaoRefs,
         amount: u64,
     ) -> (Pubkey, Pubkey, TransactionResult) {
         use kassandra_markets_sdk::metadao as md;
         let dep = depositor.pubkey();
-        let dep_kass = md::ata(&dep, &kass_mint);
+        let dep_base = md::ata(&dep, &base_mint);
         let dep_cyes = md::ata(&dep, &refs.yes_mint);
         let dep_cno = md::ata(&dep, &refs.no_mint);
-        self.create_token_account_at(dep_kass, kass_mint, dep, amount);
+        self.create_token_account_at(dep_base, base_mint, dep, amount);
         self.create_token_account_at(dep_cyes, refs.yes_mint, dep, 0);
         self.create_token_account_at(dep_cno, refs.no_mint, dep, 0);
 
@@ -242,7 +242,7 @@ impl TestCtx {
         let ix = kassandra_markets_sdk::ix::add_liquidity(
             &dep,
             &oracle,
-            &kass_mint,
+            &base_mint,
             0,
             amount,
             quote_amount,
@@ -281,7 +281,7 @@ impl TestCtx {
         self.send_many(&[ix], &[user])
     }
 
-    /// Client `split_tokens`: `user` splits `amount` KASS out of `user_kass_ata`
+    /// Client `split_tokens`: `user` splits `amount` SOL out of `user_base_ata`
     /// into the vault, receiving `amount` of BOTH cYES and cNO into
     /// `user_cyes`/`user_cno`. Returns the LiteSVM result.
     #[allow(clippy::result_large_err, clippy::too_many_arguments)]
@@ -289,7 +289,7 @@ impl TestCtx {
         &mut self,
         user: &Keypair,
         refs: &MetaDaoRefs,
-        user_kass_ata: Pubkey,
+        user_base_ata: Pubkey,
         user_cyes: Pubkey,
         user_cno: Pubkey,
         amount: u64,
@@ -300,7 +300,7 @@ impl TestCtx {
             &refs.question,
             &refs.vault,
             &refs.vault_underlying_ata,
-            &user_kass_ata,
+            &user_base_ata,
             &refs.yes_mint,
             &refs.no_mint,
             &user_cyes,
@@ -311,14 +311,14 @@ impl TestCtx {
     }
 
     /// Client `redeem_tokens`: `user` burns their full cYES/cNO balances and
-    /// receives the resolved payout underlying into `user_kass_ata`. Returns the
+    /// receives the resolved payout underlying into `user_base_ata`. Returns the
     /// LiteSVM result.
     #[allow(clippy::result_large_err)]
     pub fn redeem(
         &mut self,
         user: &Keypair,
         refs: &MetaDaoRefs,
-        user_kass_ata: Pubkey,
+        user_base_ata: Pubkey,
         user_cyes: Pubkey,
         user_cno: Pubkey,
     ) -> TransactionResult {
@@ -328,7 +328,7 @@ impl TestCtx {
             &refs.question,
             &refs.vault,
             &refs.vault_underlying_ata,
-            &user_kass_ata,
+            &user_base_ata,
             &refs.yes_mint,
             &refs.no_mint,
             &user_cyes,

@@ -48,20 +48,20 @@ function keyShape(ix: TransactionInstruction) {
 
 async function fixture() {
   const oracle = (await Keypair.generate()).publicKey;
-  const kassMint = (await Keypair.generate()).publicKey;
+  const baseMint = (await Keypair.generate()).publicKey;
   const authority = (await Keypair.generate()).publicKey;
   const fact = (await Keypair.generate()).publicKey;
-  const ata = (await associatedTokenAccount(authority, kassMint)).address;
-  return { oracle, kassMint, authority, fact, ata };
+  const ata = (await associatedTokenAccount(authority, baseMint)).address;
+  return { oracle, baseMint, authority, fact, ata };
 }
 
 describe("buildProposeIxs", () => {
   it("emits only the propose ix when the ATA exists, matching the SDK builder", async () => {
-    const { oracle, kassMint, authority, ata } = await fixture();
+    const { oracle, baseMint, authority, ata } = await fixture();
     const ixs = await buildProposeIxs({
       connection: mockConnection(true),
       oracle,
-      kassMint,
+      baseMint,
       authority,
       option: 1,
       bond: 5_000n,
@@ -70,7 +70,7 @@ describe("buildProposeIxs", () => {
     const expected = await propose({
       oracle,
       authority,
-      authorityKass: ata,
+      authorityBase: ata,
       option: 1,
       bond: 5_000n,
     });
@@ -80,11 +80,11 @@ describe("buildProposeIxs", () => {
   });
 
   it("prepends an idempotent create-ATA ix when the ATA is absent", async () => {
-    const { oracle, kassMint, authority, ata } = await fixture();
+    const { oracle, baseMint, authority, ata } = await fixture();
     const ixs = await buildProposeIxs({
       connection: mockConnection(false),
       oracle,
-      kassMint,
+      baseMint,
       authority,
       option: 0,
       bond: 1n,
@@ -98,25 +98,25 @@ describe("buildProposeIxs", () => {
     expect(create.keys[0].isSigner).toBe(true);
     expect(create.keys[1].pubkey.toString()).toBe(ata.toString());
     expect(create.keys[2].pubkey.toString()).toBe(authority.toString());
-    expect(create.keys[3].pubkey.toString()).toBe(kassMint.toString());
-    const expected = await propose({ oracle, authority, authorityKass: ata, option: 0, bond: 1n });
+    expect(create.keys[3].pubkey.toString()).toBe(baseMint.toString());
+    const expected = await propose({ oracle, authority, authorityBase: ata, option: 0, bond: 1n });
     expect(keyShape(action)).toEqual(keyShape(expected));
   });
 
   it("rejects a non-positive bond", async () => {
-    const { oracle, kassMint, authority } = await fixture();
+    const { oracle, baseMint, authority } = await fixture();
     await expect(
-      buildProposeIxs({ connection: mockConnection(true), oracle, kassMint, authority, option: 0, bond: 0n }),
+      buildProposeIxs({ connection: mockConnection(true), oracle, baseMint, authority, option: 0, bond: 0n }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it("rejects an option outside optionsCount", async () => {
-    const { oracle, kassMint, authority } = await fixture();
+    const { oracle, baseMint, authority } = await fixture();
     await expect(
       buildProposeIxs({
         connection: mockConnection(true),
         oracle,
-        kassMint,
+        baseMint,
         authority,
         option: 3,
         bond: 1n,
@@ -128,12 +128,12 @@ describe("buildProposeIxs", () => {
 
 describe("buildSubmitFactIxs", () => {
   it("matches the SDK submitFact ix when the ATA exists", async () => {
-    const { oracle, kassMint, authority, ata } = await fixture();
+    const { oracle, baseMint, authority, ata } = await fixture();
     const contentHash = new Uint8Array(32).fill(0x07);
     const ixs = await buildSubmitFactIxs({
       connection: mockConnection(true),
       oracle,
-      kassMint,
+      baseMint,
       submitter: authority,
       contentHash,
       stake: 100n,
@@ -143,7 +143,7 @@ describe("buildSubmitFactIxs", () => {
     const expected = await submitFact({
       oracle,
       submitter: authority,
-      submitterKass: ata,
+      submitterBase: ata,
       contentHash,
       stake: 100n,
       uri: "ipfs://fact",
@@ -153,11 +153,11 @@ describe("buildSubmitFactIxs", () => {
   });
 
   it("prepends create-ATA when absent", async () => {
-    const { oracle, kassMint, authority } = await fixture();
+    const { oracle, baseMint, authority } = await fixture();
     const ixs = await buildSubmitFactIxs({
       connection: mockConnection(false),
       oracle,
-      kassMint,
+      baseMint,
       submitter: authority,
       contentHash: new Uint8Array(32).fill(1),
       stake: 1n,
@@ -168,12 +168,12 @@ describe("buildSubmitFactIxs", () => {
   });
 
   it("rejects a uri over 200 bytes", async () => {
-    const { oracle, kassMint, authority } = await fixture();
+    const { oracle, baseMint, authority } = await fixture();
     await expect(
       buildSubmitFactIxs({
         connection: mockConnection(true),
         oracle,
-        kassMint,
+        baseMint,
         submitter: authority,
         contentHash: new Uint8Array(32),
         stake: 1n,
@@ -183,12 +183,12 @@ describe("buildSubmitFactIxs", () => {
   });
 
   it("rejects a zero stake", async () => {
-    const { oracle, kassMint, authority } = await fixture();
+    const { oracle, baseMint, authority } = await fixture();
     await expect(
       buildSubmitFactIxs({
         connection: mockConnection(true),
         oracle,
-        kassMint,
+        baseMint,
         submitter: authority,
         contentHash: new Uint8Array(32),
         stake: 0n,
@@ -200,11 +200,11 @@ describe("buildSubmitFactIxs", () => {
 
 describe("buildVoteFactIxs", () => {
   it("matches the SDK voteFact ix when the ATA exists", async () => {
-    const { oracle, kassMint, authority, fact, ata } = await fixture();
+    const { oracle, baseMint, authority, fact, ata } = await fixture();
     const ixs = await buildVoteFactIxs({
       connection: mockConnection(true),
       oracle,
-      kassMint,
+      baseMint,
       fact,
       voter: authority,
       kind: VOTE_APPROVE,
@@ -215,7 +215,7 @@ describe("buildVoteFactIxs", () => {
       oracle,
       fact,
       voter: authority,
-      voterKass: ata,
+      voterBase: ata,
       kind: VOTE_APPROVE,
       stake: 2_000n,
     });
@@ -224,11 +224,11 @@ describe("buildVoteFactIxs", () => {
   });
 
   it("prepends create-ATA when absent and accepts VOTE_DUPLICATE", async () => {
-    const { oracle, kassMint, authority, fact } = await fixture();
+    const { oracle, baseMint, authority, fact } = await fixture();
     const ixs = await buildVoteFactIxs({
       connection: mockConnection(false),
       oracle,
-      kassMint,
+      baseMint,
       fact,
       voter: authority,
       kind: VOTE_DUPLICATE,
@@ -239,12 +239,12 @@ describe("buildVoteFactIxs", () => {
   });
 
   it("rejects an invalid vote kind", async () => {
-    const { oracle, kassMint, authority, fact } = await fixture();
+    const { oracle, baseMint, authority, fact } = await fixture();
     await expect(
       buildVoteFactIxs({
         connection: mockConnection(true),
         oracle,
-        kassMint,
+        baseMint,
         fact,
         voter: authority,
         kind: 7,

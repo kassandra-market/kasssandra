@@ -6,7 +6,7 @@ import { vi } from "vitest";
 
 const YES_MINT = "YesMint111111111111111111111111111111111";
 const NO_MINT = "NoMint1111111111111111111111111111111111";
-const KASS_MINT = "KassMint11111111111111111111111111111111";
+const BASE_MINT = "BaseMint11111111111111111111111111111111";
 
 vi.mock("../src/market/hooks/useWriteAction", () => ({
   useWriteAction: () => ({
@@ -17,15 +17,15 @@ vi.mock("../src/market/hooks/useWriteAction", () => ({
     run: async () => {},
   }),
 }));
-vi.mock("../src/market/hooks/useKassBalance", () => ({
-  useKassBalance: (mint: string) => {
+vi.mock("../src/market/hooks/useSolBalance", () => ({
+  useSolBalance: (mint: string) => {
     if (mint === YES_MINT) return { balance: 42_000_000_000n, loading: false, refetch: () => {} };
     if (mint === NO_MINT) return { balance: 7_000_000_000n, loading: false, refetch: () => {} };
     return { balance: 100_000_000_000n, loading: false, refetch: () => {} };
   },
 }));
-vi.mock("../src/hooks/useKassUsdcPrice", () => ({
-  useKassUsdcPrice: () => null,
+vi.mock("../src/hooks/useSolUsdcPrice", () => ({
+  useSolUsdcPrice: () => null,
 }));
 vi.mock("../src/components/markets/actions/ConnectGate", () => ({
   ConnectGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -39,7 +39,7 @@ import { TradePanel } from "../src/components/markets/actions/TradePanel";
 import type { Belief } from "../src/market/lib/beliefs";
 
 const market = {
-  kassMint: { toString: () => KASS_MINT },
+  baseMint: { toString: () => BASE_MINT },
   yesMint: { toString: () => YES_MINT },
   noMint: { toString: () => NO_MINT },
 } as never;

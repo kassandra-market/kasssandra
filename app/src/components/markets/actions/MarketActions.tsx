@@ -117,7 +117,7 @@ function LiquidityActionTabs({ detail, refetch }: { detail: MarketDetail; refetc
  *   - Active    → LiquidityActionTabs: Deposit (add into the live AMM) + Claim
  *                 (LP withdrawal; self-gates until settle) as two tabs of one panel.
  *   - Resolved / Void → ClaimLpControl (waits for fee collection before it opens).
- *   - Cancelled → RefundControl (reclaim staked KASS) until every contributor has
+ *   - Cancelled → RefundControl (reclaim staked SOL) until every contributor has
  *                 exited, after which there's nothing left to withdraw.
  *
  * The bulk cross-outcome GroupLiquidityPanel sits ABOVE this in the Liquidity tab.

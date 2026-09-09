@@ -2,8 +2,8 @@
 //!
 //! On the fact-settling path this instruction performs NO token CPI: it only
 //! mutates account data and advances a running `Oracle.bond_pool` counter of
-//! slashed KASS owed to the pool. Per-staker reward / return / withdrawal of the
-//! escrowed KASS is the DEFERRED S2 pull-claim layer; `bond_pool` here is an
+//! slashed SOL owed to the pool. Per-staker reward / return / withdrawal of the
+//! escrowed SOL is the DEFERRED S2 pull-claim layer; `bond_pool` here is an
 //! accounting counter.
 //!
 //! The ONE exception is the **no-facts dead-end** (`fact_count == 0`): when the
@@ -15,7 +15,7 @@
 //! so both are burned (the user-decided deterrent against propose-conflict-then-
 //! abandon), leaving the vault drained to dust. Because the burn is signed by the
 //! oracle PDA seeds and targets the canonical mint/vault, the instruction takes
-//! the same fixed `kass_mint`/`stake_vault`/token-program accounts + `oracle_nonce`
+//! the same fixed `base_mint`/`stake_vault`/token-program accounts + `oracle_nonce`
 //! payload as `finalize_oracle` (required on BOTH paths; only the no-facts
 //! terminal one actually burns).
 //!
@@ -60,7 +60,7 @@
 //!
 //! # Accounts
 //! 0. oracle        — writable, owned by this program (mutated; signs the burn).
-//! 1. kass_mint     — writable; `== oracle.kass_mint` (the no-facts dead-end burn target).
+//! 1. base_mint     — writable; `== oracle.base_mint` (the no-facts dead-end burn target).
 //! 2. stake_vault   — writable; `== oracle.stake_vault` (bonds/emission burned from here).
 //! 3. token program — `pinocchio_token::ID`.
 //! 4. onward        — the tail: a non-empty subset of the oracle's proposers
@@ -112,7 +112,7 @@ fn is_agreed(
 }
 
 pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]) -> ProgramResult {
-    let [oracle_ai, kass_mint_ai, stake_vault_ai, token_prog_ai, tail @ ..] = accounts else {
+    let [oracle_ai, base_mint_ai, stake_vault_ai, token_prog_ai, tail @ ..] = accounts else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
 
@@ -141,7 +141,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     // Fixed burn accounts (canonical mint + vault + token program). Required on
     // both paths; only the no-facts terminal transition actually burns.
     assert_key(token_prog_ai, &pinocchio_token::ID)?;
-    assert_key(kass_mint_ai, &oracle.kass_mint)?;
+    assert_key(base_mint_ai, &oracle.base_mint)?;
     assert_key(stake_vault_ai, &oracle.stake_vault)?;
 
     // At least one account must be supplied to do any work.
@@ -153,7 +153,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         finalize_no_facts(
             program_id,
             oracle_ai,
-            kass_mint_ai,
+            base_mint_ai,
             stake_vault_ai,
             &mut oracle,
             tail,
@@ -173,7 +173,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
 fn finalize_no_facts(
     program_id: &Pubkey,
     oracle_ai: &mut AccountInfo,
-    kass_mint_ai: &AccountInfo,
+    base_mint_ai: &AccountInfo,
     stake_vault_ai: &AccountInfo,
     oracle: &mut Oracle,
     proposers: &mut [AccountInfo],
@@ -245,7 +245,7 @@ fn finalize_no_facts(
             let nonce_le = nonce.to_le_bytes();
             let bump_seed = [oracle.bump];
             let seeds = Oracle::signer_seeds(&nonce_le, &bump_seed);
-            Burn::new(stake_vault_ai, kass_mint_ai, oracle_ai, burn_amount)
+            Burn::new(stake_vault_ai, base_mint_ai, oracle_ai, burn_amount)
                 .invoke_signed(&[Signer::from(&seeds)])?;
         }
     }

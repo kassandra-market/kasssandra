@@ -5,8 +5,8 @@ mod common;
 use common::*;
 
 use kassandra_oracles_program::config::{
-    CHALLENGE_FAIL_USDC_FEE_DEN, CHALLENGE_FAIL_USDC_FEE_NUM, CHALLENGE_SUCCESS_KASS_FEE_DEN,
-    CHALLENGE_SUCCESS_KASS_FEE_NUM, PHASE_WINDOW, THRESHOLD_DEN, THRESHOLD_NUM,
+    CHALLENGE_FAIL_USDC_FEE_DEN, CHALLENGE_FAIL_USDC_FEE_NUM, CHALLENGE_SUCCESS_BASE_FEE_DEN,
+    CHALLENGE_SUCCESS_BASE_FEE_NUM, PHASE_WINDOW, THRESHOLD_DEN, THRESHOLD_NUM,
 };
 use kassandra_oracles_program::error::KassandraError;
 use solana_keypair::Keypair;
@@ -35,11 +35,11 @@ fn governed_ctx() -> (TestCtx, solana_pubkey::Pubkey, Keypair) {
 
     let dao = Keypair::new();
     ctx.svm.airdrop(&dao.pubkey(), 1_000_000_000).unwrap();
-    let (_da, kass_dao) = TestCtx::stand_in_governance(0x33);
+    let (_da, spot_dao) = TestCtx::stand_in_governance(0x33);
     // Record a SIGNABLE keypair as `dao_authority` directly: the Task G1-hardened
     // `set_governance` only accepts the derived (unsignable) Squads vault PDA, so
     // the accept path is driven via the direct-write harness helper.
-    ctx.force_governance(dao.pubkey(), kass_dao);
+    ctx.force_governance(dao.pubkey(), spot_dao);
     (ctx, protocol_pda, dao)
 }
 
@@ -94,12 +94,12 @@ fn new_oracle_snapshots_default_challenge_fees() {
     assert_eq!(o.challenge_fail_usdc_fee_num, CHALLENGE_FAIL_USDC_FEE_NUM);
     assert_eq!(o.challenge_fail_usdc_fee_den, CHALLENGE_FAIL_USDC_FEE_DEN);
     assert_eq!(
-        o.challenge_success_kass_fee_num,
-        CHALLENGE_SUCCESS_KASS_FEE_NUM
+        o.challenge_success_base_fee_num,
+        CHALLENGE_SUCCESS_BASE_FEE_NUM
     );
     assert_eq!(
-        o.challenge_success_kass_fee_den,
-        CHALLENGE_SUCCESS_KASS_FEE_DEN
+        o.challenge_success_base_fee_den,
+        CHALLENGE_SUCCESS_BASE_FEE_DEN
     );
 }
 
@@ -110,8 +110,8 @@ fn dao_updates_challenge_fees_and_new_oracle_snapshots() {
     let mut params = ConfigParams::defaults();
     params.challenge_fail_usdc_fee_num = 5; // 5%
     params.challenge_fail_usdc_fee_den = 100;
-    params.challenge_success_kass_fee_num = 25; // 2.5%
-    params.challenge_success_kass_fee_den = 1000;
+    params.challenge_success_base_fee_num = 25; // 2.5%
+    params.challenge_success_base_fee_den = 1000;
     let (_pda, res) = ctx.set_config(&dao, params);
     assert!(
         res.is_ok(),
@@ -121,16 +121,16 @@ fn dao_updates_challenge_fees_and_new_oracle_snapshots() {
     let p = ctx.protocol(protocol_pda);
     assert_eq!(p.challenge_fail_usdc_fee_num, 5);
     assert_eq!(p.challenge_fail_usdc_fee_den, 100);
-    assert_eq!(p.challenge_success_kass_fee_num, 25);
-    assert_eq!(p.challenge_success_kass_fee_den, 1000);
+    assert_eq!(p.challenge_success_base_fee_num, 25);
+    assert_eq!(p.challenge_success_base_fee_den, 1000);
 
     // A subsequently-created oracle snapshots the NEW fee rates.
     let oracle = ctx.create_real_oracle(2, TWAP_WINDOW);
     let o = ctx.oracle(oracle);
     assert_eq!(o.challenge_fail_usdc_fee_num, 5);
     assert_eq!(o.challenge_fail_usdc_fee_den, 100);
-    assert_eq!(o.challenge_success_kass_fee_num, 25);
-    assert_eq!(o.challenge_success_kass_fee_den, 1000);
+    assert_eq!(o.challenge_success_base_fee_num, 25);
+    assert_eq!(o.challenge_success_base_fee_den, 1000);
 }
 
 #[test]
@@ -147,12 +147,12 @@ fn challenge_fee_zero_denominator_rejected() {
     );
 
     let mut params = ConfigParams::defaults();
-    params.challenge_success_kass_fee_den = 0;
+    params.challenge_success_base_fee_den = 0;
     let (_pda, res) = ctx.set_config(&dao, params);
     assert_eq!(
         custom_code(&res),
         Some(KassandraError::InvalidConfig as u32),
-        "challenge_success_kass_fee_den==0 must be rejected: {res:?}"
+        "challenge_success_base_fee_den==0 must be rejected: {res:?}"
     );
 }
 
@@ -161,8 +161,8 @@ fn challenge_fee_over_one_rejected() {
     let (mut ctx, _protocol_pda, dao) = governed_ctx();
 
     let mut params = ConfigParams::defaults();
-    params.challenge_success_kass_fee_num = 101;
-    params.challenge_success_kass_fee_den = 100;
+    params.challenge_success_base_fee_num = 101;
+    params.challenge_success_base_fee_den = 100;
     let (_pda, res) = ctx.set_config(&dao, params);
     assert_eq!(
         custom_code(&res),
@@ -174,7 +174,7 @@ fn challenge_fee_over_one_rejected() {
 #[test]
 fn flip_slash_plus_success_fee_over_one_rejected() {
     // JOINT bound (settle_challenge liveness): flip_slash_frac +
-    // success_kass_fee_frac must be ≤ 1, else a flip-slashed-then-disqualified
+    // success_base_fee_frac must be ≤ 1, else a flip-slashed-then-disqualified
     // proposer underflows settle's carve-out. Each fraction alone is valid here
     // (60% and 50%, both ≤ 1), but their sum (110%) must be rejected.
     let (mut ctx, _protocol_pda, dao) = governed_ctx();
@@ -182,25 +182,25 @@ fn flip_slash_plus_success_fee_over_one_rejected() {
     let mut params = ConfigParams::defaults();
     params.flip_slash_num = 6;
     params.flip_slash_den = 10; // 60%
-    params.challenge_success_kass_fee_num = 50;
-    params.challenge_success_kass_fee_den = 100; // 50% — sum 110% > 1
+    params.challenge_success_base_fee_num = 50;
+    params.challenge_success_base_fee_den = 100; // 50% — sum 110% > 1
     let (_pda, res) = ctx.set_config(&dao, params);
     assert_eq!(
         custom_code(&res),
         Some(KassandraError::InvalidConfig as u32),
-        "flip_slash + success_kass_fee summing to >1 must be rejected: {res:?}"
+        "flip_slash + success_base_fee summing to >1 must be rejected: {res:?}"
     );
 
     // The boundary sum == 1 (exactly) is ACCEPTED (no underflow possible).
     let mut params = ConfigParams::defaults();
     params.flip_slash_num = 1;
     params.flip_slash_den = 2; // 50%
-    params.challenge_success_kass_fee_num = 1;
-    params.challenge_success_kass_fee_den = 2; // 50% — sum exactly 1
+    params.challenge_success_base_fee_num = 1;
+    params.challenge_success_base_fee_den = 2; // 50% — sum exactly 1
     let (_pda, res) = ctx.set_config(&dao, params);
     assert!(
         res.is_ok(),
-        "flip_slash + success_kass_fee == 1 must be accepted: {res:?}"
+        "flip_slash + success_base_fee == 1 must be accepted: {res:?}"
     );
 }
 

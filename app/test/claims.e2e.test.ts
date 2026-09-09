@@ -7,7 +7,7 @@
  * builder is driven through the REAL program over the app's
  * {@link keypairSender}/{@link sendAndConfirm} seam:
  *
- *   buildClaimProposerIxs  → KASS payout lands in the proposer's canonical ATA,
+ *   buildClaimProposerIxs  → SOL payout lands in the proposer's canonical ATA,
  *                            Proposer account CLOSED (matrix: reward / flip-slash
  *                            / surviving-but-wrong);
  *   buildClaimFactIxs      → the agreed fact's submitter is paid, Fact CLOSED;
@@ -23,12 +23,12 @@
  *
  * Unlike the SDK suite (which funds a fresh dest ATA per claim and calls the SDK
  * builder directly) this drives the APP builders, which derive the participant's
- * CANONICAL `ATA(authority, kassMint)` as `destKass` and PREPEND a create-ATA
+ * CANONICAL `ATA(authority, baseMint)` as `destBase` and PREPEND a create-ATA
  * when absent — so the asserted payout lands in that canonical ATA. The
  * participant keypair is the fee-payer + create-ATA payer.
  *
  * GOVERNANCE (sweep precondition) + the SEEDED settled Market are fabricated
- * exactly as the SDK settlement E2E documents (a futarchy-owned kass_dao + REAL
+ * exactly as the SDK settlement E2E documents (a futarchy-owned spot_dao + REAL
  * set_governance, a treasury ATA, and settled Market/escrow bytes).
  *
  * Gated: skips (never fails) unless `KASSANDRA_E2E=1` AND surfpool + the `.so`
@@ -82,7 +82,7 @@ import {
   createOracleReal,
   factReward,
   fetchAccount,
-  fundKass,
+  fundBase,
   fundSigner,
   isClosed,
   marketBytes,
@@ -109,9 +109,9 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -124,35 +124,35 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
       data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
     });
 
-    // --- governance handoff (SEEDED kass_dao, REAL set_governance) ------------
-    const kassDao = (await Keypair.generate()).publicKey;
+    // --- governance handoff (SEEDED spot_dao, REAL set_governance) ------------
+    const spotDao = (await Keypair.generate()).publicKey;
     const daoBlob = new Uint8Array(256);
     daoBlob.set(futarchy.ACCOUNT_DISC.dao, 0);
-    await harness.setAccount(kassDao.toString(), {
+    await harness.setAccount(spotDao.toString(), {
       lamports: 5_000_000,
       owner: FUTARCHY_ID.toString(),
       executable: false,
       data: toHex(daoBlob),
     });
-    const multisig = (await futarchy.pda.squadsMultisig(kassDao)).address;
+    const multisig = (await futarchy.pda.squadsMultisig(spotDao)).address;
     const daoAuthority = (await futarchy.pda.squadsVault(multisig, 0)).address;
 
-    f = { harness, payer, kassMint, usdcMint, daoAuthority, treasury: daoAuthority };
+    f = { harness, payer, baseMint, usdcMint, daoAuthority, treasury: daoAuthority };
 
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
-    await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, kassDao }));
+    await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, spotDao }));
 
-    // Fabricate the DAO treasury ATA(dao_authority, kass_mint) — the sweep dest.
-    const treasury = (await pda.associatedTokenAccount(daoAuthority, kassMint.publicKey)).address;
+    // Fabricate the DAO treasury ATA(dao_authority, base_mint) — the sweep dest.
+    const treasury = (await pda.associatedTokenAccount(daoAuthority, baseMint.publicKey)).address;
     await harness.setAccount(treasury.toString(), {
       lamports: 5_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
-      data: toHex(tokenAccountBytes(kassMint.publicKey.toBytes(), daoAuthority.toBytes(), 0n)),
+      data: toHex(tokenAccountBytes(baseMint.publicKey.toBytes(), daoAuthority.toBytes(), 0n)),
     });
     f.treasury = treasury;
   }, 180_000);
@@ -163,7 +163,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
 
   it("drives Resolved → claim_* payouts land + close_* + sweep, asserting conservation", async () => {
     const nonce = 1n;
-    const kassMint = f.kassMint.publicKey;
+    const baseMint = f.baseMint.publicKey;
     const oracle = (await pda.oracle(nonce)).address;
     const vault = (await pda.stakeVault(oracle)).address;
     const bond = 1_000n;
@@ -190,12 +190,12 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     const rejectedSubmitter = await fundSigner(f);
     await sendIx(f, await submitFact({
       oracle, submitter: agreedSubmitter.publicKey,
-      submitterKass: await fundKass(f, agreedSubmitter.publicKey, 1_000_000n),
+      submitterBase: await fundBase(f, agreedSubmitter.publicKey, 1_000_000n),
       contentHash: agreedHash, stake: agreedSubStake, uri: "ipfs://agreed",
     }), [agreedSubmitter]);
     await sendIx(f, await submitFact({
       oracle, submitter: rejectedSubmitter.publicKey,
-      submitterKass: await fundKass(f, rejectedSubmitter.publicKey, 1_000_000n),
+      submitterBase: await fundBase(f, rejectedSubmitter.publicKey, 1_000_000n),
       contentHash: rejectedHash, stake: rejectedSubStake, uri: "ipfs://rejected",
     }), [rejectedSubmitter]);
     const agreedFact = (await pda.fact(oracle, agreedHash)).address;
@@ -210,18 +210,18 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     const rejectedVoter = await fundSigner(f);
     await sendIx(f, await voteFact({
       oracle, fact: agreedFact, voter: agreedVoter.publicKey,
-      voterKass: await fundKass(f, agreedVoter.publicKey, 10_000n),
+      voterBase: await fundBase(f, agreedVoter.publicKey, 10_000n),
       kind: VOTE_APPROVE, stake: agreedVoteStake,
     }), [agreedVoter]);
     await sendIx(f, await voteFact({
       oracle, fact: rejectedFact, voter: rejectedVoter.publicKey,
-      voterKass: await fundKass(f, rejectedVoter.publicKey, 10_000n),
+      voterBase: await fundBase(f, rejectedVoter.publicKey, 10_000n),
       kind: VOTE_APPROVE, stake: rejectedVoteStake,
     }), [rejectedVoter]);
 
     // ---- finalize_facts → AiClaim -------------------------------------------
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeFacts({ nonce, kassMint, tail: [agreedFact, rejectedFact] }));
+    await sendIx(f, await finalizeFacts({ nonce, baseMint, tail: [agreedFact, rejectedFact] }));
     expect(decodeFact(await fetchAccount(f, agreedFact)).agreed).toBe(true);
     expect(decodeFact(await fetchAccount(f, rejectedFact)).agreed).toBe(false);
 
@@ -240,7 +240,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     await sendIx(f, await finalizeAiClaims({ oracle, proposers: props.map((p) => p.proposer) }));
     expect(decodeOracle(await fetchAccount(f, oracle)).phase).toBe(Phase.Challenge);
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeOracle({ nonce, kassMint, proposers: props.map((p) => p.proposer) }));
+    await sendIx(f, await finalizeOracle({ nonce, baseMint, proposers: props.map((p) => p.proposer) }));
 
     const o = decodeOracle(await fetchAccount(f, oracle));
     expect(o.phase).toBe(Phase.Resolved);
@@ -253,7 +253,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     let totalClaimed = 0n;
 
     // ================= CLAIMS via the RF2 app builders + keypairSender =========
-    // Each claim's destKass is the participant's CANONICAL ATA (derived +
+    // Each claim's destBase is the participant's CANONICAL ATA (derived +
     // create-ATA prepended by the builder); balance after == the exact payout.
 
     // AGREED fact: approve-voter (stake+reward) then submitter (stake+reward).
@@ -262,7 +262,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
       await claimAs(f, agreedVoter, await buildClaimFactVoteIxs({
         connection: conn, oracleNonce: nonce,
         factVote: (await pda.factVote(agreedFact, agreedVoter.publicKey)).address,
-        fact: agreedFact, voter: agreedVoter.publicKey, kassMint,
+        fact: agreedFact, voter: agreedVoter.publicKey, baseMint,
       }));
       expect(await ataBalance(f, agreedVoter.publicKey)).toBe(expected);
       totalClaimed += expected;
@@ -272,7 +272,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
       const expected = fact.stake + factReward(fact.stake, fBucket, o.totalApprovedFactStake);
       await claimAs(f, agreedSubmitter, await buildClaimFactIxs({
         connection: conn, oracleNonce: nonce, fact: agreedFact,
-        authority: agreedSubmitter.publicKey, kassMint,
+        authority: agreedSubmitter.publicKey, baseMint,
       }));
       expect(await ataBalance(f, agreedSubmitter.publicKey)).toBe(expected);
       expect(await isClosed(f, agreedFact)).toBe(true);
@@ -286,7 +286,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
       await claimAs(f, rejectedVoter, await buildClaimFactVoteIxs({
         connection: conn, oracleNonce: nonce,
         factVote: (await pda.factVote(rejectedFact, rejectedVoter.publicKey)).address,
-        fact: rejectedFact, voter: rejectedVoter.publicKey, kassMint,
+        fact: rejectedFact, voter: rejectedVoter.publicKey, baseMint,
       }));
       expect(await ataBalance(f, rejectedVoter.publicKey)).toBe(expected);
       totalClaimed += expected;
@@ -294,7 +294,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     {
       await claimAs(f, rejectedSubmitter, await buildClaimFactIxs({
         connection: conn, oracleNonce: nonce, fact: rejectedFact,
-        authority: rejectedSubmitter.publicKey, kassMint,
+        authority: rejectedSubmitter.publicKey, baseMint,
       }));
       expect(await ataBalance(f, rejectedSubmitter.publicKey)).toBe(0n);
       expect(await isClosed(f, rejectedFact)).toBe(true);
@@ -313,7 +313,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
       if (p.claimOption !== o.resolvedOption) sawWrong = true;
 
       await claimAs(f, authority, await buildClaimProposerIxs({
-        connection: conn, oracleNonce: nonce, proposer, authority: authority.publicKey, kassMint,
+        connection: conn, oracleNonce: nonce, proposer, authority: authority.publicKey, baseMint,
       }));
       expect(await ataBalance(f, authority.publicKey)).toBe(expected);
       expect(await isClosed(f, proposer)).toBe(true);
@@ -359,7 +359,7 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     const treasuryBefore = await tokenBalance(f, f.treasury);
     await f.harness.advanceToUnix(o.phaseEndsAt + SWEEP_GRACE + 1n);
     await sendAndConfirm(conn, keypairSender(conn, f.payer), await buildSweepOracleIxs({
-      oracleNonce: nonce, kassMint, daoAuthority: f.daoAuthority, creator: f.payer.publicKey,
+      oracleNonce: nonce, baseMint, daoAuthority: f.daoAuthority, creator: f.payer.publicKey,
     }));
     expect(await tokenBalance(f, f.treasury)).toBe(treasuryBefore + dust);
     expect(await isClosed(f, vault)).toBe(true);
@@ -371,9 +371,9 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     await sendAndConfirm(fx.harness.connection, keypairSender(fx.harness.connection, signer), ixs);
   }
 
-  /** Balance of an owner's canonical `ATA(owner, kassMint)` (the claim payout dest). */
+  /** Balance of an owner's canonical `ATA(owner, baseMint)` (the claim payout dest). */
   async function ataBalance(fx: Fixture, owner: Address): Promise<bigint> {
-    const ata = (await associatedTokenAccount(owner, fx.kassMint.publicKey)).address;
+    const ata = (await associatedTokenAccount(owner, fx.baseMint.publicKey)).address;
     return tokenBalance(fx, ata);
   }
 });

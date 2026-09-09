@@ -3,7 +3,7 @@
  *
  * A permissionless, idempotent crank that — after a market resolves — cuts the
  * protocol `feeBps` share of the market's accrued LP earnings and routes it (as
- * KASS) to the futarchy-governed `Config.feeDestination`, via program-signed
+ * SOL) to the futarchy-governed `Config.feeDestination`, via program-signed
  * `amm::remove_liquidity` → `conditional_vault::redeem_tokens` → SPL `transfer`.
  * `claim_lp` is gated on it, so ordering is forced: resolve → collect_fee →
  * claim_lp.

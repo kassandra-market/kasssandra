@@ -18,18 +18,18 @@ export interface Market {
   challenger: Address;
   /** MetaDAO binary question (resolver == oracle PDA). */
   question: Address;
-  /** MetaDAO conditional vault, underlying == oracle.kass_mint. */
-  kassVault: Address;
+  /** MetaDAO conditional vault, underlying == oracle.base_mint. */
+  baseVault: Address;
   /** MetaDAO conditional vault, underlying == oracle.usdc_mint. */
   usdcVault: Address;
   /** Outcome-0 (pass) AMM. */
   passAmm: Address;
   /** Outcome-1 (fail) AMM. */
   failAmm: Address;
-  /** Oracle-PDA-owned conditional-KASS token account (pass). */
-  oraclePassKass: Address;
-  /** Oracle-PDA-owned conditional-KASS token account (fail). */
-  oracleFailKass: Address;
+  /** Oracle-PDA-owned conditional-SOL token account (pass). */
+  oraclePassBase: Address;
+  /** Oracle-PDA-owned conditional-SOL token account (fail). */
+  oracleFailBase: Address;
   /** Market-owned USDC escrow holding the challenger's staked USDC. */
   challengerUsdcVault: Address;
   /** `now + oracle.twap_window`; settle allowed only after this. */
@@ -52,12 +52,12 @@ export function decodeMarket(data: Uint8Array): Market {
     proposer: readPubkey(data, 72),
     challenger: readPubkey(data, 104),
     question: readPubkey(data, 136),
-    kassVault: readPubkey(data, 168),
+    baseVault: readPubkey(data, 168),
     usdcVault: readPubkey(data, 200),
     passAmm: readPubkey(data, 232),
     failAmm: readPubkey(data, 264),
-    oraclePassKass: readPubkey(data, 296),
-    oracleFailKass: readPubkey(data, 328),
+    oraclePassBase: readPubkey(data, 296),
+    oracleFailBase: readPubkey(data, 328),
     challengerUsdcVault: readPubkey(data, 360),
     twapEnd: readI64LE(dv, 392),
     challengerUsdc: readU64LE(dv, 400),

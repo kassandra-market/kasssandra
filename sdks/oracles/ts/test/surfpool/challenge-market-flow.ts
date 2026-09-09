@@ -34,7 +34,7 @@ import {
   INITIALIZE_CONDITIONAL_VAULT,
   sendIx,
   fetchAccount,
-  fundKass,
+  fundBase,
   ata,
   composeVault,
   fabricateTokenAccountMint,
@@ -116,10 +116,10 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
   const contentHash = new Uint8Array(32).fill(0x07);
   const submitter = await Keypair.generate();
   await f.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000);
-  const submitterKass = await fundKass(f, submitter.publicKey, 1_000_000n);
+  const submitterBase = await fundBase(f, submitter.publicKey, 1_000_000n);
   await sendIx(
     f,
-    await submitFact({ oracle, submitter: submitter.publicKey, submitterKass, contentHash, stake: 100n, uri: "ipfs://fact" }),
+    await submitFact({ oracle, submitter: submitter.publicKey, submitterBase, contentHash, stake: 100n, uri: "ipfs://fact" }),
     [submitter],
   );
   const fact = (await pda.fact(oracle, contentHash)).address;
@@ -129,15 +129,15 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
 
   const voter = await Keypair.generate();
   await f.harness.airdrop(voter.publicKey.toString(), 2_000_000_000);
-  const voterKass = await fundKass(f, voter.publicKey, 10n * BOND);
+  const voterBase = await fundBase(f, voter.publicKey, 10n * BOND);
   await sendIx(
     f,
-    await voteFact({ oracle, fact, voter: voter.publicKey, voterKass, kind: VOTE_APPROVE, stake: 2n * BOND }),
+    await voteFact({ oracle, fact, voter: voter.publicKey, voterBase, kind: VOTE_APPROVE, stake: 2n * BOND }),
     [voter],
   );
 
   await advancePastPhaseEnd(f, oracle);
-  await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
+  await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [fact] }));
 
   for (let i = 0; i < proposerPdas.length; i++) {
     await sendIx(
@@ -170,16 +170,16 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
   };
 }
 
-/** Compose the binary question + KASS/USDC conditional vaults (resolver == oracle)
- * + the oracle-PDA-owned pass/fail conditional-KASS holders. */
+/** Compose the binary question + SOL/USDC conditional vaults (resolver == oracle)
+ * + the oracle-PDA-owned pass/fail conditional-SOL holders. */
 export async function composeMarket(f: Fixture, oracle: Address): Promise<MarketComposition> {
   const questionId = new Uint8Array(32).fill(0x07);
   const { question } = await composeQuestion(f, oracle, questionId, 2);
-  const kass = await composeVault(f, question, f.kassMint.publicKey);
+  const base = await composeVault(f, question, f.baseMint.publicKey);
   const usdc = await composeVault(f, question, f.usdcMint.publicKey);
-  const oraclePassKass = await fabricateTokenAccountMint(f, kass.passMint, oracle, 0n);
-  const oracleFailKass = await fabricateTokenAccountMint(f, kass.failMint, oracle, 0n);
-  return { question, kass, usdc, oraclePassKass, oracleFailKass };
+  const oraclePassBase = await fabricateTokenAccountMint(f, base.passMint, oracle, 0n);
+  const oracleFailBase = await fabricateTokenAccountMint(f, base.failMint, oracle, 0n);
+  return { question, base, usdc, oraclePassBase, oracleFailBase };
 }
 
 /** Send the Kassandra `open_challenge` (program-signed `split_tokens` CPI →
@@ -204,17 +204,17 @@ export async function openChallengeReal(
       proposer: c.proposer,
       challenger: challenger.publicKey,
       question: m.question,
-      kassVault: m.kass.vault,
+      baseVault: m.base.vault,
       usdcVault: m.usdc.vault,
       passAmm,
       failAmm,
-      kassVaultUnderlying: m.kass.underlying,
-      passKassMint: m.kass.passMint,
-      failKassMint: m.kass.failMint,
-      oraclePassKass: m.oraclePassKass,
-      oracleFailKass: m.oracleFailKass,
+      baseVaultUnderlying: m.base.underlying,
+      passBaseMint: m.base.passMint,
+      failBaseMint: m.base.failMint,
+      oraclePassBase: m.oraclePassBase,
+      oracleFailBase: m.oracleFailBase,
       cvEventAuthority,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
       usdcMint: f.usdcMint.publicKey,
       challengerUsdcSrc,
     }),
@@ -239,7 +239,7 @@ export async function settleChallengeReal(
 ): Promise<Payouts> {
   const proposerUsdc = await fabricateTokenAccountMint(f, f.usdcMint.publicKey, c.proposerAuthority, 0n);
   const challengerUsdcDest = await fabricateTokenAccountMint(f, f.usdcMint.publicKey, challenger.publicKey, 0n);
-  const challengerKass = await fabricateTokenAccountMint(f, f.kassMint.publicKey, challenger.publicKey, 0n);
+  const challengerBase = await fabricateTokenAccountMint(f, f.baseMint.publicKey, challenger.publicKey, 0n);
   const escrowVault = (await pda.challengeUsdcVault(market)).address;
   const cvEventAuthority = (await Address.findProgramAddress([enc.encode("__event_authority")], VLTX))[0];
 
@@ -257,20 +257,20 @@ export async function settleChallengeReal(
       passAmm,
       failAmm,
       cvEventAuthority,
-      kassVault: m.kass.vault,
-      kassVaultUnderlying: m.kass.underlying,
-      passKassMint: m.kass.passMint,
-      failKassMint: m.kass.failMint,
-      oraclePassKass: m.oraclePassKass,
-      oracleFailKass: m.oracleFailKass,
+      baseVault: m.base.vault,
+      baseVaultUnderlying: m.base.underlying,
+      passBaseMint: m.base.passMint,
+      failBaseMint: m.base.failMint,
+      oraclePassBase: m.oraclePassBase,
+      oracleFailBase: m.oracleFailBase,
       proposerUsdc,
       challengerUsdcDest,
-      challengerKass,
+      challengerBase,
     }),
     [],
     1_400_000,
   );
-  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerKass };
+  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerBase };
 }
 
 /** `create_amm` + `add_liquidity` for one (base, quote) conditional pair. Funds

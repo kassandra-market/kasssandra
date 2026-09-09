@@ -61,7 +61,7 @@ export interface InitializeConditionalVaultArgs {
   payer: AddressInput;
   /** The `Question` this vault settles against. */
   question: AddressInput;
-  /** Underlying token mint (kassandra-market uses the KASS mint). */
+  /** Underlying token mint (kassandra-market uses the SOL mint). */
   underlyingMint: AddressInput;
   /** Number of conditional-token mints created (default 2). */
   numOutcomes?: number;

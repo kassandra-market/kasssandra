@@ -26,7 +26,7 @@ import {
   CONTRIBUTOR,
   CREATOR,
   FEE_DEST,
-  KASS_MINT,
+  BASE_MINT,
   ORACLE,
 } from "./helpers/builders.js";
 
@@ -75,10 +75,10 @@ describe("decoders", () => {
       .toThrow(/wrong account_type/);
   });
 
-  it("decodeConfig reads authority@8, kassMint@40, minLiquidity@72, bump@80, feeBps@82, feeDestination@84, + the activity-scaled curve fields @120..152", () => {
+  it("decodeConfig reads authority@8, baseMint@40, minLiquidity@72, bump@80, feeBps@82, feeDestination@84, + the activity-scaled curve fields @120..152", () => {
     const buf = new Buf(ACCOUNT_SIZES.Config, AccountType.Config)
       .key(8, AUTHORITY)
-      .key(40, KASS_MINT)
+      .key(40, BASE_MINT)
       .u64(72, 123456789n)
       .u8(80, 254)
       .u16(82, 250)
@@ -90,7 +90,7 @@ describe("decoders", () => {
       .u64(152, 10_000_000_000n); // minLiquidityMax
     const c = decodeConfig(buf.bytes);
     expect(c.authority.toString()).toBe(AUTHORITY.toString());
-    expect(c.kassMint.toString()).toBe(KASS_MINT.toString());
+    expect(c.baseMint.toString()).toBe(BASE_MINT.toString());
     expect(c.minLiquidity).toBe(123456789n);
     expect(c.bump).toBe(254);
     expect(c.feeBps).toBe(250);

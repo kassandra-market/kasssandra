@@ -106,8 +106,8 @@ pub(crate) fn fabricate_amm_account(ctx: &mut TestCtx, base: Pubkey, quote: Pubk
 /// Every MetaDAO account a challenge market binds to.
 pub(crate) struct MarketAccounts {
     pub(crate) question: Pubkey,
-    pub(crate) kass_vault: Pubkey,
-    pub(crate) kass_vault_underlying: Pubkey,
+    pub(crate) base_vault: Pubkey,
+    pub(crate) base_vault_underlying: Pubkey,
     pub(crate) pass_mint: Pubkey,
     pub(crate) fail_mint: Pubkey,
     pub(crate) usdc_vault: Pubkey,
@@ -123,14 +123,14 @@ pub(crate) fn cu(ix: Instruction) -> [Instruction; 2] {
 }
 
 /// Compose the MetaDAO market for `resolver` (the question's oracle/resolver):
-/// initialize_question(num_outcomes=2) → KASS conditional vault → USDC
+/// initialize_question(num_outcomes=2) → SOL conditional vault → USDC
 /// conditional vault → pass/fail AMM stubs. Returns the bound accounts plus the
-/// oracle-PDA-owned conditional KASS destinations.
+/// oracle-PDA-owned conditional SOL destinations.
 pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccounts, Pubkey, Pubkey) {
-    let kass = ctx.kass_mint;
+    let base = ctx.base_mint;
     let usdc = ctx.usdc_mint;
     let resolver_arr = resolver.to_bytes();
-    let kass_arr = kass.to_bytes();
+    let base_arr = base.to_bytes();
     let usdc_arr = usdc.to_bytes();
     let num_outcomes: u8 = 2;
     let question_id = [7u8; 32];
@@ -140,21 +140,21 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
         &vault_id(),
     );
     let question_arr = question.to_bytes();
-    let (kass_vault, _) = Pubkey::find_program_address(
-        &metadao::vault_seeds(&question_arr.into(), &kass_arr.into()),
+    let (base_vault, _) = Pubkey::find_program_address(
+        &metadao::vault_seeds(&question_arr.into(), &base_arr.into()),
         &vault_id(),
     );
     let (usdc_vault, _) = Pubkey::find_program_address(
         &metadao::vault_seeds(&question_arr.into(), &usdc_arr.into()),
         &vault_id(),
     );
-    let kass_vault_arr = kass_vault.to_bytes();
+    let base_vault_arr = base_vault.to_bytes();
     let (pass_mint, _) = Pubkey::find_program_address(
-        &metadao::conditional_token_mint_seeds(&kass_vault_arr.into(), &[0u8]),
+        &metadao::conditional_token_mint_seeds(&base_vault_arr.into(), &[0u8]),
         &vault_id(),
     );
     let (fail_mint, _) = Pubkey::find_program_address(
-        &metadao::conditional_token_mint_seeds(&kass_vault_arr.into(), &[1u8]),
+        &metadao::conditional_token_mint_seeds(&base_vault_arr.into(), &[1u8]),
         &vault_id(),
     );
     let usdc_vault_arr = usdc_vault.to_bytes();
@@ -169,7 +169,7 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
     let (event_authority, _) =
         Pubkey::find_program_address(&metadao::event_authority_seeds(), &vault_id());
 
-    let kass_vault_underlying = ata(&kass_vault, &kass);
+    let base_vault_underlying = ata(&base_vault, &base);
     let usdc_vault_underlying = ata(&usdc_vault, &usdc);
 
     // --- initialize_question ---
@@ -189,14 +189,14 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
     ctx.send_many(&cu(ix_q), &[])
         .expect("initialize_question failed");
 
-    // --- KASS conditional vault ---
+    // --- SOL conditional vault ---
     let ix_kv = Instruction {
         program_id: vault_id(),
         accounts: vec![
-            AccountMeta::new(kass_vault, false),
+            AccountMeta::new(base_vault, false),
             AccountMeta::new_readonly(question, false),
-            AccountMeta::new_readonly(kass, false),
-            AccountMeta::new(kass_vault_underlying, false),
+            AccountMeta::new_readonly(base, false),
+            AccountMeta::new(base_vault_underlying, false),
             AccountMeta::new(payer, true),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(ATA_PROGRAM_ID, false),
@@ -209,7 +209,7 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
         data: metadao::initialize_conditional_vault_data().to_vec(),
     };
     ctx.send_many(&cu(ix_kv), &[])
-        .expect("init KASS vault failed");
+        .expect("init SOL vault failed");
 
     // --- USDC conditional vault ---
     let ix_uv = Instruction {
@@ -236,25 +236,25 @@ pub(crate) fn setup_market(ctx: &mut TestCtx, resolver: Pubkey) -> (MarketAccoun
     let pass_amm = fabricate_amm_account(ctx, pass_mint, usdc_pass);
     let fail_amm = fabricate_amm_account(ctx, fail_mint, usdc_fail);
 
-    // Oracle-PDA-owned destinations for the minted pass/fail conditional KASS.
-    let oracle_pass_kass = Pubkey::new_unique();
-    let oracle_fail_kass = Pubkey::new_unique();
-    fabricate_token_account(ctx, oracle_pass_kass, pass_mint, resolver, 0);
-    fabricate_token_account(ctx, oracle_fail_kass, fail_mint, resolver, 0);
+    // Oracle-PDA-owned destinations for the minted pass/fail conditional SOL.
+    let oracle_pass_base = Pubkey::new_unique();
+    let oracle_fail_base = Pubkey::new_unique();
+    fabricate_token_account(ctx, oracle_pass_base, pass_mint, resolver, 0);
+    fabricate_token_account(ctx, oracle_fail_base, fail_mint, resolver, 0);
 
     (
         MarketAccounts {
             question,
-            kass_vault,
-            kass_vault_underlying,
+            base_vault,
+            base_vault_underlying,
             pass_mint,
             fail_mint,
             usdc_vault,
             pass_amm,
             fail_amm,
         },
-        oracle_pass_kass,
-        oracle_fail_kass,
+        oracle_pass_base,
+        oracle_fail_base,
     )
 }
 

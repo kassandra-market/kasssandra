@@ -44,7 +44,7 @@ Every write path wraps a **pure `build*Ixs` action layer** (`app/src/data/action
 `app/src/data/actions.ts`) that returns SDK instructions, and sends them through the wallet-adapter's
 `sendTransaction`. Transaction status flows through `app/src/hooks/useWriteAction.ts` and
 `app/src/data/writeAction.ts` (idle → building → signing → confirming → success/error). All staking
-amounts are raw base units; staking requires **KASS**, and a missing KASS ATA is created idempotently.
+amounts are raw base units; staking requires **SOL**, and a missing SOL ATA is created idempotently.
 Forms gate on both a connected wallet and the oracle's current phase.
 
 ```text
@@ -58,7 +58,7 @@ The write surface, by phase:
   interpretation JSON is POSTed to the app's metadata host, and the oracle nonce is persisted
   per-browser (`app/src/lib/nonceStore.ts`).
 - **Participate** (detail page) — Propose (Proposal), Submit fact (FactProposal), Vote (FactVoting),
-  each with a live `Your KASS:` balance gate.
+  each with a live `Your SOL:` balance gate.
 - **Crank / finalize** (`data/actions/finalize.ts`) — permissionless: finalize proposals → advance →
   finalize facts → finalize AI claims → finalize oracle; near-cap proposer sets get a v0/ALT note.
 - **Submit AI claim** (`data/actions/claims.ts`) — three 32-byte hashes + option, or paste the
@@ -72,7 +72,7 @@ The write surface, by phase:
 ## Data layer
 
 Reads enumerate and decode oracle accounts via `getProgramAccounts` (`app/src/data/oracles.ts`), with
-query hooks in `app/src/hooks/` (`useOracles`, `useMarketAmms`, `useKassBalance`). The MetaDAO v0.4
+query hooks in `app/src/hooks/` (`useOracles`, `useMarketAmms`, `useSolBalance`). The MetaDAO v0.4
 `Amm` decode and TWAP/verdict math live in `app/src/data/ammV04.ts`.
 
 ## Cluster selection

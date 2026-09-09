@@ -1,6 +1,6 @@
 # `kassandra-markets-program`
 
-The on-chain program for [Kassandra Market](../../README.md): a KASS-denominated
+The on-chain program for [Kassandra Market](../../README.md): a SOL-denominated
 AMM prediction market resolved by the Kassandra oracle.
 
 Written in **[Pinocchio](https://github.com/anza-xyz/pinocchio) (no Anchor)** —
@@ -32,9 +32,9 @@ markets.
 
 | Account | PDA seeds | Holds |
 |---------|-----------|-------|
-| `Config` | `["config"]` | governance authority, KASS mint, min-liquidity floor, protocol `fee_bps` + destination |
+| `Config` | `["config"]` | governance authority, SOL mint, min-liquidity floor, protocol `fee_bps` + destination |
 | `Market` | `["market", oracle, outcome_index]` | lifecycle status, escrow, totals, the recorded MetaDAO bindings (question/vault/mints/amm/lp), `fee_bps` snapshot |
-| `Contribution` | `["contribution", market, contributor]` | one contributor's staked KASS (reaped on claim/refund) |
+| `Contribution` | `["contribution", market, contributor]` | one contributor's staked SOL (reaped on claim/refund) |
 
 `Config`/`Market` snapshot the fee + liquidity floor at creation, so in-flight
 markets are immune to later governance changes.
@@ -46,13 +46,13 @@ markets are immune to later governance changes.
 | 0 | `InitConfig` | upgrade authority | create the `Config` singleton |
 | 1 | `UpdateConfig` | `config.authority` (futarchy) | set fee / destination / min-liquidity |
 | 2 | `CreateMarket` | anyone | open a `Funding` market + escrow, seed the creator's stake |
-| 3 | `Contribute` | anyone | add KASS to a `Funding` market's escrow |
+| 3 | `Contribute` | anyone | add SOL to a `Funding` market's escrow |
 | 4 | `Cancel` | anyone (crank) | mark a `Funding` market `Cancelled` once its oracle is terminal |
 | 5 | `Refund` | anyone (crank) | return a contributor's stake from a `Cancelled` market |
 | 6 | `Activate` | anyone (crank) | compose→verify MetaDAO, split escrow → cYES/cNO, seed the AMM 50/50, go `Active` |
 | 7 | `ClaimLp` | anyone (crank) | pro-rata LP payout to a recorded contributor (after fee collection) |
 | 8 | `ResolveMarket` | anyone (crank) | bridge the terminal oracle result into `resolve_question` |
-| 9 | `CollectFee` | anyone (crank) | cut the protocol's `fee_bps` of accrued LP earnings → KASS futarchy |
+| 9 | `CollectFee` | anyone (crank) | cut the protocol's `fee_bps` of accrued LP earnings → SOL futarchy |
 | 10 | `CloseMarket` | anyone (crank) | reclaim rent once fully settled + every contributor has exited |
 
 Ordering after resolution is forced by gates: **resolve → collect_fee → claim_lp →

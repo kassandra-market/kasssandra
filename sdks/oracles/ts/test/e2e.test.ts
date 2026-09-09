@@ -27,12 +27,12 @@
  * Account) and `svm.setAccount` writes them token-program-owned. The program's
  * own CPIs (create_oracle's `InitializeAccount3` on the vault, propose's
  * `Transfer`) run against the SPL Token program that `new LiteSVM()` loads by
- * default (`withDefaultPrograms`). The KASS mint authority is set to the
+ * default (`withDefaultPrograms`). The SOL mint authority is set to the
  * mint-authority PDA to mirror the harness bootstrap; this IS load-bearing —
  * emission is ON by default, so create_oracle mints `reward_emission` into the
  * stake vault, program-signed by that PDA (a wrong authority would trip the
  * BadMintAuthority guard). The genesis creation fee is 0 (fee_ema == 0), so no
- * KASS is burned at create — only the emission is minted.
+ * SOL is burned at create — only the emission is minted.
  *
  * --- clock warp ---
  * litesvm exposes `getClock()` / `setClock(Clock)`. The program's `now()` reads
@@ -170,12 +170,12 @@ function fetchData(svm: LiteSVM, key: Address): Uint8Array {
 interface Fixture {
   svm: LiteSVM;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
   baseUnix: bigint;
 }
 
-/** Stand up litesvm + program + canonical KASS/USDC mints + a funded payer. */
+/** Stand up litesvm + program + canonical SOL/USDC mints + a funded payer. */
 async function setupFixture(): Promise<Fixture> {
   const svm = new LiteSVM();
   svm.addProgramFromFile(address(PROGRAM_ID), SO_PATH);
@@ -183,23 +183,23 @@ async function setupFixture(): Promise<Fixture> {
   const payer = await Keypair.generate();
   svm.airdrop(payer.address, lamports(100_000_000_000n));
 
-  // KASS mint authority = the mint-authority PDA (mirrors the harness bootstrap;
+  // SOL mint authority = the mint-authority PDA (mirrors the harness bootstrap;
   // not load-bearing here since emissions are disabled). USDC authority = payer.
   const mintAuth = await pda.mintAuthority();
-  const kassMint = await Keypair.generate();
+  const baseMint = await Keypair.generate();
   const usdcMint = await Keypair.generate();
-  putSplAccount(svm, kassMint.publicKey, mintBytes(mintAuth.address, 0n, 9));
+  putSplAccount(svm, baseMint.publicKey, mintBytes(mintAuth.address, 0n, 9));
   putSplAccount(svm, usdcMint.publicKey, mintBytes(payer.publicKey, 0n, 6));
 
   const baseUnix = svm.getClock().unixTimestamp;
-  return { svm, payer, kassMint, usdcMint, baseUnix };
+  return { svm, payer, baseMint, usdcMint, baseUnix };
 }
 
 /** init_protocol via the SDK, decode the resulting Protocol, assert + return it. */
 async function initProtocolAndDecode(f: Fixture) {
   const ix = await initProtocol({
     admin: f.payer.publicKey,
-    kassMint: f.kassMint.publicKey,
+    baseMint: f.baseMint.publicKey,
     usdcMint: f.usdcMint.publicKey,
   });
   expectOk(await submit(f.svm, f.payer, ix), "init_protocol");
@@ -208,7 +208,7 @@ async function initProtocolAndDecode(f: Fixture) {
   const p = decodeProtocol(fetchData(f.svm, protocolPda.address));
   expect(p.accountType).toBe(AccountType.Protocol);
   expect(p.admin.toString()).toBe(f.payer.publicKey.toString());
-  expect(p.kassMint.toString()).toBe(f.kassMint.publicKey.toString());
+  expect(p.baseMint.toString()).toBe(f.baseMint.publicKey.toString());
   expect(p.usdcMint.toString()).toBe(f.usdcMint.publicKey.toString());
   return p;
 }
@@ -216,7 +216,7 @@ async function initProtocolAndDecode(f: Fixture) {
 /**
  * create_oracle via the SDK at `nonce`, then warp the clock to the deadline so
  * the proposal window opens. Returns the oracle PDA + the agreed timing. The
- * creator's KASS token account exists but is not charged (genesis fee == 0).
+ * creator's SOL token account exists but is not charged (genesis fee == 0).
  */
 async function createOracleAndOpen(
   f: Fixture,
@@ -225,10 +225,10 @@ async function createOracleAndOpen(
 ): Promise<Address> {
   const oraclePda = await pda.oracle(nonce);
 
-  // The creator's KASS account (fee-burn source). At genesis fee == 0, so the
+  // The creator's SOL account (fee-burn source). At genesis fee == 0, so the
   // balance is never read, but we fund it for realism.
-  const creatorKass = await Keypair.generate();
-  putSplAccount(f.svm, creatorKass.publicKey, tokenAccountBytes(f.kassMint.publicKey, f.payer.publicKey, 1_000_000n));
+  const creatorBase = await Keypair.generate();
+  putSplAccount(f.svm, creatorBase.publicKey, tokenAccountBytes(f.baseMint.publicKey, f.payer.publicKey, 1_000_000n));
 
   const deadline = f.svm.getClock().unixTimestamp + 1_000n; // near future
   const ix = await createOracle({
@@ -237,8 +237,8 @@ async function createOracleAndOpen(
     deadline,
     twapWindow: 600n,
     creator: f.payer.publicKey,
-    creatorKassToken: creatorKass.publicKey,
-    kassMint: f.kassMint.publicKey,
+    creatorBaseToken: creatorBase.publicKey,
+    baseMint: f.baseMint.publicKey,
     usdcMint: f.usdcMint.publicKey,
   });
   expectOk(await submit(f.svm, f.payer, ix), "create_oracle");
@@ -250,7 +250,7 @@ async function createOracleAndOpen(
 }
 
 /**
- * propose via the SDK from a FRESH funded authority holding `bond` KASS. Returns
+ * propose via the SDK from a FRESH funded authority holding `bond` SOL. Returns
  * the authority + proposer PDA; decodes the Proposer and asserts its fields.
  */
 async function proposeAndDecode(
@@ -261,17 +261,17 @@ async function proposeAndDecode(
 ): Promise<{ authority: Keypair; proposer: Address }> {
   const authority = await Keypair.generate();
   f.svm.airdrop(authority.address, lamports(10_000_000_000n));
-  const authorityKass = await Keypair.generate();
+  const authorityBase = await Keypair.generate();
   putSplAccount(
     f.svm,
-    authorityKass.publicKey,
-    tokenAccountBytes(f.kassMint.publicKey, authority.publicKey, bond * 10n),
+    authorityBase.publicKey,
+    tokenAccountBytes(f.baseMint.publicKey, authority.publicKey, bond * 10n),
   );
 
   const ix = await propose({
     oracle,
     authority: authority.publicKey,
-    authorityKass: authorityKass.publicKey,
+    authorityBase: authorityBase.publicKey,
     option,
     bond,
   });
@@ -315,7 +315,7 @@ describe("D4 litesvm end-to-end lifecycle via the SDK", () => {
     expect(o.accountType).toBe(AccountType.Oracle);
     expect(o.phase).toBe(Phase.Proposal);
     expect(o.creator.toString()).toBe(f.payer.publicKey.toString());
-    expect(o.kassMint.toString()).toBe(f.kassMint.publicKey.toString());
+    expect(o.baseMint.toString()).toBe(f.baseMint.publicKey.toString());
     expect(o.usdcMint.toString()).toBe(f.usdcMint.publicKey.toString());
     expect(o.optionsCount).toBe(3);
     expect(o.proposerCount).toBe(0);
@@ -329,7 +329,7 @@ describe("D4 litesvm end-to-end lifecycle via the SDK", () => {
       proposers.push(proposer);
     }
 
-    // KASS conservation at the proposal boundary (no facts yet): total_oracle_stake
+    // SOL conservation at the proposal boundary (no facts yet): total_oracle_stake
     // is exactly Σ bonds, and the stake vault holds Σ bonds PLUS the emission
     // create_oracle mints into it (emission is ON by default).
     o = decodeOracle(fetchData(f.svm, oracle));

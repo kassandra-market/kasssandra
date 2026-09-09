@@ -5,7 +5,7 @@
  * FORKING MAINNET (MetaDAO's DEPLOYED conditional_vault `VLTX…` + amm `AMMyu…`
  * are lazily fetched + EXECUTABLE), in `clock` block-production mode with a fast
  * slot-time (the v0.4 AMM crank is SLOT-based). It reuses the PROVEN RF4 /
- * SDK-challenge market-composition recipe (question + KASS/USDC conditional
+ * SDK-challenge market-composition recipe (question + SOL/USDC conditional
  * vaults + two pass/fail v0.4 AMM pools), but drives the SWAP + CRANK through the
  * NEW app builders over the app {@link keypairSender}/{@link sendAndConfirm} seam:
  *
@@ -65,7 +65,7 @@ const QUOTE_NEUTRAL = 100_000_000n;
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
 }
 
@@ -83,9 +83,9 @@ describe.skipIf(!ENABLED)("CU2 trade/crank/settle over FORKED MetaDAO AMMs (app 
     const payer = await Keypair.generate();
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -98,7 +98,7 @@ describe.skipIf(!ENABLED)("CU2 trade/crank/settle over FORKED MetaDAO AMMs (app 
       data: toHex(mintBytes(payer.publicKey.toBytes(), 10n ** 18n, 6)),
     });
 
-    f = { harness, payer, kassMint, usdcMint };
+    f = { harness, payer, baseMint, usdcMint };
   }, 120_000);
 
   afterAll(async () => {
@@ -106,27 +106,27 @@ describe.skipIf(!ENABLED)("CU2 trade/crank/settle over FORKED MetaDAO AMMs (app 
   });
 
   it("app buildSwapIxs moves the FAIL AMM + buildCrankTwapIxs accumulates its TWAP", async () => {
-    // ---- compose the market (question + KASS/USDC conditional vaults) ----------
+    // ---- compose the market (question + SOL/USDC conditional vaults) ----------
     const resolver = f.payer.publicKey; // any resolver — we only trade the pools here
     const questionId = new Uint8Array(32).fill(0x21);
     const question = await composeQuestion(f, resolver, questionId, 2);
-    const kass = await composeVault(f, question, f.kassMint.publicKey);
+    const base = await composeVault(f, question, f.baseMint.publicKey);
     const usdc = await composeVault(f, question, f.usdcMint.publicKey);
 
     // A minimal Market stand-in carrying just the vaults the trade builders derive from.
-    const market = { kassVault: kass.vault, usdcVault: usdc.vault } as unknown as Parameters<
+    const market = { baseVault: base.vault, usdcVault: usdc.vault } as unknown as Parameters<
       typeof poolMints
     >[0];
 
     // Sanity: the app-derived pool mints match the composed conditional-token mints.
     const passM = await poolMints(market, "pass");
     const failM = await poolMints(market, "fail");
-    expect(passM.base.toString()).toBe(kass.passMint.toString());
+    expect(passM.base.toString()).toBe(base.passMint.toString());
     expect(passM.quote.toString()).toBe(usdc.passMint.toString());
-    expect(failM.base.toString()).toBe(kass.failMint.toString());
+    expect(failM.base.toString()).toBe(base.failMint.toString());
     expect(failM.quote.toString()).toBe(usdc.failMint.toString());
 
-    // ---- build both v0.4 AMM pools (base = conditional-KASS, quote = cond-USDC) -
+    // ---- build both v0.4 AMM pools (base = conditional-SOL, quote = cond-USDC) -
     const passAmm = await buildPool(f, passM.base, passM.quote, BASE_RESERVE, QUOTE_NEUTRAL);
     const failAmm = await buildPool(f, failM.base, failM.quote, BASE_RESERVE, QUOTE_NEUTRAL);
 

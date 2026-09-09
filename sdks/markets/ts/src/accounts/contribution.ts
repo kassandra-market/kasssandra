@@ -1,6 +1,6 @@
 /**
  * Decoder for the `Contribution` account (`state.rs::Contribution`, 88 bytes) —
- * one contributor's recorded KASS stake in a market, the source of both the
+ * one contributor's recorded SOL stake in a market, the source of both the
  * `refund` (Cancelled) and `claim_lp` (Active) pro-rata payouts.
  * Field offsets pinned in `programs/markets/tests/state_layout.rs`.
  */
@@ -16,7 +16,7 @@ export interface Contribution {
   market: Address;
   /** The contributor who staked. */
   contributor: Address;
-  /** KASS staked (raw base units). */
+  /** SOL staked (raw base units). */
   amount: bigint;
   /** True once the refund/LP claim consumed this contribution. */
   claimed: boolean;

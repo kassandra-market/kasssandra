@@ -35,9 +35,9 @@ describe("D3a litesvm acceptance — initProtocol via the SDK", () => {
 
     // Fabricate two SPL-token-program-owned mint accounts (init_protocol checks
     // the mints are token-program owned). Minimal 82-byte Mint buffers suffice.
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    for (const m of [kassMint, usdcMint]) {
+    for (const m of [baseMint, usdcMint]) {
       svm.setAccount({
         address: m.address,
         data: new Uint8Array(82),
@@ -50,7 +50,7 @@ describe("D3a litesvm acceptance — initProtocol via the SDK", () => {
 
     const ix = await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     });
 

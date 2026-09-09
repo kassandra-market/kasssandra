@@ -20,8 +20,8 @@ const detail = {
     outcomeIndex: 1,
     settled: false,
     openContributions: 1,
-    totalContributed: 80_000_000_000n, // THIS outcome alone raised 80 KASS
-    minLiquidity: 500_000_000_000n, // THIS outcome's own floor: 500 KASS
+    totalContributed: 80_000_000_000n, // THIS outcome alone raised 80 SOL
+    minLiquidity: 500_000_000_000n, // THIS outcome's own floor: 500 SOL
     feeBps: 250,
     feeCollected: false,
     oracle: { toString: () => ORACLE },
@@ -59,8 +59,8 @@ vi.mock("@solana/wallet-adapter-react", () => ({ useWallet: () => ({ publicKey: 
 vi.mock("../src/market/hooks/useWriteAction", () => ({
   useWriteAction: () => ({ status: { kind: "idle" }, address: null, connected: false, indexer: {}, run: async () => {} }),
 }));
-vi.mock("../src/market/hooks/useKassBalance", () => ({
-  useKassBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
+vi.mock("../src/market/hooks/useSolBalance", () => ({
+  useSolBalance: () => ({ balance: null, loading: false, refetch: () => {} }),
 }));
 vi.mock("../src/components/markets/actions/ConnectGate", () => ({
   ConnectGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -92,13 +92,13 @@ function render(): string {
 describe("Liquidity tab — grouped Funding market", () => {
   it("shows the GROUP's cumulative raised/floor, not just this outcome's own numbers", () => {
     const html = render();
-    // 5 + 80 + 120 = 205 KASS raised; 500×3 = 1,500 KASS floor (whole-KASS display).
-    expect(html).toMatch(/205 KASS/);
-    expect(html).toMatch(/1,500 KASS/);
+    // 5 + 80 + 120 = 205 SOL raised; 500×3 = 1,500 SOL floor (whole-SOL display).
+    expect(html).toMatch(/205 SOL/);
+    expect(html).toMatch(/1,500 SOL/);
     // The overview's headline "Raised" figure is the group total (205), not this
     // outcome's own lone total (80) — the pool-composition panel below still
     // shows this outcome's own 80/500 (a different, still-per-market section).
-    expect(html).toMatch(/Raised<\/span><span[^>]*>205 KASS/);
+    expect(html).toMatch(/Raised<\/span><span[^>]*>205 SOL/);
   });
 
   it("renders exactly ONE progress bar on the page", () => {

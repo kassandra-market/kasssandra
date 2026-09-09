@@ -1,9 +1,9 @@
 /**
  * The add-liquidity write ACTION (pure ix-builder, NO React).
  *
- * Deposits KASS into an already-`Active` market's live cYES/cNO AMM, minting
+ * Deposits SOL into an already-`Active` market's live cYES/cNO AMM, minting
  * pooled LP into the Market-PDA-owned `lp_vault` (claimable pro-rata on the
- * gross-LP basis alongside the original funders). The program splits the KASS 1:1
+ * gross-LP basis alongside the original funders). The program splits the SOL 1:1
  * into cYES/cNO, adds the ratio-limited amounts to the pool, and returns the
  * heavy-side remainder to the depositor's cYES/cNO ATA.
  *
@@ -11,7 +11,7 @@
  * from the decoded Market (via {@link marketRefs}) and hands the live reserves +
  * LP supply to the SDK `flows.addLiquidityInstructions`, which computes the
  * balanced `quoteAmount`/`maxBaseAmount`/`minLpTokens` and prepends the idempotent
- * cYES/cNO/KASS ATA creates. A raised compute budget is prepended for the two CPIs.
+ * cYES/cNO/SOL ATA creates. A raised compute budget is prepended for the two CPIs.
  */
 import { type TransactionInstruction } from "@solana/web3.js";
 import { flows, type Market } from "@kassandra-market/markets";
@@ -33,7 +33,7 @@ export interface BuildAddLiquidityArgs {
   reserves: AmmReserves;
   /** The depositor authority (the signer). */
   contributor: AddressInput;
-  /** KASS to deposit (raw base units, > 0). */
+  /** SOL to deposit (raw base units, > 0). */
   amount: bigint;
   /** Slippage tolerance on minted LP, in bps (default 100 = 1%). */
   slippageBps?: number;

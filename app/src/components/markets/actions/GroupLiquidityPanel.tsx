@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { MarketStatus } from "@kassandra-market/markets";
 import { Button, Card } from "../../ui";
 import { useConfig } from "../../../market/hooks/useMarketDetail";
-import { useKassBalance } from "../../../market/hooks/useKassBalance";
+import { useSolBalance } from "../../../market/hooks/useSolBalance";
 import { useActionSequence } from "../../../market/hooks/useActionSequence";
 import { useIndexer } from "../../../market/lib/indexer";
 import {
@@ -17,11 +17,11 @@ import {
   type BulkContributeEntry,
   type BulkFundingEntry,
 } from "../../../market/data/actions";
-import { parseKassAmount, balanceGateError } from "../../../market/data/amount";
-import { formatKass, outcomeLabel } from "../../../market/lib/marketView";
+import { parseSolAmount, balanceGateError } from "../../../market/data/amount";
+import { formatSol, outcomeLabel } from "../../../market/lib/marketView";
 import type { OracleGroupState } from "../../../market/hooks/useOracleGroup";
 import { ConnectGate } from "./ConnectGate";
-import { Field, KassBalanceLine, TextInput } from "./formPrimitives";
+import { Field, SolBalanceLine, TextInput } from "./formPrimitives";
 import { BatchStepList } from "./CreateMarketForm/BatchStepList";
 
 /**
@@ -68,8 +68,8 @@ export function GroupLiquidityPanel({
 }) {
   const indexer = useIndexer();
   const config = useConfig();
-  const kassMint = config.data ? config.data.kassMint.toString() : undefined;
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(kassMint);
+  const baseMint = config.data ? config.data.baseMint.toString() : undefined;
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useSolBalance(baseMint);
   const { siblings, funding, claimable, depositable, refetch: refetchMarkets } = group;
 
   const [total, setTotal] = useState("");
@@ -80,7 +80,7 @@ export function GroupLiquidityPanel({
   // panel's `siblings`, sourced from `useMarkets`) and — for the market whose
   // detail page this panel is embedded in — the pool value + price impact shown
   // above it, sourced from a SEPARATE `useMarketDetail` fetch. Refetching only the
-  // KASS balance left both of those stuck on pre-deposit reserves until the next
+  // SOL balance left both of those stuck on pre-deposit reserves until the next
   // 15s poll or a manual reload.
   const seq = useActionSequence(() => {
     refetchBalance();
@@ -89,18 +89,18 @@ export function GroupLiquidityPanel({
   });
 
   // Parse the total + its uniform per-outcome split across every depositable outcome.
-  const parsed = total.trim() === "" ? null : parseKassAmount(total);
+  const parsed = total.trim() === "" ? null : parseSolAmount(total);
   const totalValue = parsed?.value ?? null;
   const shares = totalValue !== null ? uniformSplit(totalValue, depositable.length) : [];
   const perShareLabel =
     depositable.length > 0 && totalValue !== null && totalValue > 0n
-      ? `${formatKass(shares[0])}${shares.some((s) => s !== shares[0]) ? "–" + formatKass(shares.find((s) => s !== shares[0])!) : ""} KASS each`
+      ? `${formatSol(shares[0])}${shares.some((s) => s !== shares[0]) ? "–" + formatSol(shares.find((s) => s !== shares[0])!) : ""} SOL each`
       : null;
 
   async function onDeposit(e: FormEvent) {
     e.preventDefault();
     setError(undefined);
-    if (!kassMint || !seq.address) return;
+    if (!baseMint || !seq.address) return;
     if (parsed?.error) return setError(parsed.error);
     if (totalValue === null || totalValue <= 0n) return setError("Enter an amount to deposit.");
     const gate = balanceGateError(totalValue, balance);
@@ -142,7 +142,7 @@ export function GroupLiquidityPanel({
         built.push(
           ...(await buildBulkContributeSteps({
             indexer,
-            kassMint,
+            baseMint,
             contributor: seq.address,
             entries: contributeEntries,
           })),
@@ -160,7 +160,7 @@ export function GroupLiquidityPanel({
       const readyToActivate = outcomesReadyToActivate(fundingEntries, oracleTerminal);
       if (readyToActivate.length > 0) {
         built.push(
-          ...(await buildBulkActivateSteps({ kassMint, payer: seq.address, entries: readyToActivate })),
+          ...(await buildBulkActivateSteps({ baseMint, payer: seq.address, entries: readyToActivate })),
         );
       }
       setSteps(built);
@@ -212,7 +212,7 @@ export function GroupLiquidityPanel({
           {depositable.length > 0 ? (
             <form onSubmit={onDeposit} className="flex flex-col gap-2">
               <Field
-                label="Deposit (total KASS)"
+                label="Deposit (total SOL)"
                 hint={
                   perShareLabel
                     ? `Split uniformly across ${depositable.length} outcome${depositable.length > 1 ? "s" : ""} · ${perShareLabel}`
@@ -230,7 +230,7 @@ export function GroupLiquidityPanel({
                   />
                 )}
               </Field>
-              <KassBalanceLine balance={balance} loading={balanceLoading} format={formatKass} />
+              <SolBalanceLine balance={balance} loading={balanceLoading} format={formatSol} />
               {funding.length > 0 && !oracleTerminal ? (
                 <p className="font-inter text-[12px] text-silver">
                   Any outcome this reaches the funding floor activates automatically, in the same

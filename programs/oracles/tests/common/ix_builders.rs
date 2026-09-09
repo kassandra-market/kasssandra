@@ -2,8 +2,8 @@ use super::*;
 
 /// Hand-build a futarchy `Dao` account blob with a `PoolState::Spot` embedded
 /// spot `Pool` whose `TwapOracle` carries the given fields at the F0-documented
-/// fixed offsets (mirrors `tests/kass_price.rs`). Used to give `open_challenge`
-/// a deterministic `kass_price`.
+/// fixed offsets (mirrors `tests/spot_price.rs`). Used to give `open_challenge`
+/// a deterministic `spot_price`.
 pub fn build_dao_blob(
     aggregator: u128,
     last_updated: i64,
@@ -53,7 +53,7 @@ pub fn submit_fact_ix(
     oracle: Pubkey,
     fact: Pubkey,
     submitter: Pubkey,
-    submitter_kass: Pubkey,
+    submitter_base: Pubkey,
     vault: Pubkey,
     data: Vec<u8>,
 ) -> Instruction {
@@ -63,7 +63,7 @@ pub fn submit_fact_ix(
             AccountMeta::new(oracle, false),
             AccountMeta::new(fact, false),
             AccountMeta::new(submitter, true),
-            AccountMeta::new(submitter_kass, false),
+            AccountMeta::new(submitter_base, false),
             AccountMeta::new(vault, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(system_program::id(), false),
@@ -98,7 +98,7 @@ pub fn vote_fact_ix(
     fact: Pubkey,
     fact_vote: Pubkey,
     voter: Pubkey,
-    voter_kass: Pubkey,
+    voter_base: Pubkey,
     vault: Pubkey,
     data: Vec<u8>,
 ) -> Instruction {
@@ -109,7 +109,7 @@ pub fn vote_fact_ix(
             AccountMeta::new(fact, false),
             AccountMeta::new(fact_vote, false),
             AccountMeta::new(voter, true),
-            AccountMeta::new(voter_kass, false),
+            AccountMeta::new(voter_base, false),
             AccountMeta::new(vault, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(system_program::id(), false),

@@ -41,7 +41,7 @@
 //! 2. **Meteora cp-amm has NO TWAP oracle.** Its `Pool` (zero-copy) stores only
 //!    an INSTANTANEOUS `sqrt_price: u128` (Q64.64) plus cumulative *fee*
 //!    accumulators — there is no cumulative price observation. The
-//!    manipulation-resistant KASS/USDC TWAP the design's `kass_price` (F5) needs
+//!    manipulation-resistant SOL/USDC TWAP the design's `spot_price` (F5) needs
 //!    is the futarchy program's **embedded** `FutarchyAmm` spot-pool
 //!    `TwapOracle` (`Dao.amm` → see [`futarchy_spot_twap`]), NOT Meteora. The
 //!    Meteora `Pool` layout is documented below for completeness (an instantaneous

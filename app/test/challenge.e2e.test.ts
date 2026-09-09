@@ -80,8 +80,8 @@ const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady();
 
 const FUTARCHY_ID = EXTERNAL_PROGRAM_IDS.futarchyV06;
 
-const KASS_PRICE_TWAP = 500_000_000n;
-const KASS_PRICE_SCALE = 1_000_000_000_000n;
+const SPOT_PRICE_TWAP = 500_000_000n;
+const SPOT_PRICE_SCALE = 1_000_000_000_000n;
 
 const BASE_RESERVE = 100_000_000_000n;
 const QUOTE_NEUTRAL = 100_000_000n;
@@ -104,9 +104,9 @@ describe.skipIf(!ENABLED)("RF4 challenge/ai-claim action layer over FORKED MetaD
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -119,24 +119,24 @@ describe.skipIf(!ENABLED)("RF4 challenge/ai-claim action layer over FORKED MetaD
       data: toHex(mintBytes(payer.publicKey.toBytes(), 10n ** 18n, 6)),
     });
 
-    const kassDao = (await Keypair.generate()).publicKey;
-    await harness.setAccount(kassDao.toString(), {
+    const spotDao = (await Keypair.generate()).publicKey;
+    await harness.setAccount(spotDao.toString(), {
       lamports: 5_000_000,
       owner: FUTARCHY_ID.toString(),
       executable: false,
-      data: toHex(buildDaoBlob(KASS_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n, 0)),
+      data: toHex(buildDaoBlob(SPOT_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n, 0)),
     });
 
-    f = { harness, payer, kassMint, usdcMint, kassDao };
+    f = { harness, payer, baseMint, usdcMint, spotDao };
 
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
-    const multisig = (await futarchy.pda.squadsMultisig(kassDao)).address;
+    const multisig = (await futarchy.pda.squadsMultisig(spotDao)).address;
     const daoAuthority = (await futarchy.pda.squadsVault(multisig, 0)).address;
-    await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, kassDao }));
+    await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, spotDao }));
   }, 120_000);
 
   afterAll(async () => {
@@ -161,10 +161,10 @@ describe.skipIf(!ENABLED)("RF4 challenge/ai-claim action layer over FORKED MetaD
     const market = await composeMarket(f, c.oracle);
 
     // ---- REAL pass/fail v0.4 AMM pools; FAIL gets a genuine BUY swap ----------
-    const passAmm = await buildPool(f, market.kass.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
-    const failAmm = await buildPool(f, market.kass.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const passAmm = await buildPool(f, market.base.passMint, market.usdc.passMint, BASE_RESERVE, QUOTE_NEUTRAL);
+    const failAmm = await buildPool(f, market.base.failMint, market.usdc.failMint, BASE_RESERVE, QUOTE_NEUTRAL);
     await crankPool(f, passAmm);
-    await swapBuy(f, market.kass.failMint, market.usdc.failMint, 90_000_000n);
+    await swapBuy(f, market.base.failMint, market.usdc.failMint, 90_000_000n);
     await crankPool(f, failAmm);
     await crankPool(f, failAmm);
 
@@ -182,16 +182,16 @@ describe.skipIf(!ENABLED)("RF4 challenge/ai-claim action layer over FORKED MetaD
     expect(m.proposer.toString()).toBe(c.proposer.toString());
     expect(m.challenger.toString()).toBe(challenger.publicKey.toString());
     expect(m.question.toString()).toBe(market.question.toString());
-    expect(m.kassVault.toString()).toBe(market.kass.vault.toString());
+    expect(m.baseVault.toString()).toBe(market.base.vault.toString());
     expect(decodeAiClaim(await fetchAccount(f, c.aiClaim)).challenged).toBe(true);
     expect(decodeOracle(await fetchAccount(f, c.oracle)).openChallengeCount).toBe(1);
 
     const escrow = (await pda.challengeUsdcVault(marketPda)).address;
-    const requiredUsdc = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE;
+    const requiredUsdc = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE;
     expect(await tokenBalance(f, escrow)).toBe(requiredUsdc);
     expect(m.challengerUsdc).toBe(requiredUsdc);
-    expect(await tokenBalance(f, market.oraclePassKass)).toBe(BOND);
-    expect(await tokenBalance(f, market.oracleFailKass)).toBe(BOND);
+    expect(await tokenBalance(f, market.oraclePassBase)).toBe(BOND);
+    expect(await tokenBalance(f, market.oracleFailBase)).toBe(BOND);
 
     // ================= settleChallenge via the APP builder =====================
     const oBefore = decodeOracle(await fetchAccount(f, c.oracle));
@@ -200,20 +200,20 @@ describe.skipIf(!ENABLED)("RF4 challenge/ai-claim action layer over FORKED MetaD
 
     const payouts = await settleChallengeViaApp(f, nonce, c, market, marketPda, challenger, passAmm, failAmm);
 
-    const escrowAmt = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE; // 500_000
-    const kassFee = BOND / 100n;
+    const escrowAmt = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE; // 500_000
+    const baseFee = BOND / 100n;
     expect(questionResolution(await fetchAccount(f, market.question))).toEqual([0, 1]);
     expect(decodeMarket(await fetchAccount(f, marketPda)).settled).toBe(true);
     expect(decodeOracle(await fetchAccount(f, c.oracle)).openChallengeCount).toBe(0);
     const p = decodeProposer(await fetchAccount(f, c.proposer));
     expect(p.disqualified).toBe(true);
     expect(p.slashed).toBe(true);
-    expect(p.slashedAmount).toBe(BOND - kassFee);
+    expect(p.slashedAmount).toBe(BOND - baseFee);
     const oAfter = decodeOracle(await fetchAccount(f, c.oracle));
     expect(oAfter.survivingCount).toBe(oBefore.survivingCount - 1);
-    expect(oAfter.bondPool).toBe(oBefore.bondPool + (BOND - kassFee));
-    expect(await tokenBalance(f, payouts.challengerKass)).toBe(kassFee);
-    expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + (BOND - kassFee));
+    expect(oAfter.bondPool).toBe(oBefore.bondPool + (BOND - baseFee));
+    expect(await tokenBalance(f, payouts.challengerBase)).toBe(baseFee);
+    expect(await tokenBalance(f, stakeVault)).toBe(stakeBefore + (BOND - baseFee));
     expect(await tokenBalance(f, payouts.challengerUsdcDest)).toBe(escrowAmt);
     expect(await tokenBalance(f, payouts.proposerUsdc)).toBe(0n);
     expect(await tokenBalance(f, payouts.escrowVault)).toBe(0n);

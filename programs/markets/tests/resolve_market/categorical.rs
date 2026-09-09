@@ -7,8 +7,8 @@ use super::*;
 fn resolve_categorical_matching_outcome_pays_yes() {
     // A 3-option oracle resolves to option 1; the outcome_index=1 sub-market's YES
     // wins → numerators [1,0].
-    let (mut ctx, kass, oracle) = setup_categorical();
-    let (market, refs) = activate_sub_market(&mut ctx, kass, oracle, 1);
+    let (mut ctx, base, oracle) = setup_categorical();
+    let (market, refs) = activate_sub_market(&mut ctx, base, oracle, 1);
 
     ctx.set_oracle_resolved_full(oracle, 3, 1);
     let res = ctx.resolve_market(market, oracle, refs.question);
@@ -42,9 +42,9 @@ fn resolve_categorical_matching_outcome_pays_yes() {
 fn resolve_categorical_nonmatching_outcomes_pay_no() {
     // The same 3-option oracle resolves to option 1; the outcome_index=0 and =2
     // sub-markets both LOSE → numerators [0,1].
-    let (mut ctx, kass, oracle) = setup_categorical();
-    let (market0, refs0) = activate_sub_market(&mut ctx, kass, oracle, 0);
-    let (market2, refs2) = activate_sub_market(&mut ctx, kass, oracle, 2);
+    let (mut ctx, base, oracle) = setup_categorical();
+    let (market0, refs0) = activate_sub_market(&mut ctx, base, oracle, 0);
+    let (market2, refs2) = activate_sub_market(&mut ctx, base, oracle, 2);
 
     ctx.set_oracle_resolved_full(oracle, 3, 1);
 
@@ -74,8 +74,8 @@ fn resolve_categorical_nonmatching_outcomes_pay_no() {
 fn resolve_categorical_void_pays_half() {
     // A categorical sub-market voids on InvalidDeadend just like a binary one →
     // numerators [1,1], denominator 2.
-    let (mut ctx, kass, oracle) = setup_categorical();
-    let (market, refs) = activate_sub_market(&mut ctx, kass, oracle, 2);
+    let (mut ctx, base, oracle) = setup_categorical();
+    let (market, refs) = activate_sub_market(&mut ctx, base, oracle, 2);
 
     ctx.set_oracle_phase(oracle, INVALID_DEADEND);
     let res = ctx.resolve_market(market, oracle, refs.question);
@@ -105,16 +105,16 @@ fn resolve_rejects_non_active_market() {
     // A never-activated (Funding) market has no Question to resolve.
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, MIN_LIQ);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, MIN_LIQ);
     assert!(res.is_ok(), "{res:?}");
 
     // question is irrelevant here — the NotActive guard fires before any binding.

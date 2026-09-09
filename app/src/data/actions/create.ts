@@ -3,8 +3,8 @@
  *
  * {@link buildCreateOracleIxs} hashes the human-readable `question` into the
  * 32-byte `prompt_hash` the Oracle PDA commits to (SHA-256, via the WF1
- * {@link hashToContentHash} seam), derives the creator's KASS Associated Token
- * Account (`ATA(creator, kassMint)` — the burn source for the dynamic creation
+ * {@link hashToContentHash} seam), derives the creator's SOL Associated Token
+ * Account (`ATA(creator, baseMint)` — the burn source for the dynamic creation
  * fee), PREPENDS an idempotent create-ATA instruction when that account is
  * absent, and appends the `@kassandra-market/oracles` `createOracle` builder.
  *
@@ -120,7 +120,7 @@ function createAtaIdempotentIx(
   payer: Address,
   ata: Address,
   owner: Address,
-  kassMint: Address,
+  baseMint: Address,
 ): TransactionInstruction {
   return new TransactionInstruction({
     programId: ATA_PROGRAM_ID,
@@ -128,7 +128,7 @@ function createAtaIdempotentIx(
       { pubkey: payer, isSigner: true, isWritable: true },
       { pubkey: ata, isSigner: false, isWritable: true },
       { pubkey: owner, isSigner: false, isWritable: false },
-      { pubkey: kassMint, isSigner: false, isWritable: false },
+      { pubkey: baseMint, isSigner: false, isWritable: false },
       { pubkey: SYSTEM_PROGRAM_ID, isSigner: false, isWritable: false },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
     ],
@@ -137,18 +137,18 @@ function createAtaIdempotentIx(
 }
 
 /**
- * Derive `ATA(creator, kassMint)` and, when the account is absent
+ * Derive `ATA(creator, baseMint)` and, when the account is absent
  * (`getAccountInfo` null), return an idempotent create-ATA ix to prepend
  * (payer == owner == creator).
  */
-async function ensureCreatorKassAta(
+async function ensureCreatorBaseAta(
   connection: Connection,
   creator: Address,
-  kassMint: Address,
+  baseMint: Address,
 ): Promise<{ ata: Address; createIx?: TransactionInstruction }> {
-  const ata = (await associatedTokenAccount(creator, kassMint)).address;
+  const ata = (await associatedTokenAccount(creator, baseMint)).address;
   const info = await connection.getAccountInfo(ata);
-  const createIx = info ? undefined : createAtaIdempotentIx(creator, ata, creator, kassMint);
+  const createIx = info ? undefined : createAtaIdempotentIx(creator, ata, creator, baseMint);
   return { ata, createIx };
 }
 
@@ -175,8 +175,8 @@ export interface BuildCreateOracleArgs {
   deadline: bigint | number;
   /** Creator authority (the signer): pays rent + is the creation-fee burn source. */
   creator: AddressInput;
-  /** Canonical KASS mint (must equal `protocol.kass_mint`). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (must equal `protocol.base_mint`). */
+  baseMint: AddressInput;
   /** Canonical USDC mint (must equal `protocol.usdc_mint`). */
   usdcMint: AddressInput;
   /** Oracle nonce — seeds the PDA `[b"oracle", nonce_le8]`. Random u64 when omitted. */
@@ -222,7 +222,7 @@ export interface CreateOracleBuild {
 
 /**
  * Assemble the create-oracle instruction list. Validates the inputs, hashes the
- * question, derives the creator's KASS ATA (prepending an idempotent create when
+ * question, derives the creator's SOL ATA (prepending an idempotent create when
  * absent), and appends the SDK `createOracle` ix. Returns the ixs plus the
  * resolved nonce / Oracle PDA / promptHash for the form.
  */
@@ -260,13 +260,13 @@ export async function buildCreateOracleIxs(
   }
 
   const creator = mint("creator", args.creator);
-  const kassMint = mint("kassMint", args.kassMint);
+  const baseMint = mint("baseMint", args.baseMint);
   const usdcMint = mint("usdcMint", args.usdcMint);
 
   const nonce = args.nonce === undefined ? randomNonce() : BigInt(args.nonce);
   const oracle = (await pda.oracle(nonce, args.programId)).address;
 
-  const { ata, createIx } = await ensureCreatorKassAta(args.connection, creator, kassMint);
+  const { ata, createIx } = await ensureCreatorBaseAta(args.connection, creator, baseMint);
 
   const ix = await createOracle({
     nonce,
@@ -274,8 +274,8 @@ export async function buildCreateOracleIxs(
     deadline,
     twapWindow,
     creator,
-    creatorKassToken: ata,
-    kassMint,
+    creatorBaseToken: ata,
+    baseMint,
     usdcMint,
     programId: args.programId,
   });

@@ -2,7 +2,7 @@
 //! `2026-07-08-oracle-stake-floor-bootstrap`).
 //!
 //! To let the first oracles be created + participated in with **no premined
-//! KASS**, the minimum stake for `propose` / `submit_fact` / `vote_fact` starts at
+//! SOL**, the minimum stake for `propose` / `submit_fact` / `vote_fact` starts at
 //! 0 and grows with network activity. Activity is the same
 //! [`crate::state::Protocol::fee_ema`] creation-activity signal that drives the
 //! creation fee; the floor is a piecewise-linear function of it:
@@ -25,7 +25,7 @@
 //! [`crate::config::STAKE_FLOOR_EMA_CAP`]) place the free band below ~10 oracles/day
 //! and the cap at ~1000 oracles/day.
 
-/// The minimum stake (KASS base units) for an oracle whose creation-time
+/// The minimum stake (SOL base units) for an oracle whose creation-time
 /// (decayed) fee-EMA was `ema`, given the governable curve params. Piecewise
 /// linear (see the module docs). Returns 0 when disabled (`max == 0`) or
 /// degenerate (`cap <= threshold`). All arithmetic is done in `u128`, so it is
@@ -51,7 +51,7 @@ mod tests {
 
     const THRESHOLD: u64 = 15_000_000_000; // ≈10 oracles/day
     const CAP: u64 = 1_443_000_000_000; // ≈1000 oracles/day
-    const MAX: u64 = 1_000_000_000; // 1 KASS
+    const MAX: u64 = 1_000_000_000; // 1 SOL
 
     #[test]
     fn free_at_or_below_threshold() {

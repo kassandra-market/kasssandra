@@ -24,7 +24,7 @@ export const TOKEN_PROGRAM_ID = new Address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss
 
 /**
  * The SPL Associated Token Account program. `sweep_oracle` derives the DAO
- * treasury as `ATA(dao_authority, TOKEN_PROGRAM, kass_mint)` under this id
+ * treasury as `ATA(dao_authority, TOKEN_PROGRAM, base_mint)` under this id
  * (`processor/sweep_oracle.rs::ATA_PROGRAM_ID`).
  */
 export const ATA_PROGRAM_ID = new Address("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
@@ -51,7 +51,7 @@ export enum Ix {
   SetGovernance = 13,
   SetConfig = 14,
   ResolveDeadend = 15,
-  KassPrice = 16,
+  SpotPrice = 16,
   ClaimProposer = 17,
   ClaimFact = 18,
   ClaimFactVote = 19,
@@ -204,14 +204,14 @@ const ERROR_MESSAGES: Record<KassandraError, string> = {
   [KassandraError.GovernanceAlreadySet]: "set_governance was called after the DAO linkage was already recorded by a non-DAO signer.",
   [KassandraError.InvalidConfig]: "set_config was given an out-of-bounds governable parameter.",
   [KassandraError.VotersOutstanding]: "claim_fact was called while the fact still has unclaimed voter stake.",
-  [KassandraError.BadMintAuthority]: "The KASS mint's authority is not the program's mint-authority PDA.",
+  [KassandraError.BadMintAuthority]: "The SOL mint's authority is not the program's mint-authority PDA.",
   [KassandraError.MarketNotSettled]: "close_market was called on a Market that has not been settled yet.",
   [KassandraError.EscrowNotEmpty]: "close_market was called while the challenger_usdc_vault escrow still holds USDC.",
-  [KassandraError.InvalidFutarchyDao]: "set_governance was given a kass_dao that is not a real futarchy Dao (wrong owner or discriminator).",
-  [KassandraError.DaoAuthorityMismatch]: "set_governance dao_authority is not the Squads v4 vault PDA derived for the kass_dao.",
+  [KassandraError.InvalidFutarchyDao]: "set_governance was given a spot_dao that is not a real futarchy Dao (wrong owner or discriminator).",
+  [KassandraError.DaoAuthorityMismatch]: "set_governance dao_authority is not the Squads v4 vault PDA derived for the spot_dao.",
   [KassandraError.SweepGraceNotElapsed]: "sweep_oracle was called before the dust-sweep grace elapsed (now < oracle.phase_ends_at + SWEEP_GRACE).",
   [KassandraError.GovernanceNotSet]: "sweep_oracle was called while the Protocol has no DAO linkage (governance_set == 0); the treasury ATA does not exist yet.",
-  [KassandraError.InvalidTreasury]: "sweep_oracle was given a dao_treasury that is not the canonical KASS ATA(dao_authority, kass_mint).",
+  [KassandraError.InvalidTreasury]: "sweep_oracle was given a dao_treasury that is not the canonical SOL ATA(dao_authority, base_mint).",
   [KassandraError.BelowMinStake]: "The stake was below the oracle's activity-scaled min_stake floor (0 at genesis / low activity; grows with creation activity).",
   [KassandraError.AlreadyDelegated]: "delegate_oracle was called on an oracle whose ErSession is already delegated.",
   [KassandraError.NotDelegated]: "commit_oracle / undelegate_oracle ran against an ErSession that is not currently delegated.",

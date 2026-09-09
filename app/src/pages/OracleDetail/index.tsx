@@ -18,7 +18,7 @@ import { useOracleDetail } from '../../hooks/useOracles'
 import { useOracleMeta } from '../../hooks/useOracleMeta'
 import { useOracleGroup } from '../../market/hooks/useOracleGroup'
 import { StatusChip } from '../../components/markets/StatusChip'
-import { formatKass, groupStatus } from '../../market/lib/marketView'
+import { formatSol, groupStatus } from '../../market/lib/marketView'
 import { OracleNotFoundError } from '../../data/oracles'
 import { CLUSTER_LABELS, useCluster } from '../../lib/cluster'
 import { RESOLVED_OPTION_NONE, relativeDeadline, windowLabel } from '../../lib/oracleView'
@@ -133,7 +133,7 @@ function OracleBody({
   // Terminal phases open the claim / close / sweep payout controls.
   const settleOpen = oracle.phase === Phase.Resolved || oracle.phase === Phase.InvalidDeadend
   const settle: SettleCtx | undefined = settleOpen
-    ? { oracle: pubkey, kassMint: oracle.kassMint, refetch }
+    ? { oracle: pubkey, baseMint: oracle.baseMint, refetch }
     : undefined
   // A fact is contestable while the challenge round is open and no market exists yet.
   const contestOpen = tradeOpen && market === undefined
@@ -211,7 +211,7 @@ function OracleBody({
           {predictionMarket ? (
             <>
               {marketStatus !== undefined ? <StatusChip status={marketStatus} /> : null}
-              {marketTvl > 0n ? <span>{formatKass(marketTvl)} KASS TVL</span> : null}
+              {marketTvl > 0n ? <span>{formatSol(marketTvl)} SOL TVL</span> : null}
               <Link
                 to={`/markets/${predictionMarket}`}
                 className="rounded-sm font-inter text-[13px] font-medium text-aqua hover:text-coral focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-aqua/40 focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss"
@@ -276,7 +276,7 @@ function OracleBody({
                 key={f.pubkey}
                 pubkey={f.pubkey}
                 fact={f.fact}
-                voting={votingOpen ? { oracle: pubkey, kassMint: oracle.kassMint, refetch } : undefined}
+                voting={votingOpen ? { oracle: pubkey, baseMint: oracle.baseMint, refetch } : undefined}
                 settle={settle}
                 contest={contestOpen && f.fact.agreed ? () => setTab('manage') : undefined}
               />
@@ -378,8 +378,8 @@ function OracleBody({
               <Row term="Creator">
                 <Truncated value={oracle.creator.toString()} copyable label="creator" />
               </Row>
-              <Row term="KASS mint">
-                <Truncated value={oracle.kassMint.toString()} copyable label="KASS mint" />
+              <Row term="SOL mint">
+                <Truncated value={oracle.baseMint.toString()} copyable label="SOL mint" />
               </Row>
               <Row term="USDC mint">
                 <Truncated value={oracle.usdcMint.toString()} copyable label="USDC mint" />

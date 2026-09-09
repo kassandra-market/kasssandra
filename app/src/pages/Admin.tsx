@@ -7,7 +7,7 @@ import { WriteStatusRegion } from '../components/oracles/actions/WriteStatusRegi
 import { ConnectGate } from '../components/oracles/actions/ConnectGate'
 import { useWriteAction } from '../hooks/useWriteAction'
 import {
-  buildKassPriceIxs,
+  buildSpotPriceIxs,
   buildResolveDeadendIxs,
   buildSetConfigIxs,
   buildSetGovernanceIxs,
@@ -19,7 +19,7 @@ function useParam(name: string): string {
 
 /**
  * The /admin page — the DAO / governance ops the participant flows don't expose:
- * set_governance, set_config, resolve_deadend, kass_price. Each is gated on-chain
+ * set_governance, set_config, resolve_deadend, spot_price. Each is gated on-chain
  * (admin / DAO authority = the connected wallet). Deliberately minimal: these are
  * operator actions, driven from the connected wallet.
  */
@@ -34,7 +34,7 @@ export default function Admin() {
         <SetGovernance authority={authority} />
         <SetConfig authority={authority} />
         <ResolveDeadend authority={authority} />
-        <KassPrice />
+        <SpotPrice />
       </ConnectGate>
     </section>
   )
@@ -42,18 +42,18 @@ export default function Admin() {
 
 function SetGovernance({ authority }: { authority: string }) {
   const action = useWriteAction()
-  const [kassDao, setKassDao] = useState(useParam('kassDao'))
+  const [spotDao, setSpotDao] = useState(useParam('spotDao'))
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    void action.run(() => buildSetGovernanceIxs({ authority, kassDao }))
+    void action.run(() => buildSetGovernanceIxs({ authority, spotDao }))
   }
   return (
     <Card className="flex flex-col gap-3">
       <h3 className="font-serif text-subheading text-platinum">Set governance</h3>
       <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
-        <Field label="KASS DAO address">
+        <Field label="SOL DAO address">
           {(ids) => (
-            <TextInput ids={ids} placeholder="Dao PDA (base58)" value={kassDao} onChange={(e) => setKassDao(e.target.value)} />
+            <TextInput ids={ids} placeholder="Dao PDA (base58)" value={spotDao} onChange={(e) => setSpotDao(e.target.value)} />
           )}
         </Field>
         <SubmitButton verb="Set governance" status={action.status} />
@@ -110,23 +110,23 @@ function ResolveDeadend({ authority }: { authority: string }) {
   )
 }
 
-function KassPrice() {
+function SpotPrice() {
   const action = useWriteAction()
-  const [kassDao, setKassDao] = useState(useParam('kassDao'))
+  const [spotDao, setSpotDao] = useState(useParam('spotDao'))
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
-    void action.run(() => buildKassPriceIxs({ kassDao }))
+    void action.run(() => buildSpotPriceIxs({ spotDao }))
   }
   return (
     <Card className="flex flex-col gap-3">
-      <h3 className="font-serif text-subheading text-platinum">Read KASS price</h3>
+      <h3 className="font-serif text-subheading text-platinum">Read SOL price</h3>
       <form className="flex flex-col gap-3" onSubmit={onSubmit} noValidate>
-        <Field label="KASS DAO address">
+        <Field label="SOL DAO address">
           {(ids) => (
-            <TextInput ids={ids} placeholder="Dao PDA (base58)" value={kassDao} onChange={(e) => setKassDao(e.target.value)} />
+            <TextInput ids={ids} placeholder="Dao PDA (base58)" value={spotDao} onChange={(e) => setSpotDao(e.target.value)} />
           )}
         </Field>
-        <SubmitButton verb="Read KASS price" status={action.status} />
+        <SubmitButton verb="Read SOL price" status={action.status} />
         <WriteStatusRegion status={action.status} successVerb="Price read" />
       </form>
     </Card>

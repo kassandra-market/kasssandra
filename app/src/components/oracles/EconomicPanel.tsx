@@ -1,5 +1,5 @@
 import type { Oracle, Proposer } from '@kassandra-market/oracles'
-import { formatKass } from '../../lib/oracleView'
+import { formatSol } from '../../lib/oracleView'
 
 /** A percent 0..100 of `value` against `max` (bigint-safe), floored to a visible sliver when nonzero. */
 function pct(value: bigint, max: bigint): number {
@@ -24,7 +24,7 @@ function Bar({
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-inter text-[12px] text-silver">{label}</span>
-        <span className="font-inter text-[12px] tabular-nums text-platinum">{formatKass(value)}</span>
+        <span className="font-inter text-[12px] tabular-nums text-platinum">{formatSol(value)}</span>
       </div>
       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-liquid-deep">
         <div className={`h-full rounded-full ${fill}`} style={{ width: `${width}%` }} />
@@ -38,7 +38,7 @@ function Bar({
  * of an oracle's economics:
  *
  *   1. Vault meters — bond pool vs dispute bonds vs total stake, each a quiet
- *      bronze bar scaled to the largest of the three (raw KASS base units).
+ *      bronze bar scaled to the largest of the three (raw SOL base units).
  *   2. Option bond split — Σ proposer bond per `originalOption`, each option a
  *      quiet bar; the leading option gets the single chestnut accent.
  *
@@ -79,7 +79,7 @@ export function EconomicPanel({
       className="mt-4 rounded-card border border-hairline bg-liquid-kelp p-5"
     >
       <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
-        Economics · KASS
+        Economics · SOL
       </span>
 
       {/* Vault meters */}

@@ -1,7 +1,7 @@
 /**
  * Core seeding primitives for the browser E2E: the {@link SeedCtx}, boot/init,
  * tx sending, account fetch/fund, oracle creation, and the account-fabrication
- * cheatcodes (governance / kass_dao / window patching). Pure move/extract from
+ * cheatcodes (governance / spot_dao / window patching). Pure move/extract from
  * the former monolithic `seed.ts` — see `seed.ts` (barrel) + `seed-drivers.ts`.
  *
  * IMPORTANT: every pubkey handed to an `@kassandra-market/oracles` builder is passed as a
@@ -31,7 +31,7 @@ import {
 export interface SeedCtx {
   harness: SurfpoolHarness
   payer: Keypair
-  kassMint: Keypair
+  baseMint: Keypair
   usdcMint: Keypair
 }
 
@@ -103,7 +103,7 @@ export async function runnerClaim(option: number, optionsCount = 2): Promise<Run
   }
 }
 
-/** Boot surfpool, deploy the program, mint KASS/USDC, and init the protocol. */
+/** Boot surfpool, deploy the program, mint SOL/USDC, and init the protocol. */
 export async function bootAndInit(
   port: number,
   harnessOpts: Record<string, unknown> = {},
@@ -114,9 +114,9 @@ export async function bootAndInit(
 
   const { mintAuthority, initProtocol } = await import('@kassandra-market/oracles')
   const mintAuth = await mintAuthority()
-  const kassMint = await Keypair.generate()
+  const baseMint = await Keypair.generate()
   const usdcMint = await Keypair.generate()
-  await harness.setAccount(kassMint.publicKey.toString(), {
+  await harness.setAccount(baseMint.publicKey.toString(), {
     lamports: 1_000_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
@@ -129,12 +129,12 @@ export async function bootAndInit(
     data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
   })
 
-  const ctx: SeedCtx = { harness, payer, kassMint, usdcMint }
+  const ctx: SeedCtx = { harness, payer, baseMint, usdcMint }
   await sendIx(
     ctx,
     await initProtocol({
       admin: payer.publicKey.toString(),
-      kassMint: kassMint.publicKey.toString(),
+      baseMint: baseMint.publicKey.toString(),
       usdcMint: usdcMint.publicKey.toString(),
     }),
   )
@@ -176,15 +176,15 @@ export async function fetchAccount(ctx: SeedCtx, address: Address): Promise<Uint
   throw new Error(`account ${address} did not appear`)
 }
 
-/** Fabricate a KASS token account owned by `owner` (base58) holding `amount`. */
-export async function fundKass(ctx: SeedCtx, owner: string, amount: bigint): Promise<string> {
+/** Fabricate a SOL token account owned by `owner` (base58) holding `amount`. */
+export async function fundBase(ctx: SeedCtx, owner: string, amount: bigint): Promise<string> {
   const ownerBytes = new Address(owner).toBytes()
   const acct = await Keypair.generate()
   await ctx.harness.setAccount(acct.publicKey.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(ctx.kassMint.publicKey.toBytes(), ownerBytes, amount)),
+    data: toHex(tokenAccountBytes(ctx.baseMint.publicKey.toBytes(), ownerBytes, amount)),
   })
   return acct.publicKey.toString()
 }
@@ -196,7 +196,7 @@ export async function createOracleReal(
   optionsCount: number,
   question: string,
 ): Promise<Address> {
-  const creatorKass = await fundKass(ctx, ctx.payer.publicKey.toString(), 10n ** 15n)
+  const creatorBase = await fundBase(ctx, ctx.payer.publicKey.toString(), 10n ** 15n)
   const now = await ctx.harness.clockUnixTimestamp()
   const createIx = await createOracle({
     nonce,
@@ -204,8 +204,8 @@ export async function createOracleReal(
     deadline: now + 1_000n + nonce * 100n,
     twapWindow: 600n,
     creator: ctx.payer.publicKey.toString(),
-    creatorKassToken: creatorKass,
-    kassMint: ctx.kassMint.publicKey.toString(),
+    creatorBaseToken: creatorBase,
+    baseMint: ctx.baseMint.publicKey.toString(),
     usdcMint: ctx.usdcMint.publicKey.toString(),
   })
   // Write the on-chain metadata (subject + labels + uri/uri_hash) in the SAME tx,
@@ -281,7 +281,7 @@ export async function keepWindowOpen(ctx: SeedCtx, oracle: Address): Promise<voi
 /**
  * Fabricate DAO governance: patch the Protocol singleton so `governance_set = 1`
  * and `dao_authority = daoAuthority` (offsets 121 / 128), and create the DAO
- * treasury (`ATA(daoAuthority, kass_mint)`) as an empty KASS token account. The
+ * treasury (`ATA(daoAuthority, base_mint)`) as an empty SOL token account. The
  * real set_governance is hardened (dao_authority must equal a Squads vault PDA no
  * keypair can sign), so tests fabricate the linkage directly — exactly as the
  * gated `claims.e2e` surfpool test documents.
@@ -300,15 +300,15 @@ export async function fabricateGovernance(ctx: SeedCtx, daoAuthority: string): P
     executable: false,
     data: toHex(data),
   })
-  // DAO treasury = ATA(dao_authority, kass_mint), empty.
-  const treasury = (await associatedTokenAccount(daoAuthority, ctx.kassMint.publicKey.toString()))
+  // DAO treasury = ATA(dao_authority, base_mint), empty.
+  const treasury = (await associatedTokenAccount(daoAuthority, ctx.baseMint.publicKey.toString()))
     .address
   await ctx.harness.setAccount(treasury.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
     data: toHex(
-      tokenAccountBytes(ctx.kassMint.publicKey.toBytes(), new Address(daoAuthority).toBytes(), 0n),
+      tokenAccountBytes(ctx.baseMint.publicKey.toBytes(), new Address(daoAuthority).toBytes(), 0n),
     ),
   })
 }
@@ -351,10 +351,10 @@ async function patchProtocolBytes(ctx: SeedCtx, mutate: (d: Uint8Array) => void)
 
 /**
  * Fabricate a futarchy-owned `Dao` account carrying a spot TWAP and record it as
- * `Protocol.kass_dao` (offset 160) — the account `kass_price` reads and the
+ * `Protocol.spot_dao` (offset 160) — the account `spot_price` reads and the
  * linkage `set_governance` needs. Returns the DAO address.
  */
-export async function fabricateKassDao(ctx: SeedCtx): Promise<string> {
+export async function fabricateSpotDao(ctx: SeedCtx): Promise<string> {
   const { EXTERNAL_PROGRAM_IDS } = await import('@kassandra-market/oracles')
   const dao = await Keypair.generate()
   await ctx.harness.setAccount(dao.publicKey.toString(), {

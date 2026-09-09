@@ -22,22 +22,22 @@ impl TestCtx {
         // proposed option.
         let options_count = (max_option as u16 + 1).max(2) as u8;
 
-        // Stake vault: SPL token account on KASS, owner == oracle PDA, holding
+        // Stake vault: SPL token account on SOL, owner == oracle PDA, holding
         // exactly the summed bonds, BACKED by real mint supply. The backing is
         // required so a terminal InvalidDeadend burn (finalize_oracle /
         // finalize_no_facts burning the slashed `bond_pool` back to the reservoir)
         // has real supply to check-subtract — a real `Burn` underflows otherwise.
-        // It mirrors reality (proposer bonds are circulating KASS) and is captured
+        // It mirrors reality (proposer bonds are circulating SOL) and is captured
         // by every supply-DELTA assertion (tests snapshot supply AFTER seeding).
-        let stake_vault = self.create_token_account(self.kass_mint, oracle_pda, total_stake);
-        self.add_mint_supply(self.kass_mint, total_stake);
+        let stake_vault = self.create_token_account(self.base_mint, oracle_pda, total_stake);
+        self.add_mint_supply(self.base_mint, total_stake);
 
         // Build and write the Oracle account.
         let now = self.now();
         let mut oracle = Oracle::zeroed();
         oracle.account_type = AccountType::Oracle.as_u8();
         oracle.creator = self.payer.pubkey().to_bytes().into();
-        oracle.kass_mint = self.kass_mint.to_bytes().into();
+        oracle.base_mint = self.base_mint.to_bytes().into();
         oracle.usdc_mint = self.usdc_mint.to_bytes().into();
         oracle.stake_vault = stake_vault.to_bytes().into();
         oracle.deadline = now;
@@ -85,8 +85,8 @@ impl TestCtx {
         // defaults), so a fabricated oracle sizes/settles like a real one.
         oracle.challenge_fail_usdc_fee_num = CHALLENGE_FAIL_USDC_FEE_NUM;
         oracle.challenge_fail_usdc_fee_den = CHALLENGE_FAIL_USDC_FEE_DEN;
-        oracle.challenge_success_kass_fee_num = CHALLENGE_SUCCESS_KASS_FEE_NUM;
-        oracle.challenge_success_kass_fee_den = CHALLENGE_SUCCESS_KASS_FEE_DEN;
+        oracle.challenge_success_base_fee_num = CHALLENGE_SUCCESS_BASE_FEE_NUM;
+        oracle.challenge_success_base_fee_den = CHALLENGE_SUCCESS_BASE_FEE_DEN;
         self.set_program_account(oracle_pda, bytemuck::bytes_of(&oracle).to_vec());
 
         // Build and write each Proposer account.
@@ -228,19 +228,19 @@ impl TestCtx {
         oracle: Pubkey,
         fail_usdc_num: u64,
         fail_usdc_den: u64,
-        success_kass_num: u64,
-        success_kass_den: u64,
+        success_base_num: u64,
+        success_base_den: u64,
     ) {
         let mut o = self.oracle(oracle);
         o.challenge_fail_usdc_fee_num = fail_usdc_num;
         o.challenge_fail_usdc_fee_den = fail_usdc_den;
-        o.challenge_success_kass_fee_num = success_kass_num;
-        o.challenge_success_kass_fee_den = success_kass_den;
+        o.challenge_success_base_fee_num = success_base_num;
+        o.challenge_success_base_fee_den = success_base_den;
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
     }
 
-    /// Stamp a seeded oracle's `reward_emission` (the KASS minted at creation,
-    /// Task S3) AND physically place that KASS in its `stake_vault`, backed by
+    /// Stamp a seeded oracle's `reward_emission` (the SOL minted at creation,
+    /// Task S3) AND physically place that SOL in its `stake_vault`, backed by
     /// mint supply — so a `finalize_oracle` InvalidDeadend burn-back has real
     /// tokens + supply to subtract (no underflow). Lets `finalize_oracle` tests
     /// drive the emission fold-in / burn-back without the full create flow.
@@ -250,16 +250,16 @@ impl TestCtx {
         let vault = Pubkey::new_from_array(o.stake_vault.to_bytes());
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
         self.add_token_balance(vault, amount);
-        self.add_mint_supply(self.kass_mint, amount);
+        self.add_mint_supply(self.base_mint, amount);
     }
 
-    /// Overwrite the KASS mint's SPL `mint_authority` (a `COption<Pubkey>`).
+    /// Overwrite the SOL mint's SPL `mint_authority` (a `COption<Pubkey>`).
     /// Lets the mint-authority-mismatch test point the canonical mint at a
     /// non-PDA authority so `create_oracle`'s emission mint is rejected with
     /// [`kassandra_oracles_program::error::KassandraError::BadMintAuthority`].
-    pub fn set_kass_mint_authority(&mut self, authority: Pubkey) {
-        let mint = self.kass_mint;
-        let acc = self.svm.get_account(&mint).expect("kass mint not found");
+    pub fn set_base_mint_authority(&mut self, authority: Pubkey) {
+        let mint = self.base_mint;
+        let acc = self.svm.get_account(&mint).expect("base mint not found");
         let mut state = Mint::unpack(&acc.data).expect("not a mint");
         state.mint_authority = COption::Some(authority);
         let mut data = vec![0u8; Mint::LEN];
@@ -279,7 +279,7 @@ impl TestCtx {
     }
 
     /// Build a `FinalizeOracle` instruction (Ix 6). Account order:
-    /// `[0] oracle(w) [1] kass_mint(w) [2] stake_vault(w) [3] token program`
+    /// `[0] oracle(w) [1] base_mint(w) [2] stake_vault(w) [3] token program`
     /// followed by the read-only proposer tail. Payload = `oracle_nonce` LE
     /// (signs the InvalidDeadend emission burn-back). The oracle must be in the
     /// bookkeeping map (seeded or real-flow) so its nonce/vault are known.
@@ -288,7 +288,7 @@ impl TestCtx {
         kassandra_oracles_sdk::ix::finalize_oracle(
             &self.program_id,
             oracle,
-            self.kass_mint,
+            self.base_mint,
             seeded.stake_vault,
             seeded.nonce,
             tail,
@@ -296,7 +296,7 @@ impl TestCtx {
     }
 
     /// Build a `FinalizeFacts` instruction (Ix 2). Account order (mirrors
-    /// `finalize_oracle`'s burn prefix): `[0] oracle(w) [1] kass_mint(w)
+    /// `finalize_oracle`'s burn prefix): `[0] oracle(w) [1] base_mint(w)
     /// [2] stake_vault(w) [3] token program` followed by a WRITABLE tail (the
     /// fact / proposer subset being settled). Payload = `oracle_nonce` LE (signs
     /// the no-facts dead-end `bond_pool` + emission burn). The oracle must be in
@@ -306,7 +306,7 @@ impl TestCtx {
         kassandra_oracles_sdk::ix::finalize_facts(
             &self.program_id,
             oracle,
-            self.kass_mint,
+            self.base_mint,
             seeded.stake_vault,
             seeded.nonce,
             tail,

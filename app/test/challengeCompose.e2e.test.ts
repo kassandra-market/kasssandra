@@ -10,12 +10,12 @@
  * app's {@link buildComposeAndOpenChallengeIxs} builder over the
  * {@link keypairSender}/{@link sendAndConfirm} seam:
  *
- *   question → KASS vault → USDC vault → fund+split → pass pool → fail pool → open
+ *   question → SOL vault → USDC vault → fund+split → pass pool → fail pool → open
  *
  * i.e. the same real Market the SDK challenge-market E2E's `composeMarket` +
  * `buildPool` produce, but assembled ENTIRELY by the app's compose builder (real
  * ixs, no cheatcodes: the E2E's `fabricate…`/`setTokenAccountAt` become real ATA
- * creates + `split_tokens`). The challenger is funded with REAL KASS + USDC (the
+ * creates + `split_tokens`). The challenger is funded with REAL SOL + USDC (the
  * only setAccount here — funding a wallet, the production equivalent of a user
  * already holding tokens), then the app composes + seeds + opens.
  *
@@ -69,8 +69,8 @@ import {
 const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady();
 
 const FUTARCHY_ID = EXTERNAL_PROGRAM_IDS.futarchyV06;
-const KASS_PRICE_TWAP = 500_000_000n;
-const KASS_PRICE_SCALE = 1_000_000_000_000n;
+const SPOT_PRICE_TWAP = 500_000_000n;
+const SPOT_PRICE_SCALE = 1_000_000_000_000n;
 
 // The compose defaults (challengeCompose DEFAULT_BASE/QUOTE_RESERVE).
 const BASE_RESERVE = 100_000_000_000n;
@@ -91,9 +91,9 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -106,24 +106,24 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
       data: toHex(mintBytes(payer.publicKey.toBytes(), 10n ** 18n, 6)),
     });
 
-    const kassDao = (await Keypair.generate()).publicKey;
-    await harness.setAccount(kassDao.toString(), {
+    const spotDao = (await Keypair.generate()).publicKey;
+    await harness.setAccount(spotDao.toString(), {
       lamports: 5_000_000,
       owner: FUTARCHY_ID.toString(),
       executable: false,
-      data: toHex(buildDaoBlob(KASS_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n, 0)),
+      data: toHex(buildDaoBlob(SPOT_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n, 0)),
     });
 
-    f = { harness, payer, kassMint, usdcMint, kassDao };
+    f = { harness, payer, baseMint, usdcMint, spotDao };
 
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
-    const multisig = (await futarchy.pda.squadsMultisig(kassDao)).address;
+    const multisig = (await futarchy.pda.squadsMultisig(spotDao)).address;
     const daoAuthority = (await futarchy.pda.squadsVault(multisig, 0)).address;
-    await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, kassDao }));
+    await sendIx(f, await setGovernance({ authority: payer.publicKey, daoAuthority, spotDao }));
   }, 120_000);
 
   afterAll(async () => {
@@ -136,14 +136,14 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
     expect(decodeOracle(await fetchAccount(f, c.oracle)).phase).toBe(Phase.Challenge);
     expect(decodeAiClaim(await fetchAccount(f, c.aiClaim)).challenged).toBe(false);
 
-    // A funded challenger with REAL KASS + USDC ATAs (the compose splits from
+    // A funded challenger with REAL SOL + USDC ATAs (the compose splits from
     // them; the ATAs must exist + hold the underlying to seed the two pools).
     const challenger = await Keypair.generate();
     await f.harness.airdrop(challenger.publicKey.toString(), 5_000_000_000);
-    const challengerKassAta = await ammV04.pda.ata(challenger.publicKey, f.kassMint.publicKey);
+    const challengerBaseAta = await ammV04.pda.ata(challenger.publicKey, f.baseMint.publicKey);
     const challengerUsdcAta = await ammV04.pda.ata(challenger.publicKey, f.usdcMint.publicKey);
-    // KASS to split into seed conditional-KASS for BOTH pools + the escrow bond.
-    await setTokenAccountAt(f, challengerKassAta, f.kassMint.publicKey, challenger.publicKey, BASE_RESERVE * 4n);
+    // SOL to split into seed conditional-SOL for BOTH pools + the escrow bond.
+    await setTokenAccountAt(f, challengerBaseAta, f.baseMint.publicKey, challenger.publicKey, BASE_RESERVE * 4n);
     // USDC to split into seed conditional-USDC + fund the escrow (required = BOND/2000).
     await setTokenAccountAt(f, challengerUsdcAta, f.usdcMint.publicKey, challenger.publicKey, QUOTE_RESERVE * 4n + 10_000_000n);
 
@@ -153,14 +153,14 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
       oracleNonce: nonce,
       proposer: c.proposer,
       challenger: challenger.publicKey,
-      kassMint: f.kassMint.publicKey,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
-      kassDao: f.kassDao,
+      spotDao: f.spotDao,
       baseReserve: BASE_RESERVE,
       quoteReserve: QUOTE_RESERVE,
     });
     expect(steps.map((s) => s.id)).toEqual([
-      "question", "kass-vault", "usdc-vault", "fund-split", "pass-pool", "fail-pool", "open",
+      "question", "base-vault", "usdc-vault", "fund-split", "pass-pool", "fail-pool", "open",
     ]);
 
     // Drive each step as its own sendAndConfirm (the staged UI sequence, headless).
@@ -178,7 +178,7 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
     expect(m.proposer.toString()).toBe(c.proposer.toString());
     expect(m.challenger.toString()).toBe(challenger.publicKey.toString());
     expect(m.question.toString()).toBe(composed.question.toString());
-    expect(m.kassVault.toString()).toBe(composed.kassVault.toString());
+    expect(m.baseVault.toString()).toBe(composed.baseVault.toString());
     expect(m.passAmm.toString()).toBe(composed.passAmm.toString());
     expect(m.failAmm.toString()).toBe(composed.failAmm.toString());
 
@@ -190,7 +190,7 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
     expect((await f.harness.connection.getAccountInfo(composed.question))!.owner.toString()).toBe(
       EXTERNAL_PROGRAM_IDS.conditionalVault.toString(),
     );
-    for (const mint of [composed.passKassMint, composed.failKassMint, composed.passUsdcMint, composed.failUsdcMint]) {
+    for (const mint of [composed.passBaseMint, composed.failBaseMint, composed.passUsdcMint, composed.failUsdcMint]) {
       expect((await f.harness.connection.getAccountInfo(mint))!.owner.toString()).toBe(
         TOKEN_PROGRAM_ID.toString(),
       );
@@ -202,17 +202,17 @@ describe.skipIf(!ENABLED)("CU3 client-side compose→open over FORKED MetaDAO", 
       expect(info!.owner.toString()).toBe(EXTERNAL_PROGRAM_IDS.ammV04.toString());
     }
     // Pools seeded: each vault (pool base/quote ATA) holds the seed reserve.
-    const passVaultBase = await ammV04.pda.ata(composed.passAmm, composed.passKassMint);
+    const passVaultBase = await ammV04.pda.ata(composed.passAmm, composed.passBaseMint);
     const passVaultQuote = await ammV04.pda.ata(composed.passAmm, composed.passUsdcMint);
     expect(await tokenBalance(f, passVaultBase)).toBe(BASE_RESERVE);
     expect(await tokenBalance(f, passVaultQuote)).toBe(QUOTE_RESERVE);
 
-    // USDC escrow funded with the on-chain required amount + bond split into KASS.
+    // USDC escrow funded with the on-chain required amount + bond split into SOL.
     const escrow = (await pda.challengeUsdcVault(marketPda)).address;
-    const requiredUsdc = (BOND * KASS_PRICE_TWAP) / KASS_PRICE_SCALE;
+    const requiredUsdc = (BOND * SPOT_PRICE_TWAP) / SPOT_PRICE_SCALE;
     expect(await tokenBalance(f, escrow)).toBe(requiredUsdc);
     expect(m.challengerUsdc).toBe(requiredUsdc);
-    expect(await tokenBalance(f, composed.oraclePassKass)).toBe(BOND);
-    expect(await tokenBalance(f, composed.oracleFailKass)).toBe(BOND);
+    expect(await tokenBalance(f, composed.oraclePassBase)).toBe(BOND);
+    expect(await tokenBalance(f, composed.oracleFailBase)).toBe(BOND);
   }, 300_000);
 });

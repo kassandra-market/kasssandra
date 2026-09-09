@@ -59,7 +59,7 @@ export const PERMISSIONLESS_SECRET = Uint8Array.from([
 export interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
   dao: Address;
   multisig: Address;

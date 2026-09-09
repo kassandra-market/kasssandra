@@ -93,7 +93,7 @@ const PERMISSIONLESS_SECRET = Uint8Array.from([
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
 }
 
@@ -109,10 +109,10 @@ describe.skipIf(!ENABLED)("surfpool futarchy→Meteora treasury fee-collection o
     const payer = await Keypair.generate();
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
-    // Real KASS (9dp) + USDC (MUST be 6dp — initialize_dao `mint::decimals = 6`).
-    const kassMint = await Keypair.generate();
+    // Real SOL (9dp) + USDC (MUST be 6dp — initialize_dao `mint::decimals = 6`).
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -130,7 +130,7 @@ describe.skipIf(!ENABLED)("surfpool futarchy→Meteora treasury fee-collection o
     await harness.connection.getAccountInfo(futarchy.METEORA_DAMM_V2_ID);
     await harness.connection.getAccountInfo(futarchy.SQUADS_V4_ID);
 
-    f = { harness, payer, kassMint, usdcMint };
+    f = { harness, payer, baseMint, usdcMint };
   }, 120_000);
 
   afterAll(async () => {
@@ -176,7 +176,7 @@ describe.skipIf(!ENABLED)("surfpool futarchy→Meteora treasury fee-collection o
       await futarchy.initializeDao({
         daoCreator: f.payer.publicKey,
         payer: f.payer.publicKey,
-        baseMint: f.kassMint.publicKey,
+        baseMint: f.baseMint.publicKey,
         quoteMint: f.usdcMint.publicKey,
         squadsProgramConfigTreasury: treasury,
         twapInitialObservation: 1_000_000_000_000n,
@@ -204,9 +204,9 @@ describe.skipIf(!ENABLED)("surfpool futarchy→Meteora treasury fee-collection o
     // `associated_token::authority = metadao_multisig_vault::ID` — they MUST exist
     // as canonical ATAs of the MetaDAO vault or try_accounts fails BEFORE the
     // admin gate. The builder defaults them to exactly these addresses.
-    const feeA = await futarchy.ata(futarchy.METADAO_MULTISIG_VAULT, f.kassMint.publicKey);
+    const feeA = await futarchy.ata(futarchy.METADAO_MULTISIG_VAULT, f.baseMint.publicKey);
     const feeB = await futarchy.ata(futarchy.METADAO_MULTISIG_VAULT, f.usdcMint.publicKey);
-    await fabricateTokenAccount(f, feeA, f.kassMint.publicKey, futarchy.METADAO_MULTISIG_VAULT);
+    await fabricateTokenAccount(f, feeA, f.baseMint.publicKey, futarchy.METADAO_MULTISIG_VAULT);
     await fabricateTokenAccount(f, feeB, f.usdcMint.publicKey, futarchy.METADAO_MULTISIG_VAULT);
 
     // --- (3) cp-amm accounts. `pool`/`position`/vaults/`nft`/`owner` are all
@@ -232,7 +232,7 @@ describe.skipIf(!ENABLED)("surfpool futarchy→Meteora treasury fee-collection o
       position,
       tokenAVault,
       tokenBVault,
-      tokenAMint: f.kassMint.publicKey, // == dao.base_mint (dao constraint)
+      tokenAMint: f.baseMint.publicKey, // == dao.base_mint (dao constraint)
       tokenBMint: f.usdcMint.publicKey, // == dao.quote_mint
       positionNftAccount,
       owner: positionOwner,

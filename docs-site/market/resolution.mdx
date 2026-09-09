@@ -42,7 +42,7 @@ flowchart LR
 ## collect_fee (Ix 9)
 
 `collect_fee` (`processor/collect_fee.rs`) cuts the protocol's `fee_bps` share of
-the market's **accrued** LP earnings and routes it, denominated in KASS, to the
+the market's **accrued** LP earnings and routes it, denominated in SOL, to the
 futarchy-governed `Config.fee_destination`. It is a separate crank so `resolve`
 stays lean and the heavy CPIs are isolated.
 
@@ -50,7 +50,7 @@ The accrued math is u128, floored, and conservative — it reads only the resolv
 `Question` numerators, the AMM reserves, and the LP-mint supply (no full-pool
 unwind) (`collect_fee.rs:174-242`):
 
-1. `pool_value = (base·num0 + quote·num1) / denom` — the full pool's KASS value.
+1. `pool_value = (base·num0 + quote·num1) / denom` — the full pool's SOL value.
 2. `realized_full = lp_total · pool_value / supply` — this market's LP value.
 3. `accrued = realized_full − total_contributed` (saturating; 0 on impermanent
    loss / no profit → just set the flag and return).

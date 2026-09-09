@@ -44,12 +44,12 @@ describe.skipIf(!ENABLED)("surfpool smoke: deploy + init_protocol over RPC", () 
     const payer = await Keypair.generate();
     await harness.airdrop(payer.publicKey.toString(), 5_000_000_000);
 
-    // Canonical KASS + USDC mints, written token-program-owned (init_protocol
+    // Canonical SOL + USDC mints, written token-program-owned (init_protocol
     // only requires the recorded mints to be SPL-token-program accounts).
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
     for (const [mint, decimals] of [
-      [kassMint, 9],
+      [baseMint, 9],
       [usdcMint, 6],
     ] as const) {
       await harness.setAccount(mint.publicKey.toString(), {
@@ -63,7 +63,7 @@ describe.skipIf(!ENABLED)("surfpool smoke: deploy + init_protocol over RPC", () 
     // Build init_protocol via the SDK, sign with web3.js v3, send over RPC.
     const ix = await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     });
     const tx = new Transaction();
@@ -85,7 +85,7 @@ describe.skipIf(!ENABLED)("surfpool smoke: deploy + init_protocol over RPC", () 
     const p = decodeProtocol(data);
     expect(p.accountType).toBe(AccountType.Protocol);
     expect(p.admin.toString()).toBe(payer.publicKey.toString());
-    expect(p.kassMint.toString()).toBe(kassMint.publicKey.toString());
+    expect(p.baseMint.toString()).toBe(baseMint.publicKey.toString());
     expect(p.usdcMint.toString()).toBe(usdcMint.publicKey.toString());
     expect(p.governanceSet).toBe(false);
   }, 30_000);

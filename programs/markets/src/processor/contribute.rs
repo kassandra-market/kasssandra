@@ -1,4 +1,4 @@
-//! `contribute`: add KASS from any contributor to a `Funding` market's escrow,
+//! `contribute`: add SOL from any contributor to a `Funding` market's escrow,
 //! creating or incrementing that contributor's [`Contribution`].
 //!
 //! # Instruction payload (after the 1-byte discriminant), exactly 8 bytes
@@ -8,7 +8,7 @@
 //! 0. market PDA           — writable; must be `Funding`
 //! 1. escrow PDA           — writable; must equal `market.escrow_vault`
 //! 2. contributor          — signer, writable; pays rent + is the token authority
-//! 3. contributor_kass_ata — writable; KASS source, authority == contributor
+//! 3. contributor_base_ata — writable; SOL source, authority == contributor
 //! 4. contribution PDA     — writable (created or incremented)
 //! 5. token program
 

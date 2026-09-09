@@ -70,7 +70,7 @@
 #   * The v0.6 DAO execution authority is a **Squads v4 multisig vault**
 #     (SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf), NOT a plain futarchy PDA.
 #   * Meteora cp-amm pools expose only an INSTANTANEOUS sqrt_price — there is NO
-#     on-chain TWAP oracle in cp-amm. The manipulation-resistant KASS/USDC TWAP
+#     on-chain TWAP oracle in cp-amm. The manipulation-resistant SOL/USDC TWAP
 #     the design (F5) needs lives in the futarchy program's EMBEDDED FutarchyAmm
 #     (Dao.amm spot Pool.oracle), not in Meteora.
 #

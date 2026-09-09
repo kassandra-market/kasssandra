@@ -11,7 +11,7 @@ pub struct ClaimProposerSpec {
     /// Post-AI-claim vote; compared to `resolved_option` for the correct/wrong split.
     pub claim_option: u8,
     pub disqualified: bool,
-    /// KASS already forfeited to `bond_pool` (only meaningful when disqualified).
+    /// SOL already forfeited to `bond_pool` (only meaningful when disqualified).
     pub slashed_amount: u64,
 }
 
@@ -32,12 +32,12 @@ pub struct ClaimFactSpec {
 }
 
 /// A seeded claimant account: the program-owned account to be closed, its
-/// signing authority, the authority-owned KASS destination (starts at 0), and
-/// the expected KASS entitlement per the matrix.
+/// signing authority, the authority-owned SOL destination (starts at 0), and
+/// the expected SOL entitlement per the matrix.
 pub struct SeededClaim {
     pub account: Pubkey,
     pub authority: Keypair,
-    pub dest_kass: Pubkey,
+    pub dest_base: Pubkey,
     pub expected: u64,
     pub kind: u8, // for votes; ignored otherwise
 }
@@ -163,16 +163,16 @@ impl TestCtx {
                 .map(|f| f.stake + f.votes.iter().map(|v| v.stake).sum::<u64>())
                 .sum::<u64>();
         let vault_initial: u64 = gross - burn_pool;
-        let stake_vault = self.create_token_account(self.kass_mint, oracle_pda, vault_initial);
-        // Back the vault KASS with real mint supply (a Burn elsewhere checks it).
-        self.add_mint_supply(self.kass_mint, vault_initial);
+        let stake_vault = self.create_token_account(self.base_mint, oracle_pda, vault_initial);
+        // Back the vault SOL with real mint supply (a Burn elsewhere checks it).
+        self.add_mint_supply(self.base_mint, vault_initial);
 
         // ----- the Oracle account -------------------------------------------
         let now = self.now();
         let mut oracle = Oracle::zeroed();
         oracle.account_type = AccountType::Oracle.as_u8();
         oracle.creator = self.payer.pubkey().to_bytes().into();
-        oracle.kass_mint = self.kass_mint.to_bytes().into();
+        oracle.base_mint = self.base_mint.to_bytes().into();
         oracle.usdc_mint = self.usdc_mint.to_bytes().into();
         oracle.stake_vault = stake_vault.to_bytes().into();
         oracle.deadline = now;
@@ -213,7 +213,7 @@ impl TestCtx {
             self.svm
                 .airdrop(&authority.pubkey(), 1_000_000_000)
                 .unwrap();
-            let dest_kass = self.create_token_account(self.kass_mint, authority.pubkey(), 0);
+            let dest_base = self.create_token_account(self.base_mint, authority.pubkey(), 0);
 
             let mut acct = Proposer::zeroed();
             acct.account_type = AccountType::Proposer.as_u8();
@@ -245,7 +245,7 @@ impl TestCtx {
             seeded_proposers.push(SeededClaim {
                 account,
                 authority,
-                dest_kass,
+                dest_base,
                 expected,
                 kind: 0,
             });
@@ -273,7 +273,7 @@ impl TestCtx {
                 .airdrop(&submitter_auth.pubkey(), 1_000_000_000)
                 .unwrap();
             let submitter_dest =
-                self.create_token_account(self.kass_mint, submitter_auth.pubkey(), 0);
+                self.create_token_account(self.base_mint, submitter_auth.pubkey(), 0);
 
             let mut fact = Fact::zeroed();
             fact.account_type = AccountType::Fact.as_u8();
@@ -308,7 +308,7 @@ impl TestCtx {
             for v in &f.votes {
                 let voter = Keypair::new();
                 self.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-                let voter_dest = self.create_token_account(self.kass_mint, voter.pubkey(), 0);
+                let voter_dest = self.create_token_account(self.base_mint, voter.pubkey(), 0);
 
                 let mut vote = FactVote::zeroed();
                 vote.account_type = AccountType::FactVote.as_u8();
@@ -346,7 +346,7 @@ impl TestCtx {
                 seeded_votes.push(SeededClaim {
                     account: vote_account,
                     authority: voter,
-                    dest_kass: voter_dest,
+                    dest_base: voter_dest,
                     expected,
                     kind: v.kind,
                 });
@@ -356,7 +356,7 @@ impl TestCtx {
                 submitter: SeededClaim {
                     account: fact_account,
                     authority: submitter_auth,
-                    dest_kass: submitter_dest,
+                    dest_base: submitter_dest,
                     expected: submitter_expected,
                     kind: 0,
                 },

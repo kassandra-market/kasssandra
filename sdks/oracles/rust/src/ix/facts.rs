@@ -9,14 +9,14 @@ use super::build;
 use crate::{SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
 
 // ===================================================================== Ix 0
-/// `SubmitFact` (Ix 0) — post a candidate fact with a KASS stake.
+/// `SubmitFact` (Ix 0) — post a candidate fact with a SOL stake.
 #[allow(clippy::too_many_arguments)]
 pub fn submit_fact(
     program_id: &Pubkey,
     oracle: Pubkey,
     fact: Pubkey,
     submitter: Pubkey,
-    submitter_kass: Pubkey,
+    submitter_base: Pubkey,
     stake_vault: Pubkey,
     content_hash: &[u8; 32],
     stake: u64,
@@ -34,7 +34,7 @@ pub fn submit_fact(
             AccountMeta::new(oracle, false),
             AccountMeta::new(fact, false),
             AccountMeta::new(submitter, true),
-            AccountMeta::new(submitter_kass, false),
+            AccountMeta::new(submitter_base, false),
             AccountMeta::new(stake_vault, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
@@ -52,7 +52,7 @@ pub fn vote_fact(
     fact: Pubkey,
     fact_vote: Pubkey,
     voter: Pubkey,
-    voter_kass: Pubkey,
+    voter_base: Pubkey,
     stake_vault: Pubkey,
     kind: u8,
     stake: u64,
@@ -68,7 +68,7 @@ pub fn vote_fact(
             AccountMeta::new(fact, false),
             AccountMeta::new(fact_vote, false),
             AccountMeta::new(voter, true),
-            AccountMeta::new(voter_kass, false),
+            AccountMeta::new(voter_base, false),
             AccountMeta::new(stake_vault, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),
@@ -84,7 +84,7 @@ pub fn vote_fact(
 pub fn finalize_facts(
     program_id: &Pubkey,
     oracle: Pubkey,
-    kass_mint: Pubkey,
+    base_mint: Pubkey,
     stake_vault: Pubkey,
     nonce: u64,
     tail: &[Pubkey],
@@ -94,7 +94,7 @@ pub fn finalize_facts(
     data.extend_from_slice(&nonce.to_le_bytes());
     let mut accounts = Vec::with_capacity(4 + tail.len());
     accounts.push(AccountMeta::new(oracle, false));
-    accounts.push(AccountMeta::new(kass_mint, false));
+    accounts.push(AccountMeta::new(base_mint, false));
     accounts.push(AccountMeta::new(stake_vault, false));
     accounts.push(AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false));
     for k in tail {

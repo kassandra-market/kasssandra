@@ -61,7 +61,7 @@ strictly-highest option), `Tie` (≥2 options share the maximum), `NoSurvivors` 
 ## Protocol — LEN 368
 
 The program singleton / global config. Created once by `init_protocol`, never re-initialized. Pins the
-canonical KASS/USDC mints and carries the creation-fee EMA state plus the governable
+canonical SOL/USDC mints and carries the creation-fee EMA state plus the governable
 monetary/behavioral params (the mutable source snapshotted onto each Oracle). **PDA:** `[b"protocol"]`.
 
 | Field | Type | Offset | Meaning |
@@ -69,7 +69,7 @@ monetary/behavioral params (the mutable source snapshotted onto each Oracle). **
 | `account_type` | u8 | 0 | `AccountType::Protocol` |
 | `_pad_hdr` | [u8;7] | 1 | header padding |
 | `admin` | Pubkey | 8 | initializer; gates one-time `set_governance` |
-| `kass_mint` | Pubkey | 40 | canonical KASS mint |
+| `base_mint` | Pubkey | 40 | canonical SOL mint |
 | `usdc_mint` | Pubkey | 72 | canonical USDC mint |
 | `fee_ema` | u64 | 104 | fixed-point activity EMA (scaled by `FEE_EMA_SCALE`); 0 at genesis |
 | `last_creation_unix` | i64 | 112 | unix of most recent oracle creation (EMA decay); 0 at genesis |
@@ -77,10 +77,10 @@ monetary/behavioral params (the mutable source snapshotted onto each Oracle). **
 | `governance_set` | u8 | 121 | 1 once `set_governance` recorded the DAO linkage (one-shot) |
 | `_pad` | [u8;6] | 122 | padding |
 | `dao_authority` | Pubkey | 128 | Squads v4 multisig vault PDA; gates `set_config` & `resolve_deadend`; zero until set |
-| `kass_dao` | Pubkey | 160 | futarchy `Dao`; its embedded spot AMM is the KASS price source; zero until set |
+| `spot_dao` | Pubkey | 160 | futarchy `Dao`; its embedded spot AMM is the SOL price source; zero until set |
 | `emission_num` | u64 | 192 | emission rate numerator |
 | `emission_den` | u64 | 200 | emission rate denominator |
-| `total_supply_cap` | u64 | 208 | hard cap on circulating KASS supply |
+| `total_supply_cap` | u64 | 208 | hard cap on circulating SOL supply |
 | `fee_ema_halflife` | i64 | 216 | mirror of `FEE_EMA_HALFLIFE_SECS` |
 | `fee_per_ema_unit` | u64 | 224 | mirror of `FEE_PER_EMA_UNIT` |
 | `fee_ema_increment` | u64 | 232 | mirror of `FEE_EMA_INCREMENT` |
@@ -98,12 +98,12 @@ monetary/behavioral params (the mutable source snapshotted onto each Oracle). **
 | `reward_fact_weight` | u64 | 328 | reward weight FW |
 | `challenge_fail_usdc_fee_num` | u64 | 336 | USDC fee on failed challenge numerator |
 | `challenge_fail_usdc_fee_den` | u64 | 344 | denominator |
-| `challenge_success_kass_fee_num` | u64 | 352 | KASS fee on successful challenge numerator |
-| `challenge_success_kass_fee_den` | u64 | 360 | denominator |
+| `challenge_success_base_fee_num` | u64 | 352 | SOL fee on successful challenge numerator |
+| `challenge_success_base_fee_den` | u64 | 360 | denominator |
 
 The governable params are detailed in [Constants](/protocol/constants). Identity/accounting fields
 (`admin`, mints, `fee_ema`, `last_creation_unix`, `bump`, `governance_set`, `dao_authority`,
-`kass_dao`) are **not** touched by `set_config`.
+`spot_dao`) are **not** touched by `set_config`.
 
 ## Oracle — LEN 360
 
@@ -116,9 +116,9 @@ cannot move the goalposts. **PDA:** `[b"oracle", nonce_le]`.
 | `account_type` | u8 | 0 | `AccountType::Oracle` |
 | `_pad_hdr` | [u8;7] | 1 | header padding |
 | `creator` | Pubkey | 8 | oracle creator |
-| `kass_mint` | Pubkey | 40 | KASS mint (must match Protocol) |
+| `base_mint` | Pubkey | 40 | SOL mint (must match Protocol) |
 | `usdc_mint` | Pubkey | 72 | USDC mint |
-| `stake_vault` | Pubkey | 104 | PDA token account holding all KASS bonds/stakes |
+| `stake_vault` | Pubkey | 104 | PDA token account holding all SOL bonds/stakes |
 | `deadline` | i64 | 136 | unix; proposals rejected before this |
 | `phase_ends_at` | i64 | 144 | end of the current window |
 | `twap_window` | i64 | 152 | per-oracle TWAP window, seconds |
@@ -128,7 +128,7 @@ cannot move the goalposts. **PDA:** `[b"oracle", nonce_le]`.
 | `surviving_count` | u16 | 164 | proposers not disqualified |
 | `fact_count` | u16 | 166 | number of facts |
 | `total_oracle_stake` | u64 | 168 | conservation accumulator; == stake_vault balance until a challenge splits a bond |
-| `bond_pool` | u64 | 176 | accumulated slashed KASS (base units) |
+| `bond_pool` | u64 | 176 | accumulated slashed SOL (base units) |
 | `dispute_bond_total` | u64 | 184 | Σ proposer bonds, fixed at dispute start; fact-quorum denominator |
 | `settled_count` | u16 | 192 | facts settled so far |
 | `ai_finalized_count` | u16 | 194 | proposers ai-finalized so far |
@@ -149,12 +149,12 @@ cannot move the goalposts. **PDA:** `[b"oracle", nonce_le]`.
 | `reward_fact_weight` | u64 | 288 | reward weight FW |
 | `challenge_fail_usdc_fee_num` | u64 | 296 | USDC fee on failed challenge numerator |
 | `challenge_fail_usdc_fee_den` | u64 | 304 | denominator |
-| `challenge_success_kass_fee_num` | u64 | 312 | KASS fee on successful challenge numerator |
-| `challenge_success_kass_fee_den` | u64 | 320 | denominator |
+| `challenge_success_base_fee_num` | u64 | 312 | SOL fee on successful challenge numerator |
+| `challenge_success_base_fee_den` | u64 | 320 | denominator |
 | `total_correct_proposer_stake` | u64 | 328 | Σ bond over surviving proposers whose `claim_option == resolved_option` |
 | `total_approved_fact_stake` | u64 | 336 | Σ (`fact.stake` + `fact.approve_stake`) over agreed facts |
 | `reward_pool` | u64 | 344 | distributable pool at resolution; `= bond_pool + reward_emission` on Resolved; 0 on InvalidDeadend |
-| `reward_emission` | u64 | 352 | KASS minted into stake_vault at create; folded into reward_pool on Resolved, burned on InvalidDeadend |
+| `reward_emission` | u64 | 352 | Always 0 at create (no native-token minting). Pinned in the Pod layout; folded into `reward_pool` on Resolved / burned on InvalidDeadend if a harness seeds a non-zero value. |
 
 ## OracleMeta — variable
 
@@ -189,7 +189,7 @@ A proposer's commitment within an oracle. **PDA:** `[b"proposer", oracle, author
 | `_pad_hdr` | [u8;7] | 1 | header padding |
 | `oracle` | Pubkey | 8 | parent oracle |
 | `authority` | Pubkey | 40 | human authority |
-| `bond` | u64 | 72 | locked KASS |
+| `bond` | u64 | 72 | locked SOL |
 | `original_option` | u8 | 80 | value at proposal time |
 | `claim_option` | u8 | 81 | value after AI claim; `0xFF` = not yet submitted (must init to 0xFF, not zeroed) |
 | `disqualified` | u8 | 82 | bool |
@@ -198,7 +198,7 @@ A proposer's commitment within an oracle. **PDA:** `[b"proposer", oracle, author
 | `bump` | u8 | 85 | PDA bump |
 | `ai_finalized` | u8 | 86 | bool: settled by `finalize_ai_claims` |
 | `_pad` | [u8;1] | 87 | padding |
-| `slashed_amount` | u64 | 88 | KASS slashed from this proposer into `bond_pool` |
+| `slashed_amount` | u64 | 88 | SOL slashed from this proposer into `bond_pool` |
 
 ## Fact — LEN 336
 
@@ -259,7 +259,7 @@ A pinned-model AI claim for a proposer's option. **PDA:** `[b"claim", oracle, pr
 ## Market — LEN 416
 
 A challenge decision-market binding for one `AiClaim`, created lazily by `open_challenge`. Records the
-MetaDAO accounts, the oracle-PDA-owned conditional-KASS destinations, and the challenger's escrowed
+MetaDAO accounts, the oracle-PDA-owned conditional-SOL destinations, and the challenger's escrowed
 USDC. **PDA:** `[b"market", ai_claim]`.
 
 | Field | Type | Offset | Meaning |
@@ -271,15 +271,15 @@ USDC. **PDA:** `[b"market", ai_claim]`.
 | `proposer` | Pubkey | 72 | proposer being challenged |
 | `challenger` | Pubkey | 104 | challenger |
 | `question` | Pubkey | 136 | MetaDAO binary question (resolver == oracle PDA) |
-| `kass_vault` | Pubkey | 168 | MetaDAO conditional vault, underlying == `oracle.kass_mint` |
+| `base_vault` | Pubkey | 168 | MetaDAO conditional vault, underlying == `oracle.base_mint` |
 | `usdc_vault` | Pubkey | 200 | MetaDAO conditional vault, underlying == `oracle.usdc_mint` |
 | `pass_amm` | Pubkey | 232 | outcome-0 (pass) AMM |
 | `fail_amm` | Pubkey | 264 | outcome-1 (fail) AMM |
-| `oracle_pass_kass` | Pubkey | 296 | oracle-PDA-owned conditional-KASS token acct, pass side |
-| `oracle_fail_kass` | Pubkey | 328 | oracle-PDA-owned conditional-KASS token acct, fail side |
+| `oracle_pass_base` | Pubkey | 296 | oracle-PDA-owned conditional-SOL token acct, pass side |
+| `oracle_fail_base` | Pubkey | 328 | oracle-PDA-owned conditional-SOL token acct, fail side |
 | `challenger_usdc_vault` | Pubkey | 360 | market-owned USDC escrow (`[b"challenge_usdc", market]`) |
 | `twap_end` | i64 | 392 | `now + oracle.twap_window`; settle allowed only after |
-| `challenger_usdc` | u64 | 400 | challenger's escrowed USDC = `bond × kass_price` (raw base units) |
+| `challenger_usdc` | u64 | 400 | challenger's escrowed USDC = `bond × spot_price` (raw base units) |
 | `settled` | u8 | 408 | bool; set by `settle_challenge` |
 | `bump` | u8 | 409 | PDA bump |
 | `_pad` | [u8;6] | 410 | padding |

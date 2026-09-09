@@ -12,16 +12,16 @@ const PROPOSAL: u8 = 1;
 #[test]
 fn delegate_commit_undelegate_roundtrip() {
     let mut ctx = TestCtx::new();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_config, res) = ctx.init_config(authority.pubkey(), kass, 1_000_000_000);
+    let (_config, res) = ctx.init_config(authority.pubkey(), base, 1_000_000_000);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 500_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, 200_000_000);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 500_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, 200_000_000);
     assert!(res.is_ok(), "{res:?}");
 
     let (session, _) = kassandra_markets_sdk::pda::er_session(&market);

@@ -6,11 +6,11 @@ use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::pubkey::Pubkey;
 
 /// `CreateMarket` (Ix 2) — create the `outcome_index` binary sub-market for
-/// `oracle`, its KASS escrow, and the creator's `Contribution`, transferring
-/// `seed_amount` KASS in.
+/// `oracle`, its SOL escrow, and the creator's `Contribution`, transferring
+/// `seed_amount` SOL in.
 /// Payload = `seed_amount` (u64 LE) ++ `outcome_index` (u8). Accounts:
 /// `[0] config(w) [1] oracle(ro) [2] market(pda,w) [3] escrow(pda,w)
-///  [4] kass_mint(ro) [5] creator(signer,w) [6] creator_kass_ata(w)
+///  [4] base_mint(ro) [5] creator(signer,w) [6] creator_base_ata(w)
 ///  [7] contribution(pda,w) [8] token program [9] system program`.
 /// `config` is WRITABLE: `create_market` bumps its market-creation-activity EMA
 /// (see `crate::liquidity_floor` in the program crate).
@@ -18,8 +18,8 @@ use solana_sdk::pubkey::Pubkey;
 pub fn create_market(
     creator: &Pubkey,
     oracle: &Pubkey,
-    kass_mint: &Pubkey,
-    creator_kass_ata: &Pubkey,
+    base_mint: &Pubkey,
+    creator_base_ata: &Pubkey,
     seed_amount: u64,
     outcome_index: u8,
 ) -> Instruction {
@@ -37,9 +37,9 @@ pub fn create_market(
             AccountMeta::new_readonly(*oracle, false),
             AccountMeta::new(market, false),
             AccountMeta::new(escrow, false),
-            AccountMeta::new_readonly(*kass_mint, false),
+            AccountMeta::new_readonly(*base_mint, false),
             AccountMeta::new(*creator, true),
-            AccountMeta::new(*creator_kass_ata, false),
+            AccountMeta::new(*creator_base_ata, false),
             AccountMeta::new(contribution, false),
             AccountMeta::new_readonly(spl_token::id(), false),
             AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
@@ -48,10 +48,10 @@ pub fn create_market(
     }
 }
 
-/// `Contribute` (Ix 3) — add `amount` KASS to a `Funding` market's escrow and
+/// `Contribute` (Ix 3) — add `amount` SOL to a `Funding` market's escrow and
 /// create-or-increment the contributor's `Contribution`.
 /// Payload = `amount` (u64 LE). Accounts:
-/// `[0] market(w) [1] escrow(w) [2] contributor(signer,w) [3] contributor_kass_ata(w)
+/// `[0] market(w) [1] escrow(w) [2] contributor(signer,w) [3] contributor_base_ata(w)
 ///  [4] contribution(pda,w) [5] token program [6] system program`.
 ///
 /// The processor reads only the first six accounts (its slice pattern tolerates
@@ -102,9 +102,9 @@ pub fn cancel(market: &Pubkey, oracle: &Pubkey) -> Instruction {
 
 /// `Refund` (Ix 5) — permissionless per-contributor refund from a `Cancelled`
 /// market. Program-signed transfer of the recorded stake out of escrow back to
-/// the contributor's KASS ata, then the `Contribution` is CLOSED with its rent
+/// the contributor's SOL ata, then the `Contribution` is CLOSED with its rent
 /// returned to `contributor`. Payload = empty. Accounts:
-/// `[0] market(w) [1] escrow(w) [2] contribution(w) [3] contributor_kass_ata(w)
+/// `[0] market(w) [1] escrow(w) [2] contribution(w) [3] contributor_base_ata(w)
 ///  [4] contributor(w) [5] token program`.
 ///
 /// `market` is writable (its `open_contributions` counter is decremented) and

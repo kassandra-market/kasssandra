@@ -59,7 +59,7 @@ pub fn process(
     let min_liquidity_ema_cap = u64::from_le_bytes(payload[82..90].try_into().unwrap());
     let min_liquidity_max = u64::from_le_bytes(payload[90..98].try_into().unwrap());
 
-    let [config_ai, payer_ai, kass_mint_ai, fee_destination_ai, system_prog_ai, program_data_ai, ..] =
+    let [config_ai, payer_ai, base_mint_ai, fee_destination_ai, system_prog_ai, program_data_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -93,13 +93,13 @@ pub fn process(
         }
     }
 
-    // Cheap defense-in-depth: the recorded KASS mint must be an SPL token-program
+    // Cheap defense-in-depth: the recorded SOL mint must be an SPL token-program
     // account (not an arbitrary key), so downstream fee/escrow logic can trust it.
-    assert_owned_by_program(kass_mint_ai, &pinocchio_token::ID)?;
+    assert_owned_by_program(base_mint_ai, &pinocchio_token::ID)?;
 
     // The fee destination must be an SPL token account (owned by the token program)
-    // whose mint (bytes 0..32) is the canonical KASS mint, so fees route to KASS.
-    if read_token_mint(fee_destination_ai)? != *kass_mint_ai.address() {
+    // whose mint (bytes 0..32) is the canonical SOL mint, so fees route to SOL.
+    if read_token_mint(fee_destination_ai)? != *base_mint_ai.address() {
         return Err(MarketError::InvalidAccount.into());
     }
 
@@ -134,7 +134,7 @@ pub fn process(
     let mut config = Config::zeroed();
     config.account_type = AccountType::Config.as_u8();
     config.authority = authority.into();
-    config.kass_mint = *kass_mint_ai.address();
+    config.base_mint = *base_mint_ai.address();
     config.min_liquidity = min_liquidity;
     config.bump = bump;
     config.fee_bps = fee_bps;

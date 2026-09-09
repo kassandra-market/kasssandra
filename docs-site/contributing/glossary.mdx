@@ -11,13 +11,13 @@ A quick reference to the vocabulary used across these docs. Each entry links to 
 
 **Oracle metadata** — The companion `oracle_meta` PDA (seeds `[b"oracle_meta", oracle]`) written atomically with the oracle by the `write_oracle_meta` instruction: the plaintext subject (the question), the option labels, and a `uri` plus 32-byte `uri_hash` binding an extended off-chain interpretation JSON. See [Oracles & questions](/concepts/oracles-and-questions).
 
-**Proposer** — A participant who bonds KASS on a chosen option during the Proposal phase; recorded as a `Proposer` account keyed by `[b"proposer", oracle, authority]`. See [Proposals](/concepts/proposals).
+**Proposer** — A participant who bonds SOL on a chosen option during the Proposal phase; recorded as a `Proposer` account keyed by `[b"proposer", oracle, authority]`. See [Proposals](/concepts/proposals).
 
-**Proposal** — The act (and resulting `Proposer` account) of committing a KASS bond to one option, built by the `propose` instruction. See [Proposals](/concepts/proposals).
+**Proposal** — The act (and resulting `Proposer` account) of committing a SOL bond to one option, built by the `propose` instruction. See [Proposals](/concepts/proposals).
 
-**Fact** — A piece of evidence submitted during the FactProposal phase: a content hash plus an off-chain URI and a KASS stake, stored as a `Fact` account. See [Facts](/concepts/facts).
+**Fact** — A piece of evidence submitted during the FactProposal phase: a content hash plus an off-chain URI and a SOL stake, stored as a `Fact` account. See [Facts](/concepts/facts).
 
-**Fact voting** — The FactVoting phase, where participants stake KASS to Approve a fact or flag it as a Duplicate (`vote_fact`). See [Facts](/concepts/facts).
+**Fact voting** — The FactVoting phase, where participants stake SOL to Approve a fact or flag it as a Duplicate (`vote_fact`). See [Facts](/concepts/facts).
 
 **Agreed set** — The set of approved, non-duplicate facts (each `Fact.agreed` flag set) that the AI claim is resolved against; the runner keeps only these when fetching facts. See [Facts](/concepts/facts).
 
@@ -31,9 +31,9 @@ A quick reference to the vocabulary used across these docs. Each entry links to 
 
 **Challenge** — Opening a decision market against a submitted AI claim to argue it is fraudulent; the whole flow only happens for a challenged claim (`open_challenge` → trade → `settle_challenge`). See [Challenge markets overview](/challenge/overview).
 
-**Decision market** — The MetaDAO v0.4 binary futarchy market a challenge opens: pass-KASS vs fail-KASS, each priced in conditional USDC, whose TWAP decides the verdict at settle. See [Challenge markets](/concepts/challenge-markets).
+**Decision market** — The MetaDAO v0.4 binary futarchy market a challenge opens: pass-SOL vs fail-SOL, each priced in conditional USDC, whose TWAP decides the verdict at settle. See [Challenge markets](/concepts/challenge-markets).
 
-**Conditional vault** — The MetaDAO conditional-vault program that splits an underlying token (KASS or USDC) into pass/fail conditional tokens tied to the question's outcome. See [Conditional vaults](/challenge/conditional-vaults).
+**Conditional vault** — The MetaDAO conditional-vault program that splits an underlying token (SOL or USDC) into pass/fail conditional tokens tied to the question's outcome. See [Conditional vaults](/challenge/conditional-vaults).
 
 **Pass / fail token** — The conditional tokens minted by a conditional vault: index 0 = pass, index 1 = fail; the winning side redeems 1:1 and the losing side redeems to zero at settle. See [Tokens](/concepts/tokens).
 
@@ -43,16 +43,16 @@ A quick reference to the vocabulary used across these docs. Each entry links to 
 
 **Plurality** — The rule that selects the winning option by aggregated correct-proposer stake; the final plurality recompute happens in `finalize_oracle`. See [Lifecycle](/concepts/lifecycle).
 
-**Bond pool** — The oracle's pool (`Oracle.bondPool`) of slashed bond value redistributed to the correct side; a disqualified proposer's `bond − kass_fee` becomes its bond-pool contribution. See [Economics](/concepts/economics).
+**Bond pool** — The oracle's pool (`Oracle.bondPool`) of slashed bond value redistributed to the correct side; a disqualified proposer's `bond − base_fee` becomes its bond-pool contribution. See [Economics](/concepts/economics).
 
 **Slash** — The confiscation of a proposer's bond when a challenge succeeds: the proposer is marked `disqualified`/`slashed` and its bond feeds the bond pool (minus the challenger's success fee). See [Economics](/concepts/economics).
 
-**Emissions** — The KASS rewards distributed to correct participants, drawn from the oracle's reward pool/emission, governed by the emission and reward-weight parameters. See [Economics](/concepts/economics).
+**Rewards** — SOL paid to correct participants from the slashed `bond_pool`, split by reward-weight parameters. There is no native-token emission. See [Economics](/concepts/economics).
 
 **Dynamic fee** — The EMA-based creation/usage fee tracked by the Protocol (`feeEma`, `feePerEmaUnit`, `feeEmaHalflife`, `feeEmaIncrement`), which adjusts with activity. See [Economics](/concepts/economics).
 
 **Dead-end** — A terminal resolution where an oracle cannot resolve normally and lands in the `InvalidDeadend` phase (for example a no-facts dead-end). See [Dead-end settlement](/concepts/dead-end-settlement).
 
-**KASS** — The protocol's staking and bond token; every staking action (propose, submit fact, vote) escrows KASS in raw base units, and the challenge market prices the bond in conditional USDC via `kass_price`. See [Tokens](/concepts/tokens).
+**SOL** — The protocol's staking and bond token; every staking action (propose, submit fact, vote) escrows SOL in raw base units, and the challenge market prices the bond in conditional USDC via `spot_price`. See [Tokens](/concepts/tokens).
 
 **Phase** — The oracle's position in its state machine (`Created`, `Proposal`, `FactProposal`, `FactVoting`, `AiClaim`, `Challenge`, `FinalRecompute`, `Resolved`, `InvalidDeadend`), advanced by permissionless cranks. See [Phases](/protocol/phases).

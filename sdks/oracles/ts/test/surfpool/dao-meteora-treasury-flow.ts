@@ -29,7 +29,7 @@ import {
 } from "./dao-meteora-treasury-harness.js";
 
 /**
- * Boot surfpool forking mainnet, fund the payer, materialise the KASS/USDC mints,
+ * Boot surfpool forking mainnet, fund the payer, materialise the SOL/USDC mints,
  * clone the REAL cp-amm Config, warm the cp-amm + Squads programs, and return the
  * seeded fixture (`dao`/`multisig`/`vault` filled in later by `bootstrapFlow`).
  */
@@ -42,10 +42,10 @@ export async function startForkFixture(port = 8924): Promise<Fixture> {
   const payer = await Keypair.generate();
   await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
-  // Real KASS (9dp) + USDC (MUST be 6dp — initialize_dao `mint::decimals = 6`).
-  const kassMint = await Keypair.generate();
+  // Real SOL (9dp) + USDC (MUST be 6dp — initialize_dao `mint::decimals = 6`).
+  const baseMint = await Keypair.generate();
   const usdcMint = await Keypair.generate();
-  await harness.setAccount(kassMint.publicKey.toString(), {
+  await harness.setAccount(baseMint.publicKey.toString(), {
     lamports: 1_000_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
@@ -73,7 +73,7 @@ export async function startForkFixture(port = 8924): Promise<Fixture> {
   return {
     harness,
     payer,
-    kassMint,
+    baseMint,
     usdcMint,
     dao: undefined as unknown as Address,
     multisig: undefined as unknown as Address,
@@ -102,7 +102,7 @@ export async function bootstrapFlow(f: Fixture): Promise<void> {
     await futarchy.initializeDao({
       daoCreator: f.payer.publicKey,
       payer: f.payer.publicKey,
-      baseMint: f.kassMint.publicKey,
+      baseMint: f.baseMint.publicKey,
       quoteMint: f.usdcMint.publicKey,
       squadsProgramConfigTreasury: treasury,
       // TWAP params: observable immediately (start_delay 0), tiny windows so the
@@ -139,12 +139,12 @@ export async function bootstrapFlow(f: Fixture): Promise<void> {
  */
 export async function positionFlow(f: Fixture): Promise<MeteoraState> {
   const config = REAL_CONFIG;
-  const poolAddr = (await meteora.pda.pool(config, f.kassMint.publicKey, f.usdcMint.publicKey)).address;
-  const tokenAVault = (await meteora.pda.tokenVault(f.kassMint.publicKey, poolAddr)).address;
+  const poolAddr = (await meteora.pda.pool(config, f.baseMint.publicKey, f.usdcMint.publicKey)).address;
+  const tokenAVault = (await meteora.pda.tokenVault(f.baseMint.publicKey, poolAddr)).address;
   const tokenBVault = (await meteora.pda.tokenVault(f.usdcMint.publicKey, poolAddr)).address;
 
   // Payer source token accounts, funded far above what init/swap will pull.
-  const payerKass = await fabricateToken(f, f.kassMint.publicKey, f.payer.publicKey, 10n ** 15n);
+  const payerBase = await fabricateToken(f, f.baseMint.publicKey, f.payer.publicKey, 10n ** 15n);
   const payerUsdc = await fabricateToken(f, f.usdcMint.publicKey, f.payer.publicKey, 10n ** 15n);
 
   // --- initialize_pool with creator == the Squads VAULT ----------------------
@@ -159,9 +159,9 @@ export async function positionFlow(f: Fixture): Promise<MeteoraState> {
       payer: f.payer.publicKey,
       positionNftMint: vaultPosNftMint.publicKey,
       config,
-      tokenAMint: f.kassMint.publicKey,
+      tokenAMint: f.baseMint.publicKey,
       tokenBMint: f.usdcMint.publicKey,
-      payerTokenA: payerKass,
+      payerTokenA: payerBase,
       payerTokenB: payerUsdc,
       liquidity: INIT_LIQUIDITY,
       sqrtPrice: SQRT_PRICE_INIT,
@@ -203,11 +203,11 @@ export async function positionFlow(f: Fixture): Promise<MeteoraState> {
     await meteora.addLiquidity({
       pool: poolAddr,
       position: probePos,
-      tokenAAccount: payerKass,
+      tokenAAccount: payerBase,
       tokenBAccount: payerUsdc,
       tokenAVault,
       tokenBVault,
-      tokenAMint: f.kassMint.publicKey,
+      tokenAMint: f.baseMint.publicKey,
       tokenBMint: f.usdcMint.publicKey,
       positionNftAccount: probeNftAccount,
       signer: f.payer.publicKey,
@@ -219,7 +219,7 @@ export async function positionFlow(f: Fixture): Promise<MeteoraState> {
     1_400_000,
   );
 
-  // --- A→B swaps (sell KASS for USDC) accrue a token-B (quote) LP fee ---------
+  // --- A→B swaps (sell SOL for USDC) accrue a token-B (quote) LP fee ---------
   // On this cloned public Config the collect_fee_mode collects in token B for
   // both directions (F1 finding), so `fee_b_pending` grows on every LP position.
   for (const amt of [200_000_000n, 200_000_000n, 200_000_000n, 200_000_000n, 200_000_000n]) {
@@ -227,11 +227,11 @@ export async function positionFlow(f: Fixture): Promise<MeteoraState> {
       f,
       await meteora.swap({
         pool: poolAddr,
-        inputTokenAccount: payerKass,
+        inputTokenAccount: payerBase,
         outputTokenAccount: payerUsdc,
         tokenAVault,
         tokenBVault,
-        tokenAMint: f.kassMint.publicKey,
+        tokenAMint: f.baseMint.publicKey,
         tokenBMint: f.usdcMint.publicKey,
         payer: f.payer.publicKey,
         amountIn: amt,
@@ -250,11 +250,11 @@ export async function positionFlow(f: Fixture): Promise<MeteoraState> {
     await meteora.addLiquidity({
       pool: poolAddr,
       position: probePos,
-      tokenAAccount: payerKass,
+      tokenAAccount: payerBase,
       tokenBAccount: payerUsdc,
       tokenAVault,
       tokenBVault,
-      tokenAMint: f.kassMint.publicKey,
+      tokenAMint: f.baseMint.publicKey,
       tokenBMint: f.usdcMint.publicKey,
       positionNftAccount: probeNftAccount,
       signer: f.payer.publicKey,

@@ -7,7 +7,7 @@
  * Challenge phase with a surviving proposer's AI claim finalized — the exact state
  * the browser's client-side compose→open→swap→crank→settle→close flow acts on.
  *
- * The browser wallet is the CHALLENGER (funded with SOL + KASS + USDC at its
+ * The browser wallet is the CHALLENGER (funded with SOL + SOL + USDC at its
  * canonical ATAs); the challenged proposer is a separate seeded keypair. Writes
  * the funded keypair + the seeded market inputs to `e2e/fork/.wallet.json`.
  */
@@ -30,11 +30,11 @@ import { bootAndInit, createOracleReal, driveToChallengeSurviving, sendIx } from
 const PORT = 8940
 const WALLET_FILE = join(process.cwd(), 'e2e', 'fork', '.wallet.json')
 
-// KASS/USDC spot TWAP (raw USDC per raw KASS × 1e12). open_challenge sizes the
+// SOL/USDC spot TWAP (raw USDC per raw SOL × 1e12). open_challenge sizes the
 // escrow as `required_usdc = proposer.bond × twap / 1e12`; the seed's proposers
-// bond only 1_000 raw KASS, so the TWAP is set high enough that the escrow is a
+// bond only 1_000 raw SOL, so the TWAP is set high enough that the escrow is a
 // non-zero 500_000 raw USDC (else the tiny bond rounds it to 0 → ZeroStake).
-const KASS_PRICE_TWAP = 500_000_000_000_000n
+const SPOT_PRICE_TWAP = 500_000_000_000_000n
 async function globalSetup(): Promise<() => Promise<void>> {
   const ctx = await bootAndInit(PORT, {
     fork: 'mainnet',
@@ -44,24 +44,24 @@ async function globalSetup(): Promise<() => Promise<void>> {
   })
   const rpcUrl = `http://127.0.0.1:${PORT}`
 
-  // ── Governance: a futarchy-owned kass_dao + the REAL one-shot set_governance
+  // ── Governance: a futarchy-owned spot_dao + the REAL one-shot set_governance
   //    handoff (validates the Squads-vault linkage) — open_challenge's USDC escrow
-  //    sizing reads kass_price(kass_dao).
-  const kassDao = await Keypair.generate()
-  await ctx.harness.setAccount(kassDao.publicKey.toString(), {
+  //    sizing reads spot_price(spot_dao).
+  const spotDao = await Keypair.generate()
+  await ctx.harness.setAccount(spotDao.publicKey.toString(), {
     lamports: 5_000_000,
     owner: EXTERNAL_PROGRAM_IDS.futarchyV06.toString(),
     executable: false,
-    data: toHex(buildDaoBlob(KASS_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n)),
+    data: toHex(buildDaoBlob(SPOT_PRICE_TWAP * 1_000_000n, 1_000_000n, 0n)),
   })
-  const multisig = (await futarchy.pda.squadsMultisig(kassDao.publicKey.toString())).address
+  const multisig = (await futarchy.pda.squadsMultisig(spotDao.publicKey.toString())).address
   const daoAuthority = (await futarchy.pda.squadsVault(multisig.toString(), 0)).address
   await sendIx(
     ctx,
     await setGovernance({
       authority: ctx.payer.publicKey.toString(),
       daoAuthority: daoAuthority.toString(),
-      kassDao: kassDao.publicKey.toString(),
+      spotDao: spotDao.publicKey.toString(),
     }),
   )
 
@@ -74,11 +74,11 @@ async function globalSetup(): Promise<() => Promise<void>> {
   const challengedProposer = proposers[0].toString()
 
   // ── The funded browser wallet = the CHALLENGER. It composes + funds the whole
-  //    market, so it needs SOL + KASS (split base) + USDC (split quote + escrow).
+  //    market, so it needs SOL + SOL (split base) + USDC (split quote + escrow).
   const wallet = await Keypair.generate()
   await ctx.harness.airdrop(wallet.publicKey.toString(), 50_000_000_000)
   const walletKass = (
-    await associatedTokenAccount(wallet.publicKey.toString(), ctx.kassMint.publicKey.toString())
+    await associatedTokenAccount(wallet.publicKey.toString(), ctx.baseMint.publicKey.toString())
   ).address
   const walletUsdc = (
     await associatedTokenAccount(wallet.publicKey.toString(), ctx.usdcMint.publicKey.toString())
@@ -88,7 +88,7 @@ async function globalSetup(): Promise<() => Promise<void>> {
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
     data: toHex(
-      tokenAccountBytes(ctx.kassMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
+      tokenAccountBytes(ctx.baseMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
     ),
   })
   await ctx.harness.setAccount(walletUsdc.toString(), {
@@ -107,9 +107,9 @@ async function globalSetup(): Promise<() => Promise<void>> {
         secretKey: Array.from(wallet.secretKey as Uint8Array),
         publicKey: wallet.publicKey.toString(),
         rpcUrl,
-        kassMint: ctx.kassMint.publicKey.toString(),
+        baseMint: ctx.baseMint.publicKey.toString(),
         usdcMint: ctx.usdcMint.publicKey.toString(),
-        kassDao: kassDao.publicKey.toString(),
+        spotDao: spotDao.publicKey.toString(),
         oracle: oracle.toString(),
         nonce: nonce.toString(),
         proposer: challengedProposer,

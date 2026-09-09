@@ -35,7 +35,7 @@ import {
   fetchAccount,
   paramsFromProtocol,
   readI64,
-  readKassPrice,
+  readSpotPrice,
   ro,
   sendIx,
   w,
@@ -63,10 +63,10 @@ describe.skipIf(!ENABLED)("surfpool futarchy verdict → set_config via Squads o
     // Fabricate funded LP token accounts (the mint authority is Kassandra's, so
     // we materialise balances directly — same pattern as the T4 challenge test).
     const QUOTE_LIQ = 1_000_000_000n; // 1000 USDC (6dp) raw
-    const BASE_LIQ = 1_000_000_000n; // 1 KASS (9dp) raw → spot price = 1e12 (PRICE_SCALE)
+    const BASE_LIQ = 1_000_000_000n; // 1 SOL (9dp) raw → spot price = 1e12 (PRICE_SCALE)
     const lpQuote = await fabricateToken(f, f.usdcMint.publicKey, f.payer.publicKey, QUOTE_LIQ);
-    const lpBase = await fabricateToken(f, f.kassMint.publicKey, f.payer.publicKey, BASE_LIQ);
-    const ammBaseVault = await ata(f.dao, f.kassMint.publicKey);
+    const lpBase = await fabricateToken(f, f.baseMint.publicKey, f.payer.publicKey, BASE_LIQ);
+    const ammBaseVault = await ata(f.dao, f.baseMint.publicKey);
     const ammQuoteVault = await ata(f.dao, f.usdcMint.publicKey);
 
     await sendIx(
@@ -150,7 +150,7 @@ describe.skipIf(!ENABLED)("surfpool futarchy verdict → set_config via Squads o
     const question = (await futarchy.pda.question(questionId, futProposal, 2)).address;
     await sendIx(f, await futarchy.initializeQuestion({ questionId, oracle: futProposal, numOutcomes: 2, payer: f.payer.publicKey }), [], 400_000);
 
-    const baseV = await condVault(f, question, f.kassMint.publicKey);
+    const baseV = await condVault(f, question, f.baseMint.publicKey);
     const quoteV = await condVault(f, question, f.usdcMint.publicKey);
 
     // --- (4) initialize_proposal + launch_proposal --------------------------
@@ -329,8 +329,8 @@ describe.skipIf(!ENABLED)("surfpool futarchy verdict → set_config via Squads o
     expect(oracleAfter[161]).toBe(Phase.Resolved); // 7
     expect(oracleAfter[197]).toBe(DEADEND_OPTION); // resolved_option
 
-    // --- LIVE kass_price: read the futarchy spot TWAP from the REAL Dao ------
-    const twap = await readKassPrice(f, f.dao);
+    // --- LIVE spot_price: read the futarchy spot TWAP from the REAL Dao ------
+    const twap = await readSpotPrice(f, f.dao);
     expect(twap).toBeGreaterThan(0n);
   }, 300_000);
 });

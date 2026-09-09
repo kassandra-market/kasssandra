@@ -25,9 +25,9 @@ fn open_challenge_happy_path() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );
@@ -42,23 +42,23 @@ fn open_challenge_happy_path() {
     assert_eq!(market.proposer, f.proposer.to_bytes().into());
     assert_eq!(market.challenger, f.challenger.pubkey().to_bytes().into());
     assert_eq!(market.question, f.m.question.to_bytes().into());
-    assert_eq!(market.kass_vault, f.m.kass_vault.to_bytes().into());
+    assert_eq!(market.base_vault, f.m.base_vault.to_bytes().into());
     assert_eq!(market.usdc_vault, f.m.usdc_vault.to_bytes().into());
     assert_eq!(market.pass_amm, f.m.pass_amm.to_bytes().into());
     assert_eq!(market.fail_amm, f.m.fail_amm.to_bytes().into());
     assert_eq!(
-        market.oracle_pass_kass,
-        f.oracle_pass_kass.to_bytes().into()
+        market.oracle_pass_base,
+        f.oracle_pass_base.to_bytes().into()
     );
     assert_eq!(
-        market.oracle_fail_kass,
-        f.oracle_fail_kass.to_bytes().into()
+        market.oracle_fail_base,
+        f.oracle_fail_base.to_bytes().into()
     );
     assert_eq!(market.challenger_usdc_vault, escrow_vault.to_bytes().into());
     assert_eq!(market.twap_end, now_before + TWAP_WINDOW);
     assert_eq!(market.settled, 0);
 
-    // Escrow: exactly bond × kass_price USDC moved challenger → market vault.
+    // Escrow: exactly bond × spot_price USDC moved challenger → market vault.
     assert!(
         expected_usdc > 0,
         "sanity: nonzero escrow at the test price"
@@ -70,7 +70,7 @@ fn open_challenge_happy_path() {
     assert_eq!(
         ctx.token_balance(escrow_vault),
         expected_usdc,
-        "escrow vault holds exactly bond × kass_price USDC"
+        "escrow vault holds exactly bond × spot_price USDC"
     );
     assert_eq!(
         ctx.token_balance(f.challenger_usdc_src),
@@ -86,12 +86,12 @@ fn open_challenge_happy_path() {
     assert_eq!(ctx.ai_claim(f.ai_claim).challenged, 1);
 
     // Program-signed split moved exactly the bond out of the stake vault into
-    // the KASS conditional vault, minting pass/fail conditional KASS to the
+    // the SOL conditional vault, minting pass/fail conditional SOL to the
     // oracle-PDA-owned destinations.
     assert_eq!(ctx.token_balance(f.stake_vault), stake_before - f.bond);
-    assert_eq!(ctx.token_balance(f.m.kass_vault_underlying), f.bond);
-    assert_eq!(ctx.token_balance(f.oracle_pass_kass), f.bond);
-    assert_eq!(ctx.token_balance(f.oracle_fail_kass), f.bond);
+    assert_eq!(ctx.token_balance(f.m.base_vault_underlying), f.bond);
+    assert_eq!(ctx.token_balance(f.oracle_pass_base), f.bond);
+    assert_eq!(ctx.token_balance(f.oracle_fail_base), f.bond);
 }
 
 #[test]
@@ -114,9 +114,9 @@ fn open_challenge_insufficient_usdc_fails() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         poor_src,
         f.nonce,
     );
@@ -155,9 +155,9 @@ fn open_challenge_zero_escrow_fails() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );

@@ -116,8 +116,8 @@ pub enum KassandraError {
     /// claim must run LAST so the `Fact` it closes stays alive for every voter's
     /// disposition read. Retry after the voters have claimed.
     VotersOutstanding = 27,
-    /// `create_oracle` was about to mint `reward_emission` KASS (Task S3) but the
-    /// canonical `kass_mint`'s SPL mint authority is NOT the program's
+    /// `create_oracle` was about to mint `reward_emission` SOL (Task S3) but the
+    /// canonical `base_mint`'s SPL mint authority is NOT the program's
     /// mint-authority PDA (`[b"mint_authority"]`). Emission can only be trusted
     /// when the program PDA is the sole minter, so a mint whose authority was not
     /// handed to the PDA (or is `None`) is rejected here rather than silently
@@ -133,7 +133,7 @@ pub enum KassandraError {
     /// donation arrived); the SPL `CloseAccount` would reject it anyway, but we
     /// fail loudly here first.
     EscrowNotEmpty = 30,
-    /// `set_governance` (Task G1) was given a `kass_dao` account that is not a
+    /// `set_governance` (Task G1) was given a `spot_dao` account that is not a
     /// real futarchy `Dao`: it is not owned by the futarchy program
     /// (`metadao_v06::FUTARCHY_ID`) or its first 8 bytes are not the `Dao` Anchor
     /// account discriminator. The hardened handoff validates the linkage against
@@ -141,7 +141,7 @@ pub enum KassandraError {
     InvalidFutarchyDao = 31,
     /// `set_governance` (Task G1) was given a `dao_authority` payload that does
     /// NOT equal the Squads v4 multisig **vault** PDA derived for the passed
-    /// `kass_dao` (the multisig `create_key == kass_dao` → multisig → vault, vault
+    /// `spot_dao` (the multisig `create_key == spot_dao` → multisig → vault, vault
     /// index 0). The recorded `dao_authority` must be exactly that derived vault,
     /// so the gate on `set_config`/`resolve_deadend` can only be satisfied by the
     /// DAO's real Squads execution authority.
@@ -152,14 +152,14 @@ pub enum KassandraError {
     /// delayed a generous window so honest claimants have ample time to claim.
     SweepGraceNotElapsed = 33,
     /// `sweep_oracle` (Ix 22) was called while the `Protocol` has no DAO linkage
-    /// (`governance_set == 0`). The sweep routes the residual KASS to the DAO
-    /// treasury (the KASS ATA of `dao_authority`), which does not exist until
+    /// (`governance_set == 0`). The sweep routes the residual SOL to the DAO
+    /// treasury (the SOL ATA of `dao_authority`), which does not exist until
     /// `set_governance` records it — so an oracle cannot be swept until the DAO
     /// is set.
     GovernanceNotSet = 34,
     /// `sweep_oracle` (Ix 22) was given a `dao_treasury` account that is NOT the
-    /// canonical KASS associated-token-account of `Protocol.dao_authority`
-    /// (`ATA(dao_authority, kass_mint)`). The residual dust may only be routed to
+    /// canonical SOL associated-token-account of `Protocol.dao_authority`
+    /// (`ATA(dao_authority, base_mint)`). The residual dust may only be routed to
     /// the DAO's own treasury ATA, never an arbitrary account.
     InvalidTreasury = 35,
 

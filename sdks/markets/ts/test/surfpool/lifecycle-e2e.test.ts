@@ -4,24 +4,24 @@
  * and sent as a REAL RPC transaction (signed, blockhash, compute-budgeted,
  * confirmed) against the REAL deployed MetaDAO conditional-vault + AMM v0.4
  * programs (lazily fetched from the fork — no local fixtures). Input state
- * (KASS mint, ATAs, the Kassandra oracle) is `surfnet_setAccount`-fabricated; all
+ * (SOL mint, ATAs, the Kassandra oracle) is `surfnet_setAccount`-fabricated; all
  * OUTCOMES flow through the real forked programs.
  *
  * Mirrors `programs/markets/tests/collect_fee.rs` +
  * `sdks/oracles/ts/test/lifecycle-active.e2e.test.ts`:
- *   1. initConfig(min_liquidity = 1 KASS, fee_bps = 100, a fabricated KASS fee dest)
+ *   1. initConfig(min_liquidity = 1 SOL, fee_bps = 100, a fabricated SOL fee dest)
  *   2. seedOracle(Proposal) + createMarket(SEED_A) + contribute(SEED_B) → funded
  *   3. compose (question/vault/amm) → activate → Active, escrow drained, lpTotal>0
  *   4. a REAL swap on the fork grows the pool so the LP position accrues fees;
  *      split → a cYES-only winner + a cNO-only loser
  *   5. oracle resolves YES (option 0) → resolveMarket → Resolved, fee NOT collected
  *   6. claim_lp BEFORE collect_fee is rejected (the fee gate)
- *   7. **collect_fee** → the futarchy KASS fee_destination receives the accrued
+ *   7. **collect_fee** → the futarchy SOL fee_destination receives the accrued
  *      cut, market.feeCollected == 1, lpTotal reduced — proven against the REAL
  *      MetaDAO programs on the fork
  *   8. claim_lp for BOTH contributors pays pro-rata off the REDUCED lpTotal
- *   9. redeem → the cYES winner is paid 1:1 in KASS; the cNO loser gets 0
- * Conservation: escrow drained, total KASS out ≤ total KASS in.
+ *   9. redeem → the cYES winner is paid 1:1 in SOL; the cNO loser gets 0
+ * Conservation: escrow drained, total SOL out ≤ total SOL in.
  */
 import { Keypair } from "@solana/web3.js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -51,11 +51,11 @@ import { MarketSurfpoolHarness, splTransfer, surfpoolReady } from "./harness/ind
 const ENABLED = process.env.KASSANDRA_MARKET_E2E === "1" && surfpoolReady();
 const PORT = 18903;
 
-const MIN_LIQ = 1_000_000_000n; // 1 KASS (9 dp)
+const MIN_LIQ = 1_000_000_000n; // 1 SOL (9 dp)
 const SEED_A = 600_000_000n; // creator's stake
 const SEED_B = 400_000_000n; // second contributor's stake (A + B == MIN_LIQ)
-const SPLIT_AMT = 2_000_000_000n; // KASS each traded user splits for a position
-const SWAP_KASS = 3_000_000_000n; // KASS the swapper splits to grow the pool
+const SPLIT_AMT = 2_000_000_000n; // SOL each traded user splits for a position
+const SWAP_SOL = 3_000_000_000n; // SOL the swapper splits to grow the pool
 const SWAP_IN = 1_500_000_000n; // cYES sold into the pool to accrue swap fees
 const FEE_BPS = 100; // 1% protocol fee
 
@@ -105,16 +105,16 @@ describe.skipIf(!ENABLED)(
         await h.airdrop(kp.publicKey.toString());
       }
 
-      // ── Stage 1: initConfig (fee_bps = 100, a fabricated KASS fee dest) ────
+      // ── Stage 1: initConfig (fee_bps = 100, a fabricated SOL fee dest) ────
       // The payer must be the program's upgrade authority for init_config.
       await h.setUpgradeAuthority(payer.publicKey);
-      const kass = await h.createMint(9, payer.publicKey);
+      const base = await h.createMint(9, payer.publicKey);
       const authority = (await Keypair.generate()).publicKey;
-      const feeDestination = await h.createTokenAccount(kass, authority, 0n);
+      const feeDestination = await h.createTokenAccount(base, authority, 0n);
       await h.sendIx(payer, [
         await initConfig({
           payer: payer.publicKey,
-          kassMint: kass,
+          baseMint: base,
           authority,
           minLiquidity: MIN_LIQ,
           feeBps: FEE_BPS,
@@ -122,7 +122,7 @@ describe.skipIf(!ENABLED)(
         }),
       ]);
       const cfg = decodeConfig(await h.waitForAccount((await pda.config()).address));
-      expect(cfg.kassMint.toString()).toBe(kass.toString());
+      expect(cfg.baseMint.toString()).toBe(base.toString());
       expect(cfg.feeBps).toBe(FEE_BPS);
       expect(cfg.feeDestination.toString()).toBe(feeDestination.toString());
 
@@ -130,13 +130,13 @@ describe.skipIf(!ENABLED)(
       const oracle = await h.seedOracle({ optionsCount: 2, phase: Phase.Proposal });
       const market = (await pda.market(oracle, 0)).address;
 
-      const creatorKass = await h.fundTokenAccount(kass, creator.publicKey, 5_000_000_000n);
+      const creatorBase = await h.fundTokenAccount(base, creator.publicKey, 5_000_000_000n);
       await h.sendIx(creator, [
         await createMarket({
           creator: creator.publicKey,
           oracle,
-          kassMint: kass,
-          creatorKassAta: creatorKass,
+          baseMint: base,
+          creatorBaseAta: creatorBase,
           seedAmount: SEED_A,
           outcomeIndex: 0,
         }),
@@ -146,9 +146,9 @@ describe.skipIf(!ENABLED)(
       expect(m.feeBps).toBe(FEE_BPS);
       const escrow = m.escrowVault;
 
-      const c2Kass = await h.fundTokenAccount(kass, c2.publicKey, 5_000_000_000n);
+      const c2Base = await h.fundTokenAccount(base, c2.publicKey, 5_000_000_000n);
       await h.sendIx(c2, [
-        await contribute({ contributor: c2.publicKey, market, contributorKassAta: c2Kass, amount: SEED_B }),
+        await contribute({ contributor: c2.publicKey, market, contributorBaseAta: c2Base, amount: SEED_B }),
       ]);
       m = decodeMarket(await h.getAccountData(market).then((d) => d!));
       expect(m.totalContributed).toBe(MIN_LIQ);
@@ -158,7 +158,7 @@ describe.skipIf(!ENABLED)(
       const { instructions: composeIxs, refs } = await composeMarketInstructions({
         market,
         oracle,
-        kassMint: kass,
+        baseMint: base,
         payer: payer.publicKey,
       });
       await h.sendIx(payer, [composeIxs[0]], [], CU_COMPOSE); // initialize_question
@@ -175,7 +175,7 @@ describe.skipIf(!ENABLED)(
       const lpTotalAtActivation = m.lpTotal;
 
       // ── Stage 4a: a REAL swap on the fork grows the pool → accrue fees ─────
-      const swapKass = await h.fundTokenAccount(kass, swapper.publicKey, SWAP_KASS);
+      const swapKass = await h.fundTokenAccount(base, swapper.publicKey, SWAP_SOL);
       const swYes = await h.createTokenAccount(refs.yesMint, swapper.publicKey, 0n);
       const swNo = await h.createTokenAccount(refs.noMint, swapper.publicKey, 0n);
       await h.sendIx(
@@ -189,7 +189,7 @@ describe.skipIf(!ENABLED)(
             userUnderlyingAta: swapKass,
             conditionalMints: [refs.yesMint, refs.noMint],
             userConditionalAtas: [swYes, swNo],
-            amount: SWAP_KASS,
+            amount: SWAP_SOL,
           }),
         ],
         [],
@@ -215,7 +215,7 @@ describe.skipIf(!ENABLED)(
 
       // ── Stage 4b: split → a cYES-only winner and a cNO-only loser ──────────
       const setupSingleLeg = async (user: Keypair, drainYes: boolean) => {
-        const userKass = await h.fundTokenAccount(kass, user.publicKey, SPLIT_AMT);
+        const userBase = await h.fundTokenAccount(base, user.publicKey, SPLIT_AMT);
         const userYes = await h.createTokenAccount(refs.yesMint, user.publicKey, 0n);
         const userNo = await h.createTokenAccount(refs.noMint, user.publicKey, 0n);
         await h.sendIx(
@@ -226,7 +226,7 @@ describe.skipIf(!ENABLED)(
               vault: refs.vault,
               vaultUnderlyingAta: refs.vaultUnderlyingAta,
               authority: user.publicKey,
-              userUnderlyingAta: userKass,
+              userUnderlyingAta: userBase,
               conditionalMints: [refs.yesMint, refs.noMint],
               userConditionalAtas: [userYes, userNo],
               amount: SPLIT_AMT,
@@ -240,7 +240,7 @@ describe.skipIf(!ENABLED)(
         const sink = await h.createTokenAccount(drainMint, (await Keypair.generate()).publicKey, 0n);
         await h.sendIx(user, [splTransfer(drainFrom, sink, user.publicKey, SPLIT_AMT)]);
         expect(await h.tokenBalance(drainFrom)).toBe(0n);
-        return { userKass, userYes, userNo };
+        return { userBase, userYes, userNo };
       };
 
       const win = await setupSingleLeg(winner, /* drainYes */ false); // holds only cYES
@@ -277,7 +277,7 @@ describe.skipIf(!ENABLED)(
       ).rejects.toThrow();
       expect(await h.tokenBalance(earlyLp)).toBe(0n); // nothing moved
 
-      // ── Stage 7: collect_fee → the futarchy receives the accrued KASS cut ──
+      // ── Stage 7: collect_fee → the futarchy receives the accrued SOL cut ──
       const feeBefore = await h.tokenBalance(feeDestination);
       expect(feeBefore).toBe(0n);
       await h.sendIx(payer, [await collectFeeInstruction({ refs, feeDestination })], [], CU_COLLECT);
@@ -318,28 +318,28 @@ describe.skipIf(!ENABLED)(
       const { instructions: winRedeem } = await redeemInstructions({
         refs,
         user: winner.publicKey,
-        userKassAta: win.userKass,
+        userBaseAta: win.userBase,
         userYesAta: win.userYes,
         userNoAta: win.userNo,
       });
       await h.sendIx(winner, winRedeem, [], CU_INTERACT);
-      const winnerOut = await h.tokenBalance(win.userKass);
+      const winnerOut = await h.tokenBalance(win.userBase);
       expect(winnerOut).toBe(SPLIT_AMT); // winning cYES pays 1:1, drained cNO pays 0
 
       const { instructions: loseRedeem } = await redeemInstructions({
         refs,
         user: loser.publicKey,
-        userKassAta: lose.userKass,
+        userBaseAta: lose.userBase,
         userYesAta: lose.userYes,
         userNoAta: lose.userNo,
       });
       await h.sendIx(loser, loseRedeem, [], CU_INTERACT);
-      const loserOut = await h.tokenBalance(lose.userKass);
+      const loserOut = await h.tokenBalance(lose.userBase);
       expect(loserOut).toBe(0n); // losing cNO pays 0
 
       // ── Stage 10: conservation ─────────────────────────────────────────────
       expect(await h.tokenBalance(escrow)).toBe(0n);
-      const totalIn = MIN_LIQ + SWAP_KASS + SPLIT_AMT + SPLIT_AMT; // crowdfunded + swap + both splits
+      const totalIn = MIN_LIQ + SWAP_SOL + SPLIT_AMT + SPLIT_AMT; // crowdfunded + swap + both splits
       expect(winnerOut + loserOut + feeKass).toBeLessThanOrEqual(totalIn);
       expect(winnerOut).toBe(SPLIT_AMT); // traded-portion round trip is exact
 

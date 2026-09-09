@@ -1,6 +1,6 @@
 //! `collect_fee` (Ix 9): permissionless crank that cuts the protocol's `fee_bps`
 //! share of a resolved market's **accrued** LP earnings and routes it, denominated
-//! in KASS, to the futarchy-governed `Config.fee_destination`.
+//! in SOL, to the futarchy-governed `Config.fee_destination`.
 //!
 //! # Why a separate crank (not part of `resolve_market`)
 //! Keeps resolve lean and isolates the heavy program-signed CPIs
@@ -17,7 +17,7 @@
 //! 1. `(num0, num1, denom)` = the resolved payout numerators / denominator.
 //! 2. `(base, quote)` = the pool's cYES / cNO reserves.
 //! 3. `supply` = the AMM LP-mint total supply.
-//! 4. `pool_value = (base·num0 + quote·num1) / denom`  (full-pool KASS value).
+//! 4. `pool_value = (base·num0 + quote·num1) / denom`  (full-pool SOL value).
 //! 5. `realized_full = lp_total · pool_value / supply`  (this market's LP value).
 //! 6. `accrued = realized_full.saturating_sub(total_contributed)`  (0 ⇒ no fee;
 //!    impermanent-loss / no-profit case → just set the flag and return).
@@ -28,8 +28,8 @@
 //! 9. `remove_liquidity(fee_lp, 0, 0)` burns `fee_lp` LP out of `lp_vault`,
 //!    returning pro-rata cYES/cNO into the market-PDA-owned `market_cyes`/`_cno`.
 //! 10. `redeem_tokens()` against the resolved Question burns those cYES/cNO and
-//!     pays the resolved KASS into `escrow_vault` (empty since `activate`).
-//! 11. SPL `transfer` the redeemed KASS `escrow_vault → fee_destination`.
+//!     pays the resolved SOL into `escrow_vault` (empty since `activate`).
+//! 11. SPL `transfer` the redeemed SOL `escrow_vault → fee_destination`.
 //! 12. `lp_total -= fee_lp`; `fee_collected = 1`. Market written once.
 //!
 //! # Instruction payload (after the 1-byte discriminant)
@@ -37,11 +37,11 @@
 //!
 //! # Accounts
 //!  0. market                (w)  — Resolved/Void, `fee_collected == 0`; the CPI signer
-//!  1. config                (ro) — the Config PDA (source of `fee_destination` + `kass_mint`)
-//!  2. fee_destination       (w)  — `config.fee_destination`; KASS token account
+//!  1. config                (ro) — the Config PDA (source of `fee_destination` + `base_mint`)
+//!  2. fee_destination       (w)  — `config.fee_destination`; SOL token account
 //!  3. question              (ro) — `market.question`; resolved binary Question
-//!  4. vault                 (w)  — `market.vault`; KASS conditional vault
-//!  5. vault_underlying_ata  (w)  — the vault's KASS ATA
+//!  4. vault                 (w)  — `market.vault`; SOL conditional vault
+//!  5. vault_underlying_ata  (w)  — the vault's SOL ATA
 //!  6. escrow_vault          (w)  — `market.escrow_vault`; redeem dest + transfer source
 //!  7. yes_mint              (w)  — `market.yes_mint` (cYES)
 //!  8. no_mint               (w)  — `market.no_mint` (cNO)
@@ -122,8 +122,8 @@ pub fn process(
     assert_key(config_ai, &config_pda)?;
     let config = load_config(config_ai, program_id)?;
     assert_key(fee_dest_ai, &config.fee_destination)?;
-    // The destination must be a live SPL token account on the KASS mint.
-    if read_token_mint(fee_dest_ai)? != config.kass_mint {
+    // The destination must be a live SPL token account on the SOL mint.
+    if read_token_mint(fee_dest_ai)? != config.base_mint {
         return Err(MarketError::WrongMint.into());
     }
 
@@ -149,12 +149,12 @@ pub fn process(
     assert_key(market_cyes_ai, &expect_cyes)?;
     assert_key(market_cno_ai, &expect_cno)?;
 
-    // The vault's underlying (KASS) ATA + mint binding.
+    // The vault's underlying (SOL) ATA + mint binding.
     {
         let d = vault_ai.try_borrow()?;
         let v_underlying = metadao::read_pubkey(&d, metadao::VAULT_UNDERLYING_MINT_OFFSET)?;
         let v_underlying_acct = metadao::read_pubkey(&d, metadao::VAULT_UNDERLYING_ACCOUNT_OFFSET)?;
-        if v_underlying != market.kass_mint || &v_underlying_acct != vault_underlying_ai.address() {
+        if v_underlying != market.base_mint || &v_underlying_acct != vault_underlying_ai.address() {
             return Err(MarketError::InvalidAccount.into());
         }
     }
@@ -204,7 +204,7 @@ pub fn process(
     let total_contributed = market.total_contributed as u128;
     let fee_bps = market.fee_bps as u128;
 
-    // Full-pool KASS value at resolution, then this market's LP share of it.
+    // Full-pool SOL value at resolution, then this market's LP share of it.
     let pool_value = base
         .checked_mul(num0)
         .and_then(|x| x.checked_add(quote.checked_mul(num1)?))
@@ -212,8 +212,8 @@ pub fn process(
         / denom;
     // `lp_total · pool_value` is the only multiplication that can grow large: the
     // intermediate is on the order of `total_contributed²` (both factors are bounded
-    // by the KASS the market split in), so it only nears `u128::MAX` (~3.4e38) when
-    // `total_contributed` approaches ~u64::MAX (~1.8e19 base units ≈ 18B KASS at
+    // by the SOL the market split in), so it only nears `u128::MAX` (~3.4e38) when
+    // `total_contributed` approaches ~u64::MAX (~1.8e19 base units ≈ 18B SOL at
     // 9 dp) — astronomically beyond any real market. Should it ever overflow,
     // collect_fee reverts; because claim_lp gates on `fee_collected`, that would
     // brick LP withdrawal — an acknowledged, unreachable bound (no mul_div needed).
@@ -281,7 +281,7 @@ pub fn process(
         &[Signer::from(&market_seeds)],
     )?;
 
-    // --- (10) program-signed redeem_tokens: cYES/cNO → KASS into escrow -----
+    // --- (10) program-signed redeem_tokens: cYES/cNO → SOL into escrow -----
     // Mirrors `activate`'s split_tokens InteractWithVault order (redeem shares it);
     // authority = market PDA, user_underlying = escrow_vault (empty pre-redeem).
     let redeem_data = metadao::redeem_tokens_data();
@@ -320,22 +320,22 @@ pub fn process(
         &[Signer::from(&market_seeds)],
     )?;
 
-    // --- (11) program-signed transfer: redeemed KASS escrow → fee_destination
+    // --- (11) program-signed transfer: redeemed SOL escrow → fee_destination
     // Escrow was drained to empty at `activate` (split consumed it in full) and
     // nothing refills it over the market's life, so its post-redeem balance is the
-    // redeemed fee slice PLUS any residual dust — e.g. KASS a griefer donated into
+    // redeemed fee slice PLUS any residual dust — e.g. SOL a griefer donated into
     // `escrow_vault`, or rounding dust the redeem paid out. Sweeping all of it to
     // `fee_destination` is harmless: a donor only forfeits their own funds to the
     // protocol, and LP holders are unaffected (their claim is off `lp_total`, which
     // this ix reduces by exactly `fee_lp`). Mirrors `activate`'s drain-to-empty
     // residual convention. `redeem_tokens` likewise burns the FULL cyes/cno holder
     // balances, which are `remove_liquidity`'s proceeds plus any donated dust there.
-    let fee_kass = {
+    let fee_base = {
         let d = escrow_ai.try_borrow()?;
         metadao::read_u64(&d, SPL_TOKEN_AMOUNT_OFFSET)?
     };
-    if fee_kass > 0 {
-        Transfer::new(escrow_ai, fee_dest_ai, market_ai, fee_kass)
+    if fee_base > 0 {
+        Transfer::new(escrow_ai, fee_dest_ai, market_ai, fee_base)
             .invoke_signed(&[Signer::from(&market_seeds)])?;
     }
 

@@ -28,24 +28,24 @@ fn collect_fee_happy_cuts_accrued_and_then_claim_pays_reduced() {
     );
 
     // Recompute the expected fee from the on-chain state, then run the crank.
-    let (fee_lp, expected_kass) = expected_fee(&a, 100);
+    let (fee_lp, expected_base) = expected_fee(&a, 100);
     assert!(
         fee_lp > 0,
         "a real swap accrued a real fee: fee_lp {fee_lp}"
     );
-    assert!(expected_kass > 0, "expected fee KASS > 0");
+    assert!(expected_base > 0, "expected fee SOL > 0");
     let lp_total_before = a.ctx.read_pod::<Market>(a.market).lp_total;
 
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert!(res.is_ok(), "collect_fee: {res:?}");
 
-    // fee_destination received ≈ the analytically-expected KASS (delivered ≤ the
+    // fee_destination received ≈ the analytically-expected SOL (delivered ≤ the
     // idealized value due to floor rounding; within a few base units of it).
     let got = a.ctx.token_balance(a.fee_dest) as i128;
     assert!(got > 0, "fee destination funded");
     assert!(
-        (got - expected_kass as i128).abs() <= 4,
-        "delivered {got} ≈ expected {expected_kass}"
+        (got - expected_base as i128).abs() <= 4,
+        "delivered {got} ≈ expected {expected_base}"
     );
 
     // lp_total reduced by EXACTLY fee_lp; flag stamped.
@@ -59,7 +59,7 @@ fn collect_fee_happy_cuts_accrued_and_then_claim_pays_reduced() {
     let lp_total_after = m.lp_total;
 
     // Second collect_fee is idempotent-rejected.
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert_eq!(custom_code(&res), Some(MarketError::AlreadySettled as u32));
 
     // claim_lp now pays pro-rata off the REDUCED lp_total. Single contributor
@@ -87,7 +87,7 @@ fn collect_fee_happy_cuts_accrued_and_then_claim_pays_reduced() {
 fn collect_fee_rejects_before_resolution() {
     // An Active (not yet resolved) market cannot be collected — status guard.
     let mut a = setup_active(100);
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert_eq!(custom_code(&res), Some(MarketError::NotActive as u32));
 }
 
@@ -106,7 +106,7 @@ fn collect_fee_rejects_fee_free_market() {
         "fee-free market stamped at resolve"
     );
 
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert_eq!(custom_code(&res), Some(MarketError::AlreadySettled as u32));
     assert_eq!(a.ctx.token_balance(a.fee_dest), 0, "no fee taken");
 
@@ -133,12 +133,12 @@ fn collect_fee_no_accrual_takes_nothing_but_stamps_flag() {
     assert_eq!(fee_lp, 0, "no accrual → fee_lp == 0");
     let lp_total_before = a.ctx.read_pod::<Market>(a.market).lp_total;
 
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert!(res.is_ok(), "collect_fee (no-op): {res:?}");
     let m: Market = a.ctx.read_pod(a.market);
     assert_eq!(m.fee_collected, 1, "flag stamped");
     assert_eq!(m.lp_total, lp_total_before, "lp_total unchanged (no fee)");
-    assert_eq!(a.ctx.token_balance(a.fee_dest), 0, "no KASS moved");
+    assert_eq!(a.ctx.token_balance(a.fee_dest), 0, "no SOL moved");
 
     let claim_ata = a
         .ctx
@@ -170,18 +170,18 @@ fn collect_fee_void_path() {
         "void denominator == 2"
     );
 
-    let (fee_lp, expected_kass) = expected_fee(&a, 100);
+    let (fee_lp, expected_base) = expected_fee(&a, 100);
     assert!(fee_lp > 0, "void fee_lp > 0 after swap: {fee_lp}");
     let lp_total_before = m.lp_total;
 
-    let res = a.ctx.collect_fee(a.oracle, a.kass, a.fee_dest);
+    let res = a.ctx.collect_fee(a.oracle, a.base, a.fee_dest);
     assert!(res.is_ok(), "collect_fee void: {res:?}");
 
     let got = a.ctx.token_balance(a.fee_dest) as i128;
     assert!(got > 0, "void fee destination funded");
     assert!(
-        (got - expected_kass as i128).abs() <= 4,
-        "delivered {got} ≈ expected {expected_kass}"
+        (got - expected_base as i128).abs() <= 4,
+        "delivered {got} ≈ expected {expected_base}"
     );
     let m: Market = a.ctx.read_pod(a.market);
     assert_eq!(

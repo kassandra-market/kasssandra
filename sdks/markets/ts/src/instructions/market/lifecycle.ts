@@ -42,9 +42,9 @@ export interface ActivateArgs {
   payer: AddressInput;
   /** MetaDAO Question (oracle-authority == market). */
   question: AddressInput;
-  /** KASS conditional vault. */
+  /** SOL conditional vault. */
   vault: AddressInput;
-  /** The vault's KASS ATA (split destination for the underlying). */
+  /** The vault's SOL ATA (split destination for the underlying). */
   vaultUnderlyingAta: AddressInput;
   /** cYES conditional mint (idx 0). */
   yesMint: AddressInput;
@@ -204,13 +204,13 @@ export async function resolveMarket(args: ResolveMarketArgs): Promise<Transactio
 export interface CollectFeeArgs {
   /** The Resolved/Void market being collected (also the CPI signer via seeds). */
   market: AddressInput;
-  /** `config.fee_destination`: the KASS token account the fee routes to. */
+  /** `config.fee_destination`: the SOL token account the fee routes to. */
   feeDestination: AddressInput;
   /** The market's MetaDAO Question (resolved). */
   question: AddressInput;
-  /** KASS conditional vault. */
+  /** SOL conditional vault. */
   vault: AddressInput;
-  /** The vault's KASS ATA (redeem destination for the underlying). */
+  /** The vault's SOL ATA (redeem destination for the underlying). */
   vaultUnderlyingAta: AddressInput;
   /** cYES conditional mint (idx 0). */
   yesMint: AddressInput;
@@ -317,7 +317,7 @@ export async function closeMarket(args: CloseMarketArgs): Promise<TransactionIns
 }
 
 // ---------------------------------------------------------------------------
-// AddLiquidity (Ix 11) — deposit KASS into an Active market's live cYES/cNO AMM,
+// AddLiquidity (Ix 11) — deposit SOL into an Active market's live cYES/cNO AMM,
 // minting pooled LP into the Market-PDA-owned lp_vault (claimable pro-rata by the
 // gross-LP basis). Program-signed split + add_liquidity mirror activate; the
 // ratio-limited remainder is returned to the depositor's cYES/cNO ATA.
@@ -328,7 +328,7 @@ export async function closeMarket(args: CloseMarketArgs): Promise<TransactionIns
 //
 // Account order MUST match `sdks/markets/rust/src/ix/add_liquidity.rs` /
 // `processor::add_liquidity`:
-//  0 market(w) 1 oracle(ro) 2 depositor(signer,w) 3 depositor_kass_ata(w)
+//  0 market(w) 1 oracle(ro) 2 depositor(signer,w) 3 depositor_base_ata(w)
 //  4 escrow(w,PDA) 5 question(ro) 6 vault(w) 7 vault_underlying_ata(w)
 //  8 yes_mint(w) 9 no_mint(w) 10 market_cyes(w,PDA) 11 market_cno(w,PDA)
 // 12 depositor_cyes_ata(w) 13 depositor_cno_ata(w) 14 amm(w) 15 lp_mint(w)
@@ -341,15 +341,15 @@ export interface AddLiquidityArgs {
   market: AddressInput;
   /** The market's Kassandra oracle (must be non-terminal). */
   oracle: AddressInput;
-  /** Depositor (signer): KASS source authority + Contribution rent. */
+  /** Depositor (signer): SOL source authority + Contribution rent. */
   depositor: AddressInput;
-  /** Canonical KASS mint (for the depositor's KASS ATA — the split-funding source). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (for the depositor's SOL ATA — the split-funding source). */
+  baseMint: AddressInput;
   /** MetaDAO Question. */
   question: AddressInput;
-  /** KASS conditional vault. */
+  /** SOL conditional vault. */
   vault: AddressInput;
-  /** The vault's KASS ATA (split destination for the underlying). */
+  /** The vault's SOL ATA (split destination for the underlying). */
   vaultUnderlyingAta: AddressInput;
   /** cYES conditional mint (idx 0). */
   yesMint: AddressInput;
@@ -367,7 +367,7 @@ export interface AddLiquidityArgs {
   cvEventAuthority: AddressInput;
   /** AMM program event authority. */
   ammEventAuthority: AddressInput;
-  /** KASS to deposit (raw base units, > 0). */
+  /** SOL to deposit (raw base units, > 0). */
   amount: bigint | number;
   /** cNO deposited in full; base (cYES) is ratio-derived and capped at `maxBaseAmount`. */
   quoteAmount: bigint | number;
@@ -393,7 +393,7 @@ export async function addLiquidity(args: AddLiquidityArgs): Promise<TransactionI
   const cno = await pda.cno(args.market, programId);
   const lpVault = await pda.lpVault(args.market, programId);
   const contribution = await pda.contribution(args.market, args.depositor, programId);
-  const depositorKassAta = await md.pda.ata(args.depositor, args.kassMint);
+  const depositorBaseAta = await md.pda.ata(args.depositor, args.baseMint);
   const depositorCyesAta = await md.pda.ata(args.depositor, args.yesMint);
   const depositorCnoAta = await md.pda.ata(args.depositor, args.noMint);
   return new TransactionInstruction({
@@ -402,7 +402,7 @@ export async function addLiquidity(args: AddLiquidityArgs): Promise<TransactionI
       w(addr(args.market)),
       ro(addr(args.oracle)),
       w(addr(args.depositor), true),
-      w(depositorKassAta),
+      w(depositorBaseAta),
       w(escrow.address),
       ro(addr(args.question)),
       w(addr(args.vault)),

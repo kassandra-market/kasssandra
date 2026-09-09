@@ -5,7 +5,7 @@ use kassandra_oracles_program::error::KassandraError;
 use solana_instruction_error::InstructionError;
 use solana_transaction_error::TransactionError;
 
-/// Regression: an AMM that can't bind to this market's conditional (KASS, USDC)
+/// Regression: an AMM that can't bind to this market's conditional (SOL, USDC)
 /// mint pair must be REJECTED at open — never recorded on the Market. Recording
 /// an unbindable AMM would make `settle_challenge` (which pins to the recorded
 /// address) revert forever: `open_challenge_count` would stay > 0, blocking
@@ -28,9 +28,9 @@ fn open_challenge_unbindable_amm_rejected() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );
@@ -56,7 +56,7 @@ fn open_challenge_unbindable_amm_rejected() {
 
 /// Regression: `pass_amm == fail_amm` must be rejected at open — a challenger
 /// cannot collapse the two outcome pools into one it steers. A single pool
-/// cannot bind to both outcomes' (KASS, USDC) mint pairs, and the explicit
+/// cannot bind to both outcomes' (SOL, USDC) mint pairs, and the explicit
 /// `pass_amm != fail_amm` guard backs it up. (Previously only `settle` caught
 /// this — too late, after the Market was already recorded.)
 #[test]
@@ -73,9 +73,9 @@ fn open_challenge_aliased_amms_rejected() {
         f.challenger.pubkey(),
         &f.m,
         f.stake_vault,
-        f.oracle_pass_kass,
-        f.oracle_fail_kass,
-        f.kass_dao,
+        f.oracle_pass_base,
+        f.oracle_fail_base,
+        f.spot_dao,
         f.challenger_usdc_src,
         f.nonce,
     );

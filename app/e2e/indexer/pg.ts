@@ -59,7 +59,7 @@ export async function startEphemeralPg(port?: number): Promise<EphemeralPg> {
   const bin = pgBinDir()
   // Default to a fresh OS-assigned port so a leftover cluster can't be reused.
   const pgPort = port ?? (await freePort())
-  const dataDir = mkdtempSync(join(tmpdir(), 'kass-idx-pg-'))
+  const dataDir = mkdtempSync(join(tmpdir(), 'base-idx-pg-'))
   const run = (cmd: string, args: string[]) => {
     const r = spawnSync(join(bin, cmd), args, { encoding: 'utf8' })
     if (r.status !== 0) throw new Error(`${cmd} failed: ${r.stderr || r.stdout}`)

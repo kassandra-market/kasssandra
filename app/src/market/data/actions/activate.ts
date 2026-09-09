@@ -62,8 +62,8 @@ export interface BuildActivateArgs {
   market: AddressInput;
   /** The Kassandra oracle the market resolves against (== `market.oracle`). */
   oracle: AddressInput;
-  /** Canonical KASS mint (== `market.kassMint`). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (== `market.baseMint`). */
+  baseMint: AddressInput;
   /** Rent payer + signer for every step (the connected keeper wallet). */
   payer: AddressInput;
 }
@@ -84,13 +84,13 @@ export const ACTIVATE_COMPUTE_UNITS = 1_400_000;
 export async function buildActivateSequence(args: BuildActivateArgs): Promise<ActivateStep[]> {
   const market = toAddress("Market", args.market);
   const oracle = toAddress("Oracle", args.oracle);
-  const kassMint = toAddress("KASS mint", args.kassMint);
+  const baseMint = toAddress("SOL mint", args.baseMint);
   const payer = toAddress("Payer", args.payer);
 
   const { instructions, refs } = await flows.composeMarketInstructions({
     market,
     oracle,
-    kassMint,
+    baseMint,
     payer,
   });
   const activateIx = await flows.activateInstruction({ refs, payer });

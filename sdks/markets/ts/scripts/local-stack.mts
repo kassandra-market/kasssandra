@@ -8,7 +8,7 @@
  *     amm programs deployed from the in-repo `.so` fixtures, plus the program's
  *     BPF-Upgradeable-Loader `ProgramData` (so `init_config` accepts the dev wallet).
  *   • the `kassandra-market-indexer` binary, pointed at surfpool, on :10000.
- *   • demo data: a KASS mint + funded dev wallet, the `Config` singleton, and a few
+ *   • demo data: a SOL mint + funded dev wallet, the `Config` singleton, and a few
  *     markets (a Funding one, an activatable one, and a categorical group).
  *
  * Run: `make local-node` (or `pnpm --filter @kassandra-market/markets local:stack`).
@@ -41,7 +41,7 @@ const RPC_PORT = Number(process.env.SURFPOOL_PORT ?? 8899)
 const INDEXER_PORT = Number(process.env.INDEXER_PORT ?? 10_000)
 const RECONCILE_MS = 500 // surfpool has no programSubscribe → GPA-reconcile tail
 
-const MIN_LIQ = 1_000_000_000n // 1 KASS floor (9 dp)
+const MIN_LIQ = 1_000_000_000n // 1 SOL floor (9 dp)
 const BELOW_FLOOR = 600_000_000n // stays Funding
 const WALLET_KASS = 10n ** 15n
 
@@ -121,19 +121,19 @@ async function main(): Promise<void> {
   async function seedAndBlock(): Promise<void> {
   await waitForHealth()
 
-  // ── seed demo data (a KASS mint, funded dev wallet, Config, demo markets) ──
+  // ── seed demo data (a SOL mint, funded dev wallet, Config, demo markets) ──
   console.log('[local-stack] seeding config + demo markets…')
   const wallet = await Keypair.generate()
   await harness.airdrop(wallet.publicKey.toString(), 50_000_000_000)
   await harness.setUpgradeAuthority(wallet.publicKey) // wallet pays init_config
 
-  const kassMint = await harness.createMint(9, wallet.publicKey)
-  await harness.fundTokenAccount(kassMint, wallet.publicKey, WALLET_KASS)
-  const feeDestination = await harness.createTokenAccount(kassMint, wallet.publicKey, 0n)
+  const baseMint = await harness.createMint(9, wallet.publicKey)
+  await harness.fundTokenAccount(baseMint, wallet.publicKey, WALLET_KASS)
+  const feeDestination = await harness.createTokenAccount(baseMint, wallet.publicKey, 0n)
   await harness.sendIx(wallet, [
     await initConfig({
       payer: wallet.publicKey,
-      kassMint,
+      baseMint,
       authority: wallet.publicKey,
       minLiquidity: MIN_LIQ,
       feeBps: 100,
@@ -141,10 +141,10 @@ async function main(): Promise<void> {
     }),
   ])
 
-  const walletKassAta = (await pda.associatedTokenAccount(wallet.publicKey, kassMint)).address
+  const walletKassAta = (await pda.associatedTokenAccount(wallet.publicKey, baseMint)).address
   const seedMarket = async (oracle: Awaited<ReturnType<typeof harness.seedOracle>>, outcomeIndex: number, amount: bigint) => {
     await harness.sendIx(wallet, [
-      await createMarket({ creator: wallet.publicKey, oracle, kassMint, creatorKassAta: walletKassAta, seedAmount: amount, outcomeIndex }),
+      await createMarket({ creator: wallet.publicKey, oracle, baseMint, creatorBaseAta: walletKassAta, seedAmount: amount, outcomeIndex }),
     ])
     return (await pda.market(oracle, outcomeIndex)).address.toString()
   }
@@ -165,7 +165,7 @@ async function main(): Promise<void> {
         secretKey: Array.from(wallet.secretKey as Uint8Array),
         publicKey: wallet.publicKey.toString(),
         rpcUrl: harness.rpcUrl,
-        kassMint: kassMint.toString(),
+        baseMint: baseMint.toString(),
         fundingMarket,
         activatableMarket,
         categoricalOracle: categoricalOracle.toString(),

@@ -8,7 +8,7 @@ import { WriteStatusRegion } from "./WriteStatusRegion";
 
 /**
  * Permissionless per-contributor refund from a Cancelled market — returns the
- * connected wallet's stake to its KASS ATA (created idempotently if absent). The
+ * connected wallet's stake to its SOL ATA (created idempotently if absent). The
  * program is the guard for "did this wallet actually contribute"; the form just
  * builds the ix for the connected authority.
  */
@@ -29,7 +29,7 @@ export function RefundControl({
       buildRefundIxs({
         indexer: action.indexer,
         market: pubkey,
-        kassMint: market.kassMint,
+        baseMint: market.baseMint,
         contributor: action.address!,
       }),
     );
@@ -40,7 +40,7 @@ export function RefundControl({
       <div>
         <h3 className="font-serif text-subheading font-light text-platinum">Refund contribution</h3>
         <p className="mt-1 font-inter text-[13px] text-silver">
-          This market was cancelled. Reclaim your staked KASS.
+          This market was cancelled. Reclaim your staked SOL.
         </p>
       </div>
       <ConnectGate connected={action.connected}>

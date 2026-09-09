@@ -1,11 +1,11 @@
-//! `create_market`: stand up a binary [`Market`] for a Kassandra oracle, its KASS
+//! `create_market`: stand up a binary [`Market`] for a Kassandra oracle, its SOL
 //! escrow token account, and the creator's [`Contribution`], transferring the
-//! creator's `seed_amount` KASS into escrow.
+//! creator's `seed_amount` SOL into escrow.
 //!
 //! # PDA seeds (CONTRACT)
 //! * Market:  `[b"market", oracle, [outcome_index]]`, program = [`crate::ID`] (one
 //!   sub-market per outcome per oracle).
-//! * Escrow:  `[b"escrow", market]`, an SPL token account on KASS whose token
+//! * Escrow:  `[b"escrow", market]`, an SPL token account on SOL whose token
 //!   authority is the market PDA.
 //! * Contribution: `[b"contribution", market, creator]`.
 //!
@@ -13,15 +13,15 @@
 //! `seed_amount: u64 LE` ++ `outcome_index: u8`.
 //!
 //! # Accounts
-//! 0. config          — WRITABLE; pins the canonical KASS mint + `min_liquidity`
+//! 0. config          — WRITABLE; pins the canonical SOL mint + `min_liquidity`
 //!    base/curve, and is updated with the bumped market-creation-activity EMA
 //!    (see `crate::liquidity_floor`)
 //! 1. oracle          — read-only Kassandra oracle (owned by the Kassandra program)
 //! 2. market PDA      — writable, uninitialized (created here)
 //! 3. escrow PDA      — writable, uninitialized (created + initialized here)
-//! 4. kass_mint       — read-only; must equal `config.kass_mint`
+//! 4. base_mint       — read-only; must equal `config.base_mint`
 //! 5. creator         — signer, writable; pays rent, seeds the market
-//! 6. creator_kass_ata — writable; KASS source, authority == creator
+//! 6. creator_base_ata — writable; SOL source, authority == creator
 //! 7. contribution PDA — writable, uninitialized (created here)
 //! 8. token program
 //! 9. system program
@@ -60,7 +60,7 @@ pub fn process(
     let seed_amount = u64::from_le_bytes(payload[0..8].try_into().unwrap());
     let outcome_index = payload[8];
 
-    let [config_ai, oracle_ai, market_ai, escrow_ai, kass_mint_ai, creator_ai, creator_ata_ai, contribution_ai, token_prog_ai, system_prog_ai, ..] =
+    let [config_ai, oracle_ai, market_ai, escrow_ai, base_mint_ai, creator_ai, creator_ata_ai, contribution_ai, token_prog_ai, system_prog_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -71,7 +71,7 @@ pub fn process(
     assert_key(system_prog_ai, &pinocchio_system::ID)?;
 
     let config = load_config(config_ai, program_id)?;
-    if kass_mint_ai.address() != &config.kass_mint {
+    if base_mint_ai.address() != &config.base_mint {
         return Err(MarketError::WrongMint.into());
     }
     // Early guard: the AUTHORITATIVE zero-amount invariant lives in
@@ -161,7 +161,7 @@ pub fn process(
     create_or_adopt_token_account(
         creator_ai,
         escrow_ai,
-        kass_mint_ai,
+        base_mint_ai,
         market_ai.address(),
         &escrow_seeds,
         vault_rent,
@@ -185,7 +185,7 @@ pub fn process(
     market.account_type = AccountType::Market.as_u8();
     market.oracle = *oracle_ai.address();
     market.creator = *creator_ai.address();
-    market.kass_mint = config.kass_mint;
+    market.base_mint = config.base_mint;
     market.escrow_vault = *escrow_ai.address();
     market.min_liquidity = min_liquidity_floor; // activity-scaled snapshot, immune to later demand changes
     market.fee_bps = config.fee_bps; // snapshot governance fee, immune to later changes

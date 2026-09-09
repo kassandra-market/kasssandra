@@ -3,7 +3,7 @@ title: "Challenging an AI claim"
 description: "The challenge UI end to end — compose + open in one action, trade the pass/fail pools, and settle in one click."
 ---
 
-When you disagree with a submitted AI claim, you open a **challenge market** — a MetaDAO v0.4 binary decision market on the proposer's KASS bond. The dApp drives the entire flow from the challenge-market section of the oracle detail page (`app/src/components/oracles/actions/ChallengeControl.tsx` and `ChallengeTradeControls.tsx`), with **no runner JSON and no JSON paste anywhere** in the challenge UI.
+When you disagree with a submitted AI claim, you open a **challenge market** — a MetaDAO v0.4 binary decision market on the proposer's SOL bond. The dApp drives the entire flow from the challenge-market section of the oracle detail page (`app/src/components/oracles/actions/ChallengeControl.tsx` and `ChallengeTradeControls.tsx`), with **no runner JSON and no JSON paste anywhere** in the challenge UI.
 
 The read side — live pool prices, TWAP, the disqualify-margin bar, the window countdown, and the challenger's escrowed USDC — is covered in [Browsing](/app/browsing) (`ChallengeMarketPanel.tsx`). This page covers the three write actions.
 
@@ -17,35 +17,35 @@ Because the choreography far exceeds one transaction, it runs as an **ordered, s
   <Step title="Create question">
     A binary conditional-vault question (`numOutcomes = 2`) whose resolver is the Kassandra oracle PDA. Outcome index 0 = pass, 1 = fail. SDK: `futarchy.initializeQuestion`.
   </Step>
-  <Step title="Create KASS vault">
-    `initialize_conditional_vault` with underlying = `oracle.kassMint`, minting pass-KASS (idx 0) and fail-KASS (idx 1). SDK: `futarchy.initializeConditionalVault`.
+  <Step title="Create SOL vault">
+    `initialize_conditional_vault` with underlying = `oracle.baseMint`, minting pass-SOL (idx 0) and fail-SOL (idx 1). SDK: `futarchy.initializeConditionalVault`.
   </Step>
   <Step title="Create USDC vault">
     Same, underlying = `oracle.usdcMint` → pass-USDC / fail-USDC.
   </Step>
   <Step title="Fund + split">
-    The challenger creates the needed ATAs (including the oracle-PDA-owned pass/fail-KASS holders the bond will be minted to) and `split_tokens` its own KASS and USDC into equal pass/fail conditional tokens to seed the pools. SDK: `futarchy.splitTokens`.
+    The challenger creates the needed ATAs (including the oracle-PDA-owned pass/fail-SOL holders the bond will be minted to) and `split_tokens` its own SOL and USDC into equal pass/fail conditional tokens to seed the pools. SDK: `futarchy.splitTokens`.
   </Step>
   <Step title="Seed pass pool">
-    `create_amm(base = pass-KASS, quote = pass-USDC)` + `add_liquidity`. SDK: `ammV04.createAmm` / `ammV04.addLiquidity`.
+    `create_amm(base = pass-SOL, quote = pass-USDC)` + `add_liquidity`. SDK: `ammV04.createAmm` / `ammV04.addLiquidity`.
   </Step>
   <Step title="Seed fail pool">
-    `create_amm(base = fail-KASS, quote = fail-USDC)` + `add_liquidity`.
+    `create_amm(base = fail-SOL, quote = fail-USDC)` + `add_liquidity`.
   </Step>
   <Step title="Open challenge">
     The Kassandra `open_challenge` instruction — `buildOpenChallengeIxs` (`sdk/src/instructions/challenge.ts`, Ix = 4), payload `oracle_nonce u64`. It verifies and records the MetaDAO accounts, program-signs the bond `split_tokens`, escrows the challenger's USDC, and flips the claim to challenged.
   </Step>
 </Steps>
 
-The seed/TWAP math mirrors the proven E2E recipe (`app/src/data/actions/challengeCompose.ts`): `twap_initial_observation = quote·1e12/base`, `twap_max_observation_change_per_update = (2^64−1)·1e12`, and `twap_start_delay_slots = 0`. Defaults seed 100 KASS (9dp) against 100 USDC (6dp), i.e. a starting price of 1.0.
+The seed/TWAP math mirrors the proven E2E recipe (`app/src/data/actions/challengeCompose.ts`): `twap_initial_observation = quote·1e12/base`, `twap_max_observation_change_per_update = (2^64−1)·1e12`, and `twap_start_delay_slots = 0`. Defaults seed 100 SOL (9dp) against 100 USDC (6dp), i.e. a starting price of 1.0.
 
 ## 2. Trade (swap)
 
 Once open, traders move the pools. The trade controls wrap `buildSwapIxs` (`app/src/data/actions/challengeTrade.ts`) → the SDK `ammV04.swap` (`sdk/src/amm-v04/instructions.ts`).
 
-- `swap_type` 0 = **Buy** (quote → base, USDC → conditional-KASS, pushes that pool's KASS price up); 1 = **Sell**.
+- `swap_type` 0 = **Buy** (quote → base, USDC → conditional-SOL, pushes that pool's SOL price up); 1 = **Sell**.
 - Trading a pool folds the new price into that pool's TWAP oracle.
-- To argue the claim is fraudulent, buy the **fail** pool (raising fail-KASS) while leaving pass neutral; to defend it, support the pass pool.
+- To argue the claim is fraudulent, buy the **fail** pool (raising fail-SOL) while leaving pass neutral; to defend it, support the pass pool.
 
 The controls also expose the permissionless TWAP crank (`buildCrankTwapIxs`) — see [Finalize & crank](/app/finalize-and-crank).
 
@@ -53,7 +53,7 @@ The controls also expose the permissionless TWAP crank (`buildCrankTwapIxs`) —
 
 After the TWAP window closes, settlement is a single permissionless button — **no JSON paste**. The full 15-account settle set is derived client-side from the decoded `Market` + `Oracle` by `buildSettleFromMarketIxs` (`app/src/data/actions/challengeSettle.ts`), which feeds the SDK `buildSettleChallengeIxs` (`sdk/src/instructions/challenge.ts`, Ix = 5, payload `oracle_nonce u64`).
 
-Of the 15 accounts, 8 are read straight off the `Market` (aiClaim, proposer, question, pass/fail AMM, kassVault, and the two oracle-owned pass/fail-KASS holders) and 7 are derived (the pass/fail conditional-KASS mints, the KASS-vault underlying ATA, the conditional-vault event authority, and the three payout ATAs). The challenger-USDC **destination** is the challenger's own USDC ATA — `ATA(market.challenger, usdc_mint)` — distinct from the Market's SDK-derived USDC escrow. The three payout ATAs are created idempotently before settle so an absent destination never fails the crank.
+Of the 15 accounts, 8 are read straight off the `Market` (aiClaim, proposer, question, pass/fail AMM, baseVault, and the two oracle-owned pass/fail-SOL holders) and 7 are derived (the pass/fail conditional-SOL mints, the SOL-vault underlying ATA, the conditional-vault event authority, and the three payout ATAs). The challenger-USDC **destination** is the challenger's own USDC ATA — `ATA(market.challenger, usdc_mint)` — distinct from the Market's SDK-derived USDC escrow. The three payout ATAs are created idempotently before settle so an absent destination never fails the crank.
 
 <Info>
 This derive-from-Market settle is the recent one-click settle work (commits

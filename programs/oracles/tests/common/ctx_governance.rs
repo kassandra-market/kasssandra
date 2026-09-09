@@ -4,7 +4,7 @@ impl TestCtx {
     // ----- real instruction helpers -----------------------------------------
 
     /// Send a real `InitProtocol` instruction with `admin == payer`, recording
-    /// the harness KASS/USDC mints. Returns the Protocol singleton PDA. The
+    /// the harness SOL/USDC mints. Returns the Protocol singleton PDA. The
     /// returned [`TransactionResult`] lets tests assert success or the
     /// double-init / wrong-PDA failure paths.
     #[allow(clippy::result_large_err)]
@@ -22,7 +22,7 @@ impl TestCtx {
             &self.program_id,
             protocol,
             self.payer.pubkey(),
-            self.kass_mint,
+            self.base_mint,
             self.usdc_mint,
         )
     }
@@ -34,12 +34,12 @@ impl TestCtx {
     /// supplied `tag`.
     pub fn stand_in_governance(tag: u8) -> (Pubkey, Pubkey) {
         let dao_authority = Pubkey::new_from_array([tag; 32]);
-        let kass_dao = Pubkey::new_from_array([tag.wrapping_add(1).max(1); 32]);
-        (dao_authority, kass_dao)
+        let spot_dao = Pubkey::new_from_array([tag.wrapping_add(1).max(1); 32]);
+        (dao_authority, spot_dao)
     }
 
     /// Send a real `SetGovernance` instruction signed by `authority`, recording
-    /// `dao_authority` (Squads vault) + `kass_dao` (futarchy Dao) in the
+    /// `dao_authority` (Squads vault) + `spot_dao` (futarchy Dao) in the
     /// Protocol. Returns the Protocol PDA + result so tests can assert success
     /// or the authorization/one-shot rejection paths.
     #[allow(clippy::result_large_err)]
@@ -47,10 +47,10 @@ impl TestCtx {
         &mut self,
         authority: &Keypair,
         dao_authority: Pubkey,
-        kass_dao: Pubkey,
+        spot_dao: Pubkey,
     ) -> (Pubkey, TransactionResult) {
         let (protocol_pda, _) = Self::protocol_pda(&self.program_id);
-        let ix = self.set_governance_ix(protocol_pda, authority.pubkey(), dao_authority, kass_dao);
+        let ix = self.set_governance_ix(protocol_pda, authority.pubkey(), dao_authority, spot_dao);
         // The payer is always a signer; only co-sign `authority` when it differs.
         let res = if authority.pubkey() == self.payer.pubkey() {
             self.send(ix, &[])
@@ -62,22 +62,22 @@ impl TestCtx {
 
     /// Build a `SetGovernance` instruction. Exposes `protocol`/`authority` so
     /// tests can pass a wrong signer. Account order (Task G1):
-    /// `[0] protocol(w) [1] authority(signer) [2] kass_dao(ro)`. Payload =
-    /// `dao_authority ++ kass_dao`. The `kass_dao` ACCOUNT is the same pubkey as
-    /// the payload `kass_dao` (the hardened processor asserts they match).
+    /// `[0] protocol(w) [1] authority(signer) [2] spot_dao(ro)`. Payload =
+    /// `dao_authority ++ spot_dao`. The `spot_dao` ACCOUNT is the same pubkey as
+    /// the payload `spot_dao` (the hardened processor asserts they match).
     pub fn set_governance_ix(
         &self,
         protocol: Pubkey,
         authority: Pubkey,
         dao_authority: Pubkey,
-        kass_dao: Pubkey,
+        spot_dao: Pubkey,
     ) -> Instruction {
         kassandra_oracles_sdk::ix::set_governance(
             &self.program_id,
             protocol,
             authority,
             dao_authority,
-            kass_dao,
+            spot_dao,
         )
     }
 
@@ -101,17 +101,17 @@ impl TestCtx {
     }
 
     /// Fabricate a real futarchy-owned `Dao` account (valid Anchor
-    /// discriminator) at a fresh key and return `(kass_dao, derived vault PDA)`.
+    /// discriminator) at a fresh key and return `(spot_dao, derived vault PDA)`.
     /// The returned vault is exactly what the hardened `set_governance` requires
-    /// as `dao_authority`, so `ctx.set_governance(&admin, vault, kass_dao)`
+    /// as `dao_authority`, so `ctx.set_governance(&admin, vault, spot_dao)`
     /// records the REAL linkage and succeeds. The embedded TWAP fields are valid
     /// but arbitrary (these accept-path tests don't read the price).
     pub fn fabricate_dao_and_vault(&mut self) -> (Pubkey, Pubkey) {
-        let kass_dao = Pubkey::new_unique();
+        let spot_dao = Pubkey::new_unique();
         let owner = Pubkey::new_from_array(md6::FUTARCHY_ID.to_bytes());
-        self.fabricate_owned_account(kass_dao, owner, build_dao_blob(1, 1_000_000, 0, 0));
-        let vault = Self::squads_vault_for_dao(&kass_dao);
-        (kass_dao, vault)
+        self.fabricate_owned_account(spot_dao, owner, build_dao_blob(1, 1_000_000, 0, 0));
+        let vault = Self::squads_vault_for_dao(&spot_dao);
+        (spot_dao, vault)
     }
 
     /// Directly write the DAO linkage into the `Protocol` singleton, BYPASSING
@@ -119,15 +119,15 @@ impl TestCtx {
     /// `set_config`/`resolve_deadend`/emissions need an ARBITRARY, SIGNABLE
     /// keypair recorded as `dao_authority` to exercise the accept path — which is
     /// impossible through the real handoff, since that now requires
-    /// `dao_authority == squads_vault_for_dao(kass_dao)` (a PDA no keypair can
+    /// `dao_authority == squads_vault_for_dao(spot_dao)` (a PDA no keypair can
     /// sign). This mirrors the harness's existing direct account-seeding
     /// philosophy (see [`TestCtx::seed_disputed_oracle`]). Marks
     /// `governance_set = 1`. Requires the protocol to already exist.
-    pub fn force_governance(&mut self, dao_authority: Pubkey, kass_dao: Pubkey) -> Pubkey {
+    pub fn force_governance(&mut self, dao_authority: Pubkey, spot_dao: Pubkey) -> Pubkey {
         let (protocol_pda, _) = Self::protocol_pda(&self.program_id);
         let mut p = self.protocol(protocol_pda);
         p.dao_authority = dao_authority.to_bytes().into();
-        p.kass_dao = kass_dao.to_bytes().into();
+        p.spot_dao = spot_dao.to_bytes().into();
         p.governance_set = 1;
         self.set_program_account(protocol_pda, bytemuck::bytes_of(&p).to_vec());
         protocol_pda
@@ -220,12 +220,12 @@ impl TestCtx {
         kassandra_oracles_sdk::ix::resolve_deadend(&self.program_id, protocol, oracle, authority, option)
     }
 
-    /// Build a `KassPrice` instruction (Task F5): reads the futarchy `Dao`
-    /// account's spot TWAP. Account order: `[0] protocol(ro)`, `[1] kass_dao(ro)`.
+    /// Build a `SpotPrice` instruction (Task F5): reads the futarchy `Dao`
+    /// account's spot TWAP. Account order: `[0] protocol(ro)`, `[1] spot_dao(ro)`.
     /// Exposes both accounts so tests can pass a substituted protocol or a
-    /// wrong/foreign-owned `kass_dao`. No payload.
-    pub fn kass_price_ix(&self, protocol: Pubkey, kass_dao: Pubkey) -> Instruction {
-        kassandra_oracles_sdk::ix::kass_price(&self.program_id, protocol, kass_dao)
+    /// wrong/foreign-owned `spot_dao`. No payload.
+    pub fn spot_price_ix(&self, protocol: Pubkey, spot_dao: Pubkey) -> Instruction {
+        kassandra_oracles_sdk::ix::spot_price(&self.program_id, protocol, spot_dao)
     }
 
     /// Fabricate an account at `key` owned by `owner` holding `data`. Used by F5
@@ -249,32 +249,32 @@ impl TestCtx {
 
     /// Ensure the Protocol singleton exists and hand governance off with a
     /// hand-built futarchy `Dao` account whose embedded spot TWAP equals
-    /// [`KASS_PRICE_TWAP`], recorded as `Protocol.kass_dao`. This makes
-    /// `open_challenge`'s `kass_price` read return a deterministic value so the
+    /// [`SPOT_PRICE_TWAP`], recorded as `Protocol.spot_dao`. This makes
+    /// `open_challenge`'s `spot_price` read return a deterministic value so the
     /// escrow size ([`required_escrow_usdc`]) is computable. Returns the
-    /// `kass_dao` account key. One-shot per `TestCtx` (set_governance is
+    /// `spot_dao` account key. One-shot per `TestCtx` (set_governance is
     /// one-shot).
-    pub fn bless_kass_price(&mut self) -> Pubkey {
+    pub fn bless_spot_price(&mut self) -> Pubkey {
         self.ensure_protocol();
-        let kass_dao = Pubkey::new_unique();
+        let spot_dao = Pubkey::new_unique();
         let owner = Pubkey::new_from_array(md6::FUTARCHY_ID.to_bytes());
         // twap = aggregator / (last_updated - (created_at + start_delay)).
-        // Pick a 1_000_000s window so aggregator = twap * 1e6 yields KASS_PRICE_TWAP.
+        // Pick a 1_000_000s window so aggregator = twap * 1e6 yields SPOT_PRICE_TWAP.
         let last_updated: i64 = 1_000_000;
         let created_at: i64 = 0;
         let start_delay: u32 = 0;
-        let aggregator: u128 = KASS_PRICE_TWAP * 1_000_000;
+        let aggregator: u128 = SPOT_PRICE_TWAP * 1_000_000;
         self.fabricate_owned_account(
-            kass_dao,
+            spot_dao,
             owner,
             build_dao_blob(aggregator, last_updated, created_at, start_delay),
         );
-        // The kass_price tests only read `kass_dao`; the recorded `dao_authority`
+        // The spot_price tests only read `spot_dao`; the recorded `dao_authority`
         // is irrelevant to them. Record the linkage DIRECTLY (force_governance)
         // rather than through the Task G1-hardened handoff, which would require a
         // matching derived Squads vault here for no test benefit.
         let (dao_authority, _) = Self::stand_in_governance(0x77);
-        self.force_governance(dao_authority, kass_dao);
-        kass_dao
+        self.force_governance(dao_authority, spot_dao);
+        spot_dao
     }
 }

@@ -74,8 +74,8 @@ fn field_offsets_are_pinned() {
     // C1 challenge-fee config snapshot block.
     assert_eq!(offset_of!(Oracle, challenge_fail_usdc_fee_num), 296);
     assert_eq!(offset_of!(Oracle, challenge_fail_usdc_fee_den), 304);
-    assert_eq!(offset_of!(Oracle, challenge_success_kass_fee_num), 312);
-    assert_eq!(offset_of!(Oracle, challenge_success_kass_fee_den), 320);
+    assert_eq!(offset_of!(Oracle, challenge_success_base_fee_num), 312);
+    assert_eq!(offset_of!(Oracle, challenge_success_base_fee_den), 320);
     // S1 settlement resolution totals, packed after the C1 challenge-fee block.
     assert_eq!(offset_of!(Oracle, total_correct_proposer_stake), 328);
     assert_eq!(offset_of!(Oracle, total_approved_fact_stake), 336);
@@ -101,12 +101,12 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Market, oracle), 8);
     assert_eq!(offset_of!(Market, ai_claim), 40);
     assert_eq!(offset_of!(Market, question), 136);
-    assert_eq!(offset_of!(Market, kass_vault), 168);
+    assert_eq!(offset_of!(Market, base_vault), 168);
     assert_eq!(offset_of!(Market, usdc_vault), 200);
     assert_eq!(offset_of!(Market, pass_amm), 232);
     assert_eq!(offset_of!(Market, fail_amm), 264);
-    assert_eq!(offset_of!(Market, oracle_pass_kass), 296);
-    assert_eq!(offset_of!(Market, oracle_fail_kass), 328);
+    assert_eq!(offset_of!(Market, oracle_pass_base), 296);
+    assert_eq!(offset_of!(Market, oracle_fail_base), 328);
     assert_eq!(offset_of!(Market, challenger_usdc_vault), 360);
     assert_eq!(offset_of!(Market, twap_end), 392);
     assert_eq!(offset_of!(Market, challenger_usdc), 400);
@@ -116,7 +116,7 @@ fn field_offsets_are_pinned() {
     // then (F1) the governance flag + DAO linkage + governable monetary params.
     assert_eq!(offset_of!(Protocol, account_type), 0);
     assert_eq!(offset_of!(Protocol, admin), 8);
-    assert_eq!(offset_of!(Protocol, kass_mint), 40);
+    assert_eq!(offset_of!(Protocol, base_mint), 40);
     assert_eq!(offset_of!(Protocol, usdc_mint), 72);
     assert_eq!(offset_of!(Protocol, fee_ema), 104);
     assert_eq!(offset_of!(Protocol, last_creation_unix), 112);
@@ -124,7 +124,7 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(Protocol, governance_set), 121);
     // _pad[6] @122 fills to the 8-byte boundary before the Pubkey pair.
     assert_eq!(offset_of!(Protocol, dao_authority), 128);
-    assert_eq!(offset_of!(Protocol, kass_dao), 160);
+    assert_eq!(offset_of!(Protocol, spot_dao), 160);
     assert_eq!(offset_of!(Protocol, emission_num), 192);
     assert_eq!(offset_of!(Protocol, emission_den), 200);
     assert_eq!(offset_of!(Protocol, total_supply_cap), 208);
@@ -147,8 +147,8 @@ fn field_offsets_are_pinned() {
     // C1 challenge-fee config (mutable source; snapshotted onto Oracle).
     assert_eq!(offset_of!(Protocol, challenge_fail_usdc_fee_num), 336);
     assert_eq!(offset_of!(Protocol, challenge_fail_usdc_fee_den), 344);
-    assert_eq!(offset_of!(Protocol, challenge_success_kass_fee_num), 352);
-    assert_eq!(offset_of!(Protocol, challenge_success_kass_fee_den), 360);
+    assert_eq!(offset_of!(Protocol, challenge_success_base_fee_num), 352);
+    assert_eq!(offset_of!(Protocol, challenge_success_base_fee_den), 360);
     // Bootstrapping stake-floor curve, appended after the challenge fees.
     assert_eq!(offset_of!(Protocol, stake_floor_ema_threshold), 368);
     assert_eq!(offset_of!(Protocol, stake_floor_ema_cap), 376);

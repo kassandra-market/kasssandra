@@ -4,7 +4,7 @@
 //! claim (the S2 `claim_proposer` / `claim_fact` / `claim_fact_vote`) and every
 //! account close (the S4 `close_ai_claim` / `close_market`), asserting the
 //! per-actor matrix, that all accounts close, that the stake vault drains to
-//! floor dust, and KASS conservation sourced ONLY from the stake vault.
+//! floor dust, and SOL conservation sourced ONLY from the stake vault.
 //!
 //! # What is REAL vs SEEDED (honest split)
 //! * **Tests 1-2** drive the dispute core through the GENUINE front door —
@@ -162,7 +162,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
     ctx.svm
         .airdrop(&agreed_submitter.pubkey(), 1_000_000_000)
         .unwrap();
-    let agreed_sub_kass = ctx.fund_kass(&agreed_submitter, FVD_AGREED_SUB);
+    let agreed_sub_base = ctx.fund_base(&agreed_submitter, FVD_AGREED_SUB);
     let agreed_hash = [0x07u8; 32];
     let (agreed_fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &agreed_hash);
     ctx.send(
@@ -171,7 +171,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
             oracle,
             agreed_fact,
             agreed_submitter.pubkey(),
-            agreed_sub_kass,
+            agreed_sub_base,
             vault,
             submit_fact_payload(&agreed_hash, FVD_AGREED_SUB, b"ipfs://agreed"),
         ),
@@ -183,7 +183,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
     ctx.svm
         .airdrop(&rejected_submitter.pubkey(), 1_000_000_000)
         .unwrap();
-    let rejected_sub_kass = ctx.fund_kass(&rejected_submitter, FVD_REJECTED_SUB);
+    let rejected_sub_base = ctx.fund_base(&rejected_submitter, FVD_REJECTED_SUB);
     let rejected_hash = [0x09u8; 32];
     let (rejected_fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &rejected_hash);
     ctx.send(
@@ -192,7 +192,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
             oracle,
             rejected_fact,
             rejected_submitter.pubkey(),
-            rejected_sub_kass,
+            rejected_sub_base,
             vault,
             submit_fact_payload(&rejected_hash, FVD_REJECTED_SUB, b"ipfs://rejected"),
         ),
@@ -211,7 +211,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
     ctx.svm
         .airdrop(&agreed_voter.pubkey(), 1_000_000_000)
         .unwrap();
-    let agreed_voter_kass = ctx.fund_kass(&agreed_voter, FVD_AGREED_VOTE);
+    let agreed_voter_base = ctx.fund_base(&agreed_voter, FVD_AGREED_VOTE);
     let (agreed_vote, _) = TestCtx::vote_pda(&ctx.program_id, &agreed_fact, &agreed_voter.pubkey());
     ctx.send(
         vote_fact_ix(
@@ -220,7 +220,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
             agreed_fact,
             agreed_vote,
             agreed_voter.pubkey(),
-            agreed_voter_kass,
+            agreed_voter_base,
             vault,
             vote_payload(VOTE_APPROVE, FVD_AGREED_VOTE),
         ),
@@ -234,7 +234,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
     ctx.svm
         .airdrop(&rejected_voter.pubkey(), 1_000_000_000)
         .unwrap();
-    let rejected_voter_kass = ctx.fund_kass(&rejected_voter, FVD_REJECTED_VOTE);
+    let rejected_voter_base = ctx.fund_base(&rejected_voter, FVD_REJECTED_VOTE);
     let (rejected_vote, _) =
         TestCtx::vote_pda(&ctx.program_id, &rejected_fact, &rejected_voter.pubkey());
     ctx.send(
@@ -244,7 +244,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
             rejected_fact,
             rejected_vote,
             rejected_voter.pubkey(),
-            rejected_voter_kass,
+            rejected_voter_base,
             vault,
             vote_payload(VOTE_APPROVE, FVD_REJECTED_VOTE),
         ),
@@ -301,11 +301,9 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
         .expect("finalize_ai_claims");
     assert_eq!(ctx.oracle(oracle).phase, Phase::Challenge.as_u8());
 
-    // ---- the creation-time emission is ALREADY in the vault (emission is ON by
-    // default: the real create_oracle minted it), so capture the REAL amount
-    // rather than seeding one. Then snapshot supply + bond_pool before the burn.
+    // ---- no native-token minting: capture reward_emission (always 0) --------
     let emission = ctx.oracle(oracle).reward_emission;
-    assert!(emission > 0, "genesis create minted a real emission");
+    assert_eq!(emission, 0, "create_oracle never mints");
     let sum_stakes =
         2 * FVD_BOND + FVD_AGREED_SUB + FVD_AGREED_VOTE + FVD_REJECTED_SUB + FVD_REJECTED_VOTE;
     assert_eq!(
@@ -313,7 +311,7 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
         sum_stakes + emission,
         "vault holds Σ stakes + emission before the terminal burn"
     );
-    let supply_before = ctx.mint_supply(ctx.kass_mint);
+    let supply_before = ctx.mint_supply(ctx.base_mint);
     let bond_pool = ctx.oracle(oracle).bond_pool;
 
     // ---- finalize_oracle → InvalidDeadend (burns bond_pool + emission) -----

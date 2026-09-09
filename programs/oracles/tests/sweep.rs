@@ -4,7 +4,7 @@
 //! Once a terminal oracle is past `phase_ends_at + SWEEP_GRACE` and governance
 //! is set, anyone may crank the sweep: the ENTIRE residual vault balance (dust —
 //! or a no-show staker's forfeited principal) is transferred to the DAO treasury
-//! (the KASS ATA of `dao_authority`), then the vault + oracle are closed with
+//! (the SOL ATA of `dao_authority`), then the vault + oracle are closed with
 //! both rents refunded to `oracle.creator`. These tests cover the happy path,
 //! every gate (grace / governance / treasury / creator / vault / phase), the
 //! stark FORFEITURE trade-off (a no-show's principal → treasury, later claim
@@ -26,7 +26,7 @@ fn custom(e: KassandraError) -> TransactionError {
 }
 
 /// A sweepable fixture: a terminal `Resolved` oracle whose vault holds
-/// `vault_dust` KASS, governance set to a fresh `dao_authority`, its treasury
+/// `vault_dust` SOL, governance set to a fresh `dao_authority`, its treasury
 /// ATA fabricated, a fresh (non-payer) `creator` recorded as rent recipient, and
 /// the clock warped PAST `phase_ends_at + SWEEP_GRACE`. Returns the pieces the
 /// tests need.
@@ -59,18 +59,18 @@ impl Sweepable {
         ctx.airdrop(&creator, 1_000_000_000);
         ctx.set_creator(seed.oracle, creator.pubkey());
 
-        // Governance handoff: record a fresh dao_authority + fabricate its KASS
+        // Governance handoff: record a fresh dao_authority + fabricate its SOL
         // treasury ATA.
         ctx.ensure_protocol();
         let dao_authority = Pubkey::new_unique();
         let protocol = if governance {
-            let kass_dao = Pubkey::new_unique();
-            ctx.force_governance(dao_authority, kass_dao)
+            let spot_dao = Pubkey::new_unique();
+            ctx.force_governance(dao_authority, spot_dao)
         } else {
             let (p, _) = TestCtx::protocol_pda(&ctx.program_id);
             p
         };
-        let treasury = ctx.seed_kass_treasury(dao_authority);
+        let treasury = ctx.seed_base_treasury(dao_authority);
 
         if warp {
             ctx.warp(SWEEP_GRACE + 1);
@@ -179,8 +179,8 @@ fn sweep_wrong_treasury_fails() {
     let mut ctx = TestCtx::new();
     let f = Sweepable::build(&mut ctx, &[], 7, true, true);
 
-    // A KASS ATA of a DIFFERENT owner — not ATA(dao_authority, kass_mint).
-    let wrong = ctx.seed_kass_treasury(Pubkey::new_unique());
+    // A SOL ATA of a DIFFERENT owner — not ATA(dao_authority, base_mint).
+    let wrong = ctx.seed_base_treasury(Pubkey::new_unique());
     let ix = ctx.sweep_oracle_ix(
         f.seed.oracle,
         f.seed.nonce,
@@ -282,7 +282,7 @@ fn sweep_forfeits_unclaimed_principal_then_claim_fails() {
 
     let proposer = &f.seed.proposers[0];
     let p_account = proposer.account;
-    let p_dest = proposer.dest_kass;
+    let p_dest = proposer.dest_base;
     let p_authority = proposer.authority.pubkey();
 
     let ix = f.sweep_ix(&ctx);

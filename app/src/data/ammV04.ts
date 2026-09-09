@@ -67,7 +67,7 @@ export const PRICE_SCALE = 1_000_000_000_000n;
 
 /** A decoded v0.4 `Amm` account (only the fields the challenge viz needs). */
 export interface AmmV04 {
-  /** Base (conditional-KASS) mint. */
+  /** Base (conditional-SOL) mint. */
   baseMint: Address;
   /** Quote (conditional-USDC) mint. */
   quoteMint: Address;
@@ -145,7 +145,7 @@ export function decodeAmmV04(data: Uint8Array): AmmV04 {
  * `Number` (`quote/base` corrected for the mints' decimal scales). Returns
  * `null` when the base reserve is empty (price undefined). The RAW reserves stay
  * available on the {@link AmmV04} (never lose precision on those — show them via
- * `groupDigits` as bigints); this ratio is for the human "≈ X USDC/KASS" label.
+ * `groupDigits` as bigints); this ratio is for the human "≈ X USDC/SOL" label.
  */
 export function instantaneousPrice(amm: AmmV04): number | null {
   if (amm.baseAmount === 0n) return null;

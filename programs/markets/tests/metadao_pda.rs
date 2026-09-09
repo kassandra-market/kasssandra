@@ -71,14 +71,14 @@ fn known_pubkey_snapshot_is_stable() {
     let question_id = [7u8; 32];
     let oracle = Pubkey::new_from_array([42u8; 32]);
     let (question, _) = md::question(&question_id, &oracle, 2);
-    let kass = Pubkey::new_from_array([5u8; 32]);
-    let (vault, _) = md::vault(&question, &kass);
+    let base = Pubkey::new_from_array([5u8; 32]);
+    let (vault, _) = md::vault(&question, &base);
     let (yes, _) = md::conditional_token_mint(&vault, 0);
     let (no, _) = md::conditional_token_mint(&vault, 1);
     let (amm, _) = md::amm(&yes, &no);
     // Re-derive independently; the whole chain must be reproducible.
     let (question2, _) = md::question(&question_id, &oracle, 2);
-    let (vault2, _) = md::vault(&question2, &kass);
+    let (vault2, _) = md::vault(&question2, &base);
     let (yes2, _) = md::conditional_token_mint(&vault2, 0);
     let (no2, _) = md::conditional_token_mint(&vault2, 1);
     let (amm2, _) = md::amm(&yes2, &no2);

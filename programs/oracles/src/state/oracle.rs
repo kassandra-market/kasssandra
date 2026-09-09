@@ -23,9 +23,9 @@ pub struct Oracle {
     pub account_type: u8, // AccountType::Oracle
     pub _pad_hdr: [u8; 7],
     pub creator: Pubkey,
-    pub kass_mint: Pubkey,
+    pub base_mint: Pubkey,
     pub usdc_mint: Pubkey,
-    pub stake_vault: Pubkey, // PDA token account holding all KASS bonds/stakes
+    pub stake_vault: Pubkey, // PDA token account holding all SOL bonds/stakes
     pub deadline: i64,       // unix; proposals rejected before this
     pub phase_ends_at: i64,  // end of the current window
     pub twap_window: i64,    // per-oracle, seconds
@@ -36,10 +36,10 @@ pub struct Oracle {
     pub fact_count: u16,
     // Conservation accumulator; equals the `stake_vault` balance UNTIL a
     // challenge splits a proposer's bond into a MetaDAO conditional vault —
-    // Task 13 conservation must also count conditional-vault-held KASS recorded
+    // Task 13 conservation must also count conditional-vault-held SOL recorded
     // on the corresponding `Market` (`open_challenge` does NOT decrement this).
     pub total_oracle_stake: u64,
-    pub bond_pool: u64,          // accumulated slashed KASS (base units)
+    pub bond_pool: u64,          // accumulated slashed SOL (base units)
     pub dispute_bond_total: u64, // Σ proposer bonds, fixed at dispute start; fact-quorum denominator
     pub settled_count: u16,      // facts settled so far (drives incremental finalize)
     pub ai_finalized_count: u16, // proposers ai-finalized so far (drives incremental finalize_ai_claims)
@@ -85,12 +85,12 @@ pub struct Oracle {
     // ---- Challenge-fee config snapshot (Task C1) -----------------------------
     // Directional challenge-market fees, snapshotted from `Protocol` at
     // create_oracle (so an in-flight market keeps its rates if governance
-    // retunes). USDC fee on a FAILED challenge (→ proposer) and KASS fee on a
+    // retunes). USDC fee on a FAILED challenge (→ proposer) and SOL fee on a
     // SUCCESSFUL challenge (→ challenger); consumed by settle (Task C2).
     pub challenge_fail_usdc_fee_num: u64,
     pub challenge_fail_usdc_fee_den: u64,
-    pub challenge_success_kass_fee_num: u64,
-    pub challenge_success_kass_fee_den: u64,
+    pub challenge_success_base_fee_num: u64,
+    pub challenge_success_base_fee_den: u64,
     // ---- Settlement resolution totals (Task S1) ------------------------------
     // Stamped at resolution for the per-staker S2 pull-claims to read; all 0
     // until then (and 0 at create). NO token movement is done in S1 — these are
@@ -109,8 +109,8 @@ pub struct Oracle {
     pub total_approved_fact_stake: u64,
     pub reward_pool: u64,
     // ---- Emission minted at creation (Task S3) -------------------------------
-    // KASS minted into `stake_vault` by `create_oracle` from the supply reservoir
-    // (`reward_emission = (total_supply_cap − kass_supply) · emission_num/den`,
+    // SOL minted into `stake_vault` by `create_oracle` from the supply reservoir
+    // (`reward_emission = (total_supply_cap − base_supply) · emission_num/den`,
     // computed AFTER the EMA fee burn so the burn boosts the same-tx reservoir),
     // recorded here. On the `Resolved` branch `finalize_oracle` folds it into
     // `reward_pool` (`reward_pool = bond_pool + reward_emission`); on
@@ -119,10 +119,10 @@ pub struct Oracle {
     // == 0` or `emission_num == 0`) — the genesis/disabled default.
     pub reward_emission: u64,
     // ---- Activity-scaled stake floor (bootstrapping) -------------------------
-    // The minimum stake (KASS base units) required by `propose` / `submit_fact` /
+    // The minimum stake (SOL base units) required by `propose` / `submit_fact` /
     // `vote_fact` on this oracle, snapshotted at `create_oracle` from the decayed
     // fee-EMA via `crate::stake_floor::stake_floor`. 0 at genesis / low activity
-    // (free participation, no premined KASS) and while the magnitude is disabled
+    // (free participation, no premined SOL) and while the magnitude is disabled
     // (`Protocol.stake_floor_max == 0`). Frozen for the oracle's whole life so a
     // later governance retune never moves an in-flight oracle's floor.
     pub min_stake: u64,

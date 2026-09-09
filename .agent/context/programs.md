@@ -44,7 +44,7 @@ discriminant, and `overflow-checks = true` on release.
   UpdateConfig, CreateMarket, Contribute, Cancel, Refund, Activate, ClaimLp,
   ResolveMarket, CollectFee, CloseMarket, AddLiquidity, DelegateMarket,
   CommitMarket, UndelegateMarket.
-- A market funds in KASS, then **composes** a MetaDAO question / conditional vault
+- A market funds in SOL, then **composes** a MetaDAO question / conditional vault
   / AMM and **activates** into a live cYES/cNO pool; resolution pays winners.
 - Full detail: [`../specs/market-program.md`](../specs/market-program.md).
 

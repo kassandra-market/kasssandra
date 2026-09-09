@@ -14,7 +14,7 @@ pub const MAX_FEE_BPS: u16 = 1000;
 /// activity-scaled funding-floor curve (`min_liquidity_max <= min_liquidity`
 /// disables the ramp — a flat floor, exactly like the oracle's stake-floor
 /// bootstrap default). Accounts:
-/// `[0] config(pda,w) [1] payer(signer,w) [2] kass_mint(ro) [3] fee_destination(ro)
+/// `[0] config(pda,w) [1] payer(signer,w) [2] base_mint(ro) [3] fee_destination(ro)
 ///  [4] system program [5] program_data(ro)`.
 ///
 /// `program_data` is this program's BPF-Upgradeable-Loader `ProgramData` account
@@ -24,7 +24,7 @@ pub const MAX_FEE_BPS: u16 = 1000;
 #[allow(clippy::too_many_arguments)]
 pub fn init_config(
     payer: &Pubkey,
-    kass_mint: &Pubkey,
+    base_mint: &Pubkey,
     authority: &Pubkey,
     min_liquidity: u64,
     fee_bps: u16,
@@ -48,7 +48,7 @@ pub fn init_config(
         accounts: vec![
             AccountMeta::new(config, false),
             AccountMeta::new(*payer, true),
-            AccountMeta::new_readonly(*kass_mint, false),
+            AccountMeta::new_readonly(*base_mint, false),
             AccountMeta::new_readonly(*fee_destination, false),
             AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
             AccountMeta::new_readonly(program_data, false),

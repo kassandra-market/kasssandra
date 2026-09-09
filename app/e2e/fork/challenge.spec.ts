@@ -34,9 +34,9 @@ import {
 const wallet = JSON.parse(readFileSync(join(process.cwd(), 'e2e', 'fork', '.wallet.json'), 'utf8')) as {
   secretKey: number[]
   publicKey: string
-  kassMint: string
+  baseMint: string
   usdcMint: string
-  kassDao: string
+  spotDao: string
   oracle: string
   nonce: string
   proposer: string
@@ -74,15 +74,15 @@ test('challenge cluster: compose → open → swap → crank → settle → clos
   const market = (await pda.market(aiClaim)).address.toString()
   const question = (await futarchy.pda.question(QUESTION_ID, wallet.oracle, 2)).address.toString()
   const usdcVault = (await futarchy.pda.conditionalVault(question, wallet.usdcMint)).address.toString()
-  const kassVault = (await futarchy.pda.conditionalVault(question, wallet.kassMint)).address.toString()
+  const baseVault = (await futarchy.pda.conditionalVault(question, wallet.baseMint)).address.toString()
   const failUsdcMint = (await futarchy.pda.conditionalTokenMint(usdcVault, 1)).address.toString()
-  const failKassMint = (await futarchy.pda.conditionalTokenMint(kassVault, 1)).address.toString()
-  const failAmm = (await ammV04.pda.amm(failKassMint, failUsdcMint)).address.toString()
+  const failBaseMint = (await futarchy.pda.conditionalTokenMint(baseVault, 1)).address.toString()
+  const failAmm = (await ammV04.pda.amm(failBaseMint, failUsdcMint)).address.toString()
   const challengerFailUsdc = (
     await associatedTokenAccount(wallet.publicKey, failUsdcMint)
   ).address.toString()
 
-  const url = `/oracles/${wallet.oracle}?proposer=${wallet.proposer}&kassDao=${wallet.kassDao}`
+  const url = `/oracles/${wallet.oracle}?proposer=${wallet.proposer}&spotDao=${wallet.spotDao}`
 
   // ── 1) COMPOSE + OPEN the challenge (7 wallet-signed steps) ────────────────
   // The sequence runs step-by-step in the browser (each a forked tx); on the last

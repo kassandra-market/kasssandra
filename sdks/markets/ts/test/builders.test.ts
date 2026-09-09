@@ -47,7 +47,7 @@ import {
   CREATOR_ATA,
   FEE_DEST,
   flags,
-  KASS_MINT,
+  BASE_MINT,
   LP_ATA,
   ORACLE,
   PAYER,
@@ -63,7 +63,7 @@ describe("initConfig (Ix 0)", () => {
   it("disc, payload = authority(32) ++ u64(minLiquidity) ++ u16(feeBps) ++ feeDestination(32) ++ the min-liquidity curve (defaulted, disabled), accounts", async () => {
     const ix = await initConfig({
       payer: PAYER,
-      kassMint: KASS_MINT,
+      baseMint: BASE_MINT,
       authority: AUTHORITY,
       minLiquidity: 5n,
       feeBps: 250,
@@ -91,7 +91,7 @@ describe("initConfig (Ix 0)", () => {
     expect(addrsOf(ix.keys)).toEqual([
       b58(config.address),
       b58(PAYER),
-      b58(KASS_MINT),
+      b58(BASE_MINT),
       b58(FEE_DEST),
       b58(SYSTEM_PROGRAM_ID),
       b58(programData.address),
@@ -131,8 +131,8 @@ describe("createMarket (Ix 2)", () => {
     const ix = await createMarket({
       creator: CREATOR,
       oracle: ORACLE,
-      kassMint: KASS_MINT,
-      creatorKassAta: CREATOR_ATA,
+      baseMint: BASE_MINT,
+      creatorBaseAta: CREATOR_ATA,
       seedAmount: 1000n,
       outcomeIndex,
     });
@@ -161,7 +161,7 @@ describe("createMarket (Ix 2)", () => {
       b58(ORACLE),
       b58(market.address),
       b58(escrow.address),
-      b58(KASS_MINT),
+      b58(BASE_MINT),
       b58(CREATOR),
       b58(CREATOR_ATA),
       b58(contribution.address),
@@ -177,7 +177,7 @@ describe("contribute (Ix 3)", () => {
     const ix = await contribute({
       contributor: CONTRIBUTOR,
       market: market.address,
-      contributorKassAta: CONTRIB_ATA,
+      contributorBaseAta: CONTRIB_ATA,
       amount: 777n,
     });
     expect(ix.data[0]).toBe(Ix.Contribute);
@@ -213,7 +213,7 @@ describe("cancel (Ix 4)", () => {
 describe("refund (Ix 5)", () => {
   it("empty payload, accounts [market(w), escrow(w), contribution(w), ata(w), contributor(w), token(ro)]", async () => {
     const market = await pda.market(ORACLE, 0);
-    const ix = await refund({ market: market.address, contributor: CONTRIBUTOR, contributorKassAta: CONTRIB_ATA });
+    const ix = await refund({ market: market.address, contributor: CONTRIBUTOR, contributorBaseAta: CONTRIB_ATA });
     expect(ix.data).toEqual(new Uint8Array([Ix.Refund]));
     const escrow = await pda.escrow(market.address);
     const contribution = await pda.contribution(market.address, CONTRIBUTOR);

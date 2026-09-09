@@ -83,7 +83,7 @@ fn close_ai_claim_after_proposer_closed_still_reclaims() {
         seed.oracle,
         seed.nonce,
         p.account,
-        p.dest_kass,
+        p.dest_base,
         seed.stake_vault,
         recip,
     );

@@ -38,16 +38,16 @@ indexer's read API; writes via the SDK instruction builders.
 
 ## Amount display rule
 
-Token amounts are shown **scaled by decimals** (KASS 9, USDC 6). Use
-`formatKass`/`formatUsdc`/`formatUnits` (oracleView) and the market-side
-`formatKass`; input forms parse scaled amounts (`parseKassAmount`/`parseAmount`).
+Token amounts are shown **scaled by decimals** (SOL 9, USDC 6). Use
+`formatSol`/`formatUsdc`/`formatUnits` (oracleView) and the market-side
+`formatSol`; input forms parse scaled amounts (`parseSolAmount`/`parseAmount`).
 The AMM carries `baseDecimals`/`quoteDecimals` — use them.
 ([`../memories/scaled-amounts-ui.md`](../memories/scaled-amounts-ui.md))
 
 ## Prediction-market UI specifics
 
-- Trade panel: **buy** gates on KASS balance, **sell** gates on the held outcome
-  **shares** (the gate message names the asset — don't hardcode "KASS").
+- Trade panel: **buy** gates on SOL balance, **sell** gates on the held outcome
+  **shares** (the gate message names the asset — don't hardcode "SOL").
 - The price chart draws **one line curve per share** (YES + complementary NO =
   1−YES) with the axis pinned 0–100% (`autoscaleInfoProvider` returns a fixed
   `0..1`). It uses lightweight-charts v5 (`addSeries(LineSeries, …)`).

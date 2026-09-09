@@ -93,7 +93,7 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
     // 1) submit_fact.
     let submitter = kp(10);
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_kass(&submitter, 1_000_000);
+    let submitter_base = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     let ix = submit_fact_ix(
@@ -101,7 +101,7 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
         oracle,
         fact,
         submitter.pubkey(),
-        submitter_kass,
+        submitter_base,
         vault,
         submit_fact_payload(&content_hash, 100, b"ipfs://fact"),
     );
@@ -115,7 +115,7 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
     // 3) vote_fact (approve, clears the 2/3 quorum of dispute_bond_total = 2000).
     let voter = kp(20);
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_kass(&voter, 10_000);
+    let voter_base = ctx.fund_base(&voter, 10_000);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     let ix = vote_fact_ix(
         &ctx,
@@ -123,7 +123,7 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
         fact,
         fact_vote,
         voter.pubkey(),
-        voter_kass,
+        voter_base,
         vault,
         vote_payload(VOTE_APPROVE, 2_000),
     );
@@ -165,7 +165,7 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
     // 8) claim_proposer — the option-0 proposer is correct → bond + reward. Uses
     //    the shared verify_oracle_pda (create_program_address w/ the stored bump).
     let nonce = ctx.oracle_nonce(oracle);
-    let dest0 = ctx.fund_kass(&authorities[0], 0);
+    let dest0 = ctx.fund_base(&authorities[0], 0);
     let claim = ctx.claim_proposer_ix(oracle, nonce, p0, dest0, vault, authorities[0].pubkey());
     ctx.send(claim, &[]).expect("claim_proposer");
 
@@ -184,11 +184,11 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
         return;
     }
     let expected = std::fs::read_to_string(SNAPSHOT).unwrap_or_else(|_| {
-        panic!("missing {SNAPSHOT} — create it with `BLESS_CU=1 cargo test -p kassandra-oracles-program --test compute_units`")
+        panic!("missing {SNAPSHOT} — create it with `BLESS_CU=1 cargo test --workspace --test compute_units`")
     });
     assert_eq!(
         report, expected,
         "\nCU metering changed vs tests/compute_units.snap (see the report above). \
-         If intended, re-bless: BLESS_CU=1 cargo test -p kassandra-oracles-program --test compute_units\n",
+         If intended, re-bless: BLESS_CU=1 cargo test --workspace --test compute_units\n",
     );
 }

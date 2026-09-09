@@ -1,12 +1,12 @@
 /**
- * Unit coverage for the KASS→USD price read: the futarchy-spot-TWAP decoder
+ * Unit coverage for the SOL→USD price read: the futarchy-spot-TWAP decoder
  * (fixed Dao offsets, mirrored from cpi/metadao_v06/layout.rs) and the
- * PRICE_SCALE→human USDC/KASS conversion, including the not-yet-observable /
+ * PRICE_SCALE→human USDC/SOL conversion, including the not-yet-observable /
  * too-short guards that make the caller disable the USD unit.
  */
 import { describe, expect, it } from "vitest";
 
-import { decodeFutarchySpotTwap, usdcPerKass } from "../src/data/kassPrice";
+import { decodeFutarchySpotTwap, usdcPerSol } from "../src/data/spotPrice";
 
 const AGG_OFF = 9; // u128
 const LAST_OFF = 25; // i64
@@ -42,7 +42,7 @@ const SCALE = 1_000_000_000_000n; // PRICE_SCALE (1e12)
 
 describe("decodeFutarchySpotTwap", () => {
   it("computes aggregator / (last − (created + delay))", () => {
-    // 100 seconds elapsed, aggregator = 0.5 USDC/KASS (raw) × SCALE × 100 slots.
+    // 100 seconds elapsed, aggregator = 0.5 USDC/SOL (raw) × SCALE × 100 slots.
     const perSlot = SCALE / 2n; // 0.5 scaled
     const twap = decodeFutarchySpotTwap(
       daoBuf({ aggregator: perSlot * 100n, lastUpdated: 1_150n, createdAt: 1_000n, startDelay: 50 }),
@@ -67,11 +67,11 @@ describe("decodeFutarchySpotTwap", () => {
   });
 });
 
-describe("usdcPerKass", () => {
-  it("divides out PRICE_SCALE and applies the KASS(9)/USDC(6) decimal scale", () => {
-    // raw twap 0.5·SCALE → 0.5 quote/base raw → ×10^(9−6)=1000 → 500 USDC/KASS.
-    expect(usdcPerKass(SCALE / 2n)).toBeCloseTo(500, 6);
-    // A realistic ~$0.05 KASS: 0.05 / 1000 = 5e-5 raw ratio → 5e-5·SCALE.
-    expect(usdcPerKass((SCALE * 5n) / 100_000n)).toBeCloseTo(0.05, 6);
+describe("usdcPerSol", () => {
+  it("divides out PRICE_SCALE and applies the SOL(9)/USDC(6) decimal scale", () => {
+    // raw twap 0.5·SCALE → 0.5 quote/base raw → ×10^(9−6)=1000 → 500 USDC/SOL.
+    expect(usdcPerSol(SCALE / 2n)).toBeCloseTo(500, 6);
+    // A realistic ~$0.05 SOL: 0.05 / 1000 = 5e-5 raw ratio → 5e-5·SCALE.
+    expect(usdcPerSol((SCALE * 5n) / 100_000n)).toBeCloseTo(0.05, 6);
   });
 });

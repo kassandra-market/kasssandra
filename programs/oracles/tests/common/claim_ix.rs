@@ -3,7 +3,7 @@ use super::*;
 impl TestCtx {
     /// Fold a creation-time `reward_emission` into an already-seeded TERMINAL
     /// `Resolved` oracle, mirroring the `create_oracle` mint + `finalize_oracle`
-    /// fold the real flow would produce: physically add `amount` KASS to the
+    /// fold the real flow would produce: physically add `amount` SOL to the
     /// stake vault (backed by mint supply), stamp `reward_emission`, AND add it to
     /// the distributable `reward_pool` (the S3 `reward_pool = bond_pool +
     /// reward_emission`). The S2 claims then read the emission-boosted pool, so a
@@ -17,19 +17,19 @@ impl TestCtx {
         let vault = Pubkey::new_from_array(o.stake_vault.to_bytes());
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
         self.add_token_balance(vault, amount);
-        self.add_mint_supply(self.kass_mint, amount);
+        self.add_mint_supply(self.base_mint, amount);
     }
 
     /// Seed a SETTLED-challenge disqualification on a proposer of an oracle seeded
     /// via [`TestCtx::seed_disputed_oracle`]: mark it disqualified + slashed with
-    /// `slashed_amount = bond − kass_fee` (the bond_pool contribution), credit
+    /// `slashed_amount = bond − base_fee` (the bond_pool contribution), credit
     /// `bond_pool += slashed_amount`, decrement `surviving_count`, and remove the
-    /// `kass_fee` KASS from the stake vault (modelling `settle_challenge`'s payout
-    /// of `kass_fee` to the challenger). Mirrors the on-chain post-settle state so
+    /// `base_fee` SOL from the stake vault (modelling `settle_challenge`'s payout
+    /// of `base_fee` to the challenger). Mirrors the on-chain post-settle state so
     /// the deadend-after-settled-challenge conservation test starts from reality.
-    pub fn seed_challenge_disqualify(&mut self, oracle: Pubkey, proposer: Pubkey, kass_fee: u64) {
+    pub fn seed_challenge_disqualify(&mut self, oracle: Pubkey, proposer: Pubkey, base_fee: u64) {
         let mut p = self.proposer(proposer);
-        let slashed_amount = p.bond - kass_fee;
+        let slashed_amount = p.bond - base_fee;
         p.disqualified = 1;
         p.slashed = 1;
         p.slashed_amount = slashed_amount;
@@ -40,19 +40,19 @@ impl TestCtx {
         o.surviving_count -= 1;
         let vault = Pubkey::new_from_array(o.stake_vault.to_bytes());
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
-        // The kass_fee physically left the vault to the challenger at settle time.
-        self.sub_token_balance(vault, kass_fee);
+        // The base_fee physically left the vault to the challenger at settle time.
+        self.sub_token_balance(vault, base_fee);
     }
 
     /// Build a `ClaimProposer` instruction (Ix 17). Account order:
-    /// `[0] oracle(ro) [1] proposer(w) [2] dest_kass(w) [3] stake_vault(w)
+    /// `[0] oracle(ro) [1] proposer(w) [2] dest_base(w) [3] stake_vault(w)
     /// [4] rent_recipient(w) [5] token program`. Payload = `oracle_nonce` LE.
     pub fn claim_proposer_ix(
         &self,
         oracle: Pubkey,
         nonce: u64,
         proposer: Pubkey,
-        dest_kass: Pubkey,
+        dest_base: Pubkey,
         stake_vault: Pubkey,
         rent_recipient: Pubkey,
     ) -> Instruction {
@@ -61,7 +61,7 @@ impl TestCtx {
             oracle,
             nonce,
             proposer,
-            dest_kass,
+            dest_base,
             stake_vault,
             rent_recipient,
         )
@@ -74,7 +74,7 @@ impl TestCtx {
         oracle: Pubkey,
         nonce: u64,
         fact: Pubkey,
-        dest_kass: Pubkey,
+        dest_base: Pubkey,
         stake_vault: Pubkey,
         rent_recipient: Pubkey,
     ) -> Instruction {
@@ -83,14 +83,14 @@ impl TestCtx {
             oracle,
             nonce,
             fact,
-            dest_kass,
+            dest_base,
             stake_vault,
             rent_recipient,
         )
     }
 
     /// Build a `ClaimFactVote` instruction (Ix 19). Account order:
-    /// `[0] oracle(ro) [1] fact_vote(w) [2] fact(ro) [3] dest_kass(w)
+    /// `[0] oracle(ro) [1] fact_vote(w) [2] fact(ro) [3] dest_base(w)
     /// [4] stake_vault(w) [5] rent_recipient(w) [6] token program`.
     #[allow(clippy::too_many_arguments)]
     pub fn claim_fact_vote_ix(
@@ -99,7 +99,7 @@ impl TestCtx {
         nonce: u64,
         fact_vote: Pubkey,
         fact: Pubkey,
-        dest_kass: Pubkey,
+        dest_base: Pubkey,
         stake_vault: Pubkey,
         rent_recipient: Pubkey,
     ) -> Instruction {
@@ -109,7 +109,7 @@ impl TestCtx {
             nonce,
             fact_vote,
             fact,
-            dest_kass,
+            dest_base,
             stake_vault,
             rent_recipient,
         )
@@ -211,37 +211,37 @@ impl TestCtx {
         self.set_program_account(oracle, bytemuck::bytes_of(&o).to_vec());
     }
 
-    /// Add `amount` KASS to a seeded oracle's `stake_vault` (backed by mint
+    /// Add `amount` SOL to a seeded oracle's `stake_vault` (backed by mint
     /// supply, mirroring the harness philosophy), modelling the residual dust /
     /// unclaimed principal a terminal vault retains after (or without) claims.
     pub fn fund_vault(&mut self, oracle: Pubkey, amount: u64) {
         let vault = Pubkey::new_from_array(self.oracle(oracle).stake_vault.to_bytes());
         self.add_token_balance(vault, amount);
-        self.add_mint_supply(self.kass_mint, amount);
+        self.add_mint_supply(self.base_mint, amount);
     }
 
-    /// Derive the canonical KASS associated-token-account of `owner`
-    /// (`ATA(owner, kass_mint)` under the ATA program) — the address the DAO
+    /// Derive the canonical SOL associated-token-account of `owner`
+    /// (`ATA(owner, base_mint)` under the ATA program) — the address the DAO
     /// treasury lives at.
-    pub fn kass_ata(&self, owner: Pubkey) -> Pubkey {
+    pub fn base_ata(&self, owner: Pubkey) -> Pubkey {
         Pubkey::find_program_address(
             &[
                 owner.as_ref(),
                 TOKEN_PROGRAM_ID.as_ref(),
-                self.kass_mint.as_ref(),
+                self.base_mint.as_ref(),
             ],
             &ATA_PROGRAM_ID,
         )
         .0
     }
 
-    /// Fabricate the DAO treasury: an empty KASS token account AT the canonical
-    /// `ATA(owner, kass_mint)` address, owned (token authority) by `owner`.
+    /// Fabricate the DAO treasury: an empty SOL token account AT the canonical
+    /// `ATA(owner, base_mint)` address, owned (token authority) by `owner`.
     /// Returns the ATA address.
-    pub fn seed_kass_treasury(&mut self, owner: Pubkey) -> Pubkey {
-        let ata = self.kass_ata(owner);
+    pub fn seed_base_treasury(&mut self, owner: Pubkey) -> Pubkey {
+        let ata = self.base_ata(owner);
         let state = TokenAccount {
-            mint: self.kass_mint,
+            mint: self.base_mint,
             owner,
             amount: 0,
             delegate: COption::None,

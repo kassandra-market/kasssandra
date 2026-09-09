@@ -74,7 +74,7 @@ function oracleBytes(opts: {
   const data = new Uint8Array(ACCOUNT_SIZES.Oracle);
   const dv = new DataView(data.buffer);
   data[0] = AccountType.Oracle; // account_type @0
-  // creator/kass_mint/usdc_mint/stake_vault (@8/@40/@72/@104) — unread here, left zero.
+  // creator/base_mint/usdc_mint/stake_vault (@8/@40/@72/@104) — unread here, left zero.
   dv.setBigInt64(136, 0n, true); // deadline — unread by submit_ai_claim
   dv.setBigInt64(144, opts.phaseEndsAt, true); // phase_ends_at — require_before_end gate
   dv.setBigInt64(152, 600n, true); // twap_window

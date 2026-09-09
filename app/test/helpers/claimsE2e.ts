@@ -22,7 +22,7 @@ import {
 export interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
   daoAuthority: Address;
   treasury: Address;
@@ -97,23 +97,23 @@ export async function fundSigner(f: Fixture): Promise<Keypair> {
   return kp;
 }
 
-export async function fundKass(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
+export async function fundBase(f: Fixture, owner: Address, amount: bigint): Promise<Address> {
   const acct = await Keypair.generate();
   await f.harness.setAccount(acct.publicKey.toString(), {
     lamports: 5_000_000, owner: TOKEN_PROGRAM_ID.toString(), executable: false,
-    data: toHex(tokenAccountBytes(f.kassMint.publicKey.toBytes(), owner.toBytes(), amount)),
+    data: toHex(tokenAccountBytes(f.baseMint.publicKey.toBytes(), owner.toBytes(), amount)),
   });
   return acct.publicKey;
 }
 
 export async function createOracleReal(f: Fixture, nonce: bigint, optionsCount: number): Promise<void> {
-  const creatorKass = await fundKass(f, f.payer.publicKey, 10n ** 15n);
+  const creatorBase = await fundBase(f, f.payer.publicKey, 10n ** 15n);
   const nowUnix = await f.harness.clockUnixTimestamp();
   await sendIx(f, await createOracle({
     nonce, optionsCount,
     deadline: nowUnix + 1_000n, twapWindow: 600n,
-    creator: f.payer.publicKey, creatorKassToken: creatorKass,
-    kassMint: f.kassMint.publicKey, usdcMint: f.usdcMint.publicKey,
+    creator: f.payer.publicKey, creatorBaseToken: creatorBase,
+    baseMint: f.baseMint.publicKey, usdcMint: f.usdcMint.publicKey,
   }));
 }
 
@@ -131,7 +131,7 @@ export async function proposeRealWithAuthority(
   f: Fixture, oracle: Address, option: number, bond: bigint,
 ): Promise<{ authority: Keypair; proposer: Address }> {
   const authority = await fundSigner(f);
-  const authorityKass = await fundKass(f, authority.publicKey, bond * 10n);
-  await sendIx(f, await propose({ oracle, authority: authority.publicKey, authorityKass, option, bond }), [authority]);
+  const authorityBase = await fundBase(f, authority.publicKey, bond * 10n);
+  await sendIx(f, await propose({ oracle, authority: authority.publicKey, authorityBase, option, bond }), [authority]);
   return { authority, proposer: (await pda.proposer(oracle, authority.publicKey)).address };
 }

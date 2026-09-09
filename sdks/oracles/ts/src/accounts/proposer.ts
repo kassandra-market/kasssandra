@@ -13,7 +13,7 @@ export interface Proposer {
   accountType: AccountType.Proposer;
   oracle: Address;
   authority: Address;
-  /** Locked KASS bond. */
+  /** Locked SOL bond. */
   bond: bigint;
   /** Option value at proposal time. */
   originalOption: number;
@@ -26,7 +26,7 @@ export interface Proposer {
   bump: number;
   /** Settled by `finalize_ai_claims` (idempotency marker). */
   aiFinalized: boolean;
-  /** KASS slashed from this proposer into the oracle's `bond_pool`. */
+  /** SOL slashed from this proposer into the oracle's `bond_pool`. */
   slashedAmount: bigint;
 }
 

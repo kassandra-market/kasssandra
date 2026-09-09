@@ -20,7 +20,7 @@ matching TypeScript derivers are in [SDK · PDAs](/sdk/pdas).
 | AiClaim | `[b"claim", oracle_pubkey, proposer_pubkey]` | `submit_ai_claim.rs` |
 | Market | `[b"market", ai_claim_pubkey]` | `open_challenge.rs` |
 | Challenger USDC escrow | `[b"challenge_usdc", market_pubkey]` | `open_challenge.rs`; SPL token account, authority = oracle PDA |
-| Mint-authority | `[b"mint_authority"]` (`MINT_AUTHORITY_SEED`) | `create_oracle.rs`; KASS emission `MintTo` signer |
+| Mint-authority | `[b"mint_authority"]` (`MINT_AUTHORITY_SEED`) | Still derived by clients as account 9 of `create_oracle`; unused (no minting). |
 
 <Note>
 The **Oracle** PDA is re-derived from `oracle_nonce` inside every instruction whose payload carries the
@@ -33,10 +33,10 @@ oracle seeds `[b"oracle", nonce_le, [bump]]`.
 
 | Account | Seeds | Program |
 | --- | --- | --- |
-| DAO treasury (KASS ATA of `dao_authority`) | `[dao_authority, TOKEN_PROGRAM_ID, kass_mint]` | ATA program `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` |
+| DAO treasury (SOL ATA of `dao_authority`) | `[dao_authority, TOKEN_PROGRAM_ID, base_mint]` | ATA program `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` |
 
 The DAO treasury is derived and checked by `sweep_oracle` (`sweep_oracle.rs`) as
-`ATA(dao_authority, kass_mint)`; a mismatch returns `InvalidTreasury`.
+`ATA(dao_authority, base_mint)`; a mismatch returns `InvalidTreasury`.
 
 ## External MetaDAO / Squads PDAs — out of scope
 
@@ -46,7 +46,7 @@ seed internals live in `programs/oracles/src/cpi/metadao.rs` and `cpi/metadao_v0
 
 - Conditional-token mint PDAs (`metadao::conditional_token_mint_pda(vault, idx)`).
 - The conditional-vault event-authority PDA (`metadao::event_authority_pda(...)`).
-- Squads multisig / vault PDAs (`squads_multisig_pda(kass_dao)` / `squads_vault_pda(multisig, 0)`).
+- Squads multisig / vault PDAs (`squads_multisig_pda(spot_dao)` / `squads_vault_pda(multisig, 0)`).
 
 For these, see [Challenge markets](/challenge/overview) and
 [Conditional vaults](/challenge/conditional-vaults).

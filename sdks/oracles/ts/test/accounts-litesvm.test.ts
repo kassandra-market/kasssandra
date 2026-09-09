@@ -39,12 +39,12 @@ describe("decode a REAL program-created Protocol (litesvm + init_protocol)", () 
     const payer = await Keypair.generate();
     svm.airdrop(payer.address, lamports(10_000_000_000n));
 
-    // Fabricate the canonical KASS/USDC mints: init_protocol only requires they
+    // Fabricate the canonical SOL/USDC mints: init_protocol only requires they
     // be owned by the SPL token program (it does not parse the mint layout), so
     // a token-program-owned buffer suffices to exercise the real processor.
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    for (const mint of [kassMint, usdcMint]) {
+    for (const mint of [baseMint, usdcMint]) {
       svm.setAccount({
         address: mint.address,
         data: new Uint8Array(82), // SPL mint size; contents irrelevant to init_protocol
@@ -58,13 +58,13 @@ describe("decode a REAL program-created Protocol (litesvm + init_protocol)", () 
     const protocolPda = await pda.protocol();
 
     // init_protocol accounts (processor order):
-    //   0 protocol PDA (w) | 1 admin (signer, w) | 2 kass_mint | 3 usdc_mint | 4 system program
+    //   0 protocol PDA (w) | 1 admin (signer, w) | 2 base_mint | 3 usdc_mint | 4 system program
     const ix = new TransactionInstruction({
       programId: new Address(PROGRAM_ID),
       keys: [
         { pubkey: protocolPda.address, isSigner: false, isWritable: true },
         { pubkey: payer.publicKey, isSigner: true, isWritable: true },
-        { pubkey: kassMint.publicKey, isSigner: false, isWritable: false },
+        { pubkey: baseMint.publicKey, isSigner: false, isWritable: false },
         { pubkey: usdcMint.publicKey, isSigner: false, isWritable: false },
         { pubkey: new Address(SYSTEM_PROGRAM_ID), isSigner: false, isWritable: false },
       ],
@@ -89,7 +89,7 @@ describe("decode a REAL program-created Protocol (litesvm + init_protocol)", () 
     const p = decodeProtocol(data);
     expect(p.accountType).toBe(AccountType.Protocol);
     expect(p.admin.toString()).toBe(payer.publicKey.toString());
-    expect(p.kassMint.toString()).toBe(kassMint.publicKey.toString());
+    expect(p.baseMint.toString()).toBe(baseMint.publicKey.toString());
     expect(p.usdcMint.toString()).toBe(usdcMint.publicKey.toString());
     expect(p.bump).toBe(protocolPda.bump);
     // init_protocol defaults (config.rs consts): genesis fee-EMA is zeroed,
@@ -97,13 +97,13 @@ describe("decode a REAL program-created Protocol (litesvm + init_protocol)", () 
     expect(p.feeEma).toBe(0n);
     expect(p.lastCreationUnix).toBe(0n);
     expect(p.governanceSet).toBe(false);
-    // Emission ON by default (config.rs: EMISSION_NUM/DEN, TOTAL_SUPPLY_CAP).
-    expect(p.emissionNum).toBe(1n);
+    // No native-token minting: emission knobs default to disabled.
+    expect(p.emissionNum).toBe(0n);
     expect(p.emissionDen).toBe(1_000_000n);
-    expect(p.totalSupplyCap).toBe(1_000_000_000_000_000_000n);
+    expect(p.totalSupplyCap).toBe(0n);
     expect(p.thresholdNum).toBe(2n);
     expect(p.thresholdDen).toBe(3n);
     expect(p.challengeFailUsdcFeeDen).toBe(100n);
-    expect(p.challengeSuccessKassFeeDen).toBe(100n);
+    expect(p.challengeSuccessBaseFeeDen).toBe(100n);
   });
 });

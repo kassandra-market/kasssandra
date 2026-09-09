@@ -10,7 +10,7 @@ import { WriteStatusRegion } from "./WriteStatusRegion";
  * Permissionless "collect protocol fee" crank, shown by {@link MarketActions} on a
  * Resolved/Void market that carries a non-zero `feeBps` and has NOT yet been
  * collected. It cuts the protocol's share of the market's accrued LP earnings and
- * routes it — denominated in KASS — to the futarchy-governed fee destination, then
+ * routes it — denominated in SOL — to the futarchy-governed fee destination, then
  * opens `claim_lp` (which is gated on collection). Anyone may crank it.
  */
 export function CollectFeeControl({
@@ -39,7 +39,7 @@ export function CollectFeeControl({
         <h3 className="font-serif text-subheading font-light text-platinum">Collect protocol fee</h3>
         <p className="mt-1 font-inter text-[13px] text-silver">
           This market accrued a {(market.feeBps / 100).toFixed(2)}% protocol fee on its LP earnings.
-          Collecting routes that accrued cut to the KASS futarchy and unlocks LP claims (claims are
+          Collecting routes that accrued cut to the SOL futarchy and unlocks LP claims (claims are
           held until the fee is collected). Permissionless — anyone may crank it.
         </p>
       </div>

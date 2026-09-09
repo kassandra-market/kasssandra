@@ -21,11 +21,11 @@ phase semantics are in [Phases](/protocol/phases).
 <AccordionGroup>
   <Accordion title="Ix 9 · InitProtocol — create the singleton" icon="wrench">
     One-time creation of the `[b"protocol"]` singleton (`processor/init_protocol.rs`). Records the
-    admin and canonical KASS/USDC mints, defaults all governable params to the config consts (fee EMA
+    admin and canonical SOL/USDC mints, defaults all governable params to the config consts (fee EMA
     zeroed), and uses create-or-adopt to tolerate a pre-funded PDA.
 
     **Accounts:** `0` protocol PDA (writable, `[b"protocol"]`, self-signs) · `1` admin (signer,
-    writable) · `2` kass_mint (SPL) · `3` usdc_mint (SPL) · `4` system program.
+    writable) · `2` base_mint (SPL) · `3` usdc_mint (SPL) · `4` system program.
 
     **Payload:** none (trailing bytes ignored).
 
@@ -33,23 +33,23 @@ phase semantics are in [Phases](/protocol/phases).
   </Accordion>
 
   <Accordion title="Ix 10 · CreateOracle — stand up an oracle" icon="star">
-    Stands up a new oracle in `Phase::Proposal` with a future deadline, a program-controlled KASS
-    stake vault (`[b"vault", oracle]`, authority = oracle PDA), a burned EMA creation fee, and
-    optional emission minted into the vault (`processor/create_oracle.rs`). Snapshots all governable
-    params from the Protocol onto the Oracle.
+    Stands up a new oracle in `Phase::Proposal` with a future deadline, a program-controlled SOL
+    stake vault (`[b"vault", oracle]`, authority = oracle PDA), and a burned EMA creation fee
+    (`processor/create_oracle.rs`). There is no native-token minting — `reward_emission` is
+    always recorded as 0. Snapshots all governable params from the Protocol onto the Oracle.
 
     **Accounts:** `0` protocol (writable) · `1` oracle PDA (writable, uninit; `[b"oracle", nonce_le]`)
     · `2` stake_vault PDA (writable, uninit; `[b"vault", oracle]`) · `3` creator (signer, writable) ·
-    `4` kass_mint (writable) · `5` usdc_mint · `6` token program · `7` system program · `8`
-    creator_kass_token (writable, fee burn source) · `9` mint_authority PDA (`[b"mint_authority"]`).
+    `4` base_mint (writable) · `5` usdc_mint · `6` token program · `7` system program · `8`
+    creator_base_token (writable, fee burn source) · `9` mint_authority PDA (`[b"mint_authority"]`).
 
     **Payload (25 bytes):** `nonce: u64 LE` ++ `options_count: u8` ++ `deadline: i64 LE` ++
     `twap_window: i64 LE`. The question and option labels are not in this payload — they are written
     on-chain by `WriteOracleMeta` (Ix 23), appended to the same transaction.
 
     **Errors:** `options_count < 2` → `InvalidOptionsCount`; `deadline < now` → `InvalidDeadline`;
-    `twap_window <= 0` → `InvalidInstructionData`; duplicate PDA / bad burn source → `InvalidAccount`;
-    emission mint-authority mismatch → `BadMintAuthority`.
+    `twap_window <= 0` → `InvalidInstructionData`; duplicate PDA / bad burn source → `InvalidAccount`.
+    Account 9 (historically the mint-authority PDA) is accepted and ignored.
   </Accordion>
 
   <Accordion title="Ix 23 · WriteOracleMeta — write on-chain metadata" icon="file-pen">
@@ -68,13 +68,13 @@ phase semantics are in [Phases](/protocol/phases).
 
   <Accordion title="Ix 13 · SetGovernance — admin→DAO handoff" icon="landmark">
     One-time admin→DAO handoff recording `dao_authority` (a Squads v4 multisig vault PDA) and
-    `kass_dao` (a futarchy `Dao`), validated against real accounts (`processor/set_governance.rs`).
+    `spot_dao` (a futarchy `Dao`), validated against real accounts (`processor/set_governance.rs`).
     After the handoff only the current `dao_authority` may rotate.
 
     **Accounts:** `0` protocol PDA (writable) · `1` authority (signer — `admin` pre-handoff,
-    `dao_authority` post) · `2` kass_dao (futarchy Dao; == payload `kass_dao`).
+    `dao_authority` post) · `2` spot_dao (futarchy Dao; == payload `spot_dao`).
 
-    **Payload (≥ 64 bytes):** `dao_authority: [u8;32]` ++ `kass_dao: [u8;32]` (extra trailing bytes
+    **Payload (≥ 64 bytes):** `dao_authority: [u8;32]` ++ `spot_dao: [u8;32]` (extra trailing bytes
     ignored).
 
     **Errors:** payload `< 64` → `InvalidInstructionData`; zero key → `InvalidAccount`; wrong signer
@@ -94,7 +94,7 @@ phase semantics are in [Phases](/protocol/phases).
     threshold_den, market_threshold_num, market_threshold_den, flip_slash_num, flip_slash_den,
     phase_window (i64), proposal_window (i64), fact_vote_slash_num, fact_vote_slash_den,
     reward_proposer_weight, reward_fact_weight, challenge_fail_usdc_fee_num, challenge_fail_usdc_fee_den,
-    challenge_success_kass_fee_num, challenge_success_kass_fee_den`.
+    challenge_success_base_fee_num, challenge_success_base_fee_den`.
 
     **Errors:** wrong signer → `Unauthorized`; any bad bound (zero denominators, `num > den`
     fractions, non-positive windows/halflife, both reward weights zero, or the joint bound
@@ -102,13 +102,13 @@ phase semantics are in [Phases](/protocol/phases).
     [Constants](/protocol/constants).
   </Accordion>
 
-  <Accordion title="Ix 16 · KassPrice — read the KASS/USDC TWAP" icon="magnifying-glass-dollar">
-    Read-only governance-anchored KASS/USDC spot TWAP from the futarchy `kass_dao`, returned via
-    `set_return_data` (`processor/kass_price.rs`). No state change.
+  <Accordion title="Ix 16 · SpotPrice — read the SOL/USDC TWAP" icon="magnifying-glass-dollar">
+    Read-only governance-anchored SOL/USDC spot TWAP from the futarchy `spot_dao`, returned via
+    `set_return_data` (`processor/spot_price.rs`). No state change.
 
-    **Accounts:** `0` protocol PDA · `1` kass_dao (== `protocol.kass_dao`).
+    **Accounts:** `0` protocol PDA · `1` spot_dao (== `protocol.spot_dao`).
 
-    **Payload:** none used. **Return:** 16-byte LE `u128` TWAP (scaled by `KASS_PRICE_SCALE = 1e12`).
+    **Payload:** none used. **Return:** 16-byte LE `u128` TWAP (scaled by `SPOT_PRICE_SCALE = 1e12`).
   </Accordion>
 </AccordionGroup>
 
@@ -116,13 +116,13 @@ phase semantics are in [Phases](/protocol/phases).
 
 <AccordionGroup>
   <Accordion title="Ix 11 · Propose — register a proposal" icon="hand">
-    Registers a proposal (categorical `option` + KASS `bond`) against an oracle in `Proposal` after
+    Registers a proposal (categorical `option` + SOL `bond`) against an oracle in `Proposal` after
     its deadline; escrows the bond into the stake vault; creates one `Proposer` PDA per (oracle,
     authority); enforces `MAX_PROPOSERS` (`processor/propose.rs`). Sets `claim_option =
     CLAIM_OPTION_NONE`.
 
     **Accounts:** `0` oracle (writable) · `1` proposer PDA (writable, uninit;
-    `[b"proposer", oracle, authority]`) · `2` authority (signer, writable) · `3` authority KASS
+    `[b"proposer", oracle, authority]`) · `2` authority (signer, writable) · `3` authority SOL
     (writable, bond source) · `4` stake vault (writable; == `oracle.stake_vault`) · `5` token program
     · `6` system program.
 
@@ -162,12 +162,12 @@ phase semantics are in [Phases](/protocol/phases).
 
 <AccordionGroup>
   <Accordion title="Ix 0 · SubmitFact — propose a supporting fact" icon="file-lines">
-    Proposes a supporting `Fact` during the `FactProposal` window; escrows submitter KASS stake into
+    Proposes a supporting `Fact` during the `FactProposal` window; escrows submitter SOL stake into
     the stake vault (`processor/submit_fact.rs`).
 
     **Accounts:** `0` oracle (writable) · `1` fact PDA (writable, uninit;
-    `[b"fact", oracle, content_hash]`) · `2` submitter (signer, writable) · `3` submitter KASS
-    (writable, stake source; mint == `oracle.kass_mint`) · `4` stake vault (writable;
+    `[b"fact", oracle, content_hash]`) · `2` submitter (signer, writable) · `3` submitter SOL
+    (writable, stake source; mint == `oracle.base_mint`) · `4` stake vault (writable;
     == `oracle.stake_vault`) · `5` token program · `6` system program.
 
     **Payload (variable, min 42 bytes):** `content_hash: [u8;32]` ++ `stake: u64 LE` ++
@@ -183,7 +183,7 @@ phase semantics are in [Phases](/protocol/phases).
 
     **Accounts:** `0` oracle (writable) · `1` fact (writable; `fact.oracle == oracle`) · `2`
     fact_vote PDA (writable, uninit; `[b"vote", fact, voter]`) · `3` voter (signer, writable) · `4`
-    voter KASS (writable, stake source) · `5` stake vault (writable; == `oracle.stake_vault`) · `6`
+    voter SOL (writable, stake source) · `5` stake vault (writable; == `oracle.stake_vault`) · `6`
     token program · `7` system program.
 
     **Payload (exactly 9 bytes):** `kind: u8` (`VOTE_APPROVE=0` / `VOTE_DUPLICATE=1`) ++ `stake: u64 LE`.
@@ -200,8 +200,8 @@ phase semantics are in [Phases](/protocol/phases).
     reward_emission`). Agreed test: `approve_stake > duplicate_stake && approve_stake·threshold_den >=
     dispute_bond_total·threshold_num` (u128).
 
-    **Accounts:** `0` oracle (writable, signs the dead-end burn) · `1` kass_mint (writable;
-    == `oracle.kass_mint`) · `2` stake_vault (writable; == `oracle.stake_vault`) · `3` token program ·
+    **Accounts:** `0` oracle (writable, signs the dead-end burn) · `1` base_mint (writable;
+    == `oracle.base_mint`) · `2` stake_vault (writable; == `oracle.stake_vault`) · `3` token program ·
     `4..N` a non-empty tail — a subset of the oracle's facts (fact path) OR proposers (no-facts path),
     each writable, program-owned, `.oracle == oracle`, distinct.
 
@@ -258,18 +258,18 @@ phase semantics are in [Phases](/protocol/phases).
     Opens a MetaDAO binary decision market against an `AiClaim` during `Challenge`
     (`processor/open_challenge.rs`). Verifies that the MetaDAO question/vaults/AMMs bind to this
     oracle, records a `Market` PDA, program-signed-splits the proposer bond into pass/fail conditional
-    KASS, sizes and funds a challenger USDC escrow via `kass_price`, sets `ai_claim.challenged = 1`,
+    SOL, sizes and funds a challenger USDC escrow via `spot_price`, sets `ai_claim.challenged = 1`,
     and increments `open_challenge_count`. Escrow sizing: `required_usdc = bond · twap /
-    KASS_PRICE_SCALE` where `twap = kass_price(protocol, kass_dao)`.
+    SPOT_PRICE_SCALE` where `twap = spot_price(protocol, spot_dao)`.
 
     **Accounts (25):** `0` oracle (writable, split authority) · `1` ai_claim (writable) · `2`
     proposer (writable, bond source) · `3` market PDA (writable, uninit; `[b"market", ai_claim]`) ·
     `4` challenger (signer, writable) · `5` question (MetaDAO, resolver == oracle, `num_outcomes==2`) ·
-    `6` kass_vault (writable) · `7` usdc_vault · `8` pass_amm · `9` fail_amm · `10` stake_vault
-    (writable) · `11` kass_vault_underlying_ata (writable) · `12` pass_kass_mint (writable) · `13`
-    fail_kass_mint (writable) · `14` oracle_pass_kass (writable) · `15` oracle_fail_kass (writable) ·
+    `6` base_vault (writable) · `7` usdc_vault · `8` pass_amm · `9` fail_amm · `10` stake_vault
+    (writable) · `11` base_vault_underlying_ata (writable) · `12` pass_base_mint (writable) · `13`
+    fail_base_mint (writable) · `14` oracle_pass_base (writable) · `15` oracle_fail_base (writable) ·
     `16` conditional_vault program · `17` token program · `18` system program · `19` cv_event_authority
-    · `20` protocol · `21` kass_dao (== `protocol.kass_dao`) · `22` usdc_mint (== `oracle.usdc_mint`) ·
+    · `20` protocol · `21` spot_dao (== `protocol.spot_dao`) · `22` usdc_mint (== `oracle.usdc_mint`) ·
     `23` challenger_usdc_src (writable) · `24` challenger_usdc_vault (writable, uninit;
     `[b"challenge_usdc", market]`, authority = oracle PDA).
 
@@ -284,7 +284,7 @@ phase semantics are in [Phases](/protocol/phases).
     Settles ONE challenged claim's market after its TWAP window
     (`processor/settle_challenge.rs`). Hard-binds both AMMs to this market's conditional mint pair,
     reads slot-weighted TWAPs, applies the slash trigger, resolves the MetaDAO question, physically
-    redeems the bond KASS back to `stake_vault`, and routes directional fees. Phase stays `Challenge`;
+    redeems the bond SOL back to `stake_vault`, and routes directional fees. Phase stays `Challenge`;
     decrements `open_challenge_count`.
 
     **Slash trigger:** disqualify iff `pass_twap != 0 && fail_twap·market_threshold_den >
@@ -293,11 +293,11 @@ phase semantics are in [Phases](/protocol/phases).
 
     **Accounts (21):** `0` oracle (writable) · `1` market (writable) · `2` ai_claim · `3` proposer
     (writable) · `4` question (writable) · `5` pass_amm · `6` fail_amm · `7` conditional_vault program
-    · `8` cv_event_authority · `9` token program · `10` stake_vault (writable) · `11` kass_vault
-    (writable) · `12` kass_vault_underlying (writable) · `13` pass_kass_mint (writable) · `14`
-    fail_kass_mint (writable) · `15` oracle_pass_kass (writable) · `16` oracle_fail_kass (writable) ·
+    · `8` cv_event_authority · `9` token program · `10` stake_vault (writable) · `11` base_vault
+    (writable) · `12` base_vault_underlying (writable) · `13` pass_base_mint (writable) · `14`
+    fail_base_mint (writable) · `15` oracle_pass_base (writable) · `16` oracle_fail_base (writable) ·
     `17` challenger_usdc_vault (writable) · `18` proposer_usdc (writable) · `19` challenger_usdc_dest
-    (writable) · `20` challenger_kass (writable).
+    (writable) · `20` challenger_base (writable).
 
     **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
 
@@ -316,7 +316,7 @@ phase semantics are in [Phases](/protocol/phases).
     `NoSurvivors` → `InvalidDeadend`, `resolved_option = CLAIM_OPTION_NONE`, burning
     `reward_emission + bond_pool`.
 
-    **Accounts:** `0` oracle (writable, signs burn) · `1` kass_mint (writable; == `oracle.kass_mint`)
+    **Accounts:** `0` oracle (writable, signs burn) · `1` base_mint (writable; == `oracle.base_mint`)
     · `2` stake_vault (writable; == `oracle.stake_vault`) · `3` token program · `4..N` the **full**
     proposer set (exactly `proposer_count`, read-only, program-owned, tagged Proposer,
     `.oracle == oracle`, distinct).
@@ -347,12 +347,12 @@ phase semantics are in [Phases](/protocol/phases).
 
 <AccordionGroup>
   <Accordion title="Ix 17 · ClaimProposer — pull a proposer payout" icon="coins">
-    Permissionless per-proposer pull-claim after the oracle is terminal; pays the KASS entitlement
+    Permissionless per-proposer pull-claim after the oracle is terminal; pays the SOL entitlement
     from `stake_vault` and CLOSES the `Proposer` (rent → authority) (`processor/claims.rs`). Idempotent
     by closure. Entitlement: `base = is_disqualified ? 0 : bond − slashed_amount`, plus
     `proposer_reward` only when Resolved + surviving + `claim_option == resolved_option`.
 
-    **Accounts:** `0` oracle · `1` proposer (writable, CLOSED) · `2` dest_kass (writable;
+    **Accounts:** `0` oracle · `1` proposer (writable, CLOSED) · `2` dest_base (writable;
     owner == `proposer.authority`) · `3` stake_vault (writable; == `oracle.stake_vault`) · `4`
     rent_recipient (writable; == `proposer.authority`) · `5` token program.
 
@@ -366,7 +366,7 @@ phase semantics are in [Phases](/protocol/phases).
     LAST, after all voters (`processor/claims.rs`). Entitlement: agreed → `stake + fact_reward`
     (reward on Resolved only); duplicate → `stake`; rejected → `0`.
 
-    **Accounts:** `0` oracle · `1` fact (writable, CLOSED) · `2` dest_kass (writable;
+    **Accounts:** `0` oracle · `1` fact (writable, CLOSED) · `2` dest_base (writable;
     owner == `fact.proposer`) · `3` stake_vault (writable) · `4` rent_recipient (writable;
     == `fact.proposer`) · `5` token program.
 
@@ -377,14 +377,14 @@ phase semantics are in [Phases](/protocol/phases).
   </Accordion>
 
   <Accordion title="Ix 19 · ClaimFactVote — pull a voter payout" icon="coins">
-    Permissionless per-vote pull-claim; decrements the Fact's running voter-stake total, pays KASS,
+    Permissionless per-vote pull-claim; decrements the Fact's running voter-stake total, pays SOL,
     and CLOSES the `FactVote` (rent → voter). The Fact is loaded to read disposition but NOT closed
     (`processor/claims.rs`). Entitlement: duplicate vote → `stake`; approve on agreed →
     `stake + fact_reward` (Resolved only); approve on duplicate-fact → `stake`; approve on rejected →
     `stake − ceil(stake·fact_vote_slash_num/fact_vote_slash_den)`.
 
     **Accounts:** `0` oracle · `1` fact_vote (writable, CLOSED) · `2` fact (writable, total
-    decremented) · `3` dest_kass (writable; owner == `vote.voter`) · `4` stake_vault (writable) · `5`
+    decremented) · `3` dest_base (writable; owner == `vote.voter`) · `4` stake_vault (writable) · `5`
     rent_recipient (writable; == `vote.voter`) · `6` token program.
 
     **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
@@ -421,13 +421,13 @@ phase semantics are in [Phases](/protocol/phases).
 
   <Accordion title="Ix 22 · SweepOracle — dust sweep + close" icon="broom">
     Permissionless grace-gated dust sweep + terminal `Oracle` / `stake_vault` closure
-    (`processor/sweep_oracle.rs`). Transfers the entire residual vault KASS to the DAO treasury (the
-    KASS ATA of `dao_authority`), then closes the vault and Oracle (rents → `oracle.creator`).
+    (`processor/sweep_oracle.rs`). Transfers the entire residual vault SOL to the DAO treasury (the
+    SOL ATA of `dao_authority`), then closes the vault and Oracle (rents → `oracle.creator`).
     Requires governance to be set.
 
     **Accounts:** `0` oracle (writable, CLOSED; vault authority) · `1` stake_vault (writable, swept +
     CLOSED; == `oracle.stake_vault`) · `2` protocol · `3` dao_treasury (writable; ==
-    `ATA(dao_authority, kass_mint)`) · `4` creator (writable; == `oracle.creator`) · `5` token program.
+    `ATA(dao_authority, base_mint)`) · `4` creator (writable; == `oracle.creator`) · `5` token program.
 
     **Payload (exactly 8 bytes):** `oracle_nonce: u64 LE`.
 
@@ -456,7 +456,7 @@ phase semantics are in [Phases](/protocol/phases).
 | 13 | `SetGovernance` | Governance | ≥64 |
 | 14 | `SetConfig` | Governance | 176 |
 | 15 | `ResolveDeadend` | Resolution | 1 |
-| 16 | `KassPrice` | Governance | 0 |
+| 16 | `SpotPrice` | Governance | 0 |
 | 17 | `ClaimProposer` | Claim | 8 |
 | 18 | `ClaimFact` | Claim | 8 |
 | 19 | `ClaimFactVote` | Claim | 8 |

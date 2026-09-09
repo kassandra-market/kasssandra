@@ -18,14 +18,14 @@ Each fact is a `Fact` account (`state.rs`, LEN = 336) recording:
 |---|---|
 | `content_hash` | `[u8;32]` hash committing the evidence bytes (the runner verifies fetched content against this) |
 | `uri` | up to 200 bytes pointing at the evidence off-chain (`uri_len`) |
-| `stake` | the submitter's KASS stake |
+| `stake` | the submitter's SOL stake |
 | `approve_stake` / `duplicate_stake` | running tallies of approve and duplicate votes |
 | `agreed` / `duplicate` / `settled` | set at finalize: accepted, duplicate-dominant, and settled flags |
 
 ## Window 1 — fact proposal (disjoint, no voting)
 
 Anyone posts candidate facts with `submit_fact` (`Ix::SubmitFact = 0`) during
-`Phase::FactProposal`, escrowing a KASS `stake` into the vault. The payload is a
+`Phase::FactProposal`, escrowing a SOL `stake` into the vault. The payload is a
 `content_hash`, a `stake`, and a length-prefixed `uri` (`uri_len <= 200`; `submit_fact.rs`).
 A duplicate `content_hash` fails with `DuplicateFact`; a zero stake fails with `ZeroStake`.
 
@@ -49,7 +49,7 @@ With the fact set frozen, participants stake-vote per fact with `vote_fact`
 - **duplicate** (`VOTE_DUPLICATE = 1`) — this fact is redundant with another.
 
 Voting is **non-exclusive**: a staker's stake is not split across facts. One staker may
-approve every fact, and their full stake counts toward each one. Any external KASS holder
+approve every fact, and their full stake counts toward each one. Any external SOL holder
 may participate, which deepens the honest pool and makes it harder for a biased bloc to
 dominate (design §4).
 
@@ -78,7 +78,7 @@ bond total** (default `threshold = 2/3`; `THRESHOLD_NUM = 2`, `THRESHOLD_DEN = 3
 ## Settlement: rewards and slashes
 
 `finalize_facts` classifies each fact and moves the appropriate amount into the `bond_pool`
-*counter* (actual KASS stays escrowed until per-staker claims):
+*counter* (actual SOL stays escrowed until per-staker claims):
 
 <CardGroup cols={2}>
   <Card title="Agreed fact" icon="circle-check">

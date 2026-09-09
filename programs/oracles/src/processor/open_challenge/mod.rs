@@ -4,11 +4,11 @@
 //! # Decomposed market (design §6)
 //! The challenger composes the MetaDAO accounts in their OWN transactions
 //! (like the Task 9 tests): a binary `question` whose resolver is the Kassandra
-//! oracle PDA (outcome 0 = pass, 1 = fail), a KASS conditional vault, a USDC
+//! oracle PDA (outcome 0 = pass, 1 = fail), a SOL conditional vault, a USDC
 //! conditional vault, and the pass/fail AMMs. This instruction does NOT create
 //! them — it **verifies** they are bound to this oracle/claim, **records** them
 //! in a [`Market`] PDA, performs the **program-signed** split of the proposer's
-//! already-escrowed KASS bond into pass-KASS / fail-KASS, and flips
+//! already-escrowed SOL bond into pass-SOL / fail-SOL, and flips
 //! `ai_claim.challenged = 1`. AMM liquidity + trading + TWAP settlement are
 //! exercised in tests / Task 11.
 //!
@@ -17,11 +17,11 @@
 //! cost nothing (no account, no CPI) — proven by the test that asserts no
 //! Market PDA exists without an `open_challenge` call.
 //!
-//! # Program-signed KASS split
+//! # Program-signed SOL split
 //! The proposer's bond lives in `oracle.stake_vault`, whose SPL authority is
 //! the oracle PDA. The split's `user_underlying_token_account` is that vault and
 //! its `authority` is the oracle PDA, signed here with the oracle seeds
-//! `[b"oracle", nonce_le, [bump]]`. The pass/fail conditional KASS is minted to
+//! `[b"oracle", nonce_le, [bump]]`. The pass/fail conditional SOL is minted to
 //! two program-controlled token accounts **owned by the oracle PDA** (so Task 11
 //! can redeem/merge them on settlement). The `nonce` is supplied in the payload
 //! and verified by re-deriving the oracle PDA — the Oracle struct does not store
@@ -42,7 +42,7 @@
 //! Each `pass_amm`/`fail_amm` is fully bound before it is recorded on the
 //! `Market` (via [`metadao::assert_amm_bound`]): owned by the AMM program,
 //! carrying the `Amm` account discriminator, and whose `base_mint`/`quote_mint`
-//! equal this market's pass/fail conditional (KASS, USDC) mints for that outcome;
+//! equal this market's pass/fail conditional (SOL, USDC) mints for that outcome;
 //! and `pass_amm != fail_amm`. `settle_challenge` re-checks the SAME binding
 //! before reading each TWAP. Binding at open is load-bearing: settle pins each
 //! AMM to the address recorded here, so a market recorded with an unbindable AMM
@@ -58,34 +58,34 @@
 //! 3.  market PDA          — writable, uninitialized (created here)
 //! 4.  challenger          — signer, writable; pays the Market rent
 //! 5.  question            — read-only MetaDAO question (resolver == oracle PDA)
-//! 6.  kass_vault          — writable MetaDAO conditional vault (underlying KASS)
+//! 6.  base_vault          — writable MetaDAO conditional vault (underlying SOL)
 //! 7.  usdc_vault          — read-only MetaDAO conditional vault (underlying USDC)
 //! 8.  pass_amm            — read-only, owned by the AMM program
 //! 9.  fail_amm            — read-only, owned by the AMM program
 //! 10. stake_vault         — writable; == `oracle.stake_vault` (split source)
-//! 11. kass_vault_underlying_ata — writable; == kass_vault.underlying_token_account
-//! 12. pass_kass_mint      — writable; conditional-token mint idx 0 of kass_vault
-//! 13. fail_kass_mint      — writable; conditional-token mint idx 1 of kass_vault
-//! 14. oracle_pass_kass    — writable; dest conditional-token acct, owner == oracle PDA
-//! 15. oracle_fail_kass    — writable; dest conditional-token acct, owner == oracle PDA
+//! 11. base_vault_underlying_ata — writable; == base_vault.underlying_token_account
+//! 12. pass_base_mint      — writable; conditional-token mint idx 0 of base_vault
+//! 13. fail_base_mint      — writable; conditional-token mint idx 1 of base_vault
+//! 14. oracle_pass_base    — writable; dest conditional-token acct, owner == oracle PDA
+//! 15. oracle_fail_base    — writable; dest conditional-token acct, owner == oracle PDA
 //! 16. conditional_vault program
 //! 17. token program
 //! 18. system program
 //! 19. cv_event_authority  — read-only; conditional_vault `#[event_cpi]` authority
-//! 20. protocol            — read-only; the `[b"protocol"]` singleton (`kass_dao` source)
-//! 21. kass_dao            — read-only; the futarchy `Dao` (== `protocol.kass_dao`), kass_price source
+//! 20. protocol            — read-only; the `[b"protocol"]` singleton (`spot_dao` source)
+//! 21. spot_dao            — read-only; the futarchy `Dao` (== `protocol.spot_dao`), spot_price source
 //! 22. usdc_mint           — read-only; == `oracle.usdc_mint` (escrow vault mint)
 //! 23. challenger_usdc_src — writable; challenger's USDC source token account (challenger signs)
 //! 24. challenger_usdc_vault — writable, uninit; market-owned USDC escrow created here
 //!     at PDA `[b"challenge_usdc", market]`, token authority = oracle PDA
 //!
 //! # Challenger USDC escrow (Task C1)
-//! The escrow is sized via `kass_price` (the governance-anchored futarchy spot
-//! TWAP, raw USDC per raw KASS × `1e12`): `required_usdc = bond × twap /
-//! KASS_PRICE_SCALE` (u128, overflow-checked), where `bond == proposer.bond`.
-//! The cross-decimal (KASS 9dp / USDC 6dp) adjustment is folded into the raw
+//! The escrow is sized via `spot_price` (the governance-anchored futarchy spot
+//! TWAP, raw USDC per raw SOL × `1e12`): `required_usdc = bond × twap /
+//! SPOT_PRICE_SCALE` (u128, overflow-checked), where `bond == proposer.bond`.
+//! The cross-decimal (SOL 9dp / USDC 6dp) adjustment is folded into the raw
 //! price, so no extra `10^Δdecimals` factor is needed (see
-//! [`crate::config::KASS_PRICE_SCALE`]). The amount is computed ON-CHAIN and
+//! [`crate::config::SPOT_PRICE_SCALE`]). The amount is computed ON-CHAIN and
 //! transferred challenger→escrow; the legacy payload `challenger_usdc` field is
 //! gone (it was never trustworthy).
 //!

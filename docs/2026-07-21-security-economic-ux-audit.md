@@ -40,7 +40,7 @@ Addressed the follow-ups above; emission redesigned per product direction
 (emission ON by default, throttled by economics not by a disabled default).
 
 - **O1 emission economics — REDESIGNED (done).** Emission is now ON by default
-  (the intended KASS distribution channel: a single uncontested proposer can
+  (the intended SOL distribution channel: a single uncontested proposer can
   steadily mint). The permissionless-farming vector is closed by ECONOMICS: the
   creation fee gains an **emission-recapture** component,
   `recapture = reward·fee_ema/(fee_ema + FEE_RECAPTURE_HALF_ACTIVITY)`, added to
@@ -130,13 +130,13 @@ slash/reward site. Scanner SOL-009/SOL-016 flags all confirmed false positives.
   `total_supply_cap=1e18` (the "recommended" consts), so emission is LIVE at
   genesis — directly contradicting `config.rs:256-263` which says a fresh
   Protocol carries `total_supply_cap==0 / emission_num==0`. Each `create_oracle`
-  mints `(cap−supply)/1e6` KASS into that oracle's own `stake_vault`, fully
+  mints `(cap−supply)/1e6` SOL into that oracle's own `stake_vault`, fully
   claimable by a single "correct" proposer. Exploit: create_oracle (fee 0,
   min_stake 0) → propose with a 1-base-unit bond → wait the window →
   finalize_proposals with the sole proposer → trivially all-agree Resolved with
   `reward_pool = emission`, `total_correct_proposer_stake = 1` → claim_proposer
   pays `1 + emission`. Attacker pockets the whole per-oracle emission for ~0 cost,
-  repeatably/in parallel. (Contingency: if the KASS mint authority is NOT the
+  repeatably/in parallel. (Contingency: if the SOL mint authority is NOT the
   program PDA, every emission-live `create_oracle` instead reverts
   `BadMintAuthority` — a liveness brick.) Fix: default `total_supply_cap=0` /
   `emission_num=0` in `init_protocol` (match documented genesis-disabled intent;
@@ -237,17 +237,17 @@ logged, value parsing is bigint-exact throughout. Findings:
   check. On-chain PDA constraints stop most substitutions, but a compromised
   indexer can bias slippage floors arbitrarily. Fix (cheap): derive/verify
   reserves from a raw `/api/account` read + client decode (as
-  `useKassBalance`/`decodeAmmV04` already do) before setting a floor.
+  `useSolBalance`/`decodeAmmV04` already do) before setting a floor.
 
-- [x] **F6 (Medium) — Sell flow shows no payout estimate and silently strands dust.** _(done — added `previewSell` (estimated KASS received + residual dust) and a sell-mode "You receive ≈" line that notes the unmerged conditional-token residual.)_
+- [x] **F6 (Medium) — Sell flow shows no payout estimate and silently strands dust.** _(done — added `previewSell` (estimated SOL received + residual dust) and a sell-mode "You receive ≈" line that notes the unmerged conditional-token residual.)_
   `TradePanel.tsx:366-373` (preview buy-only) + `trade.ts:266-270`
   (`mergeAmount = min(remainder, slippage-floored swap out)` leaves the excess as
   unmerged cYES/cNO, unmentioned). Fix: add a sell preview from
   `optimalUnwindSwap`+`ammSwapOut`, note/handle the residual.
 
-- [x] **F7 (Low) — Quick-add chips round-trip the amount through JS float.** _(done — `bump` now uses bigint base-unit math via `parseKassAmount` + `toPlainAmount`.)_
+- [x] **F7 (Low) — Quick-add chips round-trip the amount through JS float.** _(done — `bump` now uses bigint base-unit math via `parseSolAmount` + `toPlainAmount`.)_
   `TradePanel.tsx:211-215`: `Number(amount) + n` after a bigint-exact "Max" can
-  alter low-order decimals for balances ≳9M KASS. Fix: bump via `parseKassAmount`
+  alter low-order decimals for balances ≳9M SOL. Fix: bump via `parseSolAmount`
   + bigint add + `toPlainAmount`.
 
 - [x] **F8 (Low) — Batch-signed sequences can outlive their blockhashes.** _(done — cap the up-front batch-sign at MAX_BATCH_SIGN_TXS=3; longer sequences fall back to per-tx signing with a fresh blockhash each.)_
@@ -257,5 +257,5 @@ logged, value parsing is bigint-exact throughout. Findings:
   landing within ~60s, else per-tx signing.
 
 - [x] **F9 (Low) — Buy→Sell tab switch keeps the typed amount while the unit changes.** _(done — mode change clears the amount, like belief change.)_
-  `TradePanel.tsx:270`: "100" silently flips from KASS to shares. Fix: clear the
+  `TradePanel.tsx:270`: "100" silently flips from SOL to shares. Fix: clear the
   amount on mode change (belief change already does).

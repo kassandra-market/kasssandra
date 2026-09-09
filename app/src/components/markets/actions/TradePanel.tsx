@@ -12,17 +12,17 @@ import {
   DEFAULT_SLIPPAGE_BPS,
 } from "../../../market/data/actions";
 import { useWriteAction } from "../../../market/hooks/useWriteAction";
-import { useKassBalance } from "../../../market/hooks/useKassBalance";
-import { KASS_DECIMALS, formatKass } from "../../../market/lib/marketView";
+import { useSolBalance } from "../../../market/hooks/useSolBalance";
+import { SOL_DECIMALS, formatSol } from "../../../market/lib/marketView";
 import type { Belief } from "../../../market/lib/beliefs";
-import { parseKassAmount, balanceGateError } from "../../../market/data/amount";
+import { parseSolAmount, balanceGateError } from "../../../market/data/amount";
 import { ConnectGate } from "./ConnectGate";
 import { Field, SubmitButton, TextInput } from "./formPrimitives";
 import { WriteStatusRegion } from "./WriteStatusRegion";
 
 type Mode = "buy" | "sell";
 
-/** Whole-KASS quick-add chips (mirrors the reference's +$1/+$5/… stepper). */
+/** Whole-SOL quick-add chips (mirrors the reference's +$1/+$5/… stepper). */
 const PRESETS = [10, 50, 100] as const;
 
 /** Parse a max-slippage tolerance in percent (0..100) → basis points; blank input falls back to {@link DEFAULT_SLIPPAGE_BPS}. */
@@ -36,12 +36,12 @@ function parseSlippagePercent(raw: string): { bps: number; error?: string } {
   return { bps: Math.round(pct * 100) };
 }
 
-/** A base-unit KASS balance → a plain, comma-free decimal string the amount input
- *  (and {@link parseKassAmount}) accepts. Trailing-zero trimmed. */
+/** A base-unit SOL balance → a plain, comma-free decimal string the amount input
+ *  (and {@link parseSolAmount}) accepts. Trailing-zero trimmed. */
 function toPlainAmount(base: bigint): string {
-  const s = base.toString().padStart(KASS_DECIMALS + 1, "0");
-  const whole = s.slice(0, s.length - KASS_DECIMALS);
-  const frac = s.slice(s.length - KASS_DECIMALS).replace(/0+$/, "");
+  const s = base.toString().padStart(SOL_DECIMALS + 1, "0");
+  const whole = s.slice(0, s.length - SOL_DECIMALS);
+  const frac = s.slice(s.length - SOL_DECIMALS).replace(/0+$/, "");
   return frac ? `${whole}.${frac}` : whole;
 }
 
@@ -113,8 +113,8 @@ function BeliefSelect({
  * The Active-market trade surface, laid out as a prediction-market order
  * ticket: Buy/Sell tabs, a belief selector, a large amount field with
  * quick-add chips, a live "you receive" estimate and the trade CTA. Buy
- * splits KASS into a cYES+cNO pair and swaps the unwanted leg; sell unwinds
- * a held leg back to KASS (amounts from live reserves). The price chart and
+ * splits SOL into a cYES+cNO pair and swaps the unwanted leg; sell unwinds
+ * a held leg back to SOL (amounts from live reserves). The price chart and
  * legend live in `GroupTradePanel`, which mounts this component.
  */
 export function TradePanel({
@@ -153,16 +153,16 @@ export function TradePanel({
 
   const { pubkey, market, reserves, outcome } = selected;
 
-  const kassMint = market.kassMint.toString();
+  const baseMint = market.baseMint.toString();
   const yesMint = market.yesMint.toString();
   const noMint = market.noMint.toString();
 
-  const kass = useKassBalance(kassMint);
-  const yes = useKassBalance(yesMint);
-  const no = useKassBalance(noMint);
+  const base = useSolBalance(baseMint);
+  const yes = useSolBalance(yesMint);
+  const no = useSolBalance(noMint);
 
   const action = useWriteAction(() => {
-    kass.refetch();
+    base.refetch();
     yes.refetch();
     no.refetch();
     onSuccess();
@@ -181,9 +181,9 @@ export function TradePanel({
     setDetailsOpen(false);
   };
 
-  // Buy measures KASS to spend; sell measures shares to unwind. Switching mode
+  // Buy measures SOL to spend; sell measures shares to unwind. Switching mode
   // changes what the amount MEANS, so clear it (as belief-change does) rather than
-  // silently reinterpret e.g. "100" from KASS to shares.
+  // silently reinterpret e.g. "100" from SOL to shares.
   const handleModeChange = (m: Mode) => {
     setMode(m);
     setAmount("");
@@ -193,16 +193,16 @@ export function TradePanel({
   const amountId = useId();
   const descId = `${amountId}-desc`;
 
-  const parsed = parseKassAmount(amount);
+  const parsed = parseSolAmount(amount);
 
   const slippage = parseSlippagePercent(slippageRaw);
   const slippageBps = slippage.bps;
 
   const positionBalance = outcome === "yes" ? yes.balance : no.balance;
-  // Buy gates on KASS; sell gates on the held outcome shares (both 9 dp). The
-  // gate message names the asset it checks, so selling asks for shares, not KASS.
-  const gateBalance = mode === "buy" ? kass.balance : positionBalance;
-  const gateAsset = mode === "buy" ? "KASS" : `${outcome.toUpperCase()} shares`;
+  // Buy gates on SOL; sell gates on the held outcome shares (both 9 dp). The
+  // gate message names the asset it checks, so selling asks for shares, not SOL.
+  const gateBalance = mode === "buy" ? base.balance : positionBalance;
+  const gateAsset = mode === "buy" ? "SOL" : `${outcome.toUpperCase()} shares`;
   const balanceError = balanceGateError(parsed.value, gateBalance, gateAsset);
 
   const buyPreview =
@@ -225,12 +225,12 @@ export function TradePanel({
   const priceImpactPct = Math.round(priceImpact * 1000) / 10;
 
   function bump(n: number) {
-    // Bigint-exact: parse the current amount to base units, add n whole KASS, and
+    // Bigint-exact: parse the current amount to base units, add n whole SOL, and
     // reformat. Round-tripping through Number(amount) + n silently altered the
     // low-order decimals (or emitted >9-dp strings) once a bigint-exact "Max"
-    // balance ≳9M KASS had been placed in the field.
-    const current = parseKassAmount(amount).value ?? 0n;
-    const delta = BigInt(n) * 10n ** BigInt(KASS_DECIMALS);
+    // balance ≳9M SOL had been placed in the field.
+    const current = parseSolAmount(amount).value ?? 0n;
+    const delta = BigInt(n) * 10n ** BigInt(SOL_DECIMALS);
     setAmount(toPlainAmount(current + delta));
     setAmountError(undefined);
   }
@@ -250,7 +250,7 @@ export function TradePanel({
     const value = parsed.value!;
     void action.run(async () => {
       const refs = await marketRefs(pubkey, market);
-      const userKassAta = (await pda.associatedTokenAccount(action.address!, market.kassMint)).address;
+      const userBaseAta = (await pda.associatedTokenAccount(action.address!, market.baseMint)).address;
       if (mode === "buy") {
         return buildBuyIxs({
           indexer: action.indexer,
@@ -258,7 +258,7 @@ export function TradePanel({
           user: action.address!,
           outcome,
           kassAmount: value,
-          userKassAta,
+          userBaseAta,
           reserves,
           slippageBps,
         });
@@ -269,7 +269,7 @@ export function TradePanel({
         user: action.address!,
         outcome,
         positionAmount: value,
-        userKassAta,
+        userBaseAta,
         reserves,
         slippageBps,
       });
@@ -308,10 +308,10 @@ export function TradePanel({
             <span>You own</span>
             <span className="flex gap-3 tabular-nums">
               <span className="text-aqua">
-                {yes.balance === null ? "—" : formatKass(yes.balance)} YES
+                {yes.balance === null ? "—" : formatSol(yes.balance)} YES
               </span>
               <span className="text-coral">
-                {no.balance === null ? "—" : formatKass(no.balance)} NO
+                {no.balance === null ? "—" : formatSol(no.balance)} NO
               </span>
             </span>
           </div>
@@ -327,14 +327,14 @@ export function TradePanel({
                   <>
                     Balance{" "}
                     <span className="text-silver">
-                      {kass.balance === null ? "—" : `${formatKass(kass.balance)} KASS`}
+                      {base.balance === null ? "—" : `${formatSol(base.balance)} SOL`}
                     </span>
                   </>
                 ) : (
                   <>
                     You hold{" "}
                     <span className="text-silver">
-                      {positionBalance === null ? "—" : `${formatKass(positionBalance)} ${outcome.toUpperCase()}`}
+                      {positionBalance === null ? "—" : `${formatSol(positionBalance)} ${outcome.toUpperCase()}`}
                     </span>
                   </>
                 )}
@@ -356,7 +356,7 @@ export function TradePanel({
                 className="w-full bg-transparent font-serif text-heading-sm font-light tabular-nums text-platinum placeholder:text-silver focus:outline-none"
               />
               <span className="font-inter text-[13px] text-silver">
-                {mode === "buy" ? "KASS" : "shares"}
+                {mode === "buy" ? "SOL" : "shares"}
               </span>
             </div>
             <p id={descId} className="min-h-[1rem] font-inter text-[12px]">
@@ -388,22 +388,22 @@ export function TradePanel({
             <div className="flex items-baseline justify-between rounded-tag bg-liquid-deep px-3 py-2 font-inter text-[13px]">
               <span className="text-silver">You receive ≈</span>
               <span className="tabular-nums text-platinum">
-                {formatKass(buyReceived)} {outcome.toUpperCase()} shares
+                {formatSol(buyReceived)} {outcome.toUpperCase()} shares
               </span>
             </div>
           ) : null}
 
-          {/* Live "you receive" estimate (sell): the KASS the unwind returns, plus
+          {/* Live "you receive" estimate (sell): the SOL the unwind returns, plus
               a note when the swap leaves a residual of conditional-token dust. */}
           {mode === "sell" && sellReceived !== null ? (
             <div className="flex flex-col gap-1 rounded-tag bg-liquid-deep px-3 py-2 font-inter text-[13px]">
               <div className="flex items-baseline justify-between">
                 <span className="text-silver">You receive ≈</span>
-                <span className="tabular-nums text-platinum">{formatKass(sellReceived)} KASS</span>
+                <span className="tabular-nums text-platinum">{formatSol(sellReceived)} SOL</span>
               </div>
               {sellPreview && sellPreview.residual > 0n ? (
                 <p className="text-[11px] text-silver">
-                  ≈ {formatKass(sellPreview.residual)} {outcome.toUpperCase()} shares are left
+                  ≈ {formatSol(sellPreview.residual)} {outcome.toUpperCase()} shares are left
                   unmerged and stay in your wallet.
                 </p>
               ) : null}
@@ -464,7 +464,7 @@ export function TradePanel({
                     <div className="flex items-baseline justify-between font-inter text-[12px]">
                       <span className="text-silver">Minimum received</span>
                       <span className="tabular-nums text-platinum">
-                        {formatKass(buyMinReceived)} {outcome.toUpperCase()} shares
+                        {formatSol(buyMinReceived)} {outcome.toUpperCase()} shares
                       </span>
                     </div>
                   ) : null}

@@ -16,7 +16,7 @@ function hashBytes(seed: number): Uint8Array {
 const NOW = Math.floor(Date.now() / 1000)
 const secs = (deltaDays: number): bigint => BigInt(NOW + Math.round(deltaDays * 86400))
 
-const KASS_MINT = A('KassM1nt1111111111111111111111111111111111')
+const BASE_MINT = A('KassM1nt1111111111111111111111111111111111')
 const USDC_MINT = A('UsdcM1nt1111111111111111111111111111111111')
 
 /** Full-shape Oracle with sensible defaults; callers override the interesting fields. */
@@ -24,7 +24,7 @@ function makeOracle(over: Partial<Oracle>): Oracle {
   const base: Oracle = {
     accountType: 1 as Oracle['accountType'],
     creator: A('Creator11111111111111111111111111111111111'),
-    kassMint: KASS_MINT,
+    baseMint: BASE_MINT,
     usdcMint: USDC_MINT,
     stakeVault: A('StakeVau1t111111111111111111111111111111111'),
     deadline: secs(-1),
@@ -58,8 +58,8 @@ function makeOracle(over: Partial<Oracle>): Oracle {
     rewardFactWeight: 1n,
     challengeFailUsdcFeeNum: 1n,
     challengeFailUsdcFeeDen: 100n,
-    challengeSuccessKassFeeNum: 1n,
-    challengeSuccessKassFeeDen: 100n,
+    challengeSuccessBaseFeeNum: 1n,
+    challengeSuccessBaseFeeDen: 100n,
     totalCorrectProposerStake: 0n,
     totalApprovedFactStake: 0n,
     rewardPool: 0n,
@@ -308,12 +308,12 @@ function childrenFor(pubkey: string): Pick<
       proposer: A('Proposer0ne11111111111111111111111111111111'),
       challenger: A('Cha11enger5atoshi11111111111111111111111111'),
       question: A('Question1111111111111111111111111111111111111'),
-      kassVault: A('KassVau1t111111111111111111111111111111111'),
+      baseVault: A('KassVau1t111111111111111111111111111111111'),
       usdcVault: A('UsdcVau1t111111111111111111111111111111111'),
       passAmm: A('PassAmm11111111111111111111111111111111111'),
       failAmm: A('Fai1Amm11111111111111111111111111111111111'),
-      oraclePassKass: A('OraclePassKass11111111111111111111111111111'),
-      oracleFailKass: A('OracleFai1Kass11111111111111111111111111111'),
+      oraclePassBase: A('OraclePassKass11111111111111111111111111111'),
+      oracleFailBase: A('OracleFai1Kass11111111111111111111111111111'),
       challengerUsdcVault: A('Cha11engerUsdcVau1t1111111111111111111111'),
       twapEnd: secs(0.5),
       challengerUsdc: 500_000_000n,

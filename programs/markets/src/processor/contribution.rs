@@ -1,4 +1,4 @@
-//! Shared `record_contribution`: move KASS from a contributor's ATA into a
+//! Shared `record_contribution`: move SOL from a contributor's ATA into a
 //! market's escrow, then create (or increment) that contributor's `Contribution`
 //! PDA. Used by both `create_market` (the creator's seed) and `contribute`.
 
@@ -15,7 +15,7 @@ use crate::{
     state::{AccountType, Contribution},
 };
 
-/// Transfer `amount` KASS from `src_ata` (authority = the contributor signer)
+/// Transfer `amount` SOL from `src_ata` (authority = the contributor signer)
 /// into `escrow`, then create-or-increment the contributor's Contribution.
 #[allow(clippy::too_many_arguments)]
 pub fn record_contribution(
@@ -44,7 +44,7 @@ pub fn record_contribution(
     );
     assert_key(contribution_ai, &expected)?;
 
-    // Move the KASS first (authority is the contributor signer).
+    // Move the SOL first (authority is the contributor signer).
     Transfer::new(src_ata_ai, escrow_ai, contributor_ai, amount).invoke()?;
 
     // Branch on OWNERSHIP, not lamports: an existing Contribution is program-owned

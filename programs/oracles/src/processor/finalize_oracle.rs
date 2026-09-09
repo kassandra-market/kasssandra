@@ -73,8 +73,8 @@
 //! returnable non-slashed principal (`Σ surviving bonds − flip slashes + agreed/
 //! duplicate fact stakes + un-slashed approve-voter stakes`), which the S2 claims
 //! drain to dust. Burning `bond_pool` is conservation-safe: it equals Σ
-//! `slashed_amount` over the slashed accounts, and any `kass_fee` already paid OUT
-//! to a challenger by `settle_challenge` was recorded as `bond − kass_fee` (so it
+//! `slashed_amount` over the slashed accounts, and any `base_fee` already paid OUT
+//! to a challenger by `settle_challenge` was recorded as `bond − base_fee` (so it
 //! is NOT in `bond_pool` and is not double-burned). AiClaim-account rent
 //! reclamation (the design's "close AiClaim accounts on resolution") is a
 //! SEPARATE permissionless per-claim instruction ([`crate::processor::close_ai_claim`],
@@ -84,7 +84,7 @@
 //!
 //! # Accounts
 //! 0. oracle        — writable, owned by this program (mutated; signs the burn-back).
-//! 1. kass_mint     — writable; `== oracle.kass_mint` (the InvalidDeadend burn-back target).
+//! 1. base_mint     — writable; `== oracle.base_mint` (the InvalidDeadend burn-back target).
 //! 2. stake_vault   — writable; `== oracle.stake_vault` (emission burned from here).
 //! 3. token program — `pinocchio_token::ID`.
 //! 4. onward        — the FULL proposer set: exactly `proposer_count` accounts, each
@@ -159,11 +159,11 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
 
     // Fixed burn accounts (canonical mint + vault + token program), then the
     // FULL proposer set as the read-only tail.
-    let [kass_mint_ai, stake_vault_ai, token_prog_ai, tail @ ..] = rest else {
+    let [base_mint_ai, stake_vault_ai, token_prog_ai, tail @ ..] = rest else {
         return Err(ProgramError::NotEnoughAccountKeys);
     };
     assert_key(token_prog_ai, &pinocchio_token::ID)?;
-    assert_key(kass_mint_ai, &oracle.kass_mint)?;
+    assert_key(base_mint_ai, &oracle.base_mint)?;
     assert_key(stake_vault_ai, &oracle.stake_vault)?;
 
     // One-shot: the FULL proposer set must be supplied in this single call.
@@ -264,7 +264,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
                 let nonce_le = nonce.to_le_bytes();
                 let bump_seed = [oracle.bump];
                 let seeds = Oracle::signer_seeds(&nonce_le, &bump_seed);
-                Burn::new(stake_vault_ai, kass_mint_ai, oracle_ai, burn_amount)
+                Burn::new(stake_vault_ai, base_mint_ai, oracle_ai, burn_amount)
                     .invoke_signed(&[Signer::from(&seeds)])?;
             }
         }

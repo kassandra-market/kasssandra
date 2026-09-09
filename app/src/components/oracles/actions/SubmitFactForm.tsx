@@ -7,8 +7,8 @@ import { ConnectGate } from './ConnectGate'
 import { Field, SubmitButton, TextInput } from './formPrimitives'
 import { WriteStatusRegion } from './WriteStatusRegion'
 import { parseAmount, balanceGateError } from './amount'
-import { useKassBalance } from '../../../hooks/useKassBalance'
-import { KassBalanceLine } from './kassBalance'
+import { useSolBalance } from '../../../hooks/useSolBalance'
+import { SolBalanceLine } from './solBalance'
 
 const enc = new TextEncoder()
 
@@ -26,7 +26,7 @@ type HashMode = 'text' | 'hex'
 
 /**
  * Submit a fact: a content hash (hash pasted text OR paste a 32-byte hex hash),
- * an off-chain uri (<=200 bytes), and an escrowed KASS stake (FactProposal
+ * an off-chain uri (<=200 bytes), and an escrowed SOL stake (FactProposal
  * phase only). Wraps WF1 `buildSubmitFactIxs`.
  */
 export function SubmitFactForm({
@@ -38,8 +38,8 @@ export function SubmitFactForm({
   oracle: Oracle
   refetch: () => void
 }) {
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useKassBalance(
-    String(oracle.kassMint),
+  const { balance, loading: balanceLoading, refetch: refetchBalance } = useSolBalance(
+    String(oracle.baseMint),
   )
   const action = useWriteAction(() => {
     refetch()
@@ -77,7 +77,7 @@ export function SubmitFactForm({
       return buildSubmitFactIxs({
         connection: action.connection,
         oracle: pubkey,
-        kassMint: oracle.kassMint,
+        baseMint: oracle.baseMint,
         submitter: action.address!,
         contentHash: hash,
         stake: stakeParsed.value!,
@@ -96,7 +96,7 @@ export function SubmitFactForm({
       <div>
         <h3 className="font-serif text-subheading font-light text-platinum">Submit a fact</h3>
         <p className="mt-1 font-inter text-[13px] text-silver">
-          Stake KASS behind a fact. The content hash seeds the fact PDA; the URI points at the
+          Stake SOL behind a fact. The content hash seeds the fact PDA; the URI points at the
           off-chain evidence.
         </p>
       </div>
@@ -171,7 +171,7 @@ export function SubmitFactForm({
             )}
           </Field>
 
-          <Field label="Stake (KASS)" error={errors.stake ?? balanceError}>
+          <Field label="Stake (SOL)" error={errors.stake ?? balanceError}>
             {(ids) => (
               <TextInput
                 ids={ids}
@@ -182,7 +182,7 @@ export function SubmitFactForm({
               />
             )}
           </Field>
-          <KassBalanceLine balance={balance} loading={balanceLoading} />
+          <SolBalanceLine balance={balance} loading={balanceLoading} />
 
           <div>
             <SubmitButton verb="Submit fact" status={action.status} disabled={Boolean(balanceError)} />

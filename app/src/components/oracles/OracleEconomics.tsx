@@ -1,6 +1,6 @@
 import type { Oracle, Proposer } from '@kassandra-market/oracles'
 import { Card } from '../ui'
-import { formatKass } from '../../lib/oracleView'
+import { formatSol } from '../../lib/oracleView'
 
 /** A percent 0..100 of `value` against `max` (bigint-safe), floored to a visible sliver when nonzero. */
 function barPct(value: bigint, max: bigint): number {
@@ -49,13 +49,13 @@ function StatTile({
   )
 }
 
-/** A labelled proportion bar (label + KASS value on top, a flat track+fill below). */
+/** A labelled proportion bar (label + SOL value on top, a flat track+fill below). */
 function Bar({ label, value, width, fill }: { label: string; value: bigint; width: number; fill: string }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3">
         <span className="font-inter text-[12px] text-silver">{label}</span>
-        <span className="font-inter text-[12px] tabular-nums text-platinum">{formatKass(value)} KASS</span>
+        <span className="font-inter text-[12px] tabular-nums text-platinum">{formatSol(value)} SOL</span>
       </div>
       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-liquid-deep">
         <div className={`h-full rounded-full ${fill}`} style={{ width: `${width}%` }} />
@@ -70,7 +70,7 @@ function Bar({ label, value, width, fill }: { label: string; value: bigint; widt
  *
  *   1. Headline counts — options, proposers (surviving of), facts (settled of),
  *      open challenges — each a compact figure with a thin proportion track.
- *   2. Bonds (KASS) — the bond pool headline over the bond-pool / dispute-bonds /
+ *   2. Bonds (SOL) — the bond pool headline over the bond-pool / dispute-bonds /
  *      total-stake vault bars, scaled to the largest of the three.
  *   3. Proposer bond by option — Σ bond per originally-proposed option, the leading
  *      option accented aqua.
@@ -115,10 +115,10 @@ export function OracleEconomics({ oracle, proposers }: { oracle: Oracle; propose
       <div className="border-t border-hairline pt-5">
         <div className="flex items-baseline justify-between gap-3">
           <span className="font-inter text-[11px] uppercase tracking-[0.06em] text-silver">
-            Bonds · KASS
+            Bonds · SOL
           </span>
           <span className="font-serif text-subheading font-light tabular-nums text-platinum">
-            {formatKass(oracle.bondPool)} KASS
+            {formatSol(oracle.bondPool)} SOL
           </span>
         </div>
         <div className="mt-3 flex flex-col gap-3">

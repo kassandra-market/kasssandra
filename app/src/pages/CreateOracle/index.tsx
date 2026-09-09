@@ -16,7 +16,7 @@ import {
   type CreateOracleBuild,
 } from '../../data/actions/create'
 import { datetimeLocalToUnix, toDatetimeLocal } from './helpers'
-import { MOCK_KASS, MOCK_USDC, selectClass, textareaClass } from './constants'
+import { MOCK_SOL, MOCK_USDC, selectClass, textareaClass } from './constants'
 import { ConnectPrompt } from './ConnectPrompt'
 
 /**
@@ -61,7 +61,7 @@ export default function CreateOracle() {
   const [deadline, setDeadline] = useState(() =>
     toDatetimeLocal(new Date(Date.now() + 24 * 3600 * 1000)),
   )
-  const [kassMint, setKassMint] = useState(mock ? MOCK_KASS : '')
+  const [baseMint, setBaseMint] = useState(mock ? MOCK_SOL : '')
   const [usdcMint, setUsdcMint] = useState(mock ? MOCK_USDC : '')
   const [mintsLoading, setMintsLoading] = useState(!mock)
 
@@ -73,7 +73,7 @@ export default function CreateOracle() {
   const [interpretation, setInterpretation] = useState('')
   const [category, setCategory] = useState('')
 
-  // Default the mints from the Protocol singleton (kass/usdc mints). Best-effort:
+  // Default the mints from the Protocol singleton (base/usdc mints). Best-effort:
   // on any RPC/decoding failure we simply leave them blank for the user to paste.
   useEffect(() => {
     if (mock) return
@@ -85,7 +85,7 @@ export default function CreateOracle() {
         if (!info || info.data.length === 0) return
         const p = decodeProtocol(info.data)
         if (cancelled) return
-        setKassMint((cur) => (cur ? cur : p.kassMint.toString()))
+        setBaseMint((cur) => (cur ? cur : p.baseMint.toString()))
         setUsdcMint((cur) => (cur ? cur : p.usdcMint.toString()))
       } catch {
         // Leave the mints blank — the user can paste them.
@@ -109,7 +109,7 @@ export default function CreateOracle() {
     else if (unix <= Math.floor(Date.now() / 1000))
       next.deadline = 'Deadline must be in the future.'
     for (const [field, value] of [
-      ['kassMint', kassMint],
+      ['baseMint', baseMint],
       ['usdcMint', usdcMint],
     ] as const) {
       if (value.trim().length === 0) next[field] = 'Required.'
@@ -123,7 +123,7 @@ export default function CreateOracle() {
     }
     setErrors(next)
     return Object.values(next).every((v) => !v)
-  }, [question, options, deadline, kassMint, usdcMint])
+  }, [question, options, deadline, baseMint, usdcMint])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -137,7 +137,7 @@ export default function CreateOracle() {
         options: options.map((o) => o.trim()),
         deadline: deadlineUnix,
         creator: action.address!,
-        kassMint: kassMint.trim(),
+        baseMint: baseMint.trim(),
         usdcMint: usdcMint.trim(),
         // The oracle's metadata `uri` is baked on-chain IMMUTABLY, so it must be the
         // canonical public origin — NOT whatever origin this browser happens to be on
@@ -170,7 +170,7 @@ export default function CreateOracle() {
         <h1 className="mt-3 font-serif text-heading font-light text-platinum">Open an oracle</h1>
         <p className="mt-3 font-inter text-[15px] text-silver">
           Pose a question, label the options it can resolve to, and set a deadline. The question and
-          labels are stored on-chain as the oracle's metadata; proposers stake KASS behind an answer.
+          labels are stored on-chain as the oracle's metadata; proposers stake SOL behind an answer.
         </p>
       </header>
 
@@ -253,17 +253,17 @@ export default function CreateOracle() {
               </Field>
 
               <Field
-                label="KASS mint"
-                hint={mintsLoading ? 'Loading protocol default…' : 'Defaults to the protocol KASS mint.'}
-                error={errors.kassMint}
+                label="SOL mint"
+                hint={mintsLoading ? 'Loading protocol default…' : 'Defaults to the protocol SOL mint.'}
+                error={errors.baseMint}
               >
                 {(ids) => (
                   <TextInput
                     ids={ids}
                     className="font-mono text-[12px]"
-                    placeholder="KASS mint address"
-                    value={kassMint}
-                    onChange={(e) => setKassMint(e.target.value)}
+                    placeholder="SOL mint address"
+                    value={baseMint}
+                    onChange={(e) => setBaseMint(e.target.value)}
                   />
                 )}
               </Field>

@@ -39,7 +39,7 @@ import {
   CREATOR,
   CREATOR_ATA,
   FEE_DEST,
-  KASS_MINT,
+  BASE_MINT,
   label,
   ORACLE,
   PAYER,
@@ -52,7 +52,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
   it("initConfig — processor init_config.rs destructure", async () => {
     const ix = await initConfig({
       payer: PAYER,
-      kassMint: KASS_MINT,
+      baseMint: BASE_MINT,
       authority: AUTHORITY,
       minLiquidity: 5n,
       feeBps: 250,
@@ -64,7 +64,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
       label(ix, [
         [config.address, "config"],
         [PAYER, "payer"],
-        [KASS_MINT, "kassMint"],
+        [BASE_MINT, "baseMint"],
         [FEE_DEST, "feeDestination"],
         [programData.address, "programData"],
         ...PROGRAMS,
@@ -72,7 +72,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
     ).toEqual([
       ["config", false, true],
       ["payer", true, true],
-      ["kassMint", false, false],
+      ["baseMint", false, false],
       ["feeDestination", false, false],
       ["systemProgram", false, false],
       ["programData", false, false],
@@ -105,8 +105,8 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
     const ix = await createMarket({
       creator: CREATOR,
       oracle: ORACLE,
-      kassMint: KASS_MINT,
-      creatorKassAta: CREATOR_ATA,
+      baseMint: BASE_MINT,
+      creatorBaseAta: CREATOR_ATA,
       seedAmount: 1000n,
       outcomeIndex,
     });
@@ -120,9 +120,9 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
         [ORACLE, "oracle"],
         [market.address, "market"],
         [escrow.address, "escrow"],
-        [KASS_MINT, "kassMint"],
+        [BASE_MINT, "baseMint"],
         [CREATOR, "creator"],
-        [CREATOR_ATA, "creatorKassAta"],
+        [CREATOR_ATA, "creatorBaseAta"],
         [contribution.address, "contribution"],
         ...PROGRAMS,
       ]),
@@ -131,9 +131,9 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
       ["oracle", false, false],
       ["market", false, true],
       ["escrow", false, true],
-      ["kassMint", false, false],
+      ["baseMint", false, false],
       ["creator", true, true],
-      ["creatorKassAta", false, true],
+      ["creatorBaseAta", false, true],
       ["contribution", false, true],
       ["tokenProgram", false, false],
       ["systemProgram", false, false],
@@ -145,7 +145,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
     const ix = await contribute({
       contributor: CONTRIBUTOR,
       market: market.address,
-      contributorKassAta: CONTRIB_ATA,
+      contributorBaseAta: CONTRIB_ATA,
       amount: 777n,
     });
     const escrow = await pda.escrow(market.address);
@@ -155,7 +155,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
         [market.address, "market"],
         [escrow.address, "escrow"],
         [CONTRIBUTOR, "contributor"],
-        [CONTRIB_ATA, "contributorKassAta"],
+        [CONTRIB_ATA, "contributorBaseAta"],
         [contribution.address, "contribution"],
         ...PROGRAMS,
       ]),
@@ -163,7 +163,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
       ["market", false, true],
       ["escrow", false, true],
       ["contributor", true, true],
-      ["contributorKassAta", false, true],
+      ["contributorBaseAta", false, true],
       ["contribution", false, true],
       ["tokenProgram", false, false],
       ["systemProgram", false, false],
@@ -189,7 +189,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
     const ix = await refund({
       market: market.address,
       contributor: CONTRIBUTOR,
-      contributorKassAta: CONTRIB_ATA,
+      contributorBaseAta: CONTRIB_ATA,
     });
     const escrow = await pda.escrow(market.address);
     const contribution = await pda.contribution(market.address, CONTRIBUTOR);
@@ -198,7 +198,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
         [market.address, "market"],
         [escrow.address, "escrow"],
         [contribution.address, "contribution"],
-        [CONTRIB_ATA, "contributorKassAta"],
+        [CONTRIB_ATA, "contributorBaseAta"],
         [CONTRIBUTOR, "contributor"],
         ...PROGRAMS,
       ]),
@@ -206,7 +206,7 @@ describe("account-meta golden: kassandra-market funding lifecycle", () => {
       ["market", false, true],
       ["escrow", false, true],
       ["contribution", false, true],
-      ["contributorKassAta", false, true],
+      ["contributorBaseAta", false, true],
       ["contributor", false, true],
       ["tokenProgram", false, false],
     ]);

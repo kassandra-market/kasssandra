@@ -31,7 +31,7 @@ programs/oracles/src/
 ├── error.rs        KassandraError (36 codes) → ProgramError::Custom
 ├── reward.rs       reward-bucket + pro-rata settlement math (pure, no token movement)
 ├── fee.rs          dynamic creation-fee EMA (decay / charge / bump)
-├── price.rs        governance-anchored KASS/USDC TWAP (kass_price)
+├── price.rs        governance-anchored SOL/USDC TWAP (spot_price)
 ├── plurality.rs    strict-plurality resolution over surviving proposers
 ├── clock.rs        unix-time helpers / phase-window gates
 └── cpi/            metadao.rs (v0.4 vault+AMM), metadao_v06.rs (futarchy/Meteora)
@@ -77,7 +77,7 @@ error, and constant tables.
   </Step>
   <Step title="Phase gate + state change">
     Lifecycle instructions gate on the oracle's phase and window (`require_phase`,
-    `require_before_end` / `require_after_end`) before mutating account bytes, moving KASS/USDC via
+    `require_before_end` / `require_after_end`) before mutating account bytes, moving SOL/USDC via
     token CPI, or CPI-ing into MetaDAO. PDAs are created with `create_pda` (a system `CreateAccount`
     signed by PDA seeds).
   </Step>

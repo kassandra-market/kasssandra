@@ -51,12 +51,12 @@ fn invalid_deadend_returns_nonslashed_principal() {
             seed.oracle,
             seed.nonce,
             p.account,
-            p.dest_kass,
+            p.dest_base,
             seed.stake_vault,
             p.authority.pubkey(),
         );
         let (account, dest, recip, expected) =
-            (p.account, p.dest_kass, p.authority.pubkey(), p.expected);
+            (p.account, p.dest_base, p.authority.pubkey(), p.expected);
         assert_claim(
             &mut ctx,
             ix,
@@ -77,12 +77,12 @@ fn invalid_deadend_returns_nonslashed_principal() {
                 seed.nonce,
                 v.account,
                 fact_account,
-                v.dest_kass,
+                v.dest_base,
                 seed.stake_vault,
                 v.authority.pubkey(),
             );
             let (account, dest, recip, expected) =
-                (v.account, v.dest_kass, v.authority.pubkey(), v.expected);
+                (v.account, v.dest_base, v.authority.pubkey(), v.expected);
             assert_claim(
                 &mut ctx,
                 ix,
@@ -100,12 +100,12 @@ fn invalid_deadend_returns_nonslashed_principal() {
             seed.oracle,
             seed.nonce,
             s.account,
-            s.dest_kass,
+            s.dest_base,
             seed.stake_vault,
             s.authority.pubkey(),
         );
         let (account, dest, recip, expected) =
-            (s.account, s.dest_kass, s.authority.pubkey(), s.expected);
+            (s.account, s.dest_base, s.authority.pubkey(), s.expected);
         assert_claim(
             &mut ctx,
             ix,
@@ -154,12 +154,12 @@ fn flipped_survivor_invalid_deadend_drains() {
         seed.oracle,
         seed.nonce,
         p.account,
-        p.dest_kass,
+        p.dest_base,
         seed.stake_vault,
         p.authority.pubkey(),
     );
     let (account, dest, recip, expected) =
-        (p.account, p.dest_kass, p.authority.pubkey(), p.expected);
+        (p.account, p.dest_base, p.authority.pubkey(), p.expected);
     assert_claim(
         &mut ctx,
         ix,

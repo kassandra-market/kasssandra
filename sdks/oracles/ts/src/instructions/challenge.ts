@@ -42,10 +42,10 @@ const CONDITIONAL_VAULT_ID = EXTERNAL_PROGRAM_IDS.conditionalVault;
 //   10 stake_vault, 20 protocol, 24 escrow_vault. Fixed program ids: 16 cv
 //   program, 17 token program, 18 system program.
 // CALLER-SUPPLIED (MetaDAO + actor): 2 proposer, 4 challenger(signer),
-//   5 question, 6 kass_vault, 7 usdc_vault, 8 pass_amm, 9 fail_amm,
-//   11 kass_vault_underlying, 12 pass_kass_mint, 13 fail_kass_mint,
-//   14 oracle_pass_kass, 15 oracle_fail_kass, 19 cv_event_authority,
-//   21 kass_dao, 22 usdc_mint, 23 challenger_usdc_src.
+//   5 question, 6 base_vault, 7 usdc_vault, 8 pass_amm, 9 fail_amm,
+//   11 base_vault_underlying, 12 pass_base_mint, 13 fail_base_mint,
+//   14 oracle_pass_base, 15 oracle_fail_base, 19 cv_event_authority,
+//   21 spot_dao, 22 usdc_mint, 23 challenger_usdc_src.
 // ---------------------------------------------------------------------------
 export interface OpenChallengeArgs {
   /** Oracle nonce — payload + derives the oracle/stake_vault PDAs. */
@@ -57,28 +57,28 @@ export interface OpenChallengeArgs {
   // --- MetaDAO market accounts (caller-composed) ---
   /** Binary MetaDAO `Question` (resolver == oracle PDA). Read-only. */
   question: AddressInput;
-  /** KASS conditional vault (underlying == oracle.kass_mint). Writable. */
-  kassVault: AddressInput;
+  /** SOL conditional vault (underlying == oracle.base_mint). Writable. */
+  baseVault: AddressInput;
   /** USDC conditional vault (underlying == oracle.usdc_mint). Read-only. */
   usdcVault: AddressInput;
   /** Pass-side AMM (owned by the AMM program). Read-only. */
   passAmm: AddressInput;
   /** Fail-side AMM. Read-only. */
   failAmm: AddressInput;
-  /** `kass_vault.underlying_token_account`. Writable. */
-  kassVaultUnderlying: AddressInput;
-  /** Conditional-KASS mint idx 0 of kass_vault (pass). Writable. */
-  passKassMint: AddressInput;
-  /** Conditional-KASS mint idx 1 of kass_vault (fail). Writable. */
-  failKassMint: AddressInput;
-  /** Oracle-PDA-owned pass-KASS holder token account. Writable. */
-  oraclePassKass: AddressInput;
-  /** Oracle-PDA-owned fail-KASS holder token account. Writable. */
-  oracleFailKass: AddressInput;
+  /** `base_vault.underlying_token_account`. Writable. */
+  baseVaultUnderlying: AddressInput;
+  /** Conditional-SOL mint idx 0 of base_vault (pass). Writable. */
+  passBaseMint: AddressInput;
+  /** Conditional-SOL mint idx 1 of base_vault (fail). Writable. */
+  failBaseMint: AddressInput;
+  /** Oracle-PDA-owned pass-SOL holder token account. Writable. */
+  oraclePassBase: AddressInput;
+  /** Oracle-PDA-owned fail-SOL holder token account. Writable. */
+  oracleFailBase: AddressInput;
   /** Conditional-vault `#[event_cpi]` event authority PDA. Read-only. */
   cvEventAuthority: AddressInput;
-  /** The futarchy `Dao` (`== protocol.kass_dao`), kass_price source. Read-only. */
-  kassDao: AddressInput;
+  /** The futarchy `Dao` (`== protocol.spot_dao`), spot_price source. Read-only. */
+  spotDao: AddressInput;
   /** Canonical USDC mint (`== oracle.usdc_mint`). Read-only. */
   usdcMint: AddressInput;
   /** Challenger's USDC source token account. Writable. */
@@ -105,22 +105,22 @@ export async function openChallenge(args: OpenChallengeArgs): Promise<Transactio
       w(market.address), // 3
       w(addr(args.challenger), true), // 4
       ro(addr(args.question)), // 5
-      w(addr(args.kassVault)), // 6
+      w(addr(args.baseVault)), // 6
       ro(addr(args.usdcVault)), // 7
       ro(addr(args.passAmm)), // 8
       ro(addr(args.failAmm)), // 9
       w(stakeVault.address), // 10
-      w(addr(args.kassVaultUnderlying)), // 11
-      w(addr(args.passKassMint)), // 12
-      w(addr(args.failKassMint)), // 13
-      w(addr(args.oraclePassKass)), // 14
-      w(addr(args.oracleFailKass)), // 15
+      w(addr(args.baseVaultUnderlying)), // 11
+      w(addr(args.passBaseMint)), // 12
+      w(addr(args.failBaseMint)), // 13
+      w(addr(args.oraclePassBase)), // 14
+      w(addr(args.oracleFailBase)), // 15
       ro(CONDITIONAL_VAULT_ID), // 16
       ro(TOKEN_PROGRAM_ID), // 17
       ro(SYSTEM_PROGRAM_ID), // 18
       ro(addr(args.cvEventAuthority)), // 19
       ro(protocol.address), // 20
-      ro(addr(args.kassDao)), // 21
+      ro(addr(args.spotDao)), // 21
       ro(addr(args.usdcMint)), // 22
       w(addr(args.challengerUsdcSrc)), // 23
       w(escrowVault.address), // 24
@@ -137,10 +137,10 @@ export async function openChallenge(args: OpenChallengeArgs): Promise<Transactio
 //   10 stake_vault (from oracle), 17 escrow_vault (from market). Fixed ids:
 //   7 cv program, 9 token program.
 // CALLER-SUPPLIED: 2 ai_claim, 3 proposer, 4 question, 5 pass_amm, 6 fail_amm,
-//   8 cv_event_authority, 11 kass_vault, 12 kass_vault_underlying,
-//   13 pass_kass_mint, 14 fail_kass_mint, 15 oracle_pass_kass,
-//   16 oracle_fail_kass, 18 proposer_usdc, 19 challenger_usdc_dest,
-//   20 challenger_kass.
+//   8 cv_event_authority, 11 base_vault, 12 base_vault_underlying,
+//   13 pass_base_mint, 14 fail_base_mint, 15 oracle_pass_base,
+//   16 oracle_fail_base, 18 proposer_usdc, 19 challenger_usdc_dest,
+//   20 challenger_base.
 // ---------------------------------------------------------------------------
 export interface SettleChallengeArgs {
   /** Oracle nonce — payload + derives the oracle/stake_vault PDAs. */
@@ -158,24 +158,24 @@ export interface SettleChallengeArgs {
   failAmm: AddressInput;
   /** Conditional-vault `#[event_cpi]` event authority PDA. Read-only. */
   cvEventAuthority: AddressInput;
-  /** KASS conditional vault (`== market.kass_vault`). Writable. */
-  kassVault: AddressInput;
-  /** `kass_vault.underlying_token_account`. Writable. */
-  kassVaultUnderlying: AddressInput;
-  /** Conditional-KASS mint idx 0 of kass_vault (pass). Writable. */
-  passKassMint: AddressInput;
-  /** Conditional-KASS mint idx 1 of kass_vault (fail). Writable. */
-  failKassMint: AddressInput;
-  /** Oracle-PDA-owned pass-KASS holder (`== market.oracle_pass_kass`). Writable. */
-  oraclePassKass: AddressInput;
-  /** Oracle-PDA-owned fail-KASS holder (`== market.oracle_fail_kass`). Writable. */
-  oracleFailKass: AddressInput;
+  /** SOL conditional vault (`== market.base_vault`). Writable. */
+  baseVault: AddressInput;
+  /** `base_vault.underlying_token_account`. Writable. */
+  baseVaultUnderlying: AddressInput;
+  /** Conditional-SOL mint idx 0 of base_vault (pass). Writable. */
+  passBaseMint: AddressInput;
+  /** Conditional-SOL mint idx 1 of base_vault (fail). Writable. */
+  failBaseMint: AddressInput;
+  /** Oracle-PDA-owned pass-SOL holder (`== market.oracle_pass_base`). Writable. */
+  oraclePassBase: AddressInput;
+  /** Oracle-PDA-owned fail-SOL holder (`== market.oracle_fail_base`). Writable. */
+  oracleFailBase: AddressInput;
   /** Proposer's USDC payout account (mint==usdc, owner==proposer.authority). Writable. */
   proposerUsdc: AddressInput;
   /** Challenger's USDC payout account (mint==usdc, owner==market.challenger). Writable. */
   challengerUsdcDest: AddressInput;
-  /** Challenger's KASS payout account (mint==kass, owner==market.challenger). Writable. */
-  challengerKass: AddressInput;
+  /** Challenger's SOL payout account (mint==base, owner==market.challenger). Writable. */
+  challengerBase: AddressInput;
   programId?: Address;
 }
 
@@ -201,16 +201,16 @@ export async function settleChallenge(args: SettleChallengeArgs): Promise<Transa
       ro(addr(args.cvEventAuthority)), // 8
       ro(TOKEN_PROGRAM_ID), // 9
       w(stakeVault.address), // 10
-      w(addr(args.kassVault)), // 11
-      w(addr(args.kassVaultUnderlying)), // 12
-      w(addr(args.passKassMint)), // 13
-      w(addr(args.failKassMint)), // 14
-      w(addr(args.oraclePassKass)), // 15
-      w(addr(args.oracleFailKass)), // 16
+      w(addr(args.baseVault)), // 11
+      w(addr(args.baseVaultUnderlying)), // 12
+      w(addr(args.passBaseMint)), // 13
+      w(addr(args.failBaseMint)), // 14
+      w(addr(args.oraclePassBase)), // 15
+      w(addr(args.oracleFailBase)), // 16
       w(escrowVault.address), // 17
       w(addr(args.proposerUsdc)), // 18
       w(addr(args.challengerUsdcDest)), // 19
-      w(addr(args.challengerKass)), // 20
+      w(addr(args.challengerBase)), // 20
     ],
     data: withDisc(Ix.SettleChallenge, u64LE(args.nonce)),
   });

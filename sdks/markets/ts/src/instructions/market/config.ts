@@ -34,7 +34,7 @@ export interface MinLiquidityCurveArgs {
 // Payload = authority(32) ++ min_liquidity(u64 LE) ++ fee_bps(u16 LE) ++
 //           fee_destination(32) ++ min_liquidity_ema_threshold(u64 LE) ++
 //           min_liquidity_ema_cap(u64 LE) ++ min_liquidity_max(u64 LE).
-// Accounts: 0 config(w,PDA) 1 payer(signer,w) 2 kass_mint(ro) 3 fee_destination(ro)
+// Accounts: 0 config(w,PDA) 1 payer(signer,w) 2 base_mint(ro) 3 fee_destination(ro)
 //           4 system program(ro) 5 program_data(ro).
 // `program_data` is this program's BPF-Upgradeable-Loader ProgramData account
 // (derived from the program id): the processor reads its stored upgrade_authority
@@ -43,15 +43,15 @@ export interface MinLiquidityCurveArgs {
 export interface InitConfigArgs extends MinLiquidityCurveArgs {
   /** Payer (signer): tops up rent for the Config PDA. */
   payer: AddressInput;
-  /** Canonical KASS mint recorded on the Config. */
-  kassMint: AddressInput;
+  /** Canonical SOL mint recorded on the Config. */
+  baseMint: AddressInput;
   /** Futarchy authority recorded as `Config.authority` (payload pubkey, not an account). */
   authority: AddressInput;
-  /** Minimum KASS a market must raise before activation — the BASE (low-demand) floor. */
+  /** Minimum SOL a market must raise before activation — the BASE (low-demand) floor. */
   minLiquidity: bigint | number;
   /** Protocol fee in basis points (<= {@link MAX_FEE_BPS}). */
   feeBps: number;
-  /** KASS token account (on `kassMint`) protocol fees route to. */
+  /** SOL token account (on `baseMint`) protocol fees route to. */
   feeDestination: AddressInput;
   /** Override the program id (defaults to {@link MARKET_PROGRAM_ID}). */
   programId?: Address;
@@ -66,7 +66,7 @@ export async function initConfig(args: InitConfigArgs): Promise<TransactionInstr
     keys: [
       w(config.address),
       w(addr(args.payer), true),
-      ro(addr(args.kassMint)),
+      ro(addr(args.baseMint)),
       ro(addr(args.feeDestination)),
       ro(SYSTEM_PROGRAM_ID),
       ro(programData.address),
@@ -97,11 +97,11 @@ export async function initConfig(args: InitConfigArgs): Promise<TransactionInstr
 export interface UpdateConfigArgs extends MinLiquidityCurveArgs {
   /** Config authority (signer): must equal `Config.authority`. */
   authority: AddressInput;
-  /** New minimum KASS a market must raise before activation — the BASE floor. */
+  /** New minimum SOL a market must raise before activation — the BASE floor. */
   minLiquidity: bigint | number;
   /** New protocol fee in basis points (<= {@link MAX_FEE_BPS}). */
   feeBps: number;
-  /** New KASS token account (on the config's KASS mint) protocol fees route to. */
+  /** New SOL token account (on the config's SOL mint) protocol fees route to. */
   feeDestination: AddressInput;
   programId?: Address;
 }

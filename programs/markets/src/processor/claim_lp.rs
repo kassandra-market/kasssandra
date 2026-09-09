@@ -161,7 +161,7 @@ pub fn process(
     } else if market.gross_lp_total == market.activation_lp {
         // No post-activation liquidity was ever added (gross_lp_total untouched since
         // activate): the whole cohort minted LP at one rate, so the exact legacy
-        // KASS pro-rata is correct and byte-identical to pre-add_liquidity behavior.
+        // SOL pro-rata is correct and byte-identical to pre-add_liquidity behavior.
         pro_rata_share(
             market.lp_total,
             contribution.amount,

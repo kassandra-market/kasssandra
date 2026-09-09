@@ -40,7 +40,7 @@ pub const TOKEN_PROGRAM_ID: Pubkey =
 /// System program ID (all-zero pubkey).
 pub const SYSTEM_PROGRAM_ID: Pubkey = Pubkey::new_from_array([0u8; 32]);
 
-/// SPL Associated Token Account program ID — the DAO treasury is the KASS ATA of
+/// SPL Associated Token Account program ID — the DAO treasury is the SOL ATA of
 /// the `dao_authority` under this program.
 pub const ATA_PROGRAM_ID: Pubkey =
     Pubkey::from_str_const("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");

@@ -17,36 +17,36 @@ impl TestCtx {
         self.set_program_account(key, data);
     }
 
-    /// Create an SPL token account on the KASS mint owned by `owner` and fund
-    /// it with `amount` base units of KASS, BACKED by real mint supply. Returns
+    /// Create an SPL token account on the SOL mint owned by `owner` and fund
+    /// it with `amount` base units of SOL, BACKED by real mint supply. Returns
     /// the token account address. Used to bankroll a fact submitter / voter /
-    /// proposer bond source. The supply backing keeps the KASS that flows into a
+    /// proposer bond source. The supply backing keeps the SOL that flows into a
     /// stake vault physically real, so a terminal InvalidDeadend burn of the
     /// slashed `bond_pool` (which may include rejected-fact stakes + approve-voter
     /// slashes) does not underflow the mint supply. Every emission-calc test
     /// snapshots supply right before its measured `create_oracle`, so this earlier
     /// funding is captured consistently and never skews the emission.
-    pub fn fund_kass(&mut self, owner: &Keypair, amount: u64) -> Pubkey {
-        let acct = self.create_token_account(self.kass_mint, owner.pubkey(), amount);
-        self.add_mint_supply(self.kass_mint, amount);
+    pub fn fund_base(&mut self, owner: &Keypair, amount: u64) -> Pubkey {
+        let acct = self.create_token_account(self.base_mint, owner.pubkey(), amount);
+        self.add_mint_supply(self.base_mint, amount);
         acct
     }
 
     /// Create an SPL token account on the USDC mint owned by `owner` and fund it
     /// with `amount` base units. Returns the token account address. Mirrors
-    /// [`TestCtx::fund_kass`]; the challenge-escrow source for `open_challenge`.
+    /// [`TestCtx::fund_base`]; the challenge-escrow source for `open_challenge`.
     pub fn fund_usdc(&mut self, owner: &Keypair, amount: u64) -> Pubkey {
         self.create_token_account(self.usdc_mint, owner.pubkey(), amount)
     }
 
-    /// Like [`TestCtx::fund_kass`] but ALSO increases the KASS mint's `supply` by
+    /// Like [`TestCtx::fund_base`] but ALSO increases the SOL mint's `supply` by
     /// `amount`, so the fabricated balance is backed by real supply. A real
     /// SPL `Burn` checks-subtracts the mint supply, so a burn source that was
     /// only fabricated (supply still 0) would underflow; this keeps them
     /// consistent for the creation-fee burn tests.
-    pub fn fund_kass_minted(&mut self, owner: Pubkey, amount: u64) -> Pubkey {
-        let acct = self.create_token_account(self.kass_mint, owner, amount);
-        self.add_mint_supply(self.kass_mint, amount);
+    pub fn fund_base_minted(&mut self, owner: Pubkey, amount: u64) -> Pubkey {
+        let acct = self.create_token_account(self.base_mint, owner, amount);
+        self.add_mint_supply(self.base_mint, amount);
         acct
     }
 

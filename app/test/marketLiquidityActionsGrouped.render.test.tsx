@@ -16,8 +16,8 @@ vi.mock("../src/market/hooks/useWriteAction", () => ({
     run: async () => {},
   }),
 }));
-vi.mock("../src/market/hooks/useKassBalance", () => ({
-  useKassBalance: () => ({ balance: 0n, loading: false, refetch: () => {} }),
+vi.mock("../src/market/hooks/useSolBalance", () => ({
+  useSolBalance: () => ({ balance: 0n, loading: false, refetch: () => {} }),
 }));
 vi.mock("../src/components/markets/actions/ConnectGate", () => ({
   ConnectGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -35,7 +35,7 @@ const detail = {
   pubkey: "Market1111111111111111111111111111111111111",
   market: {
     status: MarketStatus.Funding,
-    kassMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
+    baseMint: { toString: () => "Kass1111111111111111111111111111111111111111" },
   },
   contributions: [],
 } as unknown as MarketDetail;

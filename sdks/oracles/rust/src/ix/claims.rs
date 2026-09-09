@@ -14,7 +14,7 @@ pub fn claim_proposer(
     oracle: Pubkey,
     nonce: u64,
     proposer: Pubkey,
-    dest_kass: Pubkey,
+    dest_base: Pubkey,
     stake_vault: Pubkey,
     rent_recipient: Pubkey,
 ) -> Instruction {
@@ -26,7 +26,7 @@ pub fn claim_proposer(
         vec![
             AccountMeta::new_readonly(oracle, false),
             AccountMeta::new(proposer, false),
-            AccountMeta::new(dest_kass, false),
+            AccountMeta::new(dest_base, false),
             AccountMeta::new(stake_vault, false),
             AccountMeta::new(rent_recipient, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -42,7 +42,7 @@ pub fn claim_fact(
     oracle: Pubkey,
     nonce: u64,
     fact: Pubkey,
-    dest_kass: Pubkey,
+    dest_base: Pubkey,
     stake_vault: Pubkey,
     rent_recipient: Pubkey,
 ) -> Instruction {
@@ -54,7 +54,7 @@ pub fn claim_fact(
         vec![
             AccountMeta::new_readonly(oracle, false),
             AccountMeta::new(fact, false),
-            AccountMeta::new(dest_kass, false),
+            AccountMeta::new(dest_base, false),
             AccountMeta::new(stake_vault, false),
             AccountMeta::new(rent_recipient, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
@@ -73,7 +73,7 @@ pub fn claim_fact_vote(
     nonce: u64,
     fact_vote: Pubkey,
     fact: Pubkey,
-    dest_kass: Pubkey,
+    dest_base: Pubkey,
     stake_vault: Pubkey,
     rent_recipient: Pubkey,
 ) -> Instruction {
@@ -86,7 +86,7 @@ pub fn claim_fact_vote(
             AccountMeta::new_readonly(oracle, false),
             AccountMeta::new(fact_vote, false),
             AccountMeta::new(fact, false),
-            AccountMeta::new(dest_kass, false),
+            AccountMeta::new(dest_base, false),
             AccountMeta::new(stake_vault, false),
             AccountMeta::new(rent_recipient, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),

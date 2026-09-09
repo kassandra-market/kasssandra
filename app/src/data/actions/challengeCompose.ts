@@ -10,11 +10,11 @@
  * cheatcodes:
  *
  *   - the E2E's `fabricateTokenAccountMint(passKass, oracle, 0)` (an oracle-owned
- *     holder) → an idempotent ATA-create of the ORACLE PDA's conditional-KASS
- *     ATA (`oraclePassKass = ATA(oracle, passKassMint)`);
+ *     holder) → an idempotent ATA-create of the ORACLE PDA's conditional-SOL
+ *     ATA (`oraclePassBase = ATA(oracle, passBaseMint)`);
  *   - the E2E's `setTokenAccountAt(userBase, …, reserve*4)` (a fabricated
  *     conditional-token balance to seed the pools) → the challenger funds its OWN
- *     KASS/USDC, then `split_tokens` mints EQUAL pass+fail conditional tokens
+ *     SOL/USDC, then `split_tokens` mints EQUAL pass+fail conditional tokens
  *     from that underlying into the challenger's conditional-token ATAs, which
  *     `add_liquidity` then seeds the pools with.
  *
@@ -24,10 +24,10 @@
  * and resume-from-failure. The steps, in order:
  *
  *   1. "Create question"        initialize_question (binary, resolver == oracle)
- *   2. "Create KASS vault"      initialize_conditional_vault (KASS underlying)
+ *   2. "Create SOL vault"      initialize_conditional_vault (SOL underlying)
  *   3. "Create USDC vault"      initialize_conditional_vault (USDC underlying)
- *   4. "Fund + split"           create the challenger's KASS/USDC + conditional +
- *                               oracle-holder ATAs, then split KASS & USDC into
+ *   4. "Fund + split"           create the challenger's SOL/USDC + conditional +
+ *                               oracle-holder ATAs, then split SOL & USDC into
  *                               pass/fail conditional tokens to seed the pools
  *   5. "Seed pass pool"         create_amm(pass) + add_liquidity(pass)
  *   6. "Seed fail pool"         create_amm(fail) + add_liquidity(fail)
@@ -84,7 +84,7 @@ export type { BuildComposeArgs, ComposeStep, ComposedMarket } from "./challengeC
  * `twap_start_delay_slots = 0`; `add_liquidity(quote_amount = quoteReserve,
  * max_base_amount = baseReserve)`. Because `split_tokens` mints EQUAL pass+fail
  * conditional tokens from one underlying, the challenger splits `baseReserve`
- * KASS (→ baseReserve pass-KASS + baseReserve fail-KASS) and `quoteReserve` USDC
+ * SOL (→ baseReserve pass-SOL + baseReserve fail-SOL) and `quoteReserve` USDC
  * (→ quoteReserve pass-USDC + quoteReserve fail-USDC) to seed BOTH pools.
  */
 export async function buildComposeAndOpenChallengeIxs(
@@ -96,7 +96,7 @@ export async function buildComposeAndOpenChallengeIxs(
     throw new ValidationError("oracleNonce", "The oracle nonce is required to compose this market.");
   }
   const challenger = addr("challenger", args.challenger);
-  const kassMint = addr("kassMint", args.kassMint);
+  const baseMint = addr("baseMint", args.baseMint);
   const usdcMint = addr("usdcMint", args.usdcMint);
   const questionId = args.questionId ?? DEFAULT_QUESTION_ID;
   if (!(questionId instanceof Uint8Array) || questionId.length !== 32) {
@@ -109,51 +109,51 @@ export async function buildComposeAndOpenChallengeIxs(
   const oracle = (await pda.oracle(nonce, args.programId)).address;
   const question = (await futarchy.pda.question(questionId, oracle, 2)).address;
 
-  const kassVault = (await futarchy.pda.conditionalVault(question, kassMint)).address;
+  const baseVault = (await futarchy.pda.conditionalVault(question, baseMint)).address;
   const usdcVault = (await futarchy.pda.conditionalVault(question, usdcMint)).address;
   const [
-    passKassMint,
-    failKassMint,
+    passBaseMint,
+    failBaseMint,
     passUsdcMint,
     failUsdcMint,
   ] = await Promise.all([
-    conditionalTokenMint(kassVault, 0),
-    conditionalTokenMint(kassVault, 1),
+    conditionalTokenMint(baseVault, 0),
+    conditionalTokenMint(baseVault, 1),
     conditionalTokenMint(usdcVault, 0),
     conditionalTokenMint(usdcVault, 1),
   ]);
-  const [kassVaultUnderlying, usdcVaultUnderlying] = await Promise.all([
-    associatedTokenAccount(kassVault, kassMint).then((p) => p.address),
+  const [baseVaultUnderlying, usdcVaultUnderlying] = await Promise.all([
+    associatedTokenAccount(baseVault, baseMint).then((p) => p.address),
     associatedTokenAccount(usdcVault, usdcMint).then((p) => p.address),
   ]);
 
-  // Pool PDAs (base = conditional-KASS, quote = conditional-USDC, per buildPool).
+  // Pool PDAs (base = conditional-SOL, quote = conditional-USDC, per buildPool).
   const [passAmm, failAmm] = await Promise.all([
-    ammV04.pda.amm(passKassMint, passUsdcMint).then((p) => p.address),
-    ammV04.pda.amm(failKassMint, failUsdcMint).then((p) => p.address),
+    ammV04.pda.amm(passBaseMint, passUsdcMint).then((p) => p.address),
+    ammV04.pda.amm(failBaseMint, failUsdcMint).then((p) => p.address),
   ]);
 
-  // Oracle-PDA-owned pass/fail conditional-KASS holder ATAs (the split_tokens
+  // Oracle-PDA-owned pass/fail conditional-SOL holder ATAs (the split_tokens
   // destinations open_challenge mints into). PRODUCTION equivalent of the E2E's
   // `fabricateTokenAccountMint(passKass, oracle, 0)`.
-  const [oraclePassKass, oracleFailKass] = await Promise.all([
-    associatedTokenAccount(oracle, passKassMint).then((p) => p.address),
-    associatedTokenAccount(oracle, failKassMint).then((p) => p.address),
+  const [oraclePassBase, oracleFailBase] = await Promise.all([
+    associatedTokenAccount(oracle, passBaseMint).then((p) => p.address),
+    associatedTokenAccount(oracle, failBaseMint).then((p) => p.address),
   ]);
 
   // The challenger's own token accounts.
   const [
-    challengerKass,
+    challengerBase,
     challengerUsdcSrc,
-    challengerPassKass,
-    challengerFailKass,
+    challengerPassBase,
+    challengerFailBase,
     challengerPassUsdc,
     challengerFailUsdc,
   ] = await Promise.all([
-    associatedTokenAccount(challenger, kassMint).then((p) => p.address),
+    associatedTokenAccount(challenger, baseMint).then((p) => p.address),
     associatedTokenAccount(challenger, usdcMint).then((p) => p.address),
-    associatedTokenAccount(challenger, passKassMint).then((p) => p.address),
-    associatedTokenAccount(challenger, failKassMint).then((p) => p.address),
+    associatedTokenAccount(challenger, passBaseMint).then((p) => p.address),
+    associatedTokenAccount(challenger, failBaseMint).then((p) => p.address),
     associatedTokenAccount(challenger, passUsdcMint).then((p) => p.address),
     associatedTokenAccount(challenger, failUsdcMint).then((p) => p.address),
   ]);
@@ -161,18 +161,18 @@ export async function buildComposeAndOpenChallengeIxs(
   const composed: ComposedMarket = {
     oracle,
     question,
-    kassVault,
+    baseVault,
     usdcVault,
-    kassVaultUnderlying,
+    baseVaultUnderlying,
     usdcVaultUnderlying,
-    passKassMint,
-    failKassMint,
+    passBaseMint,
+    failBaseMint,
     passUsdcMint,
     failUsdcMint,
     passAmm,
     failAmm,
-    oraclePassKass,
-    oracleFailKass,
+    oraclePassBase,
+    oracleFailBase,
     challengerUsdcSrc,
   };
 
@@ -184,11 +184,11 @@ export async function buildComposeAndOpenChallengeIxs(
     payer: challenger,
   });
 
-  // ── Step 2/3: the KASS + USDC conditional vaults (each creates the vault +
+  // ── Step 2/3: the SOL + USDC conditional vaults (each creates the vault +
   // its two pass/fail conditional-token mints). ──
-  const kassVaultIx = await futarchy.initializeConditionalVault({
+  const baseVaultIx = await futarchy.initializeConditionalVault({
     question,
-    underlyingMint: kassMint,
+    underlyingMint: baseMint,
     payer: challenger,
     numOutcomes: 2,
   });
@@ -200,27 +200,27 @@ export async function buildComposeAndOpenChallengeIxs(
   });
 
   // ── Step 4: create the challenger's + oracle-holder ATAs, then split the
-  // challenger's KASS/USDC into pass/fail conditional tokens to seed the pools. ──
+  // challenger's SOL/USDC into pass/fail conditional tokens to seed the pools. ──
   const fundSplitIxs: TransactionInstruction[] = [];
-  // Oracle-owned pass/fail KASS holders (idempotent; the split_tokens targets).
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, oraclePassKass, oracle, passKassMint));
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, oracleFailKass, oracle, failKassMint));
+  // Oracle-owned pass/fail SOL holders (idempotent; the split_tokens targets).
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, oraclePassBase, oracle, passBaseMint));
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, oracleFailBase, oracle, failBaseMint));
   // The challenger's conditional-token ATAs (split destinations + add_liquidity sources).
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerPassKass, challenger, passKassMint));
-  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerFailKass, challenger, failKassMint));
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerPassBase, challenger, passBaseMint));
+  fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerFailBase, challenger, failBaseMint));
   fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerPassUsdc, challenger, passUsdcMint));
   fundSplitIxs.push(createAtaIdempotentIx(challenger, challengerFailUsdc, challenger, failUsdcMint));
 
-  // split KASS → baseReserve pass-KASS + baseReserve fail-KASS.
+  // split SOL → baseReserve pass-SOL + baseReserve fail-SOL.
   fundSplitIxs.push(
     await futarchy.splitTokens({
       question,
-      vault: kassVault,
-      vaultUnderlying: kassVaultUnderlying,
+      vault: baseVault,
+      vaultUnderlying: baseVaultUnderlying,
       authority: challenger,
-      userUnderlying: challengerKass,
-      conditionalMints: [passKassMint, failKassMint],
-      userConditionalAccounts: [challengerPassKass, challengerFailKass],
+      userUnderlying: challengerBase,
+      conditionalMints: [passBaseMint, failBaseMint],
+      userConditionalAccounts: [challengerPassBase, challengerFailBase],
       amount: baseReserve,
     }),
   );
@@ -256,7 +256,7 @@ export async function buildComposeAndOpenChallengeIxs(
   const passPoolIxs = [
     await ammV04.createAmm({
       payer: challenger,
-      baseMint: passKassMint,
+      baseMint: passBaseMint,
       quoteMint: passUsdcMint,
       twapInitialObservation: initialObs,
       twapMaxObservationChangePerUpdate: MAX_OBSERVATION_CHANGE,
@@ -265,7 +265,7 @@ export async function buildComposeAndOpenChallengeIxs(
     createAtaIdempotentIx(challenger, challengerPassLp, challenger, passLpMint),
     await ammV04.addLiquidity({
       payer: challenger,
-      baseMint: passKassMint,
+      baseMint: passBaseMint,
       quoteMint: passUsdcMint,
       quoteAmount: quoteReserve,
       maxBaseAmount: baseReserve,
@@ -275,7 +275,7 @@ export async function buildComposeAndOpenChallengeIxs(
   const failPoolIxs = [
     await ammV04.createAmm({
       payer: challenger,
-      baseMint: failKassMint,
+      baseMint: failBaseMint,
       quoteMint: failUsdcMint,
       twapInitialObservation: initialObs,
       twapMaxObservationChangePerUpdate: MAX_OBSERVATION_CHANGE,
@@ -284,7 +284,7 @@ export async function buildComposeAndOpenChallengeIxs(
     createAtaIdempotentIx(challenger, challengerFailLp, challenger, failLpMint),
     await ammV04.addLiquidity({
       payer: challenger,
-      baseMint: failKassMint,
+      baseMint: failBaseMint,
       quoteMint: failUsdcMint,
       quoteAmount: quoteReserve,
       maxBaseAmount: baseReserve,
@@ -299,17 +299,17 @@ export async function buildComposeAndOpenChallengeIxs(
     proposer: args.proposer,
     challenger,
     question,
-    kassVault,
+    baseVault,
     usdcVault,
     passAmm,
     failAmm,
-    kassVaultUnderlying,
-    passKassMint,
-    failKassMint,
-    oraclePassKass,
-    oracleFailKass,
+    baseVaultUnderlying,
+    passBaseMint,
+    failBaseMint,
+    oraclePassBase,
+    oracleFailBase,
     cvEventAuthority,
-    kassDao: args.kassDao,
+    spotDao: args.spotDao,
     usdcMint,
     challengerUsdcSrc,
     programId: args.programId,
@@ -317,7 +317,7 @@ export async function buildComposeAndOpenChallengeIxs(
 
   const steps: ComposeStep[] = [
     { id: "question", label: "Create question", ixs: [questionIx], computeUnits: 400_000 },
-    { id: "kass-vault", label: "Create KASS vault", ixs: [kassVaultIx], computeUnits: 400_000 },
+    { id: "base-vault", label: "Create SOL vault", ixs: [baseVaultIx], computeUnits: 400_000 },
     { id: "usdc-vault", label: "Create USDC vault", ixs: [usdcVaultIx], computeUnits: 400_000 },
     { id: "fund-split", label: "Fund + split conditional tokens", ixs: fundSplitIxs, computeUnits: 600_000 },
     { id: "pass-pool", label: "Seed pass pool", ixs: passPoolIxs, computeUnits: 1_400_000 },

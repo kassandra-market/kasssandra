@@ -6,7 +6,7 @@ description: "activate: composing + recording the MetaDAO v0.4 Question/vault/cY
 `activate` (`processor/activate.rs`) turns a fully-funded `Funding` market into a
 live MetaDAO cYES/cNO AMM. It is a **permissionless crank**, and — mirroring the
 Kassandra oracle's `open_challenge` precedent — it does **not create** the MetaDAO
-accounts. The client composes the MetaDAO `Question`, KASS `conditional_vault`, and
+accounts. The client composes the MetaDAO `Question`, SOL `conditional_vault`, and
 cYES/cNO `Amm` in its own prior transactions; `activate` **verifies** they are
 bound to this market, performs the program-signed value moves, and **records** the
 bindings.
@@ -32,9 +32,9 @@ read and compared (`activate.rs:100-183`):
     and `num_outcomes == 2`. The Market PDA being the question's oracle-authority is
     what makes the program the trustless resolver.
   </Step>
-  <Step title="KASS conditional vault">
-    Re-derived from the question + KASS mint; its `question`, `underlying_mint`
-    (== `market.kass_mint`), and `underlying_account` must all match.
+  <Step title="SOL conditional vault">
+    Re-derived from the question + SOL mint; its `question`, `underlying_mint`
+    (== `market.base_mint`), and `underlying_account` must all match.
   </Step>
   <Step title="cYES / cNO mints + AMM">
     The conditional-token mints derive from the vault (idx 0 = cYES, idx 1 = cNO);
@@ -56,7 +56,7 @@ seeds `refund` uses.
 
 ```mermaid
 flowchart LR
-  E[escrow KASS<br/>total_contributed] -->|split_tokens| Y[cYES] & N[cNO]
+  E[escrow SOL<br/>total_contributed] -->|split_tokens| Y[cYES] & N[cNO]
   Y -->|add_liquidity 50/50| P[cYES/cNO AMM]
   N -->|add_liquidity 50/50| P
   P -->|mint LP| L[lp_vault<br/>Market-PDA-owned]

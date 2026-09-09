@@ -15,7 +15,7 @@ pub const PROPOSAL_WINDOW: i64 = 3600;
 
 /// Grace period (seconds) after a TERMINAL oracle's `phase_ends_at` before the
 /// permissionless `sweep_oracle` (Ix 22) may reap it — route the residual
-/// `stake_vault` KASS to the DAO treasury and CLOSE the vault + `Oracle`.
+/// `stake_vault` SOL to the DAO treasury and CLOSE the vault + `Oracle`.
 ///
 /// Deliberately GENEROUS — 30 days, dwarfing the hour-scale phase/proposal
 /// windows ([`PHASE_WINDOW`] / [`PROPOSAL_WINDOW`]) — so every honest claimant
@@ -30,7 +30,7 @@ pub const PROPOSAL_WINDOW: i64 = 3600;
 /// anchor off `phase_ends_at`, not a minimum span since terminal-entry).
 ///
 /// TRADE-OFF (starkly documented): a staker who never claims within the grace
-/// FORFEITS their unclaimed KASS principal (swept to the treasury) AND their
+/// FORFEITS their unclaimed SOL principal (swept to the treasury) AND their
 /// per-account rent. The long window makes this a genuine abandonment, not a
 /// race — see `processor/sweep_oracle.rs`.
 pub const SWEEP_GRACE: i64 = 30 * 24 * 60 * 60;
@@ -84,10 +84,10 @@ pub const MARKET_THRESHOLD_NUM: u128 = 1;
 pub const MARKET_THRESHOLD_DEN: u128 = 10;
 
 // ---------------------------------------------------------------------------
-// Dynamic creation fee (KASS, burned) — Task H2 / design §8 + emission recapture.
+// Dynamic creation fee (SOL, burned) — Task H2 / design §8 + emission recapture.
 // ---------------------------------------------------------------------------
 //
-// The oracle-creation fee is paid in KASS and BURNED. It has TWO components,
+// The oracle-creation fee is paid in SOL and BURNED. It has TWO components,
 // both driven by the same exponentially-decaying moving average ("EMA") of
 // recent creation activity (`Protocol.fee_ema`, a fixed-point accumulator scaled
 // by [`FEE_EMA_SCALE`] — `fee_ema == FEE_EMA_SCALE` means "1.0 creation units of
@@ -103,7 +103,7 @@ pub const MARKET_THRESHOLD_DEN: u128 = 10;
 // [`FEE_EMA_INCREMENT`] and stamp `last_creation_unix`.
 //
 // # Why the recapture term (the emission-farming throttle)
-// Emission mints `reward_emission` KASS per `create_oracle` (see the emission
+// Emission mints `reward_emission` SOL per `create_oracle` (see the emission
 // section below) that a SINGLE uncontested proposer can claim. Without a fee that
 // scales with that reward, an attacker could create oracles in a rapid burst and
 // farm the emission for ~0 cost (the linear term alone is small relative to the
@@ -132,9 +132,9 @@ pub const FEE_EMA_HALFLIFE_SECS: i64 = 86_400;
 /// (`1.0 * FEE_EMA_SCALE`). Each creation adds this to the (decayed) EMA.
 pub const FEE_EMA_INCREMENT: u64 = FEE_EMA_SCALE as u64;
 
-/// KASS base units charged per 1.0 of EMA activity (i.e. per `FEE_EMA_SCALE` of
-/// `fee_ema`) — the LINEAR demand-fee component. KASS has 9 decimals, so this is
-/// 1 KASS per unit of EMA. Governance-tunable.
+/// SOL base units charged per 1.0 of EMA activity (i.e. per `FEE_EMA_SCALE` of
+/// `fee_ema`) — the LINEAR demand-fee component. SOL has 9 decimals, so this is
+/// 1 SOL per unit of EMA. Governance-tunable.
 pub const FEE_PER_EMA_UNIT: u64 = 1_000_000_000;
 
 /// The activity EMA at which the EMISSION-RECAPTURE fee component recaptures HALF
@@ -150,7 +150,7 @@ pub const FEE_RECAPTURE_HALF_ACTIVITY: u64 = 15_000_000_000;
 // ── Activity-scaled minimum-stake floor (bootstrapping) ─────────────────────────
 // The minimum stake for propose / submit_fact / vote_fact starts at 0 and ramps
 // with the fee-EMA creation-activity signal, so the first oracles are free to
-// create + participate in (no premined KASS). See `crate::stake_floor` +
+// create + participate in (no premined SOL). See `crate::stake_floor` +
 // design `2026-07-08-oracle-stake-floor-bootstrap`. These are the RECOMMENDED
 // governance values snapshotted into `Protocol` by `init_protocol`; the curve
 // shape (threshold/cap) is pre-set, and the MAGNITUDE (`STAKE_FLOOR_MAX`) defaults
@@ -169,10 +169,10 @@ pub const STAKE_FLOOR_EMA_THRESHOLD: u64 = 15_000_000_000;
 /// ≈ 1000 oracles/day. Governance-tunable via `set_config`.
 pub const STAKE_FLOOR_EMA_CAP: u64 = 1_443_000_000_000;
 
-/// The maximum stake floor (KASS base units) at full activity. **0 at genesis =
+/// The maximum stake floor (SOL base units) at full activity. **0 at genesis =
 /// disabled** (floor always 0, participation always free) until governance sets it
 /// to the token's value via `set_config` — mirroring the emission/`total_supply_cap`
-/// switch. Kept a governable magnitude because it depends on KASS's market value,
+/// switch. Kept a governable magnitude because it depends on SOL's market value,
 /// which does not exist at genesis.
 pub const STAKE_FLOOR_MAX: u64 = 0;
 
@@ -189,24 +189,24 @@ const _: () = assert!(FEE_EMA_SCALE > 0);
 // fee config.
 // ---------------------------------------------------------------------------
 
-/// Fixed-point scale of the futarchy spot-TWAP `kass_price` returns: the value
-/// is `quote_raw_units_per_base_raw_unit × KASS_PRICE_SCALE` (i.e. raw USDC per
-/// raw KASS, scaled by `1e12` — see [`crate::cpi::metadao_v06::futarchy_spot_twap`]).
+/// Fixed-point scale of the futarchy spot-TWAP `spot_price` returns: the value
+/// is `quote_raw_units_per_base_raw_unit × SPOT_PRICE_SCALE` (i.e. raw USDC per
+/// raw SOL, scaled by `1e12` — see [`crate::cpi::metadao_v06::futarchy_spot_twap`]).
 ///
 /// The challenger's escrow is sized so its USDC value matches the proposer's
-/// bond KASS value at this price. Because the TWAP is already in RAW token units
-/// (USDC base units per KASS base unit), the cross-decimal (KASS 9dp / USDC 6dp)
+/// bond SOL value at this price. Because the TWAP is already in RAW token units
+/// (USDC base units per SOL base unit), the cross-decimal (SOL 9dp / USDC 6dp)
 /// adjustment is folded into the price itself, so the conversion is simply:
 ///
 /// ```text
-/// required_usdc (USDC base units) = bond_kass (KASS base units) × twap / KASS_PRICE_SCALE
+/// required_usdc (USDC base units) = bond_base (SOL base units) × twap / SPOT_PRICE_SCALE
 /// ```
 ///
-/// computed in `u128` and checked back into `u64`. Worked example: KASS at
-/// $0.50 → twap `500_000_000`; a 1 KASS bond (`1e9` base units) escrows
+/// computed in `u128` and checked back into `u64`. Worked example: SOL at
+/// $0.50 → twap `500_000_000`; a 1 SOL bond (`1e9` base units) escrows
 /// `1e9 × 5e8 / 1e12 = 500_000` USDC base units = $0.50. Sound dimensionally:
-/// `[KASS_raw] × [USDC_raw / KASS_raw] = [USDC_raw]`.
-pub const KASS_PRICE_SCALE: u128 = 1_000_000_000_000;
+/// `[SOL_raw] × [USDC_raw / SOL_raw] = [USDC_raw]`.
+pub const SPOT_PRICE_SCALE: u128 = 1_000_000_000_000;
 
 /// USDC fee charged on a FAILED challenge (the claim survives), paid out of the
 /// challenger's escrow to the proposer, as the fraction
@@ -217,14 +217,14 @@ pub const CHALLENGE_FAIL_USDC_FEE_NUM: u64 = 1;
 /// Denominator of [`CHALLENGE_FAIL_USDC_FEE_NUM`].
 pub const CHALLENGE_FAIL_USDC_FEE_DEN: u64 = 100;
 
-/// KASS fee carved out of a SUCCESSFULLY-challenged (disqualified) proposer's
+/// SOL fee carved out of a SUCCESSFULLY-challenged (disqualified) proposer's
 /// bond and routed to the challenger, as the fraction
-/// `CHALLENGE_SUCCESS_KASS_FEE_NUM / CHALLENGE_SUCCESS_KASS_FEE_DEN`. Default
+/// `CHALLENGE_SUCCESS_BASE_FEE_NUM / CHALLENGE_SUCCESS_BASE_FEE_DEN`. Default
 /// 1/100 (1%). Governable (snapshotted onto each `Oracle` at `create_oracle`,
 /// retuned by `set_config`). The settle-side routing of this fee is Task C2.
-pub const CHALLENGE_SUCCESS_KASS_FEE_NUM: u64 = 1;
-/// Denominator of [`CHALLENGE_SUCCESS_KASS_FEE_NUM`].
-pub const CHALLENGE_SUCCESS_KASS_FEE_DEN: u64 = 100;
+pub const CHALLENGE_SUCCESS_BASE_FEE_NUM: u64 = 1;
+/// Denominator of [`CHALLENGE_SUCCESS_BASE_FEE_NUM`].
+pub const CHALLENGE_SUCCESS_BASE_FEE_DEN: u64 = 100;
 
 /// Fraction (numerator) of a proposer's bond slashed when they FLIP their value
 /// at AI-claim time (submitted a `claim_option != original_option`). A flip is
@@ -263,15 +263,15 @@ pub const FACT_VOTE_SLASH_NUM: u64 = 1;
 pub const FACT_VOTE_SLASH_DEN: u64 = 2;
 
 // ---------------------------------------------------------------------------
-// Emission — KASS minted at oracle creation from the supply reservoir (Task S3).
+// Emission — SOL minted at oracle creation from the supply reservoir (Task S3).
 // ---------------------------------------------------------------------------
 //
 // On every `create_oracle`, AFTER the EMA fee burn, the program mints
 //
-//   reward_emission = (TOTAL_SUPPLY_CAP − kass_supply) · EMISSION_NUM / EMISSION_DEN
+//   reward_emission = (TOTAL_SUPPLY_CAP − base_supply) · EMISSION_NUM / EMISSION_DEN
 //
-// KASS into the new oracle's `stake_vault` (program-signed by the mint-authority
-// PDA). The "reservoir" `TOTAL_SUPPLY_CAP − kass_supply` is the un-minted
+// SOL into the new oracle's `stake_vault` (program-signed by the mint-authority
+// PDA). The "reservoir" `TOTAL_SUPPLY_CAP − base_supply` is the un-minted
 // headroom: emission is a small fraction of it per oracle, so issuance tapers as
 // supply approaches the cap (no epochs — live supply IS the schedule). The fee
 // burn shrinks supply first, so burning boosts the SAME-tx reservoir.
@@ -285,7 +285,7 @@ pub const FACT_VOTE_SLASH_DEN: u64 = 2;
 // enabled once governance picks the curve. With emission disabled every oracle's
 // `stake_vault` holds exactly `Σ stakes` (the pre-S3 conservation invariant).
 
-/// Recommended hard cap on circulating KASS supply (base units): 1e9 KASS at 9
+/// Recommended hard cap on circulating SOL supply (base units): 1e9 SOL at 9
 /// decimals = `1e18`. The emission reservoir is `TOTAL_SUPPLY_CAP − supply`.
 /// Governance-set via `set_config` (`init_protocol` leaves the cap 0 = disabled).
 pub const TOTAL_SUPPLY_CAP: u64 = 1_000_000_000 * 1_000_000_000;
@@ -298,12 +298,12 @@ pub const EMISSION_NUM: u64 = 1;
 /// `set_config` requires `emission_den > 0`.
 pub const EMISSION_DEN: u64 = 1_000_000;
 
-/// Seed of the program-controlled **KASS mint-authority PDA**:
-/// `[b"mint_authority"]`, program = [`crate::ID`]. Emission mints KASS signed by
+/// Seed of the program-controlled **SOL mint-authority PDA**:
+/// `[b"mint_authority"]`, program = [`crate::ID`]. Emission mints SOL signed by
 /// this PDA (the DAO governs the emission *rate*, not direct minting — design
 /// "Bootstrapping"). F1 only DEFINES the seed + records the DAO linkage; the
-/// binding `kass_mint.mint_authority == mint_authority_pda` is asserted at first
+/// binding `base_mint.mint_authority == mint_authority_pda` is asserted at first
 /// emission (settlement milestone), since verifying it requires threading the
-/// mint account (and the test-harness KASS mint authority is the payer, not the
+/// mint account (and the test-harness SOL mint authority is the payer, not the
 /// PDA).
 pub const MINT_AUTHORITY_SEED: &[u8] = b"mint_authority";

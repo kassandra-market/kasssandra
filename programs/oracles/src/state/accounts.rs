@@ -13,7 +13,7 @@ pub struct Proposer {
     pub _pad_hdr: [u8; 7],
     pub oracle: Pubkey,
     pub authority: Pubkey,
-    pub bond: u64,           // locked KASS
+    pub bond: u64,           // locked SOL
     pub original_option: u8, // value at proposal time (no proofs)
     // CONTRACT: `claim_option` MUST be initialized to `CLAIM_OPTION_NONE`
     // (0xFF) when a Proposer account is created — NOT left zeroed. A zeroed
@@ -28,7 +28,7 @@ pub struct Proposer {
     pub bump: u8,
     pub ai_finalized: u8, // bool: settled by finalize_ai_claims (idempotency marker)
     pub _pad: [u8; 1],
-    // KASS slashed from this proposer into the oracle's `bond_pool`. Set
+    // SOL slashed from this proposer into the oracle's `bond_pool`. Set
     // authoritatively on EVERY slash path: `finalize_ai_claims` (no-show => bond;
     // flip => bond*FLIP_SLASH_NUM/FLIP_SLASH_DEN), `settle_challenge`
     // (challenge-fail => bond), and the `finalize_facts` no-facts dead-end
@@ -147,8 +147,8 @@ impl AiClaim {
 /// — uncontested claims have NO `Market` account (markets are dormant by
 /// default, design §6). It RECORDS the MetaDAO accounts the challenger composed
 /// (a binary pass/fail `question` whose resolver is the Kassandra oracle PDA, a
-/// KASS conditional vault, a USDC conditional vault, and the pass/fail AMMs),
-/// the oracle-PDA-owned conditional-KASS destinations the proposer's bond was
+/// SOL conditional vault, a USDC conditional vault, and the pass/fail AMMs),
+/// the oracle-PDA-owned conditional-SOL destinations the proposer's bond was
 /// split into, and the challenger's committed USDC — so `settle_challenge`
 /// (Task 11) can read the TWAP, resolve the question, and redeem from the exact
 /// recorded accounts (no off-chain bookkeeping). The security-critical bindings
@@ -167,20 +167,20 @@ pub struct Market {
     pub proposer: Pubkey,
     pub challenger: Pubkey,
     pub question: Pubkey,   // MetaDAO binary question (resolver == oracle PDA)
-    pub kass_vault: Pubkey, // MetaDAO conditional vault, underlying == oracle.kass_mint
+    pub base_vault: Pubkey, // MetaDAO conditional vault, underlying == oracle.base_mint
     pub usdc_vault: Pubkey, // MetaDAO conditional vault, underlying == oracle.usdc_mint
     // DEFERRED-MUST-VERIFY-IN-TASK-11: only owner==AMM_ID was checked at
     // open_challenge; settle_challenge MUST verify each AMM is bound to this
-    // market's pass/fail conditional (KASS,USDC) mint pair and that
+    // market's pass/fail conditional (SOL,USDC) mint pair and that
     // pass_amm != fail_amm before reading its TWAP.
     pub pass_amm: Pubkey, // outcome-0 (pass) AMM
     pub fail_amm: Pubkey, // outcome-1 (fail) AMM
-    // Oracle-PDA-owned conditional-KASS token accounts the proposer's bond was
+    // Oracle-PDA-owned conditional-SOL token accounts the proposer's bond was
     // split into (outcome 0 = pass, 1 = fail). Verified owner==oracle PDA and
-    // mint==derived conditional KASS mint at creation; Task 11 redeems/settles
+    // mint==derived conditional SOL mint at creation; Task 11 redeems/settles
     // from exactly these.
-    pub oracle_pass_kass: Pubkey,
-    pub oracle_fail_kass: Pubkey,
+    pub oracle_pass_base: Pubkey,
+    pub oracle_fail_base: Pubkey,
     // Market-owned USDC escrow token account holding the challenger's staked
     // USDC (Task C1). SPL token account on `oracle.usdc_mint`, token authority =
     // the oracle PDA (mirrors `oracle.stake_vault`), at PDA
@@ -189,7 +189,7 @@ pub struct Market {
     pub challenger_usdc_vault: Pubkey,
     pub twap_end: i64, // now + oracle.twap_window; settle allowed only after
     // Challenger's escrowed USDC (Task C1): computed on-chain at open_challenge
-    // as `bond × kass_price` (raw USDC base units) and actually transferred into
+    // as `bond × spot_price` (raw USDC base units) and actually transferred into
     // `challenger_usdc_vault` — no longer an untrusted payload value.
     pub challenger_usdc: u64,
     pub settled: u8, // bool; set by settle_challenge (Task 11)

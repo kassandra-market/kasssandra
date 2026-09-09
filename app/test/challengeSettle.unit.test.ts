@@ -8,11 +8,11 @@
  *   - the settle ix `data` + `keys` BYTE-MATCH `buildSettleChallengeIxs` called
  *     with the HAND-SUPPLIED equivalent accounts — i.e. the derivation lands the
  *     SAME 21-account set the SDK builds;
- *   - each derived account == its expected PDA/ATA (passKassMint ==
- *     conditionalTokenMint(kassVault,0), proposerUsdc == ATA(proposerAuthority,
+ *   - each derived account == its expected PDA/ATA (passBaseMint ==
+ *     conditionalTokenMint(baseVault,0), proposerUsdc == ATA(proposerAuthority,
  *     usdcMint), challengerUsdcDest == ATA(challenger, usdcMint) [NOT the escrow],
- *     cvEventAuthority == vaultEventAuthority(), kassVaultUnderlying ==
- *     ATA(kassVault, kassMint));
+ *     cvEventAuthority == vaultEventAuthority(), baseVaultUnderlying ==
+ *     ATA(baseVault, baseMint));
  *   - the optional idempotent payout-ATA creates (connection + payer) prepend
  *     exactly 3 create-ATA ixs;
  *   - validation: a settled market / a missing market / a missing proposer
@@ -61,12 +61,12 @@ function makeMarket(fields: {
   proposer: Address;
   challenger: Address;
   question: Address;
-  kassVault: Address;
+  baseVault: Address;
   usdcVault: Address;
   passAmm: Address;
   failAmm: Address;
-  oraclePassKass: Address;
-  oracleFailKass: Address;
+  oraclePassBase: Address;
+  oracleFailBase: Address;
   challengerUsdcVault: Address;
   settled?: boolean;
 }): Market {
@@ -78,12 +78,12 @@ function makeMarket(fields: {
   put(72, fields.proposer);
   put(104, fields.challenger);
   put(136, fields.question);
-  put(168, fields.kassVault);
+  put(168, fields.baseVault);
   put(200, fields.usdcVault);
   put(232, fields.passAmm);
   put(264, fields.failAmm);
-  put(296, fields.oraclePassKass);
-  put(328, fields.oracleFailKass);
+  put(296, fields.oraclePassBase);
+  put(328, fields.oracleFailBase);
   put(360, fields.challengerUsdcVault);
   const dv = new DataView(data.buffer);
   dv.setBigInt64(392, 1_000n, true); // twapEnd
@@ -93,11 +93,11 @@ function makeMarket(fields: {
   return decodeMarket(data);
 }
 
-/** Build a genuine decoded-shaped {@link Oracle} (only kassMint/usdcMint matter). */
-function makeOracle(kassMint: Address, usdcMint: Address, stakeVault: Address): Oracle {
+/** Build a genuine decoded-shaped {@link Oracle} (only baseMint/usdcMint matter). */
+function makeOracle(baseMint: Address, usdcMint: Address, stakeVault: Address): Oracle {
   const data = new Uint8Array(ACCOUNT_SIZES.Oracle);
   data[0] = AccountType.Oracle;
-  data.set(kassMint.toBytes(), 40);
+  data.set(baseMint.toBytes(), 40);
   data.set(usdcMint.toBytes(), 72);
   data.set(stakeVault.toBytes(), 104);
   return decodeOracle(data);
@@ -111,14 +111,14 @@ async function fixture() {
   const proposerAuthority = await g();
   const challenger = await g();
   const question = await g();
-  const kassVault = await g();
+  const baseVault = await g();
   const usdcVault = await g();
   const passAmm = await g();
   const failAmm = await g();
-  const oraclePassKass = await g();
-  const oracleFailKass = await g();
+  const oraclePassBase = await g();
+  const oracleFailBase = await g();
   const challengerUsdcVault = await g();
-  const kassMint = await g();
+  const baseMint = await g();
   const usdcMint = await g();
   const stakeVault = await g();
 
@@ -128,20 +128,20 @@ async function fixture() {
     proposer,
     challenger,
     question,
-    kassVault,
+    baseVault,
     usdcVault,
     passAmm,
     failAmm,
-    oraclePassKass,
-    oracleFailKass,
+    oraclePassBase,
+    oracleFailBase,
     challengerUsdcVault,
   });
-  const oracleAcct = makeOracle(kassMint, usdcMint, stakeVault);
+  const oracleAcct = makeOracle(baseMint, usdcMint, stakeVault);
   return {
     market,
     oracleAcct,
     proposerAuthority,
-    kassMint,
+    baseMint,
     usdcMint,
     challenger,
     proposer,
@@ -157,16 +157,16 @@ describe("buildSettleFromMarketIxs — derive-from-Market one-click settle", () 
     const m = f.market;
 
     // Hand-derive the 15 caller accounts (the equivalent hand-supplied set).
-    const [passKassMint, failKassMint, kassVaultUnderlying, cvEventAuthority] = await Promise.all([
-      conditionalTokenMint(m.kassVault, 0),
-      conditionalTokenMint(m.kassVault, 1),
-      associatedTokenAccount(m.kassVault, f.kassMint).then((p) => p.address),
+    const [passBaseMint, failBaseMint, baseVaultUnderlying, cvEventAuthority] = await Promise.all([
+      conditionalTokenMint(m.baseVault, 0),
+      conditionalTokenMint(m.baseVault, 1),
+      associatedTokenAccount(m.baseVault, f.baseMint).then((p) => p.address),
       futarchy.pda.vaultEventAuthority().then((p) => p.address),
     ]);
-    const [proposerUsdc, challengerUsdcDest, challengerKass] = await Promise.all([
+    const [proposerUsdc, challengerUsdcDest, challengerBase] = await Promise.all([
       associatedTokenAccount(f.proposerAuthority, f.usdcMint).then((p) => p.address),
       associatedTokenAccount(f.challenger, f.usdcMint).then((p) => p.address),
-      associatedTokenAccount(f.challenger, f.kassMint).then((p) => p.address),
+      associatedTokenAccount(f.challenger, f.baseMint).then((p) => p.address),
     ]);
 
     const [expected] = await buildSettleChallengeIxs({
@@ -177,15 +177,15 @@ describe("buildSettleFromMarketIxs — derive-from-Market one-click settle", () 
       passAmm: m.passAmm,
       failAmm: m.failAmm,
       cvEventAuthority,
-      kassVault: m.kassVault,
-      kassVaultUnderlying,
-      passKassMint,
-      failKassMint,
-      oraclePassKass: m.oraclePassKass,
-      oracleFailKass: m.oracleFailKass,
+      baseVault: m.baseVault,
+      baseVaultUnderlying,
+      passBaseMint,
+      failBaseMint,
+      oraclePassBase: m.oraclePassBase,
+      oracleFailBase: m.oracleFailBase,
       proposerUsdc,
       challengerUsdcDest,
-      challengerKass,
+      challengerBase,
     });
 
     const derived = await buildSettleFromMarketIxs({
@@ -216,24 +216,24 @@ describe("buildSettleFromMarketIxs — derive-from-Market one-click settle", () 
     });
     const keys = ix.keys.map((k) => k.pubkey.toString());
 
-    // Settle account slot map (see sdk settleChallenge): 13 pass_kass_mint,
-    // 14 fail_kass_mint, 12 kass_vault_underlying, 8 cv_event_authority,
-    // 18 proposer_usdc, 19 challenger_usdc_dest, 20 challenger_kass.
-    const passKassMint = await conditionalTokenMint(m.kassVault, 0);
-    const failKassMint = await conditionalTokenMint(m.kassVault, 1);
-    const kassVaultUnderlying = (await associatedTokenAccount(m.kassVault, f.kassMint)).address;
+    // Settle account slot map (see sdk settleChallenge): 13 pass_base_mint,
+    // 14 fail_base_mint, 12 base_vault_underlying, 8 cv_event_authority,
+    // 18 proposer_usdc, 19 challenger_usdc_dest, 20 challenger_base.
+    const passBaseMint = await conditionalTokenMint(m.baseVault, 0);
+    const failBaseMint = await conditionalTokenMint(m.baseVault, 1);
+    const baseVaultUnderlying = (await associatedTokenAccount(m.baseVault, f.baseMint)).address;
     const cvEventAuthority = (await futarchy.pda.vaultEventAuthority()).address;
     const proposerUsdc = (await associatedTokenAccount(f.proposerAuthority, f.usdcMint)).address;
     const challengerUsdcDest = (await associatedTokenAccount(f.challenger, f.usdcMint)).address;
-    const challengerKass = (await associatedTokenAccount(f.challenger, f.kassMint)).address;
+    const challengerBase = (await associatedTokenAccount(f.challenger, f.baseMint)).address;
 
-    expect(keys[13]).toBe(passKassMint.toString());
-    expect(keys[14]).toBe(failKassMint.toString());
-    expect(keys[12]).toBe(kassVaultUnderlying.toString());
+    expect(keys[13]).toBe(passBaseMint.toString());
+    expect(keys[14]).toBe(failBaseMint.toString());
+    expect(keys[12]).toBe(baseVaultUnderlying.toString());
     expect(keys[8]).toBe(cvEventAuthority.toString());
     expect(keys[18]).toBe(proposerUsdc.toString());
     expect(keys[19]).toBe(challengerUsdcDest.toString());
-    expect(keys[20]).toBe(challengerKass.toString());
+    expect(keys[20]).toBe(challengerBase.toString());
 
     // The Market-direct accounts thread straight through.
     expect(keys[2]).toBe(m.aiClaim.toString()); // ai_claim
@@ -241,9 +241,9 @@ describe("buildSettleFromMarketIxs — derive-from-Market one-click settle", () 
     expect(keys[4]).toBe(m.question.toString()); // question
     expect(keys[5]).toBe(m.passAmm.toString()); // pass_amm
     expect(keys[6]).toBe(m.failAmm.toString()); // fail_amm
-    expect(keys[11]).toBe(m.kassVault.toString()); // kass_vault
-    expect(keys[15]).toBe(m.oraclePassKass.toString());
-    expect(keys[16]).toBe(m.oracleFailKass.toString());
+    expect(keys[11]).toBe(m.baseVault.toString()); // base_vault
+    expect(keys[15]).toBe(m.oraclePassBase.toString());
+    expect(keys[16]).toBe(m.oracleFailBase.toString());
   });
 
   it("challengerUsdcDest is the challenger ATA, NOT the market escrow (account 17 vs 19)", async () => {
@@ -292,12 +292,12 @@ describe("buildSettleFromMarketIxs — derive-from-Market one-click settle", () 
       proposer: f.market.proposer,
       challenger: f.challenger,
       question: f.market.question,
-      kassVault: f.market.kassVault,
+      baseVault: f.market.baseVault,
       usdcVault: f.market.usdcVault,
       passAmm: f.market.passAmm,
       failAmm: f.market.failAmm,
-      oraclePassKass: f.market.oraclePassKass,
-      oracleFailKass: f.market.oracleFailKass,
+      oraclePassBase: f.market.oraclePassBase,
+      oracleFailBase: f.market.oracleFailBase,
       challengerUsdcVault: f.challengerUsdcVault,
       settled: true,
     });

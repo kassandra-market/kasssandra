@@ -8,7 +8,7 @@ export const PRICE_SCALE = 1_000_000_000_000n;
  * single crank folds the current price into the TWAP verbatim, exactly as the
  * E2E's `MAX_PRICE`). */
 export const MAX_OBSERVATION_CHANGE = ((1n << 64n) - 1n) * PRICE_SCALE;
-/** Default base reserve: 100 conditional-KASS (9 dp) — the E2E's `BASE_RESERVE`. */
+/** Default base reserve: 100 conditional-SOL (9 dp) — the E2E's `BASE_RESERVE`. */
 export const DEFAULT_BASE_RESERVE = 100_000_000_000n;
 /** Default quote reserve: 100 conditional-USDC (6 dp) → seeded price 1e12-scaled 1.0 (the E2E's `QUOTE_NEUTRAL`). */
 export const DEFAULT_QUOTE_RESERVE = 100_000_000n;

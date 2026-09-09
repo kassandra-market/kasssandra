@@ -8,7 +8,7 @@ import {
   type Side,
 } from '../../../../data/actions/challengeTrade'
 import { useWriteAction } from '../../../../hooks/useWriteAction'
-import { KASS_DECIMALS, USDC_DECIMALS, formatUnits } from '../../../../lib/oracleView'
+import { SOL_DECIMALS, USDC_DECIMALS, formatUnits } from '../../../../lib/oracleView'
 import { parseAmount } from '../amount'
 import { ConnectGate } from '../ConnectGate'
 import { Field, SubmitButton, TextInput } from '../formPrimitives'
@@ -47,15 +47,15 @@ export function SwapForm({
   const [slipRaw, setSlipRaw] = useState('0.5')
 
   const amm = pool === 'pass' ? pools.pass : pools.fail
-  // buy = USDC(quote,6) → KASS(base,9); sell is the reverse. Scale entry by the
+  // buy = USDC(quote,6) → SOL(base,9); sell is the reverse. Scale entry by the
   // IN mint's decimals and the preview by the OUT mint's.
-  const inDecimals = side === 'buy' ? USDC_DECIMALS : KASS_DECIMALS
-  const outDecimals = side === 'buy' ? KASS_DECIMALS : USDC_DECIMALS
+  const inDecimals = side === 'buy' ? USDC_DECIMALS : SOL_DECIMALS
+  const outDecimals = side === 'buy' ? SOL_DECIMALS : USDC_DECIMALS
   const parsed = parseAmount(amountRaw, inDecimals)
   const slip = parseSlippageBps(slipRaw)
   const est = swapEstimate(amm, side, parsed.value ?? 0n)
-  const inLabel = side === 'buy' ? 'USDC (quote)' : 'KASS (base)'
-  const outLabel = side === 'buy' ? 'KASS (base)' : 'USDC (quote)'
+  const inLabel = side === 'buy' ? 'USDC (quote)' : 'SOL (base)'
+  const outLabel = side === 'buy' ? 'SOL (base)' : 'USDC (quote)'
   const impactPct = Math.round(est.impact * 1000) / 10
 
   const onSubmit = (e: FormEvent) => {
@@ -99,8 +99,8 @@ export function SwapForm({
               onChange={(e) => setSide(e.target.value as Side)}
               className="rounded-tag border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] text-platinum focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40"
             >
-              <option value="buy">Buy (USDC → KASS)</option>
-              <option value="sell">Sell (KASS → USDC)</option>
+              <option value="buy">Buy (USDC → SOL)</option>
+              <option value="sell">Sell (SOL → USDC)</option>
             </select>
           </label>
         </div>

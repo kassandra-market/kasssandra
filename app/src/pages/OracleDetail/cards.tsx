@@ -12,7 +12,7 @@ import {
   buildCloseAiClaimIxs,
   buildCloseMarketIxs,
 } from '../../data/actions/claims'
-import { formatKass, formatUsdc, hashHex, relativeDeadline } from '../../lib/oracleView'
+import { formatSol, formatUsdc, hashHex, relativeDeadline } from '../../lib/oracleView'
 import { oracleNonce, type SettleCtx } from './helpers'
 import { Row } from './primitives'
 
@@ -26,7 +26,7 @@ export function FactCard({
   pubkey: string
   fact: Fact
   /** When set (FactVoting phase), renders the per-fact vote control. */
-  voting?: { oracle: string; kassMint: Address; refetch: () => void }
+  voting?: { oracle: string; baseMint: Address; refetch: () => void }
   /** When set (terminal phase), renders the fact-claim + fact-vote-claim controls. */
   settle?: SettleCtx
   /** When set (Challenge phase, contestable fact), a button that jumps to Manage to
@@ -60,7 +60,7 @@ export function FactCard({
         <div className="flex items-baseline justify-between gap-4">
           <dt className="text-silver">Approve / duplicate stake</dt>
           <dd className="text-platinum">
-            {formatKass(fact.approveStake)} / {formatKass(fact.duplicateStake)} KASS
+            {formatSol(fact.approveStake)} / {formatSol(fact.duplicateStake)} SOL
           </dd>
         </div>
       </dl>
@@ -85,7 +85,7 @@ export function FactCard({
       {voting ? (
         <VoteControl
           oracle={voting.oracle}
-          kassMint={voting.kassMint}
+          baseMint={voting.baseMint}
           factPubkey={pubkey}
           refetch={voting.refetch}
         />
@@ -106,7 +106,7 @@ export function FactCard({
                   oracleNonce,
                   fact: pubkey,
                   authority: fact.proposer,
-                  kassMint: settle.kassMint,
+                  baseMint: settle.baseMint,
                 }),
               )
             }
@@ -126,7 +126,7 @@ export function FactCard({
                 factVote,
                 fact: pubkey,
                 voter: address,
-                kassMint: settle.kassMint,
+                baseMint: settle.baseMint,
               })
             }}
           />
@@ -179,12 +179,12 @@ export function ProposerCard({
           </div>
           <div className="flex items-baseline justify-between gap-4">
             <dt className="text-silver">Bond</dt>
-            <dd className="text-platinum">{formatKass(proposer.bond)} KASS</dd>
+            <dd className="text-platinum">{formatSol(proposer.bond)} SOL</dd>
           </div>
           {proposer.slashedAmount > 0n ? (
             <div className="flex items-baseline justify-between gap-4">
               <dt className="text-silver">Slashed</dt>
-              <dd className="text-platinum">{formatKass(proposer.slashedAmount)} KASS</dd>
+              <dd className="text-platinum">{formatSol(proposer.slashedAmount)} SOL</dd>
             </div>
           ) : null}
           <div className="flex items-baseline justify-between gap-4">
@@ -208,7 +208,7 @@ export function ProposerCard({
                   oracleNonce,
                   proposer: pubkey,
                   authority: proposer.authority,
-                  kassMint: settle.kassMint,
+                  baseMint: settle.baseMint,
                 }),
               )
             }

@@ -103,16 +103,16 @@ describe("buildFinalizeFactsIxs", () => {
   it("matches the SDK finalizeFacts ix with the explicit nonce + fact tail", async () => {
     const nonce = 3n;
     const oracle = (await pda.oracle(nonce)).address;
-    const kassMint = (await Keypair.generate()).publicKey;
+    const baseMint = (await Keypair.generate()).publicKey;
     const facts = await keys(2);
     const { ixs, needsAlt } = await buildFinalizeFactsIxs({
       oracle,
-      kassMint,
+      baseMint,
       facts,
       oracleNonce: nonce,
     });
     expect(ixs.length).toBe(1);
-    expectIxMatches(ixs[0], await finalizeFacts({ nonce, kassMint, tail: facts }));
+    expectIxMatches(ixs[0], await finalizeFacts({ nonce, baseMint, tail: facts }));
     // The subset-capable finalize is chunked, never ALT-routed.
     expect(needsAlt).toBe(false);
   });
@@ -120,18 +120,18 @@ describe("buildFinalizeFactsIxs", () => {
   it("resolves the nonce from the oracle pubkey when omitted (pure scan)", async () => {
     const nonce = 5n;
     const oracle = (await pda.oracle(nonce)).address;
-    const kassMint = (await Keypair.generate()).publicKey;
+    const baseMint = (await Keypair.generate()).publicKey;
     const facts = await keys(1);
-    const { ixs } = await buildFinalizeFactsIxs({ oracle, kassMint, facts });
+    const { ixs } = await buildFinalizeFactsIxs({ oracle, baseMint, facts });
     // Byte-identical to the explicit-nonce build ⇒ the scan recovered nonce 5.
-    expectIxMatches(ixs[0], await finalizeFacts({ nonce, kassMint, tail: facts }));
+    expectIxMatches(ixs[0], await finalizeFacts({ nonce, baseMint, tail: facts }));
   });
 
   it("rejects an empty fact tail", async () => {
     const oracle = (await pda.oracle(1n)).address;
-    const kassMint = (await Keypair.generate()).publicKey;
+    const baseMint = (await Keypair.generate()).publicKey;
     await expect(
-      buildFinalizeFactsIxs({ oracle, kassMint, facts: [], oracleNonce: 1n }),
+      buildFinalizeFactsIxs({ oracle, baseMint, facts: [], oracleNonce: 1n }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
@@ -158,27 +158,27 @@ describe("buildFinalizeOracleIxs", () => {
   it("matches the SDK finalizeOracle ix with the explicit nonce + full ro tail", async () => {
     const nonce = 7n;
     const oracle = (await pda.oracle(nonce)).address;
-    const kassMint = (await Keypair.generate()).publicKey;
+    const baseMint = (await Keypair.generate()).publicKey;
     const proposers = await keys(2);
     const { ixs, needsAlt } = await buildFinalizeOracleIxs({
       oracle,
-      kassMint,
+      baseMint,
       proposers,
       oracleNonce: nonce,
     });
     expect(ixs.length).toBe(1);
-    expectIxMatches(ixs[0], await finalizeOracle({ nonce, kassMint, proposers }));
+    expectIxMatches(ixs[0], await finalizeOracle({ nonce, baseMint, proposers }));
     expect(needsAlt).toBe(false);
   });
 
   it("flips needsAlt at MAX_LEGACY_TAIL", async () => {
     const nonce = 9n;
     const oracle = (await pda.oracle(nonce)).address;
-    const kassMint = (await Keypair.generate()).publicKey;
+    const baseMint = (await Keypair.generate()).publicKey;
     const over = await keys(MAX_LEGACY_TAIL + 1);
     const { needsAlt, altAddresses } = await buildFinalizeOracleIxs({
       oracle,
-      kassMint,
+      baseMint,
       proposers: over,
       oracleNonce: nonce,
     });

@@ -13,7 +13,7 @@
  * `target/deploy/kassandra_oracles_program.so`, then `pnpm dlx tsx examples/quickstart.ts`.
  *
  * It is the example-shaped twin of `test/e2e.test.ts`. For brevity it fabricates
- * the SPL KASS/USDC mints + token accounts directly (exactly like the test
+ * the SPL SOL/USDC mints + token accounts directly (exactly like the test
  * harness) rather than running InitializeMint.
  */
 import { existsSync } from "node:fs";
@@ -126,18 +126,18 @@ async function main(): Promise<void> {
     throw new Error(`Missing ${SO_PATH}. Run \`just build\` from the repo root first.`);
   }
 
-  // --- stand up litesvm + load the program + fabricate KASS/USDC mints ---
+  // --- stand up litesvm + load the program + fabricate SOL/USDC mints ---
   const svm = new LiteSVM();
   svm.addProgramFromFile(address(PROGRAM_ID), SO_PATH);
 
   const payer = await Keypair.generate();
   svm.airdrop(payer.address, lamports(100_000_000_000n));
 
-  // KASS mint authority is the program's mint-authority PDA (derive #1).
+  // SOL mint authority is the program's mint-authority PDA (derive #1).
   const mintAuth = await pda.mintAuthority();
-  const kassMint = await Keypair.generate();
+  const baseMint = await Keypair.generate();
   const usdcMint = await Keypair.generate();
-  putSplAccount(svm, kassMint.publicKey, mintBytes(mintAuth.address, 9));
+  putSplAccount(svm, baseMint.publicKey, mintBytes(mintAuth.address, 9));
   putSplAccount(svm, usdcMint.publicKey, mintBytes(payer.publicKey, 6));
 
   // --- 1. init_protocol -------------------------------------------------------
@@ -146,7 +146,7 @@ async function main(): Promise<void> {
     payer,
     await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }),
   );
@@ -161,9 +161,9 @@ async function main(): Promise<void> {
   const nonce = 1n;
   const oraclePda = await pda.oracle(nonce); // PDA from the u64-LE nonce seed
 
-  // The creator's KASS token account is the fee-burn source (genesis fee == 0).
-  const creatorKass = await Keypair.generate();
-  putSplAccount(svm, creatorKass.publicKey, tokenAccountBytes(kassMint.publicKey, payer.publicKey, 1_000_000n));
+  // The creator's SOL token account is the fee-burn source (genesis fee == 0).
+  const creatorBase = await Keypair.generate();
+  putSplAccount(svm, creatorBase.publicKey, tokenAccountBytes(baseMint.publicKey, payer.publicKey, 1_000_000n));
 
   const deadline = svm.getClock().unixTimestamp + 1_000n;
   await submit(
@@ -175,8 +175,8 @@ async function main(): Promise<void> {
       deadline,
       twapWindow: 600n,
       creator: payer.publicKey,
-      creatorKassToken: creatorKass.publicKey,
-      kassMint: kassMint.publicKey,
+      creatorBaseToken: creatorBase.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }),
   );
@@ -195,8 +195,8 @@ async function main(): Promise<void> {
   for (let i = 0; i < 3; i++) {
     const authority = await Keypair.generate();
     svm.airdrop(authority.address, lamports(10_000_000_000n));
-    const authorityKass = await Keypair.generate();
-    putSplAccount(svm, authorityKass.publicKey, tokenAccountBytes(kassMint.publicKey, authority.publicKey, bond * 10n));
+    const authorityBase = await Keypair.generate();
+    putSplAccount(svm, authorityBase.publicKey, tokenAccountBytes(baseMint.publicKey, authority.publicKey, bond * 10n));
 
     await submit(
       svm,
@@ -204,7 +204,7 @@ async function main(): Promise<void> {
       await propose({
         oracle: oraclePda.address,
         authority: authority.publicKey,
-        authorityKass: authorityKass.publicKey,
+        authorityBase: authorityBase.publicKey,
         option: agreedOption,
         bond,
       }),

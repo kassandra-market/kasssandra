@@ -38,14 +38,14 @@ declared `#[repr(u32)]` and surfaced to clients as `ProgramError::Custom(n)`. Er
 | 25 | `GovernanceAlreadySet` | `set_governance` after handoff, by a non-`dao_authority` signer. |
 | 26 | `InvalidConfig` | `set_config` out-of-bounds param (also `settle_challenge` fee with `den == 0`). |
 | 27 | `VotersOutstanding` | `claim_fact` while `approve_stake != 0` or `duplicate_stake != 0`. |
-| 28 | `BadMintAuthority` | `create_oracle` emission: kass_mint authority is not the `[b"mint_authority"]` PDA (or None). |
+| 28 | `BadMintAuthority` | Unused (native-token minting was removed; discriminant kept so error codes stay stable). |
 | 29 | `MarketNotSettled` | `close_market` on `market.settled == 0`. |
 | 30 | `EscrowNotEmpty` | `close_market` while the escrow `amount != 0`. |
-| 31 | `InvalidFutarchyDao` | `set_governance`: `kass_dao` not futarchy-owned or bad discriminator. |
+| 31 | `InvalidFutarchyDao` | `set_governance`: `spot_dao` not futarchy-owned or bad discriminator. |
 | 32 | `DaoAuthorityMismatch` | `set_governance`: `dao_authority` != the derived Squads vault PDA. |
 | 33 | `SweepGraceNotElapsed` | `sweep_oracle` before `phase_ends_at + SWEEP_GRACE`. |
 | 34 | `GovernanceNotSet` | `sweep_oracle` while `governance_set == 0`. |
-| 35 | `InvalidTreasury` | `sweep_oracle`: `dao_treasury` != `ATA(dao_authority, kass_mint)`. |
+| 35 | `InvalidTreasury` | `sweep_oracle`: `dao_treasury` != `ATA(dao_authority, base_mint)`. |
 
 <Note>
 Code **0 `NotImplemented`** exists in `error.rs` but is never returned live — every one of the 23

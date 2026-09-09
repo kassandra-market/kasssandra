@@ -6,7 +6,7 @@
 //! Drives the REAL deployed MetaDAO v0.4 `conditional_vault` + `amm` binaries in
 //! LiteSVM (via `ctx.load_metadao()`). This composes only already-reviewed
 //! instructions; it is the capstone that proves a binary market is live from
-//! funding all the way through redemption, and that no KASS is created out of
+//! funding all the way through redemption, and that no SOL is created out of
 //! thin air (redemptions ≤ deposits, shortfall bounded by acknowledged dust +
 //! the losers' forfeited stakes).
 //!
@@ -14,7 +14,7 @@
 //! (not a MetaDAO `swap`) — the resolve_market tests already exercise this path
 //! and it is sufficient to hand a user a net single-leg (winner/loser) position.
 //! The LP `remove_liquidity` back to underlying is intentionally omitted (heavy
-//! to wire; noted): the contributed KASS stays locked in the pool reserves, so
+//! to wire; noted): the contributed SOL stays locked in the pool reserves, so
 //! it simply never leaves the system, which only strengthens `out ≤ in`. The
 //! split → resolve → redeem conservation for the traded portion is exact and is
 //! asserted directly.
@@ -28,10 +28,10 @@ use solana_sdk::{
 };
 
 const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
-const MIN_LIQ: u64 = 1_000_000_000; // 1 KASS (9 dp) — reachable by creator + 1 contributor
+const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp) — reachable by creator + 1 contributor
 const SEED_A: u64 = 600_000_000; // creator's stake
 const SEED_B: u64 = 400_000_000; // second contributor's stake (A + B == MIN_LIQ)
-const SPLIT_AMT: u64 = 2_000_000_000; // 2 KASS each traded user splits for a position
+const SPLIT_AMT: u64 = 2_000_000_000; // 2 SOL each traded user splits for a position
 
 /// `Question` field byte offsets (after the 8-byte Anchor disc).
 const Q_NUM0_OFFSET: usize = 76;
@@ -49,24 +49,24 @@ fn question_u32(ctx: &TestCtx, question: Pubkey, off: usize) -> u32 {
     u32::from_le_bytes(acc.data[off..off + 4].try_into().unwrap())
 }
 
-/// Split `amount` KASS into cYES+cNO for a fresh user, then drain the leg named
+/// Split `amount` SOL into cYES+cNO for a fresh user, then drain the leg named
 /// by `drain_yes` to a sink so the user is left holding ONLY the other leg.
 /// `drain_yes == true` leaves a cNO-only (losing, when YES wins) holder;
 /// `drain_yes == false` leaves a cYES-only (winning) holder. Returns the user
-/// and its (kass_ata, cyes, cno) accounts.
+/// and its (base_ata, cyes, cno) accounts.
 fn single_leg_holder(
     ctx: &mut TestCtx,
-    kass: Pubkey,
+    base: Pubkey,
     refs: &MetaDaoRefs,
     amount: u64,
     drain_yes: bool,
 ) -> (Keypair, Pubkey, Pubkey, Pubkey) {
     let user = Keypair::new();
     ctx.svm_airdrop(&user.pubkey());
-    let user_kass = ctx.create_token_account(kass, user.pubkey(), amount);
+    let user_base = ctx.create_token_account(base, user.pubkey(), amount);
     let user_cyes = ctx.create_token_account(refs.yes_mint, user.pubkey(), 0);
     let user_cno = ctx.create_token_account(refs.no_mint, user.pubkey(), 0);
-    let res = ctx.user_split(&user, refs, user_kass, user_cyes, user_cno, amount);
+    let res = ctx.user_split(&user, refs, user_base, user_cyes, user_cno, amount);
     assert!(res.is_ok(), "user_split: {res:?}");
     assert_eq!(ctx.token_balance(user_cyes), amount, "split minted cYES");
     assert_eq!(ctx.token_balance(user_cno), amount, "split minted cNO");
@@ -89,7 +89,7 @@ fn single_leg_holder(
     let res = ctx.send(ix, &[&user]);
     assert!(res.is_ok(), "drain leg: {res:?}");
     assert_eq!(ctx.token_balance(drain_from), 0, "leg drained");
-    (user, user_kass, user_cyes, user_cno)
+    (user, user_base, user_cyes, user_cno)
 }
 
 /// The whole binary-market lifecycle in one flow, with conservation checks at
@@ -97,13 +97,13 @@ fn single_leg_holder(
 #[test]
 fn full_active_market_lifecycle_with_conservation() {
     // ── Stage 1: init_config ────────────────────────────────────────────────
-    // A `min_liquidity` of 1 KASS is reachable by the creator's seed plus a
+    // A `min_liquidity` of 1 SOL is reachable by the creator's seed plus a
     // single second contributor.
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "init_config: {res:?}");
 
     // ── Stage 2: create_market + contribute (fund to min) ───────────────────
@@ -113,13 +113,13 @@ fn full_active_market_lifecycle_with_conservation() {
 
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "create_market: {res:?}");
 
     let c2 = Keypair::new();
     ctx.svm_airdrop(&c2.pubkey());
-    let c2_ata = ctx.create_token_account(kass, c2.pubkey(), 5_000_000_000);
+    let c2_ata = ctx.create_token_account(base, c2.pubkey(), 5_000_000_000);
     let res = ctx.contribute(&c2, market, c2_ata, SEED_B);
     assert!(res.is_ok(), "contribute: {res:?}");
 
@@ -140,14 +140,14 @@ fn full_active_market_lifecycle_with_conservation() {
         "escrow holds contributions"
     );
 
-    // Total KASS the contributors put IN (this is the crowdfunded liquidity).
+    // Total SOL the contributors put IN (this is the crowdfunded liquidity).
     let total_contributed = m.total_contributed;
 
     // ── Stage 3: compose MetaDAO market + activate ──────────────────────────
     // The client composes the Question/vault/AMM; `activate` splits the escrow
     // into balanced cYES/cNO, seeds the 50/50 pool, and mints LP into lp_vault.
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
-    let res = ctx.activate(oracle, kass);
+    let refs = ctx.compose_metadao_market(market, oracle, base);
+    let res = ctx.activate(oracle, base);
     assert!(res.is_ok(), "activate: {res:?}");
 
     let m: Market = ctx.read_pod(market);
@@ -185,27 +185,27 @@ fn full_active_market_lifecycle_with_conservation() {
     //   • winner  → holds only cYES (drains cNO)  — the winning leg once YES resolves
     //   • loser   → holds only cNO  (drains cYES) — the losing leg
     //   • roundtrip → keeps BOTH legs; redeems both for an EXACT 1:1 round trip
-    let (winner, win_kass, win_cyes, win_cno) =
-        single_leg_holder(&mut ctx, kass, &refs, SPLIT_AMT, /*drain_yes=*/ false);
-    let (loser, lose_kass, lose_cyes, lose_cno) =
-        single_leg_holder(&mut ctx, kass, &refs, SPLIT_AMT, /*drain_yes=*/ true);
+    let (winner, win_base, win_cyes, win_cno) =
+        single_leg_holder(&mut ctx, base, &refs, SPLIT_AMT, /*drain_yes=*/ false);
+    let (loser, lose_base, lose_cyes, lose_cno) =
+        single_leg_holder(&mut ctx, base, &refs, SPLIT_AMT, /*drain_yes=*/ true);
 
     let roundtrip = Keypair::new();
     ctx.svm_airdrop(&roundtrip.pubkey());
-    let rt_kass = ctx.create_token_account(kass, roundtrip.pubkey(), SPLIT_AMT);
+    let rt_base = ctx.create_token_account(base, roundtrip.pubkey(), SPLIT_AMT);
     let rt_cyes = ctx.create_token_account(refs.yes_mint, roundtrip.pubkey(), 0);
     let rt_cno = ctx.create_token_account(refs.no_mint, roundtrip.pubkey(), 0);
-    let res = ctx.user_split(&roundtrip, &refs, rt_kass, rt_cyes, rt_cno, SPLIT_AMT);
+    let res = ctx.user_split(&roundtrip, &refs, rt_base, rt_cyes, rt_cno, SPLIT_AMT);
     assert!(res.is_ok(), "roundtrip split: {res:?}");
     assert_eq!(
-        ctx.token_balance(rt_kass),
+        ctx.token_balance(rt_base),
         0,
-        "roundtrip spent all KASS into the vault"
+        "roundtrip spent all SOL into the vault"
     );
 
-    // Every KASS deposited into the system so far: crowdfunded liquidity (now in
+    // Every SOL deposited into the system so far: crowdfunded liquidity (now in
     // the vault) + each traded user's split.
-    let total_kass_in = total_contributed + SPLIT_AMT + SPLIT_AMT + SPLIT_AMT;
+    let total_base_in = total_contributed + SPLIT_AMT + SPLIT_AMT + SPLIT_AMT;
 
     // ── Stage 6: oracle resolves YES + resolve_market ───────────────────────
     ctx.set_oracle_resolved(oracle, 0); // option 0 == YES wins → numerators [1,0]
@@ -242,7 +242,7 @@ fn full_active_market_lifecycle_with_conservation() {
     // reserves, so the LP position accrued no earnings → the fee floors to ~0. The
     // crank still runs, redeems nothing meaningful, and stamps `fee_collected`.
     let fee_dest = ctx.config_fee_destination();
-    let res = ctx.collect_fee(oracle, kass, fee_dest);
+    let res = ctx.collect_fee(oracle, base, fee_dest);
     assert!(res.is_ok(), "collect_fee: {res:?}");
     let m: Market = ctx.read_pod(market);
     assert_eq!(m.fee_collected, 1, "fee_collected stamped by crank");
@@ -301,24 +301,24 @@ fn full_active_market_lifecycle_with_conservation() {
     // ── Stage 7: redemptions ────────────────────────────────────────────────
     // Winner redeems the winning cYES 1:1; the drained (worthless) cNO is gone,
     // so the winner's round trip is EXACT: put SPLIT_AMT in, gets SPLIT_AMT back.
-    let res = ctx.redeem(&winner, &refs, win_kass, win_cyes, win_cno);
+    let res = ctx.redeem(&winner, &refs, win_base, win_cyes, win_cno);
     assert!(res.is_ok(), "winner redeem: {res:?}");
-    let winner_out = ctx.token_balance(win_kass);
+    let winner_out = ctx.token_balance(win_base);
     assert_eq!(winner_out, SPLIT_AMT, "winner paid full stake 1:1");
     assert!(winner_out > 0, "winner paid a positive amount");
 
     // Loser redeems the losing cNO → nothing. Their stake is forfeited (it sits
     // in the vault as the winning cYES they threw to the sink — never redeemed).
-    let res = ctx.redeem(&loser, &refs, lose_kass, lose_cyes, lose_cno);
+    let res = ctx.redeem(&loser, &refs, lose_base, lose_cyes, lose_cno);
     assert!(res.is_ok(), "loser redeem: {res:?}");
-    let loser_out = ctx.token_balance(lose_kass);
+    let loser_out = ctx.token_balance(lose_base);
     assert_eq!(loser_out, 0, "losing leg pays 0");
 
     // Roundtrip holder redeems BOTH legs: cYES pays 1:1, cNO pays 0 → exactly
     // their split back. This is the tight, dust-free traded-portion conservation.
-    let res = ctx.redeem(&roundtrip, &refs, rt_kass, rt_cyes, rt_cno);
+    let res = ctx.redeem(&roundtrip, &refs, rt_base, rt_cyes, rt_cno);
     assert!(res.is_ok(), "roundtrip redeem: {res:?}");
-    let roundtrip_out = ctx.token_balance(rt_kass);
+    let roundtrip_out = ctx.token_balance(rt_base);
     assert_eq!(
         roundtrip_out, SPLIT_AMT,
         "roundtrip conserves exactly (no dust)"
@@ -326,18 +326,18 @@ fn full_active_market_lifecycle_with_conservation() {
 
     // ── Stage 8: conservation ───────────────────────────────────────────────
     // No instruction panicked (every `res.is_ok()` above held). Escrow is empty.
-    // Total KASS redeemed out never exceeds total KASS deposited in; the only
-    // KASS that does NOT come back out is the crowdfunded liquidity still locked
+    // Total SOL redeemed out never exceeds total SOL deposited in; the only
+    // SOL that does NOT come back out is the crowdfunded liquidity still locked
     // in the pool reserves (LP-removal omitted) plus the loser's forfeited stake
     // — never program-created dust. The two exact round trips (winner, roundtrip)
     // prove the traded portion conserves to the base unit.
     assert_eq!(ctx.token_balance(escrow), 0, "escrow fully drained");
-    let total_kass_out = winner_out + loser_out + roundtrip_out;
+    let total_base_out = winner_out + loser_out + roundtrip_out;
     assert!(
-        total_kass_out <= total_kass_in,
-        "no KASS minted from nothing: out {total_kass_out} ≤ in {total_kass_in}"
+        total_base_out <= total_base_in,
+        "no SOL minted from nothing: out {total_base_out} ≤ in {total_base_in}"
     );
-    // Traded-portion round trips are exact (0 KASS dust across split→redeem).
+    // Traded-portion round trips are exact (0 SOL dust across split→redeem).
     assert_eq!(winner_out, SPLIT_AMT, "winner round trip exact");
     assert_eq!(roundtrip_out, SPLIT_AMT, "roundtrip exact");
 

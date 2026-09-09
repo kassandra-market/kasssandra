@@ -1,9 +1,9 @@
 /**
  * Regression coverage for the redesigned Liquidity tab's contributions ledger:
  * each contribution expands into up to two TAGGED rows — an "Initial funding" row
- * (`amount` KASS) and a "Liquidity" row (`lateLp` LP) — instead of one combined
- * "KASS · LP" line. A pure funder shows only funding; a pure late LP shows only
- * the LP it added (never a misleading "0 KASS"); a both-cohort contributor shows
+ * (`amount` SOL) and a "Liquidity" row (`lateLp` LP) — instead of one combined
+ * "SOL · LP" line. A pure funder shows only funding; a pure late LP shows only
+ * the LP it added (never a misleading "0 SOL"); a both-cohort contributor shows
  * two separate rows. Also covers the top-panel LP overview (cYES/cNO reserve
  * amounts, LP supply, the connected wallet's share).
  */
@@ -96,14 +96,14 @@ function render(): string {
 describe("contributions ledger — tagged funding vs liquidity rows", () => {
   it("splits each contribution into its own tagged row (never a combined line)", () => {
     const html = render();
-    // The pure late LP surfaces the LP it added — not "0 KASS".
+    // The pure late LP surfaces the LP it added — not "0 SOL".
     expect(html).toMatch(/0\.5\s*LP/);
-    // The pure funder's KASS stake shows.
-    expect(html).toMatch(/1\s*KASS/);
-    // The both-cohort contributor now shows TWO separate rows, not "2 KASS · 3 LP".
-    expect(html).toMatch(/2\s*KASS/);
+    // The pure funder's SOL stake shows.
+    expect(html).toMatch(/1\s*SOL/);
+    // The both-cohort contributor now shows TWO separate rows, not "2 SOL · 3 LP".
+    expect(html).toMatch(/2\s*SOL/);
     expect(html).toMatch(/3\s*LP/);
-    expect(html).not.toMatch(/2\s*KASS\s*·\s*3\s*LP/);
+    expect(html).not.toMatch(/2\s*SOL\s*·\s*3\s*LP/);
     // Both action tags are present.
     expect(html).toContain("Initial funding");
     expect(html).toContain("Liquidity");

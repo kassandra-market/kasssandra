@@ -8,14 +8,14 @@ use super::build;
 use crate::{SYSTEM_PROGRAM_ID, TOKEN_PROGRAM_ID};
 
 // ===================================================================== Ix 11
-/// `Propose` (Ix 11) — register a categorical `option` with a KASS `bond`.
+/// `Propose` (Ix 11) — register a categorical `option` with a SOL `bond`.
 #[allow(clippy::too_many_arguments)]
 pub fn propose(
     program_id: &Pubkey,
     oracle: Pubkey,
     proposer: Pubkey,
     authority: Pubkey,
-    authority_kass: Pubkey,
+    authority_base: Pubkey,
     stake_vault: Pubkey,
     option: u8,
     bond: u64,
@@ -30,7 +30,7 @@ pub fn propose(
             AccountMeta::new(oracle, false),
             AccountMeta::new(proposer, false),
             AccountMeta::new(authority, true),
-            AccountMeta::new(authority_kass, false),
+            AccountMeta::new(authority_base, false),
             AccountMeta::new(stake_vault, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(SYSTEM_PROGRAM_ID, false),

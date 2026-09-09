@@ -4,7 +4,7 @@
  * {@link buildCreateMarketIxs} binds a NEW prediction sub-market (one oracle
  * outcome, `outcomeIndex`) to an EXISTING Kassandra oracle: YES = the oracle
  * resolves to that outcome (binary markets use `outcomeIndex = 0`). It derives
- * the creator's KASS ATA (the seed-transfer
+ * the creator's SOL ATA (the seed-transfer
  * source), PREPENDS an idempotent create-ATA ix when that account is absent, and
  * appends the SDK `createMarket` builder. Validation (oracle a valid address,
  * `seedAmount > 0`) throws a typed `ValidationError` the form surfaces inline.
@@ -13,17 +13,17 @@ import { TransactionInstruction } from "@solana/web3.js";
 import { createMarket } from "@kassandra-market/markets";
 import type { IndexerReads } from "../../lib/indexer";
 import { ValidationError } from "../writeAction";
-import { ensureKassAta, toAddress, type AddressInput } from "./ata";
+import { ensureBaseAta, toAddress, type AddressInput } from "./ata";
 
 export interface BuildCreateMarketArgs {
   indexer: IndexerReads;
   /** The Kassandra oracle the market resolves against (seeds the market PDA). */
   oracle: AddressInput;
-  /** Canonical KASS mint (== `config.kass_mint`). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (== `config.base_mint`). */
+  baseMint: AddressInput;
   /** Creator authority (the signer): pays rent + seeds the first contribution. */
   creator: AddressInput;
-  /** KASS seeded into escrow as the creator's contribution (raw base units, > 0). */
+  /** SOL seeded into escrow as the creator's contribution (raw base units, > 0). */
   seedAmount: bigint;
   /**
    * The oracle outcome this sub-market binds to (`0 <= outcomeIndex <
@@ -36,13 +36,13 @@ export interface BuildCreateMarketArgs {
 
 /**
  * Assemble the create-market instruction list: an optional idempotent create-ATA
- * (when the creator's KASS ATA is absent) followed by the `createMarket` ix.
+ * (when the creator's SOL ATA is absent) followed by the `createMarket` ix.
  */
 export async function buildCreateMarketIxs(
   args: BuildCreateMarketArgs,
 ): Promise<TransactionInstruction[]> {
   const oracle = toAddress("Oracle", args.oracle);
-  const kassMint = toAddress("KASS mint", args.kassMint);
+  const baseMint = toAddress("SOL mint", args.baseMint);
   const creator = toAddress("Creator", args.creator);
 
   if (args.seedAmount <= 0n) {
@@ -53,13 +53,13 @@ export async function buildCreateMarketIxs(
     throw new ValidationError("Outcome index must be a non-negative whole number.");
   }
 
-  const { ata, createIx } = await ensureKassAta(args.indexer, creator, kassMint);
+  const { ata, createIx } = await ensureBaseAta(args.indexer, creator, baseMint);
 
   const ix = await createMarket({
     creator,
     oracle,
-    kassMint,
-    creatorKassAta: ata,
+    baseMint,
+    creatorBaseAta: ata,
     seedAmount: args.seedAmount,
     outcomeIndex,
   });

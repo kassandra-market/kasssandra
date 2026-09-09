@@ -1,12 +1,12 @@
 //! `open_challenge` (Task 10): verify a decomposed MetaDAO decision market,
-//! program-sign the proposer-KASS split, and record a [`Market`] PDA.
+//! program-sign the proposer-SOL split, and record a [`Market`] PDA.
 //!
 //! The challenger composes the MetaDAO accounts (binary question with
-//! resolver == the Kassandra oracle PDA, a KASS conditional vault, a USDC
+//! resolver == the Kassandra oracle PDA, a SOL conditional vault, a USDC
 //! conditional vault, and pass/fail AMMs) by driving the REAL deployed
 //! conditional_vault binary in-test (same wire format as `metadao_cpi.rs`).
 //! `open_challenge` then verifies + records them and splits the proposer's
-//! escrowed KASS into pass/fail conditional KASS, all program-signed.
+//! escrowed SOL into pass/fail conditional SOL, all program-signed.
 
 mod common;
 use common::*;

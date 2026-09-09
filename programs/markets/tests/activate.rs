@@ -1,5 +1,5 @@
 //! Integration tests for `activate` (Ix 6): verify a client-composed MetaDAO
-//! market, program-signed split of the escrowed KASS into cYES/cNO, seed the AMM
+//! market, program-signed split of the escrowed SOL into cYES/cNO, seed the AMM
 //! pool 50/50, and record the bindings on the `Market` (status → Active).
 //!
 //! Drives the REAL deployed MetaDAO v0.4 `conditional_vault` + `amm` binaries in
@@ -16,42 +16,42 @@ use solana_sdk::{
 
 const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
 const RESOLVED: u8 = 7; // kassandra Phase::Resolved (terminal)
-const MIN_LIQ: u64 = 1_000_000_000; // 1 KASS (9 dp)
+const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 
 /// Stand up a fully-funded `Funding` market (creator seeds exactly `MIN_LIQ`) and
-/// its live Kassandra oracle. Returns the context, KASS mint, market PDA, oracle.
+/// its live Kassandra oracle. Returns the context, SOL mint, market PDA, oracle.
 fn setup_funded() -> (TestCtx, Pubkey, Pubkey, Pubkey) {
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, MIN_LIQ);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, MIN_LIQ);
     assert!(res.is_ok(), "{res:?}");
-    (ctx, kass, market, oracle)
+    (ctx, base, market, oracle)
 }
 
 #[test]
 fn activate_happy_path() {
-    let (mut ctx, kass, market, oracle) = setup_funded();
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
+    let (mut ctx, base, market, oracle) = setup_funded();
+    let refs = ctx.compose_metadao_market(market, oracle, base);
 
     let escrow = Pubkey::new_from_array(ctx.read_pod::<Market>(market).escrow_vault.to_bytes());
     assert_eq!(ctx.token_balance(escrow), MIN_LIQ, "escrow pre-loaded");
 
-    let res = ctx.activate(oracle, kass);
+    let res = ctx.activate(oracle, base);
     assert!(res.is_ok(), "activate: {res:?}");
 
     let m: Market = ctx.read_pod(market);
     assert_eq!(m.status, MarketStatus::Active.as_u8(), "status → Active");
 
-    // Escrow KASS drained into the conditional vault's underlying account.
+    // Escrow SOL drained into the conditional vault's underlying account.
     assert_eq!(ctx.token_balance(escrow), 0, "escrow drained");
     assert_eq!(
         ctx.token_balance(refs.vault_underlying_ata),
@@ -113,48 +113,48 @@ fn activate_rejects_underfunded() {
     // Fund BELOW min_liquidity: the NotFunded guard fires before any MetaDAO work.
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
-    let (_cfg, res) = ctx.init_config(authority.pubkey(), kass, MIN_LIQ);
+    let (_cfg, res) = ctx.init_config(authority.pubkey(), base, MIN_LIQ);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (_market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, MIN_LIQ / 2);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (_market, res) = ctx.create_market(&creator, oracle, base, creator_ata, MIN_LIQ / 2);
     assert!(res.is_ok(), "{res:?}");
 
-    let res = ctx.activate(oracle, kass);
+    let res = ctx.activate(oracle, base);
     assert_eq!(custom_code(&res), Some(MarketError::NotFunded as u32));
 }
 
 #[test]
 fn activate_rejects_terminal_oracle() {
-    let (mut ctx, kass, _market, oracle) = setup_funded();
-    let _refs = ctx.compose_metadao_market(_market, oracle, kass);
+    let (mut ctx, base, _market, oracle) = setup_funded();
+    let _refs = ctx.compose_metadao_market(_market, oracle, base);
     // Push the oracle to a terminal phase after composition.
     ctx.set_oracle_phase(oracle, RESOLVED);
 
-    let res = ctx.activate(oracle, kass);
+    let res = ctx.activate(oracle, base);
     assert_eq!(custom_code(&res), Some(MarketError::OracleResolved as u32));
 }
 
 #[test]
 fn activate_rejects_double_activate() {
-    let (mut ctx, kass, _market, oracle) = setup_funded();
-    let _refs = ctx.compose_metadao_market(_market, oracle, kass);
-    let res = ctx.activate(oracle, kass);
+    let (mut ctx, base, _market, oracle) = setup_funded();
+    let _refs = ctx.compose_metadao_market(_market, oracle, base);
+    let res = ctx.activate(oracle, base);
     assert!(res.is_ok(), "first activate: {res:?}");
     // Second activate: the market is now Active → NotFunding.
-    let res = ctx.activate(oracle, kass);
+    let res = ctx.activate(oracle, base);
     assert_eq!(custom_code(&res), Some(MarketError::NotFunding as u32));
 }
 
 #[test]
 fn activate_rejects_nonempty_pool() {
-    let (mut ctx, kass, market, oracle) = setup_funded();
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
+    let (mut ctx, base, market, oracle) = setup_funded();
+    let refs = ctx.compose_metadao_market(market, oracle, base);
 
     // Simulate a front-runner having seeded the pool between `create_amm` and
     // `activate`: give the Amm a nonzero base reserve (`base_amount` @115), which
@@ -163,14 +163,14 @@ fn activate_rejects_nonempty_pool() {
     acc.data[115..123].copy_from_slice(&1_000_000u64.to_le_bytes());
     ctx.svm.set_account(refs.amm, acc).unwrap();
 
-    let res = ctx.activate(oracle, kass);
+    let res = ctx.activate(oracle, base);
     assert_eq!(custom_code(&res), Some(MarketError::PoolNotEmpty as u32));
 }
 
 #[test]
 fn activate_rejects_tampered_question_oracle() {
-    let (mut ctx, kass, market, oracle) = setup_funded();
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
+    let (mut ctx, base, market, oracle) = setup_funded();
+    let refs = ctx.compose_metadao_market(market, oracle, base);
 
     // Tamper the composed Question's `oracle` field (@40) so it no longer points
     // at the Market PDA, keeping it owned by the conditional_vault program. The
@@ -183,6 +183,6 @@ fn activate_rejects_tampered_question_oracle() {
     acc.data[40..72].copy_from_slice(Pubkey::new_unique().as_ref());
     ctx.svm.set_account(refs.question, acc).unwrap();
 
-    let res = ctx.activate(oracle, kass);
+    let res = ctx.activate(oracle, base);
     assert_eq!(custom_code(&res), Some(MarketError::InvalidAccount as u32));
 }

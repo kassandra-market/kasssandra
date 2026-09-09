@@ -1,9 +1,9 @@
 /**
  * Thin Jupiter any-token-entry helper.
  *
- * kassandra-market settles in KASS, but a trader may hold any SPL token (USDC,
+ * kassandra-market settles in SOL, but a trader may hold any SPL token (USDC,
  * SOL, …). The "any-token entry" boundary is: swap the trader's input token into
- * KASS via Jupiter, then feed that KASS straight into a market `buy`. This module
+ * SOL via Jupiter, then feed that SOL straight into a market `buy`. This module
  * is deliberately OFFLINE and network-free — it only:
  *
  *   1. {@link buildJupiterEntryRequest} — shapes the typed request params you POST
@@ -13,7 +13,7 @@
  *      `TransactionInstruction`.
  *   2. {@link composeWithEntry} — stitches that app-fetched Jupiter swap
  *      instruction in FRONT of the market instructions, yielding one ordered list
- *      (`[jupiterSwapIx, ...marketInstructions]`) — the Jupiter swap produces KASS,
+ *      (`[jupiterSwapIx, ...marketInstructions]`) — the Jupiter swap produces SOL,
  *      the market instructions immediately consume it.
  *
  * ── The boundary (important) ──────────────────────────────────────────────────
@@ -34,7 +34,7 @@ function s(a: AddressInput): string {
 export interface JupiterEntryParams {
   /** The trader's input mint (what they're paying with, e.g. USDC/SOL). */
   inputMint: AddressInput;
-  /** The output mint — for a market entry this is the KASS mint. */
+  /** The output mint — for a market entry this is the SOL mint. */
   outputMint: AddressInput;
   /** Input amount in the input mint's base units. */
   amount: bigint | number;
@@ -89,7 +89,7 @@ export const JUPITER_V6_BASE_URL = "https://quote-api.jup.ag/v6";
 
 /**
  * Shape (do NOT send) the Jupiter v6 quote + swap request for a "swap `inputMint`
- * → KASS (`outputMint`)" market entry. The app fetches `GET /quote` with
+ * → SOL (`outputMint`)" market entry. The app fetches `GET /quote` with
  * `request.quote`, assigns the result to `request.swap.quoteResponse`, POSTs
  * `request.swap` to `/swap`, then deserializes the returned swap transaction into
  * an instruction to pass to {@link composeWithEntry}.
@@ -118,7 +118,7 @@ export function buildJupiterEntryRequest(
 /**
  * Combine the app-fetched Jupiter swap instruction with the market instructions:
  * `[jupiterSwapIx, ...marketInstructions]`. The Jupiter swap runs first (producing
- * KASS), then the market flow (e.g. `buyInstructions`) consumes it in the same
+ * SOL), then the market flow (e.g. `buyInstructions`) consumes it in the same
  * transaction.
  */
 export function composeWithEntry(

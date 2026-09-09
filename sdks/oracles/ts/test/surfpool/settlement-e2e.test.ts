@@ -7,7 +7,7 @@
  * builders — `claimProposer` / `claimFact` / `claimFactVote` / `closeAiClaim` /
  * `closeMarket` / `sweepOracle` — through the REAL program over RPC, asserting
  * the on-chain entitlement matrix, the VotersOutstanding ordering, every
- * account close, the grace-gated sweep-to-treasury, and KASS conservation.
+ * account close, the grace-gated sweep-to-treasury, and SOL conservation.
  *
  * Two arms (standalone simnet, no fork — settlement touches no MetaDAO):
  *
@@ -42,11 +42,11 @@
  * dispute core (create → … → finalize_oracle) is fully REAL (only the SPL
  * mints/token accounts are fabricated as canonical byte layouts, exactly as the
  * lifecycle/challenge E2Es do). Two preconditions are SEEDED (documented):
- *   - GOVERNANCE: the sweep treasury is ATA(dao_authority, kass_mint) and
- *     requires Protocol.governance_set. `set_governance` validates the kass_dao
+ *   - GOVERNANCE: the sweep treasury is ATA(dao_authority, base_mint) and
+ *     requires Protocol.governance_set. `set_governance` validates the spot_dao
  *     account is futarchy-owned + carries the Dao discriminator and that
  *     dao_authority == the Squads v4 vault PDA. In a standalone simnet the
- *     futarchy program isn't deployed, so the kass_dao account is fabricated
+ *     futarchy program isn't deployed, so the spot_dao account is fabricated
  *     (owner = futarchy id + Dao disc) and set_governance is then driven REAL
  *     (mirrors challenge-market-e2e's governance handoff). The treasury ATA is
  *     fabricated so the sweep Transfer has a destination.
@@ -57,7 +57,7 @@
  *     escrow-empty guards + the SPL CloseAccount CPI + rent routing) is genuine.
  * The disqualified-proposer claim row (→ 0) needs a real settle_challenge
  * disqualify (forked AMMs) and is covered by challenge-market-e2e (asserts
- * slashed_amount == bond − kass_fee) + the Rust settlement_e2e; here the proposer
+ * slashed_amount == bond − base_fee) + the Rust settlement_e2e; here the proposer
  * rows driven are correct+reward, correct+flip-slash+reward, and wrong→bond.
  *
  * GATING: only included when `KASSANDRA_E2E=1` (see `vitest.config.ts`), and
@@ -96,7 +96,7 @@ import {
   createOracleReal,
   factReward,
   fetchAccount,
-  fundKass,
+  fundBase,
   fundSigner,
   isClosed,
   marketBytes,
@@ -148,12 +148,12 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     const rejectedSubmitter = await fundSigner(f);
     await sendIx(f, await submitFact({
       oracle, submitter: agreedSubmitter.publicKey,
-      submitterKass: await fundKass(f, agreedSubmitter.publicKey, 1_000_000n),
+      submitterBase: await fundBase(f, agreedSubmitter.publicKey, 1_000_000n),
       contentHash: agreedHash, stake: agreedSubStake, uri: "ipfs://agreed",
     }), [agreedSubmitter]);
     await sendIx(f, await submitFact({
       oracle, submitter: rejectedSubmitter.publicKey,
-      submitterKass: await fundKass(f, rejectedSubmitter.publicKey, 1_000_000n),
+      submitterBase: await fundBase(f, rejectedSubmitter.publicKey, 1_000_000n),
       contentHash: rejectedHash, stake: rejectedSubStake, uri: "ipfs://rejected",
     }), [rejectedSubmitter]);
     const agreedFact = (await pda.fact(oracle, agreedHash)).address;
@@ -169,18 +169,18 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     const rejectedVoter = await fundSigner(f);
     await sendIx(f, await voteFact({
       oracle, fact: agreedFact, voter: agreedVoter.publicKey,
-      voterKass: await fundKass(f, agreedVoter.publicKey, 10_000n),
+      voterBase: await fundBase(f, agreedVoter.publicKey, 10_000n),
       kind: VOTE_APPROVE, stake: agreedVoteStake,
     }), [agreedVoter]);
     await sendIx(f, await voteFact({
       oracle, fact: rejectedFact, voter: rejectedVoter.publicKey,
-      voterKass: await fundKass(f, rejectedVoter.publicKey, 10_000n),
+      voterBase: await fundBase(f, rejectedVoter.publicKey, 10_000n),
       kind: VOTE_APPROVE, stake: rejectedVoteStake,
     }), [rejectedVoter]);
 
     // ---- finalize_facts → AiClaim -------------------------------------------
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [agreedFact, rejectedFact] }));
+    await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [agreedFact, rejectedFact] }));
     expect(decodeFact(await fetchAccount(f, agreedFact)).agreed).toBe(true);
     expect(decodeFact(await fetchAccount(f, rejectedFact)).agreed).toBe(false);
 
@@ -199,7 +199,7 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     await sendIx(f, await finalizeAiClaims({ oracle, proposers: props.map((p) => p.proposer) }));
     expect(decodeOracle(await fetchAccount(f, oracle)).phase).toBe(Phase.Challenge);
     await advancePastPhaseEnd(f, oracle);
-    await sendIx(f, await finalizeOracle({ nonce, kassMint: f.kassMint.publicKey, proposers: props.map((p) => p.proposer) }));
+    await sendIx(f, await finalizeOracle({ nonce, baseMint: f.baseMint.publicKey, proposers: props.map((p) => p.proposer) }));
 
     const o = decodeOracle(await fetchAccount(f, oracle));
     expect(o.phase).toBe(Phase.Resolved);
@@ -216,10 +216,10 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     // AGREED fact: approve-voter (stake+reward) then submitter (stake+reward).
     {
       const expected = agreedVoteStake + factReward(agreedVoteStake, fBucket, o.totalApprovedFactStake);
-      const dest = await fundKass(f, agreedVoter.publicKey, 0n);
+      const dest = await fundBase(f, agreedVoter.publicKey, 0n);
       await sendIx(f, await claimFactVote({
         nonce, factVote: (await pda.factVote(agreedFact, agreedVoter.publicKey)).address,
-        fact: agreedFact, destKass: dest, rentRecipient: agreedVoter.publicKey,
+        fact: agreedFact, destBase: dest, rentRecipient: agreedVoter.publicKey,
       }));
       expect(await tokenBalance(f, dest)).toBe(expected);
       totalClaimed += expected;
@@ -227,8 +227,8 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     {
       const fact = decodeFact(await fetchAccount(f, agreedFact));
       const expected = fact.stake + factReward(fact.stake, fBucket, o.totalApprovedFactStake);
-      const dest = await fundKass(f, agreedSubmitter.publicKey, 0n);
-      await sendIx(f, await claimFact({ nonce, fact: agreedFact, destKass: dest, rentRecipient: agreedSubmitter.publicKey }));
+      const dest = await fundBase(f, agreedSubmitter.publicKey, 0n);
+      await sendIx(f, await claimFact({ nonce, fact: agreedFact, destBase: dest, rentRecipient: agreedSubmitter.publicKey }));
       expect(await tokenBalance(f, dest)).toBe(expected);
       expect(await isClosed(f, agreedFact)).toBe(true);
       totalClaimed += expected;
@@ -238,17 +238,17 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     {
       const slash = ceilSlash(rejectedVoteStake, o.factVoteSlashNum, o.factVoteSlashDen);
       const expected = rejectedVoteStake - slash;
-      const dest = await fundKass(f, rejectedVoter.publicKey, 0n);
+      const dest = await fundBase(f, rejectedVoter.publicKey, 0n);
       await sendIx(f, await claimFactVote({
         nonce, factVote: (await pda.factVote(rejectedFact, rejectedVoter.publicKey)).address,
-        fact: rejectedFact, destKass: dest, rentRecipient: rejectedVoter.publicKey,
+        fact: rejectedFact, destBase: dest, rentRecipient: rejectedVoter.publicKey,
       }));
       expect(await tokenBalance(f, dest)).toBe(expected);
       totalClaimed += expected;
     }
     {
-      const dest = await fundKass(f, rejectedSubmitter.publicKey, 0n);
-      await sendIx(f, await claimFact({ nonce, fact: rejectedFact, destKass: dest, rentRecipient: rejectedSubmitter.publicKey }));
+      const dest = await fundBase(f, rejectedSubmitter.publicKey, 0n);
+      await sendIx(f, await claimFact({ nonce, fact: rejectedFact, destBase: dest, rentRecipient: rejectedSubmitter.publicKey }));
       expect(await tokenBalance(f, dest)).toBe(0n); // rejected submitter forfeits
       expect(await isClosed(f, rejectedFact)).toBe(true);
       // totalClaimed += 0
@@ -268,8 +268,8 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
       if (p.slashedAmount > 0n) sawFlipSlash = true;
       if (p.claimOption !== o.resolvedOption) sawWrong = true;
 
-      const dest = await fundKass(f, authority.publicKey, 0n);
-      await sendIx(f, await claimProposer({ nonce, proposer, destKass: dest, rentRecipient: authority.publicKey }));
+      const dest = await fundBase(f, authority.publicKey, 0n);
+      await sendIx(f, await claimProposer({ nonce, proposer, destBase: dest, rentRecipient: authority.publicKey }));
       expect(await tokenBalance(f, dest)).toBe(expected);
       expect(await isClosed(f, proposer)).toBe(true);
       totalClaimed += expected;
@@ -318,7 +318,7 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     const treasuryBefore = await tokenBalance(f, f.treasury);
     await f.harness.advanceToUnix(o.phaseEndsAt + SWEEP_GRACE + 1n);
     await sendIx(f, await sweepOracle({
-      nonce, kassMint: f.kassMint.publicKey, daoAuthority: f.daoAuthority, creator: f.payer.publicKey,
+      nonce, baseMint: f.baseMint.publicKey, daoAuthority: f.daoAuthority, creator: f.payer.publicKey,
     }));
     // Dust routed to the treasury; vault + oracle closed.
     expect(await tokenBalance(f, f.treasury)).toBe(treasuryBefore + dust);

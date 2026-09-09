@@ -104,12 +104,12 @@ export function SubmitButton({
 }
 
 /**
- * A quiet driftwood/bronze line under a KASS amount input: "Your KASS: {n}".
+ * A quiet driftwood/bronze line under a SOL amount input: "Your SOL: {n}".
  * Display-only (the additive submit gate lives in `data/amount`). Shows a subtle
  * "Checking balance…" while the first fetch is in flight; renders nothing when
  * the balance is unknown and not loading (disconnected / transient error).
  */
-export function KassBalanceLine({
+export function SolBalanceLine({
   balance,
   loading,
   format,
@@ -126,7 +126,7 @@ export function KassBalanceLine({
   }
   return (
     <p className="-mt-1 font-inter text-[12px] text-silver">
-      Your KASS: <span className="text-silver">{format(balance)}</span>
+      Your SOL: <span className="text-silver">{format(balance)}</span>
     </p>
   );
 }

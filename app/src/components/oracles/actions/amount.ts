@@ -1,14 +1,14 @@
-import { KASS_DECIMALS, formatKass } from '../../../lib/oracleView'
+import { SOL_DECIMALS, formatSol } from '../../../lib/oracleView'
 
 /**
  * Parse a human token amount (`"1.5"`, `"1000"`, `".25"`) into raw base units,
- * scaling by `decimals` (default KASS's 9 — the bond/stake forms). USDC amounts
+ * scaling by `decimals` (default SOL's 9 — the bond/stake forms). USDC amounts
  * (the challenge trade/compose forms) pass `decimals = 6`. Returns the `bigint`
  * base-unit value or an inline error message for the form.
  */
 export function parseAmount(
   raw: string,
-  decimals: number = KASS_DECIMALS,
+  decimals: number = SOL_DECIMALS,
 ): { value?: bigint; error?: string } {
   const t = raw.trim()
   if (t === '') return { error: 'Enter an amount.' }
@@ -28,13 +28,13 @@ export function parseAmount(
 }
 
 /**
- * The additive KASS-balance gate message when the entered `amount` can't be
+ * The additive SOL-balance gate message when the entered `amount` can't be
  * covered by `balance`, or `undefined` when it's coverable / unknown. The
  * on-chain tx is the ultimate guard, so an unknown balance never blocks.
  *
  * - `balance === null` (disconnected / loading / transient error) → `undefined`.
- * - `balance === 0n` → the "no KASS" message (any positive stake exceeds it).
- * - `amount > balance` → the "exceeds your KASS balance" message.
+ * - `balance === 0n` → the "no SOL" message (any positive stake exceeds it).
+ * - `amount > balance` → the "exceeds your SOL balance" message.
  */
 export function balanceGateError(
   amount: bigint | undefined,
@@ -42,9 +42,9 @@ export function balanceGateError(
   verb: 'bond' | 'stake',
 ): string | undefined {
   if (balance === null) return undefined
-  if (balance === 0n) return `You have no KASS — you need KASS to ${verb}.`
+  if (balance === 0n) return `You have no SOL — you need SOL to ${verb}.`
   if (amount !== undefined && amount > balance) {
-    return `Amount exceeds your KASS balance (${formatKass(balance)}).`
+    return `Amount exceeds your SOL balance (${formatSol(balance)}).`
   }
   return undefined
 }

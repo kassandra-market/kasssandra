@@ -10,14 +10,14 @@ export const PROGRAM_ID = "KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY";
 
 // Deterministic stand-in keys (valid 32-byte base58 addresses).
 export const ADMIN = "rqRMW2HFJsi1FE1jb8Rvaz4Qz3xHzNkZDb8am1pqEHE";
-export const KASS_MINT = "So11111111111111111111111111111111111111112";
+export const BASE_MINT = "So11111111111111111111111111111111111111112";
 export const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const CREATOR = "84yVtdReAJ8GiR7Erqj7jyxoJurYWzQ6n9eaBGYBDNqM";
 export const CREATOR_KASS = "7WCvk98KGRqi2o8D7EWTGrZQuFtikidP8A2D7CDVXwWJ";
 export const AUTHORITY = "7bQEwuq9ybNyjjFcbtHBfDPxdH3TuGAsZKVRZdihVN4d";
-export const AUTHORITY_KASS = "EScpWtUwYodKnbZx46YYeJbp2Ci2EpqcLAkF2EdZnZrh";
+export const AUTHORITY_BASE = "EScpWtUwYodKnbZx46YYeJbp2Ci2EpqcLAkF2EdZnZrh";
 export const ORACLE = "GuBhyNi5GFo9K5YXGKfPMDryWK8GwS5oXe9CJGrzo2sk";
-export const KASS_DAO = "FYQFL976rxQv8hygbC1zPVZYMfbnQkVntriESv69KaED";
+export const SPOT_DAO = "FYQFL976rxQv8hygbC1zPVZYMfbnQkVntriESv69KaED";
 
 /** Build the same [disc, ...payload] buffer independently for cross-checking. */
 export function bytesOf(disc: Ix, payload: number[] = []): Uint8Array {

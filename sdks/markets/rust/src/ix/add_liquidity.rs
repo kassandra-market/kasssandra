@@ -4,14 +4,14 @@ use crate::*;
 use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::pubkey::Pubkey;
 
-/// `AddLiquidity` (Ix 11) — deposit `amount` KASS into an already-`Active`
+/// `AddLiquidity` (Ix 11) — deposit `amount` SOL into an already-`Active`
 /// market's live cYES/cNO AMM, minting pooled LP into the Market-PDA-owned
 /// `lp_vault` (claimable pro-rata alongside the funders). Program-signed
 /// `split_tokens` + `add_liquidity` mirror `activate`; the ratio-limited remainder
 /// is returned to the depositor's cYES/cNO ATA.
 ///
-/// All addresses derive from `oracle` + `kass_mint` + `depositor`. The depositor's
-/// KASS/cYES/cNO accounts are the canonical ATAs (the cYES/cNO ATAs must exist to
+/// All addresses derive from `oracle` + `base_mint` + `depositor`. The depositor's
+/// SOL/cYES/cNO accounts are the canonical ATAs (the cYES/cNO ATAs must exist to
 /// receive the returned remainder — create them idempotently client-side).
 ///
 /// `quote_amount`/`max_base_amount` are computed by the caller from the live pool
@@ -26,8 +26,8 @@ use solana_sdk::pubkey::Pubkey;
 /// ```text
 ///  0  market                (w)        — must be `Active`
 ///  1  oracle                (ro)       — non-terminal
-///  2  depositor             (signer,w) — KASS source authority + contribution rent
-///  3  depositor_kass_ata    (w)        — split-funding source (KASS)
+///  2  depositor             (signer,w) — SOL source authority + contribution rent
+///  3  depositor_base_ata    (w)        — split-funding source (SOL)
 ///  4  escrow_vault          (w)        — market.escrow_vault
 ///  5  question              (ro)
 ///  6  vault                 (w)
@@ -55,7 +55,7 @@ use solana_sdk::pubkey::Pubkey;
 pub fn add_liquidity(
     depositor: &Pubkey,
     oracle: &Pubkey,
-    kass_mint: &Pubkey,
+    base_mint: &Pubkey,
     outcome_index: u8,
     amount: u64,
     quote_amount: u64,
@@ -66,13 +66,13 @@ pub fn add_liquidity(
     let (market, _) = crate::pda::market(oracle, outcome_index);
     let (escrow, _) = crate::pda::escrow(&market);
     let (question, _) = md::question(&oracle.to_bytes(), &market, 2);
-    let (vault, _) = md::vault(&question, kass_mint);
-    let vault_underlying_ata = md::ata(&vault, kass_mint);
+    let (vault, _) = md::vault(&question, base_mint);
+    let vault_underlying_ata = md::ata(&vault, base_mint);
     let (yes_mint, _) = md::conditional_token_mint(&vault, 0);
     let (no_mint, _) = md::conditional_token_mint(&vault, 1);
     let (market_cyes, _) = crate::pda::market_cyes(&market);
     let (market_cno, _) = crate::pda::market_cno(&market);
-    let depositor_kass_ata = md::ata(depositor, kass_mint);
+    let depositor_base_ata = md::ata(depositor, base_mint);
     let depositor_cyes_ata = md::ata(depositor, &yes_mint);
     let depositor_cno_ata = md::ata(depositor, &no_mint);
     let (amm, _) = md::amm(&yes_mint, &no_mint);
@@ -97,7 +97,7 @@ pub fn add_liquidity(
             AccountMeta::new(market, false),
             AccountMeta::new_readonly(*oracle, false),
             AccountMeta::new(*depositor, true),
-            AccountMeta::new(depositor_kass_ata, false),
+            AccountMeta::new(depositor_base_ata, false),
             AccountMeta::new(escrow, false),
             AccountMeta::new_readonly(question, false),
             AccountMeta::new(vault, false),

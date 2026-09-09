@@ -44,7 +44,7 @@ export function protocol(programId?: Address): Promise<Pda> {
   return derive([enc.encode("protocol")], programId);
 }
 
-/** KASS mint-authority PDA — seeds `[b"mint_authority"]`. */
+/** SOL mint-authority PDA — seeds `[b"mint_authority"]`. */
 export function mintAuthority(programId?: Address): Promise<Pda> {
   return derive([enc.encode("mint_authority")], programId);
 }
@@ -54,7 +54,7 @@ export function oracle(nonce: bigint | number, programId?: Address): Promise<Pda
   return derive([enc.encode("oracle"), u64LE(nonce)], programId);
 }
 
-/** Oracle stake-vault PDA (KASS token account) — seeds `[b"vault", oracle]`. */
+/** Oracle stake-vault PDA (SOL token account) — seeds `[b"vault", oracle]`. */
 export function stakeVault(oracleAddr: AddressInput, programId?: Address): Promise<Pda> {
   return derive([enc.encode("vault"), pubkeyBytes(oracleAddr)], programId);
 }
@@ -129,7 +129,7 @@ export function aiOracleFeed(oracleAddr: AddressInput, programId?: Address): Pro
 /**
  * SPL associated-token-account address — seeds `[owner, TOKEN_PROGRAM, mint]`
  * under the {@link ATA_PROGRAM_ID}. `sweep_oracle`'s DAO treasury is
- * `ATA(dao_authority, kass_mint)`, derived exactly as the program does in
+ * `ATA(dao_authority, base_mint)`, derived exactly as the program does in
  * `processor/sweep_oracle.rs`. NOTE: derived under the ATA program, NOT the
  * Kassandra program — there is no `programId` override.
  */

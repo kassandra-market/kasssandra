@@ -3,7 +3,7 @@
 //! Drives the FULL challenge market against the REAL deployed MetaDAO v0.4
 //! `amm` + `conditional_vault` binaries in LiteSVM, for BOTH outcomes
 //! (fraud → disqualified, honest → survives), and asserts the physical
-//! settlement + directional fees + KASS/USDC conservation against an
+//! settlement + directional fees + SOL/USDC conservation against an
 //! INDEPENDENT reference computation ([`ConservationModel`]) derived from the
 //! bond + the governable fee config alone (it never trusts the program's own
 //! accounting).
@@ -17,7 +17,7 @@
 //!   proposer (option-0 proposer claims option 0 → no flip). No `set_phase`
 //!   shortcut is used in the e2e tests; only `warp`/`warp_slots` advance time.
 //! * **MetaDAO market — REAL.** The challenger composes the binary question +
-//!   KASS/USDC conditional vaults + pass/fail AMMs via real CPIs (exactly how a
+//!   SOL/USDC conditional vaults + pass/fail AMMs via real CPIs (exactly how a
 //!   real challenger composes the market off-chain), then `open_challenge`
 //!   verifies + records them, escrows the challenger USDC, and program-signs the
 //!   bond split — all real instructions.

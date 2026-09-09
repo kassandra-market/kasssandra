@@ -77,7 +77,7 @@ pub(crate) fn set_token_at(ctx: &mut TestCtx, addr: Pubkey, mint: Pubkey, owner:
 }
 
 pub(crate) const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
-pub(crate) const MIN_LIQ: u64 = 1_000_000_000; // 1 KASS (9 dp)
+pub(crate) const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 pub(crate) const SEED_A: u64 = 600_000_000; // creator's stake
 pub(crate) const SEED_B: u64 = 400_000_000; // second contributor's stake
 
@@ -90,7 +90,7 @@ pub(crate) struct Setup {
     pub(crate) ctx: TestCtx,
     pub(crate) oracle: Pubkey,
     pub(crate) market: Pubkey,
-    pub(crate) kass: Pubkey,
+    pub(crate) base: Pubkey,
     pub(crate) creator: Keypair,
     pub(crate) c2: Keypair,
     pub(crate) lp_mint: Pubkey,
@@ -108,29 +108,29 @@ pub(crate) struct Setup {
 pub(crate) fn setup_active_two_contributors() -> Setup {
     let mut ctx = TestCtx::new();
     ctx.load_metadao();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
     // fee_bps == 0 → resolve_market sets fee_collected without a collect_fee crank.
-    let fee_dest = ctx.create_token_account(kass, authority.pubkey(), 0);
-    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), kass, MIN_LIQ, 0, fee_dest);
+    let fee_dest = ctx.create_token_account(base, authority.pubkey(), 0);
+    let (_cfg, res) = ctx.init_config_full(authority.pubkey(), base, MIN_LIQ, 0, fee_dest);
     assert!(res.is_ok(), "{res:?}");
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
 
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 5_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, SEED_A);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 5_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, SEED_A);
     assert!(res.is_ok(), "{res:?}");
 
     let c2 = Keypair::new();
     ctx.svm_airdrop(&c2.pubkey());
-    let c2_ata = ctx.create_token_account(kass, c2.pubkey(), 5_000_000_000);
+    let c2_ata = ctx.create_token_account(base, c2.pubkey(), 5_000_000_000);
     let res = ctx.contribute(&c2, market, c2_ata, SEED_B);
     assert!(res.is_ok(), "{res:?}");
 
-    let refs = ctx.compose_metadao_market(market, oracle, kass);
-    let res = ctx.activate(oracle, kass);
+    let refs = ctx.compose_metadao_market(market, oracle, base);
+    let res = ctx.activate(oracle, base);
     assert!(res.is_ok(), "activate: {res:?}");
 
     // Resolve YES so the fee-free market stamps `fee_collected` and `claim_lp` opens.
@@ -150,7 +150,7 @@ pub(crate) fn setup_active_two_contributors() -> Setup {
         ctx,
         oracle,
         market,
-        kass,
+        base,
         creator,
         c2,
         lp_mint: refs.lp_mint,

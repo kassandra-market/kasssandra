@@ -62,9 +62,9 @@ describe.skipIf(!ENABLED)("surfpool DAO-owned admin-free Meteora treasury-fee cl
     const permissionless = await Keypair.fromSecretKey(PERMISSIONLESS_SECRET);
 
     // --- the DAO's OWN fee-recipient ATAs (owned by the Squads vault treasury) --
-    const daoFeeA = await ata(f.vault, f.kassMint.publicKey); // base (KASS)
+    const daoFeeA = await ata(f.vault, f.baseMint.publicKey); // base (SOL)
     const daoFeeB = await ata(f.vault, f.usdcMint.publicKey); // quote (USDC) — the fee side
-    await fabricateTokenAt(f, daoFeeA, f.kassMint.publicKey, f.vault, 0n);
+    await fabricateTokenAt(f, daoFeeA, f.baseMint.publicKey, f.vault, 0n);
     await fabricateTokenAt(f, daoFeeB, f.usdcMint.publicKey, f.vault, 0n);
 
     // --- the inner cp-amm claim_position_fee: owner == the vault, dest == DAO ATAs
@@ -75,7 +75,7 @@ describe.skipIf(!ENABLED)("surfpool DAO-owned admin-free Meteora treasury-fee cl
       tokenBAccount: daoFeeB,
       tokenAVault: m.tokenAVault,
       tokenBVault: m.tokenBVault,
-      tokenAMint: f.kassMint.publicKey,
+      tokenAMint: f.baseMint.publicKey,
       tokenBMint: f.usdcMint.publicKey,
       positionNftAccount: m.vaultPosNftAccount,
       signer: f.vault, // the DAO's Squads vault (Squads invoke_signs it on execute)
@@ -118,14 +118,14 @@ describe.skipIf(!ENABLED)("surfpool DAO-owned admin-free Meteora treasury-fee cl
     // Only a PASS `finalize_proposal` CPI-approves the Squads proposal (threshold
     // 1; the sole Vote member is the Dao PDA) — the DAO's governance is what
     // authorizes the vault_transaction to execute.
-    const ammBaseVault = await ata(f.dao, f.kassMint.publicKey);
+    const ammBaseVault = await ata(f.dao, f.baseMint.publicKey);
     const ammQuoteVault = await ata(f.dao, f.usdcMint.publicKey);
 
     // (1) seed the embedded spot AMM (fabricated LP balances; provide_liquidity real).
     const QUOTE_LIQ = 1_000_000_000n;
     const BASE_LIQ = 1_000_000_000n;
     const lpQuote = await fabricateToken(f, f.usdcMint.publicKey, f.payer.publicKey, QUOTE_LIQ);
-    const lpBase = await fabricateToken(f, f.kassMint.publicKey, f.payer.publicKey, BASE_LIQ);
+    const lpBase = await fabricateToken(f, f.baseMint.publicKey, f.payer.publicKey, BASE_LIQ);
     await sendIx(
       f,
       await futarchy.provideLiquidity({
@@ -155,7 +155,7 @@ describe.skipIf(!ENABLED)("surfpool DAO-owned admin-free Meteora treasury-fee cl
       [],
       400_000,
     );
-    const baseV = await condVault(f, question, f.kassMint.publicKey);
+    const baseV = await condVault(f, question, f.baseMint.publicKey);
     const quoteV = await condVault(f, question, f.usdcMint.publicKey);
 
     // (3) initialize_proposal + launch_proposal.

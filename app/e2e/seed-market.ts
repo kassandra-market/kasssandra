@@ -4,8 +4,8 @@
  * inits the market `Config`, and pre-creates a spread of demo markets on the
  * already-seeded oracles so the app's `/markets` section has live data.
  *
- * Reuses the oracle {@link SeedCtx} (one surfpool node, one KASS mint): the funded
- * browser wallet already holds KASS on `ctx.kassMint`, so it can contribute to /
+ * Reuses the oracle {@link SeedCtx} (one surfpool node, one SOL mint): the funded
+ * browser wallet already holds SOL on `ctx.baseMint`, so it can contribute to /
  * create markets in the UI immediately. Everything here is signed by `ctx.payer`
  * (via {@link sendIx}); the market program is deployed non-upgradeable (BPFLoader2)
  * with a fabricated `ProgramData` so `init_config`'s upgrade-authority gate passes
@@ -47,7 +47,7 @@ const METADAO_FIXTURES = [
   { id: 'AMMyu265tkBpRW21iGQxKGLaves3gKm2JcMUqfXNSpqD', file: 'metadao_amm.so' },
 ]
 
-export const MIN_LIQUIDITY = 1_000_000_000n // 1 KASS (9 decimals) funding floor
+export const MIN_LIQUIDITY = 1_000_000_000n // 1 SOL (9 decimals) funding floor
 const BELOW_FLOOR = 100_000_000n // a partially-funded (Funding) seed
 
 /**
@@ -71,16 +71,16 @@ async function deployElf(ctx: SeedCtx, id: string, soPath: string): Promise<void
 
 /**
  * Deploy the market program + the MetaDAO v0.4 fixtures it CPIs, fabricate the
- * upgrade-authority `ProgramData` so `init_config` passes, fund the payer's KASS
+ * upgrade-authority `ProgramData` so `init_config` passes, fund the payer's SOL
  * ATA (the market-creation / fee-destination account), and init the governed
- * `Config` singleton. Returns the payer's KASS ATA (base58). Idempotent enough to
+ * `Config` singleton. Returns the payer's SOL ATA (base58). Idempotent enough to
  * run once per surfpool node; shared by {@link seedMarkets} and the active-market
  * seed used by the candle e2e.
  */
 export async function deployAndInitMarket(ctx: SeedCtx, log: StepLog = noopLog): Promise<string> {
   const h = ctx.harness
   const payer = ctx.payer.publicKey.toString()
-  const kassMint = ctx.kassMint.publicKey.toString()
+  const baseMint = ctx.baseMint.publicKey.toString()
 
   // 1) Deploy the market program + the MetaDAO v0.4 fixtures it CPIs.
   log(`deploying the market program + ${METADAO_FIXTURES.length} MetaDAO v0.4 fixtures`)
@@ -105,15 +105,15 @@ export async function deployAndInitMarket(ctx: SeedCtx, log: StepLog = noopLog):
     data: toHex(meta),
   })
 
-  // 3) Fund the payer's KASS ATA (creators seed markets from it) + use it as the
+  // 3) Fund the payer's SOL ATA (creators seed markets from it) + use it as the
   //    protocol fee destination. Same mint as the browser wallet already holds.
-  log('funding the payer KASS ATA + fabricating upgrade-authority ProgramData')
-  const payerKass = (await associatedTokenAccount(payer, kassMint)).address.toString()
-  await h.setAccount(payerKass, {
+  log('funding the payer SOL ATA + fabricating upgrade-authority ProgramData')
+  const payerBase = (await associatedTokenAccount(payer, baseMint)).address.toString()
+  await h.setAccount(payerBase, {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
-    data: toHex(tokenAccountBytes(ctx.kassMint.publicKey.toBytes(), ctx.payer.publicKey.toBytes(), 10n ** 15n)),
+    data: toHex(tokenAccountBytes(ctx.baseMint.publicKey.toBytes(), ctx.payer.publicKey.toBytes(), 10n ** 15n)),
   })
 
   // 4) Init the governed Config singleton.
@@ -122,14 +122,14 @@ export async function deployAndInitMarket(ctx: SeedCtx, log: StepLog = noopLog):
     ctx,
     await initConfig({
       payer,
-      kassMint,
+      baseMint,
       authority: payer,
       minLiquidity: MIN_LIQUIDITY,
       feeBps: FEE_BPS,
-      feeDestination: payerKass,
+      feeDestination: payerBase,
     }),
   )
-  return payerKass
+  return payerBase
 }
 
 /** Compute-unit limits for the MetaDAO composition / activation / trade CPIs. */
@@ -155,10 +155,10 @@ export interface ActiveMarketSeed {
 export interface CreateActiveMarketOpts {
   /** The oracle outcome this sub-market binds to (default 0). */
   outcomeIndex?: number
-  /** KASS to seed the market with (default {@link MIN_LIQUIDITY} = the floor). */
+  /** SOL to seed the market with (default {@link MIN_LIQUIDITY} = the floor). */
   seedAmount?: bigint
   /**
-   * When true, fabricate the payer's cYES/cNO ATAs and split 5 KASS of each leg to
+   * When true, fabricate the payer's cYES/cNO ATAs and split 5 SOL of each leg to
    * them — a trading inventory for the candle e2e's swaps. `make dev` doesn't need
    * it (users split/swap through the UI against the seeded pool).
    */
@@ -176,7 +176,7 @@ export interface CreateActiveMarketOpts {
 export async function createAndActivateMarket(
   ctx: SeedCtx,
   oracle: string,
-  payerKass: string,
+  payerBase: string,
   opts: CreateActiveMarketOpts = {},
   log: StepLog = noopLog,
 ): Promise<ActiveMarketSeed> {
@@ -184,7 +184,7 @@ export async function createAndActivateMarket(
   const seedAmount = opts.seedAmount ?? MIN_LIQUIDITY
   const h = ctx.harness
   const payer = ctx.payer.publicKey.toString()
-  const kassMint = ctx.kassMint.publicKey.toString()
+  const baseMint = ctx.baseMint.publicKey.toString()
 
   // createMarket with seed == floor funds the market fully in one shot (Funding →
   // activatable). Outcome i = YES pays if the oracle resolves to option i.
@@ -192,7 +192,7 @@ export async function createAndActivateMarket(
   log(`creating market ${market} (outcome ${outcomeIndex}) funded to the floor`)
   await sendIx(
     ctx,
-    await createMarket({ creator: payer, oracle, kassMint, creatorKassAta: payerKass, seedAmount, outcomeIndex }),
+    await createMarket({ creator: payer, oracle, baseMint, creatorBaseAta: payerBase, seedAmount, outcomeIndex }),
   )
 
   // Compose the MetaDAO market (3 ixs), then activate (drains escrow → seeds pool).
@@ -200,7 +200,7 @@ export async function createAndActivateMarket(
   const { instructions: composeIxs, refs } = await flows.composeMarketInstructions({
     market,
     oracle,
-    kassMint,
+    baseMint,
     payer,
   })
   await sendIxs(ctx, withCu(COMPOSE_CU, composeIxs[0]))
@@ -212,8 +212,8 @@ export async function createAndActivateMarket(
   const cyesAta = (await associatedTokenAccount(payer, refs.yesMint.toString())).address
   const cnoAta = (await associatedTokenAccount(payer, refs.noMint.toString())).address
   if (opts.split) {
-    log('splitting KASS into a cYES + cNO trading inventory')
-    // Fabricate the payer's cYES / cNO ATAs (empty), then split KASS into a cYES+cNO
+    log('splitting SOL into a cYES + cNO trading inventory')
+    // Fabricate the payer's cYES / cNO ATAs (empty), then split SOL into a cYES+cNO
     // inventory so a swap can push the price either way.
     for (const [ata, mint] of [
       [cyesAta, refs.yesMint],
@@ -235,10 +235,10 @@ export async function createAndActivateMarket(
           vault: refs.vault,
           vaultUnderlyingAta: refs.vaultUnderlyingAta,
           authority: payer,
-          userUnderlyingAta: payerKass,
+          userUnderlyingAta: payerBase,
           conditionalMints: [refs.yesMint, refs.noMint],
           userConditionalAtas: [cyesAta, cnoAta],
-          amount: 5_000_000_000n, // 5 KASS of each conditional leg
+          amount: 5_000_000_000n, // 5 SOL of each conditional leg
         }),
       ),
     )
@@ -266,11 +266,11 @@ export async function seedMarkets(
   log: StepLog = noopLog,
 ): Promise<{ seeded: Record<string, unknown>; active: ActiveMarketSeed | null }> {
   const payer = ctx.payer.publicKey.toString()
-  const kassMint = ctx.kassMint.publicKey.toString()
+  const baseMint = ctx.baseMint.publicKey.toString()
 
-  // 1-4) Deploy the program + fixtures, fabricate ProgramData, fund the payer KASS
+  // 1-4) Deploy the program + fixtures, fabricate ProgramData, fund the payer SOL
   //       ATA, and init the Config singleton.
-  const payerKass = await deployAndInitMarket(ctx, log)
+  const payerBase = await deployAndInitMarket(ctx, log)
 
   // 5) Pre-create demo markets on the already-seeded oracles.
   const createOne = async (oracle: string, outcomeIndex: number, seedAmount: bigint) => {
@@ -278,12 +278,12 @@ export async function seedMarkets(
     log(`creating market ${market} (outcome ${outcomeIndex}, Funding stage)`)
     await sendIx(
       ctx,
-      await createMarket({ creator: payer, oracle, kassMint, creatorKassAta: payerKass, seedAmount, outcomeIndex }),
+      await createMarket({ creator: payer, oracle, baseMint, creatorBaseAta: payerBase, seedAmount, outcomeIndex }),
     )
     return market
   }
 
-  const seeded: Record<string, unknown> = { kassMint, config: (await marketPda.config()).address.toString() }
+  const seeded: Record<string, unknown> = { baseMint, config: (await marketPda.config()).address.toString() }
 
   // The 3-option "proposal" oracle → a categorical spread of 3 Funding sub-markets.
   if (oracles.proposal?.address) {
@@ -313,7 +313,7 @@ export async function seedMarkets(
       active = await createAndActivateMarket(
         ctx,
         oracles.factProposal.address,
-        payerKass,
+        payerBase,
         { outcomeIndex: 0, split: true },
         log,
       )
@@ -345,7 +345,7 @@ export async function seedMarkets(
       log('activating all 3 outcome legs of the resolved-categorical oracle')
       const legs: string[] = []
       for (let i = 0; i < 3; i++) {
-        const leg = await createAndActivateMarket(ctx, oracle, payerKass, { outcomeIndex: i }, log)
+        const leg = await createAndActivateMarket(ctx, oracle, payerBase, { outcomeIndex: i }, log)
         legs.push(leg.market)
       }
       log('resolving the categorical oracle to option 0 (uncontested)')

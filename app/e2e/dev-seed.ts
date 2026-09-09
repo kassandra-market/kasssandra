@@ -35,18 +35,18 @@ async function main(): Promise<void> {
   const ctx = await bootAndInit(PORT)
   const rpcUrl = `http://127.0.0.1:${PORT}`
 
-  // Funded browser wallet (SOL + KASS), same shape as the e2e globalSetup.
+  // Funded browser wallet (SOL + SOL), same shape as the e2e globalSetup.
   const wallet = await Keypair.generate()
   await ctx.harness.airdrop(wallet.publicKey.toString(), 50_000_000_000)
   const walletKass = (
-    await associatedTokenAccount(wallet.publicKey.toString(), ctx.kassMint.publicKey.toString())
+    await associatedTokenAccount(wallet.publicKey.toString(), ctx.baseMint.publicKey.toString())
   ).address
   await ctx.harness.setAccount(walletKass.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
     data: toHex(
-      tokenAccountBytes(ctx.kassMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
+      tokenAccountBytes(ctx.baseMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
     ),
   })
 
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
         secretKey: Array.from(wallet.secretKey as Uint8Array),
         publicKey: wallet.publicKey.toString(),
         rpcUrl,
-        kassMint: ctx.kassMint.publicKey.toString(),
+        baseMint: ctx.baseMint.publicKey.toString(),
         usdcMint: ctx.usdcMint.publicKey.toString(),
         oracles,
       },
@@ -101,7 +101,7 @@ async function main(): Promise<void> {
   console.log(`
 [dev] ✅ local chain ready
       surfpool:  ${rpcUrl}
-      wallet:    ${wallet.publicKey.toString()} (funded SOL + KASS)
+      wallet:    ${wallet.publicKey.toString()} (funded SOL + SOL)
       oracles:   ${Object.keys(oracles).join(', ')}
       fixture:   ${WALLET_FILE}
 

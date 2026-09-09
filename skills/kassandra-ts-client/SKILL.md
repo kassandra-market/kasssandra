@@ -18,7 +18,7 @@ PDAs** (proposer, stake vault, etc.) — you pass wallets + token accounts, not 
 `propose`, `createOracle`, `submitFact`, `voteFact`, `submitAiClaim`, `openChallenge`,
 `settleChallenge`, `finalizeProposals`, `finalizeFacts`, `finalizeOracle`, `finalizeAiClaims`,
 `advancePhase`, `claimProposer`, `claimFact`, `claimFactVote`, `closeAiClaim`, `closeMarket`,
-`sweepOracle`, `initProtocol`, `setGovernance`, `setConfig`, `resolveDeadend`, `kassPrice`.
+`sweepOracle`, `initProtocol`, `setGovernance`, `setConfig`, `resolveDeadend`, `spotPrice`.
 
 Each takes one args object; a `programId?` override is always accepted. Import the `*Args`
 type (e.g. `ProposeArgs`) for the exact fields.
@@ -27,7 +27,7 @@ type (e.g. `ProposeArgs`) for the exact fields.
 
 - Decoders (bytes to typed struct): `decodeOracle`, `decodeProposer`, `decodeFact`,
   `decodeFactVote`, `decodeAiClaim`, `decodeMarket`, `decodeProtocol`. An oracle exposes
-  `phase` (a `Phase`), `optionsCount`, `phaseEndsAt`, `kassMint`, `stakeVault`, `resolvedOption`.
+  `phase` (a `Phase`), `optionsCount`, `phaseEndsAt`, `baseMint`, `stakeVault`, `resolvedOption`.
 - PDAs (`pda` namespace, async, return `{ address, bump }`): `pda.oracle(nonce)`,
   `pda.proposer(oracle, authority)`, `pda.fact(oracle, contentHash)`, `pda.factVote(fact, voter)`,
   `pda.aiClaim(oracle, proposer)`, `pda.market(aiClaim)`, `pda.stakeVault(oracle)`,
@@ -40,10 +40,10 @@ type (e.g. `ProposeArgs`) for the exact fields.
 ```ts
 import { propose, decodeOracle, Phase } from "@kassandra-market/oracles";
 
-// Build the propose instruction. `authorityKass` is the proposer's KASS token account
+// Build the propose instruction. `authorityBase` is the proposer's SOL token account
 // (the bond source); the proposer PDA + stake vault are derived inside the builder.
-async function buildProposeIx(oracle, authority, authorityKass, option, bond) {
-  return propose({ oracle, authority, authorityKass, option, bond });
+async function buildProposeIx(oracle, authority, authorityBase, option, bond) {
+  return propose({ oracle, authority, authorityBase, option, bond });
 }
 
 // Read an oracle's current phase from chain.

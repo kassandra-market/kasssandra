@@ -38,7 +38,7 @@ async function openOracle(page: Page, address: string): Promise<void> {
   await expect(page.getByRole('button', { name: /^Connected:/ })).toBeVisible()
 }
 
-test('propose: submit a categorical option + KASS bond', async ({ page }) => {
+test('propose: submit a categorical option + SOL bond', async ({ page }) => {
   const o = wallet.oracles.proposal
   await openOracle(page, o.address)
   // Participation forms live under the Manage tab.

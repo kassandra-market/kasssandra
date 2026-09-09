@@ -47,7 +47,7 @@ export function uniformSplit(total: bigint, n: number): bigint[] {
   return shares;
 }
 
-/** One sub-market's deposit: its PDA, a display label, and the KASS to contribute. */
+/** One sub-market's deposit: its PDA, a display label, and the SOL to contribute. */
 export interface BulkContributeEntry {
   market: AddressInput;
   label: string;
@@ -56,8 +56,8 @@ export interface BulkContributeEntry {
 
 export interface BuildBulkContributeArgs {
   indexer: IndexerReads;
-  /** Canonical KASS mint (shared by every sub-market in the group). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (shared by every sub-market in the group). */
+  baseMint: AddressInput;
   /** Contributor authority (the signer). */
   contributor: AddressInput;
   /** Per-sub-market deposits; entries with `amount <= 0` are dropped. */
@@ -81,7 +81,7 @@ export async function buildBulkContributeSteps(
       ixs: await buildContributeIxs({
         indexer: args.indexer,
         market: e.market,
-        kassMint: args.kassMint,
+        baseMint: args.baseMint,
         contributor: args.contributor,
         amount: e.amount,
       }),
@@ -127,8 +127,8 @@ export function outcomesReadyToActivate(
 }
 
 export interface BuildBulkActivateArgs {
-  /** Canonical KASS mint (shared by every sub-market in the group). */
-  kassMint: AddressInput;
+  /** Canonical SOL mint (shared by every sub-market in the group). */
+  baseMint: AddressInput;
   /** Rent payer + signer for every step (the connected keeper wallet). */
   payer: AddressInput;
   /** Pre-filtered via {@link outcomesReadyToActivate}. */
@@ -148,7 +148,7 @@ export async function buildBulkActivateSteps(args: BuildBulkActivateArgs): Promi
       const steps = await buildActivateSequence({
         market: e.market,
         oracle: e.oracle,
-        kassMint: args.kassMint,
+        baseMint: args.baseMint,
         payer: args.payer,
       });
       return steps.map((s) => ({ ...s, label: `${e.label} · ${s.label}` }));
@@ -159,7 +159,7 @@ export async function buildBulkActivateSteps(args: BuildBulkActivateArgs): Promi
 
 /**
  * One Active sub-market's add-liquidity deposit: its PDA, a display label, the
- * KASS to add, its decoded account (MetaDAO bindings + `lpTotal`), and its live
+ * SOL to add, its decoded account (MetaDAO bindings + `lpTotal`), and its live
  * cYES/cNO pool reserves (to size the balanced deposit).
  */
 export interface BulkAddLiquidityEntry {

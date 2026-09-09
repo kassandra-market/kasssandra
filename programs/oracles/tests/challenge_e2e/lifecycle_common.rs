@@ -64,7 +64,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
     // submit_fact (FactProposal still open).
     let submitter = Keypair::new();
     ctx.svm.airdrop(&submitter.pubkey(), 1_000_000_000).unwrap();
-    let submitter_kass = ctx.fund_kass(&submitter, 1_000_000);
+    let submitter_base = ctx.fund_base(&submitter, 1_000_000);
     let content_hash = [0x07u8; 32];
     let (fact, _) = TestCtx::fact_pda(&ctx.program_id, &oracle, &content_hash);
     ctx.send(
@@ -73,7 +73,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
             oracle,
             fact,
             submitter.pubkey(),
-            submitter_kass,
+            submitter_base,
             vault,
             submit_fact_payload(&content_hash, 100, b"ipfs://fact"),
         ),
@@ -89,7 +89,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
     // vote approve well past the 2/3 quorum of dispute_bond_total (== 2*BOND).
     let voter = Keypair::new();
     ctx.svm.airdrop(&voter.pubkey(), 1_000_000_000).unwrap();
-    let voter_kass = ctx.fund_kass(&voter, 2 * BOND);
+    let voter_base = ctx.fund_base(&voter, 2 * BOND);
     let (fact_vote, _) = TestCtx::vote_pda(&ctx.program_id, &fact, &voter.pubkey());
     ctx.send(
         vote_fact_ix(
@@ -98,7 +98,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
             fact,
             fact_vote,
             voter.pubkey(),
-            voter_kass,
+            voter_base,
             vault,
             vote_payload(VOTE_APPROVE, 2 * BOND),
         ),
@@ -161,7 +161,7 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
     }
 }
 
-/// The shared cross-outcome assertions: question settled, conditional KASS fully
+/// The shared cross-outcome assertions: question settled, conditional SOL fully
 /// redeemed + holders burned, and BOTH conservation equations against the
 /// INDEPENDENT [`ConservationModel`].
 #[allow(clippy::too_many_arguments)]
@@ -184,36 +184,36 @@ pub(crate) fn assert_resolution_and_conservation(
         "counter back to 0"
     );
 
-    // Physical redeem drained the conditional KASS vault + burned both holders.
+    // Physical redeem drained the conditional SOL vault + burned both holders.
     assert_eq!(
-        ctx.token_balance(x.kass_vault_underlying),
+        ctx.token_balance(x.base_vault_underlying),
         0,
         "underlying drained"
     );
-    assert_eq!(ctx.token_balance(x.oracle_pass_kass), 0, "pass-KASS burned");
-    assert_eq!(ctx.token_balance(x.oracle_fail_kass), 0, "fail-KASS burned");
+    assert_eq!(ctx.token_balance(x.oracle_pass_base), 0, "pass-SOL burned");
+    assert_eq!(ctx.token_balance(x.oracle_fail_base), 0, "fail-SOL burned");
     // No donation present in these e2e flows: the holders carried EXACTLY the
     // bond-derived balance (see the dedicated donation test for the griefing edge).
 
-    // KASS routing vs the independent reference.
+    // SOL routing vs the independent reference.
     assert_eq!(
-        ctx.token_balance(x.challenger_kass),
-        model.challenger_kass()
+        ctx.token_balance(x.challenger_base),
+        model.challenger_base()
     );
     assert_eq!(
         ctx.token_balance(x.stake_vault),
         stake_before + model.stake_vault_delta(),
-        "stake_vault delta == redeem − kass_fee carve-out"
+        "stake_vault delta == redeem − base_fee carve-out"
     );
-    // KASS conservation: stake_vault + underlying + challenger_kass == total
-    // (the kass_fee carve-out left the system to the challenger on disqualify; on
-    // survive challenger_kass == 0 and it reduces to the idle-bond conservation).
+    // SOL conservation: stake_vault + underlying + challenger_base == total
+    // (the base_fee carve-out left the system to the challenger on disqualify; on
+    // survive challenger_base == 0 and it reduces to the idle-bond conservation).
     assert_eq!(
         ctx.token_balance(x.stake_vault)
-            + ctx.token_balance(x.kass_vault_underlying)
-            + ctx.token_balance(x.challenger_kass),
+            + ctx.token_balance(x.base_vault_underlying)
+            + ctx.token_balance(x.challenger_base),
         total_before,
-        "KASS conservation incl. the kass_fee carve-out",
+        "SOL conservation incl. the base_fee carve-out",
     );
 
     // USDC routing + conservation vs the independent reference.

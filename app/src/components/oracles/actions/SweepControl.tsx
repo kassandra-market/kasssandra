@@ -18,7 +18,7 @@ const SWEEP_GRACE = 30n * 24n * 60n * 60n
  * a terminal oracle, any wallet can sweep the residual vault dust (or a no-show
  * staker's forfeited principal) to the DAO treasury and CLOSE the stake-vault +
  * Oracle, refunding both rents to the creator. Only meaningful once governance is
- * set (the treasury is `ATA(dao_authority, kass_mint)`), so the build resolves
+ * set (the treasury is `ATA(dao_authority, base_mint)`), so the build resolves
  * the DAO authority from the Protocol singleton at click time and surfaces a
  * clear error if governance isn't linked yet.
  *
@@ -32,7 +32,7 @@ export function SweepControl({
 }: {
   /** The oracle PDA (base58). */
   oracle: string
-  /** The decoded oracle (for `phase_ends_at`, `creator`, `kass_mint`). */
+  /** The decoded oracle (for `phase_ends_at`, `creator`, `base_mint`). */
   oracleAccount: Oracle
   refetch: () => void
 }) {
@@ -53,7 +53,7 @@ export function SweepControl({
       const daoAuthority = await resolveDaoAuthority(conn)
       return buildSweepOracleIxs({
         oracleNonce: nonce,
-        kassMint: oracleAccount.kassMint,
+        baseMint: oracleAccount.baseMint,
         daoAuthority,
         creator: oracleAccount.creator,
       })

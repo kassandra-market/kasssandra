@@ -46,9 +46,9 @@ fn open_challenge_ix(
     pass_amm: Pubkey,
     fail_amm: Pubkey,
     stake_vault: Pubkey,
-    oracle_pass_kass: Pubkey,
-    oracle_fail_kass: Pubkey,
-    kass_dao: Pubkey,
+    oracle_pass_base: Pubkey,
+    oracle_fail_base: Pubkey,
+    spot_dao: Pubkey,
     challenger_usdc_src: Pubkey,
     nonce: u64,
 ) -> Instruction {
@@ -67,22 +67,22 @@ fn open_challenge_ix(
             AccountMeta::new(market, false),
             AccountMeta::new(challenger, true),
             AccountMeta::new_readonly(m.question, false),
-            AccountMeta::new(m.kass_vault, false),
+            AccountMeta::new(m.base_vault, false),
             AccountMeta::new_readonly(m.usdc_vault, false),
             AccountMeta::new_readonly(pass_amm, false),
             AccountMeta::new_readonly(fail_amm, false),
             AccountMeta::new(stake_vault, false),
-            AccountMeta::new(m.kass_vault_underlying, false),
+            AccountMeta::new(m.base_vault_underlying, false),
             AccountMeta::new(m.pass_mint, false),
             AccountMeta::new(m.fail_mint, false),
-            AccountMeta::new(oracle_pass_kass, false),
-            AccountMeta::new(oracle_fail_kass, false),
+            AccountMeta::new(oracle_pass_base, false),
+            AccountMeta::new(oracle_fail_base, false),
             AccountMeta::new_readonly(vault_id(), false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new_readonly(solana_sdk_ids::system_program::ID, false),
             AccountMeta::new_readonly(cv_event_auth, false),
             AccountMeta::new_readonly(protocol, false),
-            AccountMeta::new_readonly(kass_dao, false),
+            AccountMeta::new_readonly(spot_dao, false),
             AccountMeta::new_readonly(ctx.usdc_mint, false),
             AccountMeta::new(challenger_usdc_src, false),
             AccountMeta::new(escrow_vault, false),
@@ -94,16 +94,16 @@ fn open_challenge_ix(
 /// Settlement accounts beyond the core 0..=8 (C2 physical redeem + fees).
 pub(crate) struct SettleExtras {
     stake_vault: Pubkey,
-    kass_vault: Pubkey,
-    kass_vault_underlying: Pubkey,
+    base_vault: Pubkey,
+    base_vault_underlying: Pubkey,
     pass_mint: Pubkey,
     fail_mint: Pubkey,
-    oracle_pass_kass: Pubkey,
-    oracle_fail_kass: Pubkey,
+    oracle_pass_base: Pubkey,
+    oracle_fail_base: Pubkey,
     escrow_vault: Pubkey,
     proposer_usdc: Pubkey,
     challenger_usdc_dest: Pubkey,
-    challenger_kass: Pubkey,
+    challenger_base: Pubkey,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -137,16 +137,16 @@ pub(crate) fn settle_ix(
             AccountMeta::new_readonly(cv_event_auth, false),
             AccountMeta::new_readonly(TOKEN_PROGRAM_ID, false),
             AccountMeta::new(x.stake_vault, false),
-            AccountMeta::new(x.kass_vault, false),
-            AccountMeta::new(x.kass_vault_underlying, false),
+            AccountMeta::new(x.base_vault, false),
+            AccountMeta::new(x.base_vault_underlying, false),
             AccountMeta::new(x.pass_mint, false),
             AccountMeta::new(x.fail_mint, false),
-            AccountMeta::new(x.oracle_pass_kass, false),
-            AccountMeta::new(x.oracle_fail_kass, false),
+            AccountMeta::new(x.oracle_pass_base, false),
+            AccountMeta::new(x.oracle_fail_base, false),
             AccountMeta::new(x.escrow_vault, false),
             AccountMeta::new(x.proposer_usdc, false),
             AccountMeta::new(x.challenger_usdc_dest, false),
-            AccountMeta::new(x.challenger_kass, false),
+            AccountMeta::new(x.challenger_base, false),
         ],
         data,
     }
@@ -169,25 +169,25 @@ pub(crate) fn question_resolution(ctx: &TestCtx, question: Pubkey) -> (u32, u32,
     )
 }
 
-/// Physical KASS-conservation invariant (design §9 #3) for the split path:
+/// Physical SOL-conservation invariant (design §9 #3) for the split path:
 /// the bond that left `stake_vault` is exactly what is now escrowed in the
-/// MetaDAO KASS conditional vault's underlying token account, and
+/// MetaDAO SOL conditional vault's underlying token account, and
 /// `total_oracle_stake` stays the conserved accumulator (it is intentionally NOT
-/// decremented by the split — the KASS is still in-system, just escrowed). The
-/// challenge split is the ONLY path where KASS physically leaves `stake_vault`,
+/// decremented by the split — the SOL is still in-system, just escrowed). The
+/// challenge split is the ONLY path where SOL physically leaves `stake_vault`,
 /// so this asserts nothing was created or destroyed there.
-pub(crate) fn assert_kass_conserved(ctx: &TestCtx, oracle: Pubkey, kass_vault_underlying: Pubkey) {
+pub(crate) fn assert_base_conserved(ctx: &TestCtx, oracle: Pubkey, base_vault_underlying: Pubkey) {
     let stake_vault = ctx.seeded(oracle).stake_vault;
     let total = ctx.oracle(oracle).total_oracle_stake;
     assert_eq!(
-        ctx.token_balance(stake_vault) + ctx.token_balance(kass_vault_underlying),
+        ctx.token_balance(stake_vault) + ctx.token_balance(base_vault_underlying),
         total,
-        "physical KASS conservation: stake_vault + conditional-vault underlying == total_oracle_stake",
+        "physical SOL conservation: stake_vault + conditional-vault underlying == total_oracle_stake",
     );
 }
 
 pub(crate) const BOND: u64 = 1_000_000_000;
-/// Base reserve common to all pools: 100 KASS (9 dp).
+/// Base reserve common to all pools: 100 SOL (9 dp).
 const BASE_RESERVE: u64 = 100_000_000_000;
 /// Quote reserve giving price 1e9 (100 USDC, 6 dp). add_liquidity needs ≥ 1e8.
 pub(crate) const QUOTE_LOW: u64 = 100_000_000;
@@ -206,28 +206,28 @@ pub(crate) struct Fixture {
     pub(crate) fail_amm: Pubkey,
     // C2 physical-settlement accounts.
     pub(crate) stake_vault: Pubkey,
-    pub(crate) oracle_pass_kass: Pubkey,
-    pub(crate) oracle_fail_kass: Pubkey,
+    pub(crate) oracle_pass_base: Pubkey,
+    pub(crate) oracle_fail_base: Pubkey,
     pub(crate) escrow_vault: Pubkey,
     pub(crate) proposer_usdc: Pubkey,
     pub(crate) challenger_usdc_dest: Pubkey,
-    pub(crate) challenger_kass: Pubkey,
+    pub(crate) challenger_base: Pubkey,
 }
 
 impl Fixture {
     pub(crate) fn extras(&self) -> SettleExtras {
         SettleExtras {
             stake_vault: self.stake_vault,
-            kass_vault: self.m.kass_vault,
-            kass_vault_underlying: self.m.kass_vault_underlying,
+            base_vault: self.m.base_vault,
+            base_vault_underlying: self.m.base_vault_underlying,
             pass_mint: self.m.pass_mint,
             fail_mint: self.m.fail_mint,
-            oracle_pass_kass: self.oracle_pass_kass,
-            oracle_fail_kass: self.oracle_fail_kass,
+            oracle_pass_base: self.oracle_pass_base,
+            oracle_fail_base: self.oracle_fail_base,
             escrow_vault: self.escrow_vault,
             proposer_usdc: self.proposer_usdc,
             challenger_usdc_dest: self.challenger_usdc_dest,
-            challenger_kass: self.challenger_kass,
+            challenger_base: self.challenger_base,
         }
     }
 }
@@ -259,9 +259,9 @@ pub(crate) fn fixture_with_attack(
     ctx.svm.add_program(vault_id(), VAULT_SO).unwrap();
     ctx.svm.add_program(amm_id(), AMM_SO).unwrap();
 
-    // Protocol + governance with a deterministic kass_price so open_challenge
+    // Protocol + governance with a deterministic spot_price so open_challenge
     // can size + escrow the challenger USDC.
-    let kass_dao = ctx.bless_kass_price();
+    let spot_dao = ctx.bless_spot_price();
 
     let oracle = ctx.seed_disputed_oracle(&[
         ProposerSpec {
@@ -283,9 +283,9 @@ pub(crate) fn fixture_with_attack(
     ctx.set_phase(oracle, Phase::Challenge);
     let ai_claim = seed_ai_claim(&mut ctx, oracle, proposer, 0);
 
-    let (m, oracle_pass_kass, oracle_fail_kass) = setup_market(&mut ctx, oracle);
+    let (m, oracle_pass_base, oracle_fail_base) = setup_market(&mut ctx, oracle);
 
-    // Real pass/fail AMMs over the conditional (KASS, USDC) mint pairs. The PASS
+    // Real pass/fail AMMs over the conditional (SOL, USDC) mint pairs. The PASS
     // pool is left un-cranked only for the PassUncranked case.
     let crank_pass = attack != AmmAttack::PassUncranked;
     let real_pass = build_amm(
@@ -328,9 +328,9 @@ pub(crate) fn fixture_with_attack(
         pass_amm,
         fail_amm,
         stake_vault,
-        oracle_pass_kass,
-        oracle_fail_kass,
-        kass_dao,
+        oracle_pass_base,
+        oracle_fail_base,
+        spot_dao,
         challenger_usdc_src,
         nonce,
     );
@@ -338,17 +338,17 @@ pub(crate) fn fixture_with_attack(
         .expect("open_challenge should succeed");
 
     // Payout destinations for settle: proposer's USDC (fee on survive),
-    // challenger's USDC (escrow return) + KASS (fee on disqualify). Fabricated
+    // challenger's USDC (escrow return) + SOL (fee on disqualify). Fabricated
     // empty; settle pays into them.
     let usdc_mint = ctx.usdc_mint;
-    let kass_mint = ctx.kass_mint;
+    let base_mint = ctx.base_mint;
     let challenger_pk = challenger.pubkey();
     let proposer_usdc = Pubkey::new_unique();
     let challenger_usdc_dest = Pubkey::new_unique();
-    let challenger_kass = Pubkey::new_unique();
+    let challenger_base = Pubkey::new_unique();
     fabricate_token_account(&mut ctx, proposer_usdc, usdc_mint, proposer_authority, 0);
     fabricate_token_account(&mut ctx, challenger_usdc_dest, usdc_mint, challenger_pk, 0);
-    fabricate_token_account(&mut ctx, challenger_kass, kass_mint, challenger_pk, 0);
+    fabricate_token_account(&mut ctx, challenger_base, base_mint, challenger_pk, 0);
     let (escrow_vault, _) = TestCtx::challenge_usdc_vault_pda(&ctx.program_id, &market);
 
     (
@@ -364,12 +364,12 @@ pub(crate) fn fixture_with_attack(
             pass_amm,
             fail_amm,
             stake_vault,
-            oracle_pass_kass,
-            oracle_fail_kass,
+            oracle_pass_base,
+            oracle_fail_base,
             escrow_vault,
             proposer_usdc,
             challenger_usdc_dest,
-            challenger_kass,
+            challenger_base,
         },
     )
 }

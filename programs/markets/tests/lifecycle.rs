@@ -17,29 +17,29 @@ const RESOLVED: u8 = 7;
 #[test]
 fn full_crowdfunding_lifecycle_cancel_and_refund() {
     let mut ctx = TestCtx::new();
-    let kass = ctx.create_mint(9);
+    let base = ctx.create_mint(9);
     let authority = Keypair::new();
     // min_liquidity high enough that creator+2 contributors stay under it.
-    let _ = ctx.init_config(authority.pubkey(), kass, 10_000_000_000);
+    let _ = ctx.init_config(authority.pubkey(), base, 10_000_000_000);
 
     let oracle = ctx.seed_kass_oracle(2, PROPOSAL);
 
     // Creator seeds the market (below min).
     let creator = Keypair::new();
     ctx.svm_airdrop(&creator.pubkey());
-    let creator_ata = ctx.create_token_account(kass, creator.pubkey(), 1_000_000_000);
-    let (market, res) = ctx.create_market(&creator, oracle, kass, creator_ata, 400_000_000);
+    let creator_ata = ctx.create_token_account(base, creator.pubkey(), 1_000_000_000);
+    let (market, res) = ctx.create_market(&creator, oracle, base, creator_ata, 400_000_000);
     assert!(res.is_ok(), "create_market: {res:?}");
 
     // Two more contributors (still under min).
     let c1 = Keypair::new();
     ctx.svm_airdrop(&c1.pubkey());
-    let c1_ata = ctx.create_token_account(kass, c1.pubkey(), 1_000_000_000);
+    let c1_ata = ctx.create_token_account(base, c1.pubkey(), 1_000_000_000);
     assert!(ctx.contribute(&c1, market, c1_ata, 300_000_000).is_ok());
 
     let c2 = Keypair::new();
     ctx.svm_airdrop(&c2.pubkey());
-    let c2_ata = ctx.create_token_account(kass, c2.pubkey(), 1_000_000_000);
+    let c2_ata = ctx.create_token_account(base, c2.pubkey(), 1_000_000_000);
     assert!(ctx.contribute(&c2, market, c2_ata, 250_000_000).is_ok());
 
     // Total contributed = 950M < 10B min.

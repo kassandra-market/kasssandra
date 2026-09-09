@@ -12,7 +12,7 @@ import { addr, ro, w } from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // Propose (Ix=11) — processor/propose.rs
-// Accounts: 0 oracle(w) 1 proposer(w,PDA) 2 authority(w,signer) 3 authority_kass(w)
+// Accounts: 0 oracle(w) 1 proposer(w,PDA) 2 authority(w,signer) 3 authority_base(w)
 //           4 stake_vault(w,PDA) 5 token program(ro) 6 system program(ro).
 // Payload (9): option u8 ++ bond u64.
 // ---------------------------------------------------------------------------
@@ -21,11 +21,11 @@ export interface ProposeArgs {
   oracle: AddressInput;
   /** Proposer authority (signer): funds rent + bond-transfer authority. */
   authority: AddressInput;
-  /** Authority's KASS token account — the bond source. */
-  authorityKass: AddressInput;
+  /** Authority's SOL token account — the bond source. */
+  authorityBase: AddressInput;
   /** Categorical option proposed (< oracle.options_count). */
   option: number;
-  /** KASS bond escrowed into the stake vault (> 0). */
+  /** SOL bond escrowed into the stake vault (> 0). */
   bond: bigint | number;
   programId?: Address;
 }
@@ -44,7 +44,7 @@ export async function propose(args: ProposeArgs): Promise<TransactionInstruction
       w(oracle),
       w(proposer.address),
       w(addr(args.authority), true),
-      w(addr(args.authorityKass)),
+      w(addr(args.authorityBase)),
       w(stakeVault.address),
       ro(TOKEN_PROGRAM_ID),
       ro(SYSTEM_PROGRAM_ID),

@@ -14,10 +14,10 @@ use pinocchio_token::state::Account as TokenAccount;
 
 use crate::{
     clock::{now, require_before_end, require_phase},
-    config::KASS_PRICE_SCALE,
+    config::SPOT_PRICE_SCALE,
     cpi::metadao,
     error::KassandraError,
-    price::kass_price,
+    price::spot_price,
     processor::guards::{
         assert_key, assert_owned_by_program, assert_signer, assert_token_account,
         create_or_adopt_pda, create_or_adopt_token_account, load_ai_claim, load_oracle,
@@ -32,17 +32,17 @@ const PAYLOAD_LEN: usize = 8;
 
 /// Assert `account` is an SPL token account owned (token authority) by
 /// `oracle_key` on `expected_mint`, else [`KassandraError::InvalidAccount`].
-/// Defense-in-depth on the conditional-KASS split destinations: the
+/// Defense-in-depth on the conditional-SOL split destinations: the
 /// conditional_vault enforces the same constraints, but a clean local error is
 /// clearer than a downstream MetaDAO custom error and pins the recorded
-/// `Market.oracle_{pass,fail}_kass` contract for Task 11.
+/// `Market.oracle_{pass,fail}_base` contract for Task 11.
 pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]) -> ProgramResult {
     if payload.len() != PAYLOAD_LEN {
         return Err(ProgramError::InvalidInstructionData);
     }
     let oracle_nonce = u64::from_le_bytes(payload[0..8].try_into().unwrap());
 
-    let [oracle_ai, ai_claim_ai, proposer_ai, market_ai, challenger_ai, question_ai, kass_vault_ai, usdc_vault_ai, pass_amm_ai, fail_amm_ai, stake_vault_ai, kass_vault_underlying_ai, pass_mint_ai, fail_mint_ai, oracle_pass_kass_ai, oracle_fail_kass_ai, cv_prog_ai, token_prog_ai, system_prog_ai, cv_event_auth_ai, protocol_ai, kass_dao_ai, usdc_mint_ai, challenger_usdc_src_ai, escrow_vault_ai, ..] =
+    let [oracle_ai, ai_claim_ai, proposer_ai, market_ai, challenger_ai, question_ai, base_vault_ai, usdc_vault_ai, pass_amm_ai, fail_amm_ai, stake_vault_ai, base_vault_underlying_ai, pass_mint_ai, fail_mint_ai, oracle_pass_base_ai, oracle_fail_base_ai, cv_prog_ai, token_prog_ai, system_prog_ai, cv_event_auth_ai, protocol_ai, spot_dao_ai, usdc_mint_ai, challenger_usdc_src_ai, escrow_vault_ai, ..] =
         accounts
     else {
         return Err(ProgramError::NotEnoughAccountKeys);
@@ -104,17 +104,17 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         }
     }
 
-    // --- verify the KASS conditional vault ----------------------------------
-    assert_owned_by_program(kass_vault_ai, &metadao::CONDITIONAL_VAULT_ID)?;
+    // --- verify the SOL conditional vault ----------------------------------
+    assert_owned_by_program(base_vault_ai, &metadao::CONDITIONAL_VAULT_ID)?;
     {
-        let data = kass_vault_ai.try_borrow()?;
+        let data = base_vault_ai.try_borrow()?;
         let v_question = metadao::read_pubkey(&data, metadao::VAULT_QUESTION_OFFSET)?;
         let v_underlying = metadao::read_pubkey(&data, metadao::VAULT_UNDERLYING_MINT_OFFSET)?;
         let v_underlying_acct =
             metadao::read_pubkey(&data, metadao::VAULT_UNDERLYING_ACCOUNT_OFFSET)?;
         if &v_question != question_ai.address()
-            || v_underlying != oracle.kass_mint
-            || &v_underlying_acct != kass_vault_underlying_ai.address()
+            || v_underlying != oracle.base_mint
+            || &v_underlying_acct != base_vault_underlying_ai.address()
         {
             return Err(KassandraError::InvalidAccount.into());
         }
@@ -131,14 +131,14 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         }
     }
 
-    // --- verify the conditional KASS mints derive from the KASS vault -------
-    let (expect_pass_mint, _) = metadao::conditional_token_mint_pda(kass_vault_ai.address(), 0);
-    let (expect_fail_mint, _) = metadao::conditional_token_mint_pda(kass_vault_ai.address(), 1);
+    // --- verify the conditional SOL mints derive from the SOL vault -------
+    let (expect_pass_mint, _) = metadao::conditional_token_mint_pda(base_vault_ai.address(), 0);
+    let (expect_fail_mint, _) = metadao::conditional_token_mint_pda(base_vault_ai.address(), 1);
     assert_key(pass_mint_ai, &expect_pass_mint)?;
     assert_key(fail_mint_ai, &expect_fail_mint)?;
 
     // --- bind the pass/fail AMMs NOW (owner + `Amm` disc + exact conditional
-    //     (KASS,USDC) mint pair per outcome), and require pass_amm != fail_amm.
+    //     (SOL,USDC) mint pair per outcome), and require pass_amm != fail_amm.
     // This MUST happen at open, not only at settle: settle pins each AMM to the
     // address RECORDED here, so a market recorded with an unbindable AMM (wrong
     // mints, or the same account twice) could never settle. That would leave
@@ -153,13 +153,13 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         return Err(KassandraError::InvalidAccount.into());
     }
 
-    // --- verify the conditional-KASS split DESTINATIONS (defense-in-depth) --
+    // --- verify the conditional-SOL split DESTINATIONS (defense-in-depth) --
     // The vault enforces these too, but a clean InvalidAccount here beats a
     // downstream MetaDAO custom error and locks the contract the docstring
     // claims: each dest is an SPL token account owned by the oracle PDA on the
-    // matching conditional KASS mint. Task 11 redeems from exactly these.
-    assert_token_account(oracle_pass_kass_ai, &expect_pass_mint, oracle_ai.address())?;
-    assert_token_account(oracle_fail_kass_ai, &expect_fail_mint, oracle_ai.address())?;
+    // matching conditional SOL mint. Task 11 redeems from exactly these.
+    assert_token_account(oracle_pass_base_ai, &expect_pass_mint, oracle_ai.address())?;
+    assert_token_account(oracle_fail_base_ai, &expect_fail_mint, oracle_ai.address())?;
 
     // --- market PDA derivation + uninit check -------------------------------
     let (expected_market, market_bump) =
@@ -169,11 +169,11 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         return Err(KassandraError::AlreadyChallenged.into());
     }
 
-    // --- program-signed KASS split (oracle PDA authority) -------------------
-    // Move proposer.bond KASS from oracle.stake_vault into the KASS conditional
-    // vault, minting pass-KASS/fail-KASS to the oracle-PDA-owned destinations.
+    // --- program-signed SOL split (oracle PDA authority) -------------------
+    // Move proposer.bond SOL from oracle.stake_vault into the SOL conditional
+    // vault, minting pass-SOL/fail-SOL to the oracle-PDA-owned destinations.
     // NOTE: `oracle.total_oracle_stake` is intentionally NOT decremented — the
-    // KASS is still in-system, now escrowed in the conditional vault recorded on
+    // SOL is still in-system, now escrowed in the conditional vault recorded on
     // the Market (Task 13 conservation counts it there).
     let (cv_event_auth, _) = metadao::event_authority_pda(&metadao::CONDITIONAL_VAULT_ID);
     assert_key(cv_event_auth_ai, &cv_event_auth)?;
@@ -181,8 +181,8 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     let split_data = metadao::split_tokens_data(proposer.bond);
     let split_metas = [
         InstructionAccount::readonly(question_ai.address()),
-        InstructionAccount::writable(kass_vault_ai.address()),
-        InstructionAccount::writable(kass_vault_underlying_ai.address()),
+        InstructionAccount::writable(base_vault_ai.address()),
+        InstructionAccount::writable(base_vault_underlying_ai.address()),
         InstructionAccount::readonly_signer(oracle_ai.address()), // authority (oracle PDA)
         InstructionAccount::writable(stake_vault_ai.address()),   // user_underlying
         InstructionAccount::readonly(token_prog_ai.address()),
@@ -191,13 +191,13 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         // remaining: mints then user (oracle PDA) conditional token accounts
         InstructionAccount::writable(pass_mint_ai.address()),
         InstructionAccount::writable(fail_mint_ai.address()),
-        InstructionAccount::writable(oracle_pass_kass_ai.address()),
-        InstructionAccount::writable(oracle_fail_kass_ai.address()),
+        InstructionAccount::writable(oracle_pass_base_ai.address()),
+        InstructionAccount::writable(oracle_fail_base_ai.address()),
     ];
     let split_infos = [
         &*question_ai,
-        &*kass_vault_ai,
-        &*kass_vault_underlying_ai,
+        &*base_vault_ai,
+        &*base_vault_underlying_ai,
         &*oracle_ai,
         &*stake_vault_ai,
         &*token_prog_ai,
@@ -205,8 +205,8 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         &*cv_prog_ai,
         &*pass_mint_ai,
         &*fail_mint_ai,
-        &*oracle_pass_kass_ai,
-        &*oracle_fail_kass_ai,
+        &*oracle_pass_base_ai,
+        &*oracle_fail_base_ai,
     ];
     let nonce_le = oracle_nonce.to_le_bytes();
     let bump_seed = [oracle.bump];
@@ -239,34 +239,34 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
         program_id,
     )?;
 
-    // --- size the challenger USDC escrow via kass_price (Task C1) -----------
+    // --- size the challenger USDC escrow via spot_price (Task C1) -----------
     // All MetaDAO market bindings are verified above; now price the escrow. The
-    // escrow vault's mint must be the oracle's canonical USDC mint. `kass_price`
+    // escrow vault's mint must be the oracle's canonical USDC mint. `spot_price`
     // asserts `protocol` is the `[b"protocol"]` singleton (load_protocol's
-    // address pin), `kass_dao == protocol.kass_dao`, and the futarchy-program
-    // ownership of `kass_dao`. The returned TWAP is raw USDC per raw KASS ×
-    // KASS_PRICE_SCALE, so the cross-decimal (KASS 9dp / USDC 6dp) adjustment is
-    // folded in: required_usdc = bond × twap / KASS_PRICE_SCALE (u128 intermediate,
+    // address pin), `spot_dao == protocol.spot_dao`, and the futarchy-program
+    // ownership of `spot_dao`. The returned TWAP is raw USDC per raw SOL ×
+    // SPOT_PRICE_SCALE, so the cross-decimal (SOL 9dp / USDC 6dp) adjustment is
+    // folded in: required_usdc = bond × twap / SPOT_PRICE_SCALE (u128 intermediate,
     // overflow-checked back into u64).
-    // POOL-ORIENTATION ASSUMPTION (load-bearing): `kass_price` reads the BLESSED
-    // futarchy `kass_dao` spot pool, which is KASS-base / USDC-quote, so its TWAP
-    // is `quote-per-base = raw-USDC per raw-KASS × KASS_PRICE_SCALE`. That is
-    // exactly the "price of one KASS in USDC" we need to value a KASS bond in
-    // USDC; if the pool were inverted (USDC-base/KASS-quote) this product would be
+    // POOL-ORIENTATION ASSUMPTION (load-bearing): `spot_price` reads the BLESSED
+    // futarchy `spot_dao` spot pool, which is SOL-base / USDC-quote, so its TWAP
+    // is `quote-per-base = raw-USDC per raw-SOL × SPOT_PRICE_SCALE`. That is
+    // exactly the "price of one SOL in USDC" we need to value a SOL bond in
+    // USDC; if the pool were inverted (USDC-base/SOL-quote) this product would be
     // the reciprocal and the escrow would be nonsensical. The orientation is fixed
-    // by `Protocol.kass_dao` (set once at governance handoff), so this holds for
+    // by `Protocol.spot_dao` (set once at governance handoff), so this holds for
     // every challenge under that protocol.
     assert_key(usdc_mint_ai, &oracle.usdc_mint)?;
     let protocol = load_protocol(protocol_ai, program_id)?;
-    let twap = kass_price(&protocol, kass_dao_ai)?;
+    let twap = spot_price(&protocol, spot_dao_ai)?;
     let required_usdc = u64::try_from(
         (proposer.bond as u128)
             .checked_mul(twap)
             .ok_or(ProgramError::ArithmeticOverflow)?
-            / KASS_PRICE_SCALE,
+            / SPOT_PRICE_SCALE,
     )
     .map_err(|_| ProgramError::ArithmeticOverflow)?;
-    // A zero escrow means the challenger stakes nothing (sub-micro KASS valuation
+    // A zero escrow means the challenger stakes nothing (sub-micro SOL valuation
     // truncated to 0, or a zero bond). Reject: a challenge must put real USDC
     // skin-in-the-game, and a zero-escrow market has no source for the directional
     // USDC fee at settle. NOTE the truncation is DOWNWARD (`× twap / SCALE` floors),
@@ -321,12 +321,12 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     market.proposer = *proposer_ai.address();
     market.challenger = *challenger_ai.address();
     market.question = *question_ai.address();
-    market.kass_vault = *kass_vault_ai.address();
+    market.base_vault = *base_vault_ai.address();
     market.usdc_vault = *usdc_vault_ai.address();
     market.pass_amm = *pass_amm_ai.address();
     market.fail_amm = *fail_amm_ai.address();
-    market.oracle_pass_kass = *oracle_pass_kass_ai.address();
-    market.oracle_fail_kass = *oracle_fail_kass_ai.address();
+    market.oracle_pass_base = *oracle_pass_base_ai.address();
+    market.oracle_fail_base = *oracle_fail_base_ai.address();
     market.challenger_usdc_vault = *escrow_vault_ai.address();
     market.twap_end = now
         .checked_add(oracle.twap_window)

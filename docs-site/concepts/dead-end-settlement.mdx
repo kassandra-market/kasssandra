@@ -57,7 +57,7 @@ returnable principal, and the per-staker claims drain it to dust:
   Because `reward_pool == 0` on a dead-end, every reward term in the claim formulas is
   automatically zero — the existing `claim_*` path already pays **non-slashed principal
   only** on `InvalidDeadend`. Disposition matters, though: a rejected-fact submitter and a
-  slashed approve-voter get their slashed portion **withheld** (their KASS was in the
+  slashed approve-voter get their slashed portion **withheld** (their SOL was in the
   now-burned `bond_pool`), while agreed/duplicate stakers get their full stake back. A
   disqualified proposer gets `0` (their bond was burned); a survivor gets
   `bond − slashed_amount`.
@@ -88,7 +88,7 @@ Squads v4 multisig vault PDA, established once through the admin→DAO handoff i
 Like any terminal oracle, a dead-ended oracle is cleaned up permissionlessly: `claim_*`
 drains the returnable principal to each staker (closing their accounts), `close_ai_claim`
 and `close_market` reclaim metadata/market rent, and after a 30-day grace
-(`SWEEP_GRACE = 2_592_000`) `sweep_oracle` transfers any residual vault KASS to the DAO
+(`SWEEP_GRACE = 2_592_000`) `sweep_oracle` transfers any residual vault SOL to the DAO
 treasury and closes the oracle and its vault.
 
 ## Where to go next

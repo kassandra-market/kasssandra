@@ -34,7 +34,7 @@ import {
   driveToResolvedFull,
   driveToResolvedUncontested,
   fabricateGovernance,
-  fabricateKassDao,
+  fabricateSpotDao,
   keepWindowOpen,
   openProposals,
   proposeAs,
@@ -51,19 +51,19 @@ async function globalSetup(): Promise<() => Promise<void>> {
   const ctx = await bootAndInit(PORT)
   const rpcUrl = `http://127.0.0.1:${PORT}`
 
-  // The funded browser wallet — SOL + KASS at its canonical ATA (create-fee burn
+  // The funded browser wallet — SOL + SOL at its canonical ATA (create-fee burn
   // + claim destination). It also plays a proposer in the AiClaim + Resolved seeds.
   const wallet = await Keypair.generate()
   await ctx.harness.airdrop(wallet.publicKey.toString(), 50_000_000_000)
   const walletKass = (
-    await associatedTokenAccount(wallet.publicKey.toString(), ctx.kassMint.publicKey.toString())
+    await associatedTokenAccount(wallet.publicKey.toString(), ctx.baseMint.publicKey.toString())
   ).address
   await ctx.harness.setAccount(walletKass.toString(), {
     lamports: 5_000_000,
     owner: TOKEN_PROGRAM_ID.toString(),
     executable: false,
     data: toHex(
-      tokenAccountBytes(ctx.kassMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
+      tokenAccountBytes(ctx.baseMint.publicKey.toBytes(), wallet.publicKey.toBytes(), 10n ** 15n),
     ),
   })
 
@@ -200,10 +200,10 @@ async function globalSetup(): Promise<() => Promise<void>> {
   }
 
   // 13) Admin / DAO fixtures — the /admin page drives set_governance, set_config,
-  //     resolve_deadend, kass_price. Fabricate a futarchy-owned kass_dao (carries a
-  //     spot TWAP for kass_price) and a dead-end oracle (InvalidDeadend) to resolve.
+  //     resolve_deadend, spot_price. Fabricate a futarchy-owned spot_dao (carries a
+  //     spot TWAP for spot_price) and a dead-end oracle (InvalidDeadend) to resolve.
   //     Each spec patches the Protocol governance fields it needs per-test.
-  const kassDao = await fabricateKassDao(ctx)
+  const spotDao = await fabricateSpotDao(ctx)
   const deadend = await seedDeadendOracle(ctx, 13n)
   oracles.deadend = { nonce: '13', address: deadend.toString() }
   const protocol = (await pda.protocol()).address.toString()
@@ -215,10 +215,10 @@ async function globalSetup(): Promise<() => Promise<void>> {
         secretKey: Array.from(wallet.secretKey as Uint8Array),
         publicKey: wallet.publicKey.toString(),
         rpcUrl,
-        kassMint: ctx.kassMint.publicKey.toString(),
+        baseMint: ctx.baseMint.publicKey.toString(),
         usdcMint: ctx.usdcMint.publicKey.toString(),
         protocol,
-        kassDao,
+        spotDao,
         oracles,
       },
       null,

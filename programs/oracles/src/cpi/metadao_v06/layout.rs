@@ -52,7 +52,7 @@ use pinocchio::{address::Address as Pubkey, error::ProgramError};
 // directly in Kassandra's `Protocol` at bootstrap rather than re-derive it from
 // `Dao` bytes, precisely because of this variable offset.
 //
-// ## Futarchy spot TWAP (the F5 `kass_price` source). The spot `Pool` is the
+// ## Futarchy spot TWAP (the F5 `spot_price` source). The spot `Pool` is the
 // FIRST payload element of BOTH PoolState variants, so its offsets ARE fixed
 // regardless of variant:
 //
@@ -212,7 +212,7 @@ pub fn read_u128(data: &[u8], off: usize) -> Result<u128, ProgramError> {
 /// ```
 ///
 /// The result is a price scaled by `1e12` (quote units per base unit). This is
-/// the F5 `kass_price` primitive: it reads the spot `Pool.oracle` embedded in the
+/// the F5 `spot_price` primitive: it reads the spot `Pool.oracle` embedded in the
 /// `Dao` (fixed offsets, variant-independent — see the layout block above).
 /// Returns [`KassandraError::InvalidAccount`] if the buffer is too short, or if
 /// the elapsed window is non-positive or the aggregator is zero (i.e. the TWAP

@@ -45,7 +45,7 @@ import {
   enc,
   fabricateTokenAccountMint,
   fetchAccount,
-  fundKass,
+  fundBase,
   openProposals,
   proposeRealWithAuthority,
   sendIx,
@@ -100,10 +100,10 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
   const contentHash = new Uint8Array(32).fill(0x07);
   const submitter = await Keypair.generate();
   await f.harness.airdrop(submitter.publicKey.toString(), 2_000_000_000);
-  const submitterKass = await fundKass(f, submitter.publicKey, 1_000_000n);
+  const submitterBase = await fundBase(f, submitter.publicKey, 1_000_000n);
   await sendIx(
     f,
-    await submitFact({ oracle, submitter: submitter.publicKey, submitterKass, contentHash, stake: 100n, uri: "ipfs://fact" }),
+    await submitFact({ oracle, submitter: submitter.publicKey, submitterBase, contentHash, stake: 100n, uri: "ipfs://fact" }),
     [submitter],
   );
   const fact = (await pda.fact(oracle, contentHash)).address;
@@ -113,15 +113,15 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
 
   const voter = await Keypair.generate();
   await f.harness.airdrop(voter.publicKey.toString(), 2_000_000_000);
-  const voterKass = await fundKass(f, voter.publicKey, 10n * BOND);
+  const voterBase = await fundBase(f, voter.publicKey, 10n * BOND);
   await sendIx(
     f,
-    await voteFact({ oracle, fact, voter: voter.publicKey, voterKass, kind: VOTE_APPROVE, stake: 2n * BOND }),
+    await voteFact({ oracle, fact, voter: voter.publicKey, voterBase, kind: VOTE_APPROVE, stake: 2n * BOND }),
     [voter],
   );
 
   await advancePastPhaseEnd(f, oracle);
-  await sendIx(f, await finalizeFacts({ nonce, kassMint: f.kassMint.publicKey, tail: [fact] }));
+  await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [fact] }));
 
   // --- submit_ai_claim via the APP builder (each proposer authority signs) ---
   for (let i = 0; i < proposerPdas.length; i++) {
@@ -148,20 +148,20 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
 
 export interface MarketComposition {
   question: Address;
-  kass: VaultAccounts;
+  base: VaultAccounts;
   usdc: VaultAccounts;
-  oraclePassKass: Address;
-  oracleFailKass: Address;
+  oraclePassBase: Address;
+  oracleFailBase: Address;
 }
 
 export async function composeMarket(f: Fixture, oracle: Address): Promise<MarketComposition> {
   const questionId = new Uint8Array(32).fill(0x07);
   const { question } = await composeQuestion(f, oracle, questionId, 2);
-  const kass = await composeVault(f, question, f.kassMint.publicKey);
+  const base = await composeVault(f, question, f.baseMint.publicKey);
   const usdc = await composeVault(f, question, f.usdcMint.publicKey);
-  const oraclePassKass = await fabricateTokenAccountMint(f, kass.passMint, oracle, 0n);
-  const oracleFailKass = await fabricateTokenAccountMint(f, kass.failMint, oracle, 0n);
-  return { question, kass, usdc, oraclePassKass, oracleFailKass };
+  const oraclePassBase = await fabricateTokenAccountMint(f, base.passMint, oracle, 0n);
+  const oracleFailBase = await fabricateTokenAccountMint(f, base.failMint, oracle, 0n);
+  return { question, base, usdc, oraclePassBase, oracleFailBase };
 }
 
 /** openChallenge via `buildOpenChallengeIxs` → the app seam (challenger is fee-payer + signer). */
@@ -183,17 +183,17 @@ export async function openChallengeViaApp(
     proposer: c.proposer,
     challenger: challenger.publicKey,
     question: m.question,
-    kassVault: m.kass.vault,
+    baseVault: m.base.vault,
     usdcVault: m.usdc.vault,
     passAmm,
     failAmm,
-    kassVaultUnderlying: m.kass.underlying,
-    passKassMint: m.kass.passMint,
-    failKassMint: m.kass.failMint,
-    oraclePassKass: m.oraclePassKass,
-    oracleFailKass: m.oracleFailKass,
+    baseVaultUnderlying: m.base.underlying,
+    passBaseMint: m.base.passMint,
+    failBaseMint: m.base.failMint,
+    oraclePassBase: m.oraclePassBase,
+    oracleFailBase: m.oracleFailBase,
     cvEventAuthority,
-    kassDao: f.kassDao,
+    spotDao: f.spotDao,
     usdcMint: f.usdcMint.publicKey,
     challengerUsdcSrc,
   });
@@ -205,7 +205,7 @@ export interface Payouts {
   escrowVault: Address;
   proposerUsdc: Address;
   challengerUsdcDest: Address;
-  challengerKass: Address;
+  challengerBase: Address;
 }
 
 /**
@@ -213,7 +213,7 @@ export interface Payouts {
  * settle accounts from the DECODED on-chain {@link decodeMarket} + Oracle (NOT
  * the composed-account JSON `m`), then sending through the app seam
  * (permissionless; payer sends). The three payout destinations are the DERIVED
- * ATAs (proposer-authority USDC, challenger USDC + KASS); we fabricate token
+ * ATAs (proposer-authority USDC, challenger USDC + SOL); we fabricate token
  * accounts AT those ATA addresses so the handler's `assert_token_account` +
  * transfers land on them, exactly as they would on a real cluster after an
  * idempotent create. Asserts each derived account == what the market was composed
@@ -236,10 +236,10 @@ export async function settleChallengeViaApp(
   // The derived payout ATAs (owner: proposer.authority / challenger).
   const proposerUsdc = await ata(c.proposerAuthority, f.usdcMint.publicKey);
   const challengerUsdcDest = await ata(challenger.publicKey, f.usdcMint.publicKey);
-  const challengerKass = await ata(challenger.publicKey, f.kassMint.publicKey);
+  const challengerBase = await ata(challenger.publicKey, f.baseMint.publicKey);
   await setTokenAccountAt(f, proposerUsdc, f.usdcMint.publicKey, c.proposerAuthority, 0n);
   await setTokenAccountAt(f, challengerUsdcDest, f.usdcMint.publicKey, challenger.publicKey, 0n);
-  await setTokenAccountAt(f, challengerKass, f.kassMint.publicKey, challenger.publicKey, 0n);
+  await setTokenAccountAt(f, challengerBase, f.baseMint.publicKey, challenger.publicKey, 0n);
   const escrowVault = (await pda.challengeUsdcVault(market)).address;
 
   const twapEnd = decodedMarket.twapEnd;
@@ -261,16 +261,16 @@ export async function settleChallengeViaApp(
   expect(keys[4]).toBe(m.question.toString());
   expect(keys[5]).toBe(passAmm.toString());
   expect(keys[6]).toBe(failAmm.toString());
-  expect(keys[11]).toBe(m.kass.vault.toString());
-  expect(keys[12]).toBe(m.kass.underlying.toString());
-  expect(keys[13]).toBe(m.kass.passMint.toString());
-  expect(keys[14]).toBe(m.kass.failMint.toString());
-  expect(keys[15]).toBe(m.oraclePassKass.toString());
-  expect(keys[16]).toBe(m.oracleFailKass.toString());
+  expect(keys[11]).toBe(m.base.vault.toString());
+  expect(keys[12]).toBe(m.base.underlying.toString());
+  expect(keys[13]).toBe(m.base.passMint.toString());
+  expect(keys[14]).toBe(m.base.failMint.toString());
+  expect(keys[15]).toBe(m.oraclePassBase.toString());
+  expect(keys[16]).toBe(m.oracleFailBase.toString());
   expect(keys[18]).toBe(proposerUsdc.toString());
   expect(keys[19]).toBe(challengerUsdcDest.toString());
-  expect(keys[20]).toBe(challengerKass.toString());
+  expect(keys[20]).toBe(challengerBase.toString());
 
   await sendViaApp(f, f.payer, ixs, 1_400_000);
-  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerKass };
+  return { escrowVault, proposerUsdc, challengerUsdcDest, challengerBase };
 }

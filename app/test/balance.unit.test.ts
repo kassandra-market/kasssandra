@@ -1,27 +1,27 @@
 /**
- * Offline unit tests for the KASS balance read helper (default suite — no
+ * Offline unit tests for the SOL balance read helper (default suite — no
  * network). A mock {@link Connection} records the queried address and either
  * resolves a token-account balance or throws an absent-ATA error; we assert:
- *   - a present ATA → `fetchKassBalance` returns the raw `bigint` amount, and
- *     the address queried is exactly `ATA(owner, kassMint)`;
+ *   - a present ATA → `fetchSolBalance` returns the raw `bigint` amount, and
+ *     the address queried is exactly `ATA(owner, baseMint)`;
  *   - an absent ATA (the RPC throws "could not find account") → `0n`, NOT thrown.
  */
 import { Keypair, type Connection } from '@solana/web3.js'
 import { associatedTokenAccount } from '@kassandra-market/oracles'
 import { describe, expect, it } from 'vitest'
 
-import { fetchKassBalance } from '../src/data/balance.ts'
+import { fetchSolBalance } from '../src/data/balance.ts'
 
 async function fixture() {
   const owner = (await Keypair.generate()).publicKey
-  const kassMint = (await Keypair.generate()).publicKey
-  const ata = (await associatedTokenAccount(owner, kassMint)).address
-  return { owner, kassMint, ata }
+  const baseMint = (await Keypair.generate()).publicKey
+  const ata = (await associatedTokenAccount(owner, baseMint)).address
+  return { owner, baseMint, ata }
 }
 
-describe('fetchKassBalance', () => {
+describe('fetchSolBalance', () => {
   it('returns the balance bigint and queries the derived ATA', async () => {
-    const { owner, kassMint, ata } = await fixture()
+    const { owner, baseMint, ata } = await fixture()
     let queried: string | undefined
     const connection = {
       getTokenAccountBalance: async (address: { toString(): string }) => {
@@ -30,13 +30,13 @@ describe('fetchKassBalance', () => {
       },
     } as unknown as Connection
 
-    const balance = await fetchKassBalance(connection, owner, kassMint)
+    const balance = await fetchSolBalance(connection, owner, baseMint)
     expect(balance).toBe(123n)
     expect(queried).toBe(ata.toString())
   })
 
   it('returns 0n when the ATA is absent (the RPC throws) instead of throwing', async () => {
-    const { owner, kassMint } = await fixture()
+    const { owner, baseMint } = await fixture()
     const connection = {
       getTokenAccountBalance: async () => {
         throw new Error(
@@ -45,6 +45,6 @@ describe('fetchKassBalance', () => {
       },
     } as unknown as Connection
 
-    await expect(fetchKassBalance(connection, owner, kassMint)).resolves.toBe(0n)
+    await expect(fetchSolBalance(connection, owner, baseMint)).resolves.toBe(0n)
   })
 })

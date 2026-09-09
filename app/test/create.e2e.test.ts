@@ -2,7 +2,7 @@
  * RF3 GATED surfpool create-oracle E2E (`KASSANDRA_E2E=1`).
  *
  * Proves the create-oracle ACTION lands a real Oracle on-chain: boot + deploy +
- * init_protocol + mint KASS to a funded USER keypair at its canonical ATA, then
+ * init_protocol + mint SOL to a funded USER keypair at its canonical ATA, then
  * drive `buildCreateOracleIxs` through the {@link keypairSender}-backed
  * {@link sendAndConfirm} seam (the SAME action the UI uses) and decode the
  * created Oracle — asserting optionsCount, deadline, and creator == the user.
@@ -35,7 +35,7 @@ const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady();
 interface Fixture {
   harness: SurfpoolHarness;
   payer: Keypair;
-  kassMint: Keypair;
+  baseMint: Keypair;
   usdcMint: Keypair;
 }
 
@@ -49,9 +49,9 @@ describe.skipIf(!ENABLED)("create-oracle action over a real surfpool cluster", (
     await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
-    const kassMint = await Keypair.generate();
+    const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(kassMint.publicKey.toString(), {
+    await harness.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -64,23 +64,23 @@ describe.skipIf(!ENABLED)("create-oracle action over a real surfpool cluster", (
       data: toHex(mintBytes(payer.publicKey.toBytes(), 0n, 6)),
     });
 
-    f = { harness, payer, kassMint, usdcMint };
+    f = { harness, payer, baseMint, usdcMint };
     await sendIx(f, await initProtocol({
       admin: payer.publicKey,
-      kassMint: kassMint.publicKey,
+      baseMint: baseMint.publicKey,
       usdcMint: usdcMint.publicKey,
     }));
 
-    // The USER keypair the action layer drives: funded SOL + KASS at its CANONICAL
+    // The USER keypair the action layer drives: funded SOL + SOL at its CANONICAL
     // ATA (the creation-fee burn source the action derives + uses).
     user = await Keypair.generate();
     await harness.airdrop(user.publicKey.toString(), 10_000_000_000);
-    const userAta = (await associatedTokenAccount(user.publicKey, kassMint.publicKey)).address;
+    const userAta = (await associatedTokenAccount(user.publicKey, baseMint.publicKey)).address;
     await harness.setAccount(userAta.toString(), {
       lamports: 5_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
-      data: toHex(tokenAccountBytes(kassMint.publicKey.toBytes(), user.publicKey.toBytes(), 10n ** 15n)),
+      data: toHex(tokenAccountBytes(baseMint.publicKey.toBytes(), user.publicKey.toBytes(), 10n ** 15n)),
     });
   }, 180_000);
 
@@ -103,7 +103,7 @@ describe.skipIf(!ENABLED)("create-oracle action over a real surfpool cluster", (
       optionsCount,
       deadline,
       creator: user.publicKey,
-      kassMint: f.kassMint.publicKey,
+      baseMint: f.baseMint.publicKey,
       usdcMint: f.usdcMint.publicKey,
     });
     const { signature } = await sendAndConfirm(f.harness.connection, sender, built.ixs);
@@ -113,7 +113,7 @@ describe.skipIf(!ENABLED)("create-oracle action over a real surfpool cluster", (
     expect(oracle.optionsCount).toBe(optionsCount);
     expect(oracle.deadline).toBe(deadline);
     expect(oracle.creator.toString()).toBe(user.publicKey.toString());
-    expect(oracle.kassMint.toString()).toBe(f.kassMint.publicKey.toString());
+    expect(oracle.baseMint.toString()).toBe(f.baseMint.publicKey.toString());
     expect(oracle.usdcMint.toString()).toBe(f.usdcMint.publicKey.toString());
   }, 120_000);
 });

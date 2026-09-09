@@ -8,7 +8,7 @@
  *   3. an `initConfig` instruction BUILT by the SDK is signed with web3.js v3 and
  *      sent as a real RPC transaction the program ACCEPTS;
  *   4. the resulting Config PDA is fetched over RPC and decoded by the SDK decoder,
- *      with authority/kassMint/minLiquidity matching what we submitted.
+ *      with authority/baseMint/minLiquidity matching what we submitted.
  *
  * GATING: only included by vitest when `KASSANDRA_MARKET_E2E=1`; additionally SKIPS
  * (not fails) when surfpool / the built `.so` are unavailable.
@@ -25,7 +25,7 @@ import { MarketSurfpoolHarness, surfpoolReady } from "./harness/index.js";
 
 const ENABLED = process.env.KASSANDRA_MARKET_E2E === "1" && surfpoolReady();
 const PORT = 18899;
-const MIN_LIQ = 1_000_000_000n; // 1 KASS (9 dp)
+const MIN_LIQ = 1_000_000_000n; // 1 SOL (9 dp)
 
 describe.skipIf(!ENABLED)("surfpool smoke: deploy + init_config over RPC", () => {
   let harness: MarketSurfpoolHarness;
@@ -46,14 +46,14 @@ describe.skipIf(!ENABLED)("surfpool smoke: deploy + init_config over RPC", () =>
     await harness.setUpgradeAuthority(payer.publicKey);
     const authority = (await Keypair.generate()).publicKey;
 
-    // Canonical KASS mint, written token-program-owned.
-    const kassMint = await harness.createMint(9, payer.publicKey);
-    const feeDestination = await harness.createTokenAccount(kassMint, authority, 0n);
+    // Canonical SOL mint, written token-program-owned.
+    const baseMint = await harness.createMint(9, payer.publicKey);
+    const feeDestination = await harness.createTokenAccount(baseMint, authority, 0n);
 
     // Build init_config via the SDK, sign with web3.js v3, send over RPC.
     const ix = await initConfig({
       payer: payer.publicKey,
-      kassMint,
+      baseMint,
       authority,
       minLiquidity: MIN_LIQ,
       feeBps: 100,
@@ -67,7 +67,7 @@ describe.skipIf(!ENABLED)("surfpool smoke: deploy + init_config over RPC", () =>
     const cfg = decodeConfig(data);
     expect(cfg.accountType).toBe(AccountType.Config);
     expect(cfg.authority.toString()).toBe(authority.toString());
-    expect(cfg.kassMint.toString()).toBe(kassMint.toString());
+    expect(cfg.baseMint.toString()).toBe(baseMint.toString());
     expect(cfg.minLiquidity).toBe(MIN_LIQ);
   }, 60_000);
 });

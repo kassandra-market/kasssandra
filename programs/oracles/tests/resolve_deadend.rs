@@ -32,10 +32,10 @@ fn deadended_ctx() -> (TestCtx, Keypair, solana_pubkey::Pubkey) {
 
     let dao = Keypair::new();
     ctx.svm.airdrop(&dao.pubkey(), 1_000_000_000).unwrap();
-    let (_da, kass_dao) = TestCtx::stand_in_governance(0x44);
+    let (_da, spot_dao) = TestCtx::stand_in_governance(0x44);
     // Record a SIGNABLE keypair as `dao_authority` directly: the Task G1-hardened
     // `set_governance` only accepts the derived (unsignable) Squads vault PDA.
-    ctx.force_governance(dao.pubkey(), kass_dao);
+    ctx.force_governance(dao.pubkey(), spot_dao);
 
     // Two distinct options -> options_count == 2; force the dead-end phase
     // directly (the dead-end mechanics are tested elsewhere).
