@@ -1,9 +1,8 @@
 /**
- * The Markets flow's offline-preview fixture set — the market analogue of
- * `src/data/mockOracles/index.ts`. Wired into a `MockIndexerClient` (a later
- * task) that intercepts `IndexerClient` calls in `?mock` / `VITE_MOCK=1` mode;
- * this module only exposes the fixture DATA as async functions shaped like the
- * real `IndexerClient` methods.
+ * The Markets flow's offline-preview fixture set. Wired into a
+ * `MockIndexerClient` that intercepts `IndexerClient` calls in `?mock` /
+ * `VITE_MOCK=1` mode; this module only exposes the fixture DATA as async
+ * functions shaped like the real `IndexerClient` methods.
  */
 import type { CandleDto, ConfigDto, MarketDetailDto, MarketDto } from "../../lib/indexer";
 import { mockCandlesFor, mockConfigDto, mockMarketDetailFor, mockMarketDtos, MOCK_MARKET_PUBKEYS } from "./fixtures";

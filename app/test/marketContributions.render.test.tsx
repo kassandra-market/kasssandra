@@ -8,8 +8,7 @@
  * amounts, LP supply, the connected wallet's share).
  */
 import { vi } from "vitest";
-import { MarketStatus } from "@kassandra-market/markets";
-import { Phase } from "@kassandra-market/oracles";
+import { MarketStatus, Phase } from "@kassandra-market/markets";
 
 const PUB = "Market11111111111111111111111111111111111111";
 const ORACLE = "Orac1e1111111111111111111111111111111111111";
@@ -61,7 +60,6 @@ vi.mock("../src/market/hooks/useOracleGroup", () => ({
     refetch: () => {},
   }),
 }));
-vi.mock("../src/hooks/useOracleMeta", () => ({ useOracleMeta: () => new Map() }));
 // A connected wallet = the both-cohort contributor, so the overview's "Your share"
 // resolves (its gross LP = 2/3·3 activation + 3 late = 5 of 6.5 = 76.9%).
 vi.mock("@solana/wallet-adapter-react", () => ({

@@ -17,10 +17,8 @@ concurrency:
 
 jobs:
   # ---- Rust crates → crates.io ----------------------------------------------
-  # Order matters: kassandra-oracles-program must exist on the index before
-  # kassandra-oracles-sdk (which depends on it) can publish. `cargo publish` waits
-  # for each crate to be available in the index before returning, so the sequential
-  # calls below are safe. kassandra-markets-sdk is standalone (solana-sdk v2 island).
+  # kassandra-markets-sdk is standalone (solana-sdk v2 island). The program crate
+  # is published first so the SDK can resolve it from crates.io.
   crates:
     name: crates.io
     runs-on: ubuntu-latest
@@ -55,15 +53,12 @@ jobs:
             cargo publish -p "$name" --locked
           }
 
-          # Dependency order: the program crate first, then the SDK that depends on it.
-          publish_crate kassandra-oracles-program
-          publish_crate kassandra-oracles-sdk
+          # The markets SDK is a solana-sdk v2 island (does not depend on the
+          # on-chain program crate).
           publish_crate kassandra-markets-sdk
 
   # ---- TypeScript packages → npm --------------------------------------------
-  # @kassandra-market/markets depends on @kassandra-market/oracles (workspace:*),
-  # which pnpm rewrites to the real version at publish time — so oracles publishes
-  # first. Both are scoped packages published with public access (publishConfig).
+  # @kassandra-market/markets is published with public access (publishConfig).
   npm:
     name: npm
     runs-on: ubuntu-latest
@@ -88,10 +83,8 @@ jobs:
       - name: Verify TS package versions match the workspace
         run: node scripts/sync-version.mjs --check
 
-      - name: Build SDKs
-        run: |
-          pnpm --filter @kassandra-market/oracles build
-          pnpm --filter @kassandra-market/markets build
+      - name: Build SDK
+        run: pnpm --filter @kassandra-market/markets build
 
       - name: Publish packages (skip versions already on npm)
         env:
@@ -111,5 +104,4 @@ jobs:
             pnpm --filter "$name" publish --no-git-checks --access public
           }
 
-          publish_pkg @kassandra-market/oracles
           publish_pkg @kassandra-market/markets

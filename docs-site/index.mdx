@@ -1,21 +1,15 @@
 ---
 title: "Kassandra"
-description: "A decentralized, AI-assisted optimistic oracle on Solana that resolves binary and categorical questions."
+description: "Solana prediction markets resolved by MagicBlock GPT oracle."
 mode: "wide"
 ---
 
-Kassandra is a decentralized, **AI-assisted optimistic oracle** on Solana. It answers
-**binary and categorical** questions. The common case is cheap: an uncontested proposal
-settles with no AI and no markets. The dispute machinery — fact agreement, AI claims, and
-decision markets — only fires when proposers disagree.
+Kassandra is a **prediction-market** protocol on Solana. A question is posted as a
+markets-owned Subject; MagicBlock's GPT oracle resolves it; traders buy and sell
+cYES/cNO until the market settles.
 
-The novel idea: **interpretation is fixed at oracle creation**, so disputes reduce to
-*which evidence is real and relevant* (objective) rather than *what the evidence means*
-(subjective). An AI applies that fixed interpretation to an agreed fact set, and a
-MetaDAO-style decision market is the ultimate arbiter that can override a faulty AI claim.
-
-No zkTLS, no TEEs. Honesty is enforced **economically** (SOL staking and slashing) and by
-**markets** (the final arbiter of truth).
+Honesty is enforced **economically** (SOL liquidity and fees) and by **markets**
+(the MetaDAO cYES/cNO AMM).
 
 <CardGroup cols={2}>
   <Card title="What is Kassandra?" icon="book-open" href="/guide/what-is-kassandra">

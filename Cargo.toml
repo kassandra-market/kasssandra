@@ -1,10 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-    "programs/oracles",
     "programs/markets",
-    "runner",
-    "sdks/oracles/rust",
     "sdks/markets/rust",
     "indexer",
 ]
@@ -26,9 +23,7 @@ repository = "https://github.com/kassandra-market/oracle"
 # The `version` fields let `cargo publish` resolve these as real crates.io deps (a
 # path-only dep can't be published). They MUST equal [workspace.package].version
 # above — `scripts/sync-version.mjs` keeps them (and the TS packages) in lockstep.
-kassandra-oracles-program = { path = "programs/oracles", version = "0.1.0" }
-kassandra-oracles-sdk = { path = "sdks/oracles/rust", version = "0.1.0" }
-# The prediction-market program + its Rust SDK (merged in from kassandra-market).
+# The prediction-market program + its Rust SDK.
 # The indexer depends on the program crate (state structs + `ID`) only — it is
 # pinocchio/bytemuck based and pulls NO solana-sdk, so the shipped indexer stays
 # on the granular v3 client stack. The market program's own dev-tests + sdks/markets/rust
@@ -47,8 +42,7 @@ pinocchio-system = "0.6"
 pinocchio-token = "0.6"
 solana-address = "2"
 
-# ---- client-side solana crates (v3 — one major everywhere: sdks/oracles/rust, runner,
-#      indexer, and the test harness, so there are no cross-crate type splits) ----
+# ---- client-side solana crates (v3 — indexer + test harness) ----
 solana-pubkey = { version = "3", features = ["curve25519"] }
 solana-instruction = "3"
 solana-hash = "3"
@@ -80,11 +74,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-uti
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "http2"] }
 
 # ---- indexer (Carbon → Postgres, read API) ----
-# The oracle side crawls transactions (instruction/event log); the market side
-# indexes accounts (gpa snapshot + program-subscribe live tail). One binary runs
-# both Carbon pipelines into one Postgres + one axum server.
+# Indexes markets program accounts (gpa snapshot + program-subscribe live tail)
+# into one Postgres + one axum server.
 carbon-core = "1.0.0"
-carbon-rpc-transaction-crawler-datasource = "1.0.0"
 carbon-rpc-gpa-datasource = "1.0.0"
 carbon-rpc-program-subscribe-datasource = "1.0.0"
 axum = "0.8"

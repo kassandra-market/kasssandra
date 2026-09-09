@@ -3,8 +3,8 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * Browser E2E for the Kassandra dApp against a real local validator.
  *
- * `globalSetup` boots surfpool (+ deploys the program, inits the protocol, mints
- * SOL/USDC, funds the wallet keypair, and seeds oracles) and writes the funded
+ * `globalSetup` boots surfpool (+ deploys the market program, inits Config,
+ * mints SOL, funds the wallet keypair, and seeds markets) and writes the funded
  * keypair to `e2e/.wallet.json`; the specs inject it so the real-signing e2e
  * wallet (`VITE_E2E=1`) signs + sends on the local validator. `webServer` starts
  * the Vite dev server pointed at surfpool (:8899) in e2e mode.

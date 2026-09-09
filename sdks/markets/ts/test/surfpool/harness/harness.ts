@@ -54,6 +54,7 @@ export class MarketSurfpoolHarness {
   private constructor(
     private readonly child: ChildProcess,
     readonly rpcUrl: string,
+    readonly wsUrl: string,
     readonly connection: Connection,
   ) {}
 
@@ -110,8 +111,9 @@ export class MarketSurfpoolHarness {
       },
     );
 
+    const wsUrl = `ws://127.0.0.1:${wsPort}`;
     const connection = new Connection(rpcUrl, "confirmed");
-    const harness = new MarketSurfpoolHarness(child, rpcUrl, connection);
+    const harness = new MarketSurfpoolHarness(child, rpcUrl, wsUrl, connection);
 
     try {
       await harness.waitForHealth(opts.readyTimeoutMs ?? 60_000);
@@ -155,6 +157,17 @@ export class MarketSurfpoolHarness {
       await new Promise((r) => setTimeout(r, 250));
     }
     throw new Error(`surfpool did not become healthy within ${timeoutMs}ms (${lastErr})`);
+  }
+
+  /** Write an ELF at `programId` as a BPFLoader2 program account (surfpool JIT-loads it). */
+  async deployElf(programId: string, soPath: string): Promise<void> {
+    const elfHex = readFileSync(soPath).toString("hex");
+    await this.setAccount(programId, {
+      lamports: 5_000_000_000,
+      owner: BPF_LOADER_2,
+      executable: true,
+      data: elfHex,
+    });
   }
 
   /** Write the local ELF at the fixed program id as a BPFLoader2 program account. */

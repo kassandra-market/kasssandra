@@ -1,6 +1,6 @@
 /**
- * Pod account decoders for the kassandra-market account types + a minimal
- * external Kassandra-oracle reader.
+ * Pod account decoders for the kassandra-market account types, including the
+ * markets-owned GPT Subject (`decodeMarketOracle`).
  *
  * Each `decodeX(data: Uint8Array): X` reads the EXACT pinned little-endian byte
  * offsets from `programs/markets/src/state.rs` (pinned in

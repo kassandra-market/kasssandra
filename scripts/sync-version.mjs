@@ -21,7 +21,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const check = process.argv.includes('--check')
 
 // The TS packages that mirror the workspace version.
-const TS_PACKAGES = ['sdks/oracles/ts/package.json', 'sdks/markets/ts/package.json']
+const TS_PACKAGES = ['sdks/markets/ts/package.json']
 
 /** Read `version` from the `[workspace.package]` table of the root Cargo.toml. */
 function workspaceVersion() {

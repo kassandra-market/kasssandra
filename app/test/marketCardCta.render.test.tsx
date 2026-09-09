@@ -71,10 +71,11 @@ function render(s: MarketSummary): string {
 }
 
 describe("MarketCard — header", () => {
-  it("shows a status badge and a link to the linked oracle", () => {
+  it("shows a status badge and the GPT subject as text, not an /oracles/ link", () => {
     const html = render(summary(MarketStatus.Active, 500_000_000_000n));
     expect(html).toMatch(/aria-label="Status: Active"/);
-    expect(html).toContain(`href="/oracles/${ORACLE}"`);
+    expect(html).not.toContain(`href="/oracles/${ORACLE}"`);
+    expect(html).toContain("Subject");
   });
 
   it("never shows the old restated \"Pays YES on <outcome>\" line", () => {

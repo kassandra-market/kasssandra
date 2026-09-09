@@ -12,6 +12,9 @@
  */
 import { Address } from "@solana/web3.js";
 
+/** kassandra-market program ID (`programs/markets/src/lib.rs::ID`). */
+export const MARKET_PROGRAM_ID = new Address("FEGNHWAB7kc7VC9CCwbvVPsv4Jykz2r2WQ758V4xCT9S");
+
 /** MagicBlock solana-gpt-oracle program. */
 export const GPT_ORACLE_PROGRAM_ID = new Address("LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab");
 

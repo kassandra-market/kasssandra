@@ -6,16 +6,16 @@ const FLANK: { title: string; body: string }[] = [
     body: 'MetaDAO markets set parameters and steer the treasury.',
   },
   {
-    title: 'Challenge markets',
-    body: 'Disputes become markets where honest capital is rewarded.',
+    title: 'Live AMM',
+    body: 'Active markets trade cYES against cNO; implied probability is the pool price.',
   },
   {
-    title: 'Bonds & slashing',
-    body: 'Every claim is backed; wrong answers lose their bond.',
+    title: 'GPT settlement',
+    body: 'MagicBlock GPT stamps the winning option on the Subject PDA.',
   },
   {
-    title: 'Verifiable verdicts',
-    body: 'Pinned model + committed hashes — reproduce it yourself.',
+    title: 'On-chain accounts',
+    body: 'Every market, contribution, and Subject is a program account you can inspect.',
   },
 ]
 
@@ -30,14 +30,6 @@ function FlankCard({ title, body, delay = 0 }: { title: string; body: string; de
   )
 }
 
-/**
- * Trust / credibility — the Centered Portrait Panel pattern. A tall 16px-radius
- * centerpiece carries the ONE gradient permitted by the guide (a bioluminescent
- * teal orb with a lavender-phosphor edge) with a white role overlay near the
- * bottom that fades into the abyss canvas. Flanked by two stacked feature cards
- * on each side; on mobile everything collapses to a single column with the
- * portrait first.
- */
 export default function TrustPanel() {
   return (
     <section aria-labelledby="trust-heading" className="px-6 py-20">
@@ -46,18 +38,15 @@ export default function TrustPanel() {
           Trust and credibility
         </h2>
         <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-[1fr_minmax(320px,380px)_1fr]">
-          {/* Left flank (stacked) — appears after the portrait on mobile via order. */}
           <div className="order-2 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:order-1 lg:grid-cols-1">
             <FlankCard {...FLANK[0]} delay={80} />
             <FlankCard {...FLANK[1]} delay={160} />
           </div>
 
-          {/* Centerpiece portrait panel — the ONE allowed card gradient, now a
-              bioluminescent teal orb with a lavender-phosphor edge (Auros). */}
           <Reveal className="order-1 lg:order-2">
             <div
               role="img"
-              aria-label="The open-source resolver — anyone can run it"
+              aria-label="MagicBlock GPT settles every market"
               className="relative flex min-h-[440px] flex-col justify-between overflow-hidden rounded-card border border-hairline p-8 pb-16 lg:min-h-[520px]"
               style={{
                 background:
@@ -66,23 +55,22 @@ export default function TrustPanel() {
               }}
             >
               <div className="relative z-10">
-                <EyebrowTag className="!text-cyan-phosphor">Open source</EyebrowTag>
+                <EyebrowTag className="!text-cyan-phosphor">MagicBlock GPT</EyebrowTag>
                 <p className="mt-4 max-w-[16ch] font-serif text-heading-sm font-light leading-tight text-white">
-                  Reproducible by anyone, trusted by no one.
+                  Settled by GPT, priced by the market.
                 </p>
               </div>
 
               <div className="relative z-10">
                 <p className="font-inter text-[15px] font-medium text-white">
-                  The open-source resolver
+                  GPT Subject on-chain
                 </p>
                 <p className="mt-1 font-inter text-[13px] text-white/80">
-                  Rerun the pinned model over the agreed facts and check the committed hashes
-                  yourself.
+                  Each market binds to a markets-owned Subject PDA. MagicBlock GPT writes the
+                  resolved option; redeemers collect from the vault.
                 </p>
               </div>
 
-              {/* Soft bottom fade merging into the (lightened) abyss canvas. */}
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 bottom-0 z-0 h-12"
@@ -93,7 +81,6 @@ export default function TrustPanel() {
             </div>
           </Reveal>
 
-          {/* Right flank (stacked). */}
           <div className="order-3 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-1">
             <FlankCard {...FLANK[2]} delay={80} />
             <FlankCard {...FLANK[3]} delay={160} />

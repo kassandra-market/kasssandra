@@ -9,8 +9,7 @@
  * panels stay dormant. `TradePanel` is stubbed (it needs wallet/indexer context).
  */
 import { vi } from 'vitest'
-import { MarketStatus } from '@kassandra-market/markets'
-import { Phase } from '@kassandra-market/oracles'
+import { MarketStatus, Phase } from '@kassandra-market/markets'
 
 const PUB = 'Market11111111111111111111111111111111111111'
 
@@ -27,7 +26,7 @@ const activeDetail = {
     feeCollected: false,
     oracle: { toString: () => 'Orac1e1111111111111111111111111111111111111' },
   },
-  oracle: { optionsCount: 2, phase: Phase.Challenge, resolvedOption: -1 },
+  oracle: { optionsCount: 2, phase: Phase.Open, resolvedOption: 0xff },
   reserves: { base: 640_000_000n, quote: 360_000_000n },
   contributions: [],
 }

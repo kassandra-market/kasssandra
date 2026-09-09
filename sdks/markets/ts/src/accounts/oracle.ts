@@ -10,7 +10,7 @@
  */
 import { Address } from "@solana/web3.js";
 
-import { readPubkey, readU64, readU8, view } from "./common.js";
+import { readPubkey, readU64LE, readU8, view } from "./common.js";
 
 export const SUBJECT_LEN = 88;
 export const SUBJECT_OPTIONS_COUNT_OFFSET = 2;

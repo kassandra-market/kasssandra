@@ -43,16 +43,16 @@ updated: YYYY-MM-DD
 
 ### context
 - [`context/overview.md`](context/overview.md) — the whole system in one page.
-- [`context/programs.md`](context/programs.md) — the two on-chain (pinocchio) programs.
-- [`context/sdks.md`](context/sdks.md) — the four SDKs (rust+ts × oracles+markets).
+- [`context/programs.md`](context/programs.md) — the on-chain (pinocchio) markets program.
+- [`context/sdks.md`](context/sdks.md) — the markets SDKs (rust + ts).
 - [`context/app.md`](context/app.md) — the React/Vite dApp.
-- [`context/runner.md`](context/runner.md) — the off-chain AI runner.
+- [`context/runner.md`](context/runner.md) — retired in-house runner (MagicBlock llm_oracle instead).
 - [`context/indexer.md`](context/indexer.md) — the Carbon→Postgres indexer + read API.
 - [`context/build-test-ci.md`](context/build-test-ci.md) — toolchains, commands, CI lanes.
 
 ### specs
-- [`specs/oracle-program.md`](specs/oracle-program.md) — instructions, accounts, phases.
-- [`specs/market-program.md`](specs/market-program.md) — instructions, accounts, lifecycle.
+- [`specs/oracle-program.md`](specs/oracle-program.md) — retired dispute-oracle program.
+- [`specs/market-program.md`](specs/market-program.md) — instructions, accounts, lifecycle, GPT Subject.
 - [`specs/versioning-and-publishing.md`](specs/versioning-and-publishing.md) — single-source version + publish workflow.
 - [`specs/testing-infrastructure.md`](specs/testing-infrastructure.md) — LiteSVM, surfpool, ephemeral Postgres, Playwright.
 - [`specs/ephemeral-rollups-and-ai-oracle.md`](specs/ephemeral-rollups-and-ai-oracle.md) — MagicBlock ER + external AI feed.

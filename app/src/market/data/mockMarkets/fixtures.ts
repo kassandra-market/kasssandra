@@ -1,6 +1,6 @@
 /**
  * Hand-authored fixture DTOs for the Markets flow's offline preview — the market
- * analogue of `src/data/mockOracles/fixtures.ts`. Every DTO here is consumed by
+ * analogue of other fixture DTOs. Every DTO here is consumed by
  * the REAL mapper functions in `../markets.ts` (`mapMarketDto`, `mapConfigDto`,
  * `mapContributionDto`), so every pubkey must be a genuinely valid base58-encoded
  * 32-byte address (round-trips through `new Address(...)`, exactly like a live

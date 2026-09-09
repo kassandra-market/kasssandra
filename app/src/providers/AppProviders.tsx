@@ -1,14 +1,12 @@
 import { type ReactNode } from 'react'
 
 import { ClusterProvider } from '../lib/ClusterProvider'
-import { isMockMode, isE2eMode } from '../data/mockOracles'
+import { isMockMode, isE2eMode } from '../lib/mode'
 import { MockWalletProvider } from '../lib/mockWallet'
 import { E2eWalletProvider } from '../lib/e2eWallet'
 import { StandardWalletProvider } from '../lib/standardWallet'
 import { WalletMenu } from '../components/wallet/WalletMenu'
-// Market side: its sole data + tx gateway (same-origin `/api/*`). Decoupled from
-// the oracle's RPC Connection — market pages read/write purely through this
-// client, so it just needs to be in the tree for `useIndexer()` consumers.
+// The market client's sole data + tx gateway (same-origin `/api/*`).
 import { IndexerProvider as MarketIndexerProvider } from '../market/lib/IndexerProvider'
 
 /**

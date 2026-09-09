@@ -1,62 +1,65 @@
 ---
 name: kassandra-rust-client
-description: "Use when integrating with the Kassandra optimistic-oracle Solana program from Rust - a test harness, an off-chain keeper or bot, or another service that builds a Kassandra instruction, derives a Kassandra PDA, or decodes an on-chain account (oracle, proposer, fact, ai_claim, market). Reach for the kassandra-oracles-sdk crate before hand-rolling account metas, discriminant bytes, or PDA seeds."
+description: "Use when integrating with the Kassandra prediction-market Solana program from Rust - a test harness, an off-chain keeper or bot, or another service that builds a Kassandra instruction, derives a Kassandra PDA, or talks to MagicBlock's GPT oracle via CreateSubject / RequestAi. Reach for the kassandra-markets-sdk crate before hand-rolling account metas, discriminant bytes, or PDA seeds."
 ---
 
 # Integrating Kassandra from Rust
 
-The `kassandra-oracles-sdk` crate is the Rust client for the Kassandra dispute-oracle program. Its
-single source of truth is the on-chain program (it re-exports the discriminants, account
-layouts, and constants), so it never drifts. Depend on it (path or git), not on hand-rolled
-encoding.
+The `kassandra-markets-sdk` crate is the Rust client for the Kassandra markets program. It
+mirrors on-chain discriminants, account orders, and PDA seeds. Depend on it (path or git),
+not on hand-rolled encoding. This crate is a **solana-sdk v2 island** (the rest of the
+workspace uses the granular v3 client stack).
 
 ```toml
-kassandra-oracles-sdk = { git = "https://github.com/Dodecahedr0x/kassandra", package = "kassandra-oracles-sdk" }
+kassandra-markets-sdk = { git = "https://github.com/kassandra-market/kasssandra", package = "kassandra-markets-sdk" }
 ```
 
 ## Surface
 
-- **`kassandra_oracles_sdk::PROGRAM_ID`** (a `solana_pubkey::Pubkey`), plus `TOKEN_PROGRAM_ID`,
-  `SYSTEM_PROGRAM_ID`, `ATA_PROGRAM_ID`, and the `Ix` discriminant enum.
-- **`kassandra_oracles_sdk::ix::*`** — one builder per instruction, returning
-  `solana_instruction::Instruction`. Unlike the TS client, these take the account pubkeys
-  **explicitly** (derive PDAs yourself via `pda::*`). Examples: `ix::propose`, `ix::create_oracle`,
-  `ix::submit_fact`, `ix::vote_fact`, `ix::submit_ai_claim` (+ `submit_ai_claim_raw` for a
-  pre-built 97-byte payload), `ix::open_challenge` / `ix::settle_challenge` (take an
-  `OpenChallengeAccounts` / `SettleChallengeAccounts` struct), `ix::finalize_*`, `ix::claim_*`,
-  `ix::close_*`, `ix::sweep_oracle`.
-- **`kassandra_oracles_sdk::pda::*`** — return `(Pubkey, u8)`: `pda::oracle(&PROGRAM_ID, nonce)`,
-  `pda::proposer(&PROGRAM_ID, &oracle, &authority)`, `pda::stake_vault`, `pda::fact`, `pda::vote`,
-  `pda::ai_claim`, `pda::protocol`, `pda::mint_authority`, `pda::challenge_usdc_vault`, `pda::base_ata`.
-- **`kassandra_oracles_sdk::accounts`** — the layout structs (`Oracle`, `Proposer`, `Fact`, `FactVote`,
-  `AiClaim`, `Market`, `Protocol`) + `decode::<T>` (zero-copy, aligned) and `read::<T>` (owned
-  copy, unaligned-safe — use this for RPC buffers), plus sentinels `CLAIM_OPTION_NONE`,
-  `VOTE_APPROVE`, `VOTE_DUPLICATE`.
+- **`kassandra_markets_sdk::PROGRAM_ID`** (a `solana_sdk::pubkey::Pubkey`) plus the `IX_*`
+  discriminant constants (`IX_CREATE_SUBJECT = 15`, `IX_REQUEST_AI = 16`, …).
+- **`kassandra_markets_sdk::ix::*`** — one builder per instruction, returning
+  `solana_sdk::instruction::Instruction`. These take account pubkeys **explicitly** (derive
+  PDAs yourself via `pda::*`). Examples: `ix::init_config`, `ix::create_market`,
+  `ix::contribute`, `ix::activate`, `ix::resolve_market`, `ix::create_subject`,
+  `ix::request_ai`.
+- **`kassandra_markets_sdk::pda::*`** — return `(Pubkey, u8)`: `pda::config()`,
+  `pda::subject(nonce)`, `pda::market(&oracle, outcome_index)`, `pda::escrow(&market)`,
+  `pda::contribution(&market, &contributor)`.
+- **`kassandra_markets_sdk::metadao`** — MetaDAO v0.4 wire (question / vault / AMM) used
+  when a market activates.
+
+`create_subject(payer, nonce, options_count, llm_context)` derives the Subject PDA.
+`request_ai(subject, payer, text)` is the short form (no GPT remaining accounts). The
+on-chain program appends GPT remaining accounts when the caller supplies them.
 
 ## Example
 
 ```rust
-use kassandra_oracles_sdk::{accounts::{self, Oracle}, ix, pda, PROGRAM_ID};
-use solana_instruction::Instruction;
-use solana_pubkey::Pubkey;
+use kassandra_markets_sdk::{ix, pda, PROGRAM_ID};
+use solana_sdk::instruction::Instruction;
+use solana_sdk::pubkey::Pubkey;
 
-fn build_propose(oracle: Pubkey, authority: Pubkey, authority_base: Pubkey, option: u8, bond: u64) -> Instruction {
-    let (proposer, _) = pda::proposer(&PROGRAM_ID, &oracle, &authority);
-    let (stake_vault, _) = pda::stake_vault(&PROGRAM_ID, &oracle);
-    ix::propose(&PROGRAM_ID, oracle, proposer, authority, authority_base, stake_vault, option, bond)
+fn stand_up_subject(payer: &Pubkey, llm_context: &Pubkey, nonce: u64) -> Instruction {
+    let _ = PROGRAM_ID;
+    ix::create_subject(payer, nonce, 2, llm_context)
 }
 
-// Decode an Oracle from account bytes fetched over RPC (unaligned-safe).
-fn read_oracle(data: &[u8]) -> Result<Oracle, bytemuck::PodCastError> {
-    accounts::read::<Oracle>(data)
+fn bind_binary_market(
+    creator: &Pubkey,
+    subject: &Pubkey,
+    base_mint: &Pubkey,
+    creator_base_ata: &Pubkey,
+    seed_amount: u64,
+) -> Instruction {
+    let (_market, _) = pda::market(subject, 0);
+    ix::create_market(creator, subject, base_mint, creator_base_ata, seed_amount, 0)
 }
 ```
 
 ## Notes
 
-- Instructions that sign as the oracle PDA (finalize_*, open/settle challenge, claim_*,
-  close_market, sweep, and create_oracle's payload) need the oracle **nonce** — the `Oracle`
-  struct does not store it, so carry it alongside the oracle pubkey.
-- `kassandra-oracles-program` is pulled in transitively (with `no-entrypoint`); you don't depend on it
-  directly.
-- The TS client (`@kassandra-market/oracles`) mirrors this — see the `kassandra-ts-client` skill.
+- Resolution is GPT: `Market.oracle` is a Subject pubkey. MagicBlock
+  `solana-gpt-oracle` callbacks stamp `Subject.resolved_option`.
+- The TS client (`@kassandra-market/markets`) mirrors this — see the
+  `kassandra-ts-client` skill.

@@ -25,14 +25,9 @@ if ! command -v surfpool >/dev/null 2>&1 && [ -z "${SURFPOOL_BIN:-}" ]; then
   exit 1
 fi
 
-echo "==> [2/4] build the program (.so), the runner binary, and the SDK"
-# Always rebuild (incremental) so a stale .so after a program change isn't deployed.
+echo "==> [2/4] build the program (.so) and the SDK"
 just build
-# globalSetup seeds AI claims via the REAL runner (mock Anthropic).
-if [ ! -x "target/debug/kassandra-runner" ]; then
-  cargo build -p kassandra-runner
-fi
-pnpm --filter @kassandra-market/oracles build >/dev/null
+pnpm --filter @kassandra-market/markets build >/dev/null
 
 echo "==> [3/4] ensure Playwright + Chromium are installed"
 if [ ! -d "node_modules/@playwright/test" ] && [ ! -d "app/node_modules/@playwright/test" ]; then

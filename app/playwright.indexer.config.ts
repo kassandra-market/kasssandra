@@ -3,11 +3,10 @@ import { defineConfig, devices } from '@playwright/test'
 /**
  * Browser E2E for the INDEXER integration.
  *
- * `globalSetup` boots surfpool (:8960), seeds an oracle with real transactions,
+ * `globalSetup` boots surfpool (:8960), seeds a prediction market,
  * then runs the actual `kassandra-indexer` binary against surfpool + an ephemeral
  * Postgres. `webServer` starts a Vite dev server (:5175) with `VITE_INDEXER_URL`
- * pointed at the indexer, so the app renders its on-chain ActivityFeed from real
- * indexed data.
+ * pointed at the indexer.
  *
  * Run via `scripts/e2e-playwright-indexer.sh` (needs the indexer binary built +
  * postgres available). Separate config/ports so it never collides with the

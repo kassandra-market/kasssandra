@@ -1,72 +1,43 @@
 # Kassandra
 
-**A decentralized, AI-assisted optimistic oracle on Solana.**
+**Solana prediction markets resolved by MagicBlock GPT oracle.**
 
-Kassandra answers **binary and categorical** questions. The common case is cheap: an
-uncontested proposal settles with no AI and no markets. The dispute machinery — fact
-agreement, AI claims, and decision markets — only fires when proposers disagree.
+A question is a markets-owned **Subject** PDA. MagicBlock's GPT oracle stamps
+`resolved_option`; binary sub-markets (`Market.oracle` = that Subject) trade
+cYES/cNO until `ResolveMarket`. Honesty is enforced economically (SOL liquidity
+and fees) and by markets.
 
-The core idea: **interpretation is fixed at oracle creation**, so disputes reduce to *which
-evidence is real and relevant* (objective) rather than *what the evidence means*
-(subjective). An AI applies that fixed interpretation to an agreed fact set, and a
-MetaDAO-style decision market is the ultimate arbiter that can override a faulty AI claim.
+> **Full documentation** lives in [`docs-site/`](./docs-site). See
+> [`docs/plans/`](./docs/plans) for historical design documents (append-only).
 
-No zkTLS, no TEEs. Honesty is enforced **economically** (SOL staking and slashing) and by
-**markets** (the final arbiter of truth).
+## How a market resolves
 
-> **Full documentation** lives in [`docs-site/`](./docs-site) — an extensive Mintlify site
-> (concepts, architecture, protocol reference, challenge markets, SDK, and dApp guide). See
-> [`docs/plans/2026-06-29-kassandra-design.md`](./docs/plans/2026-06-29-kassandra-design.md)
-> for the original design document.
+1. **CreateSubject** — nonce, option count, GPT `llm_context`.
+2. **CreateMarket** — one binary sub-market per outcome, seeded in SOL.
+3. **Fund → compose MetaDAO → Activate** — live cYES/cNO AMM.
+4. **RequestAi** — CPI into solana-gpt-oracle; `llm_oracle` callbacks.
+5. **ResolveMarket** — winning outcome from the Subject.
 
-## How an oracle resolves
+## One product, one repo
 
-1. **Create** — a creator posts a prompt, immutable interpretation rules, categorical
-   options, and a deadline, and pays a dynamic SOL creation fee (burned).
-2. **Propose** — after the deadline, proposers submit a categorical value plus a SOL bond,
-   no proofs. If everyone agrees, the oracle **resolves** immediately — no AI, no markets.
-3. **Dispute** (only on conflict) — two or more distinct values lock the proposers in and
-   open a **fact proposal** window, then a disjoint **fact voting** window that freezes the
-   agreed evidence set.
-4. **AI claims** — each locked-in proposer reruns the open-source runner over the agreed
-   facts and resubmits a value plus AI-claim metadata (model, params, hashes).
-5. **Challenge** — every AI claim is challengeable in parallel; a challenge opens a MetaDAO
-   decision market, and a fail-vs-pass TWAP decides whether the claim is disqualified.
-6. **Resolve or dead-end** — after the last market settles, the final plurality over
-   surviving proposers is computed. If nothing survives (or a tie), the oracle reaches an
-   **Invalid dead-end**, resolvable only by SOL governance.
-
-## Two products, one repo
-
-This monorepo hosts **two** on-chain programs and the shared surface around them:
-
-- **Kassandra** — the AI-assisted optimistic oracle described above.
-- **[Kassandra Market](./programs/markets)** — a SOL-denominated **AMM
-  prediction market** that wraps MetaDAO v0.4 `conditional_vault` + `amm` and defers
-  resolution to the oracle. Program ID `FEGNHWAB7kc7VC9CCwbvVPsv4Jykz2r2WQ758V4xCT9S`.
-
-There is a **single app** (both `/oracles` and `/markets`) and a **single indexer**
-(one Postgres, two pipelines) serving both. See the docs
-[Prediction markets](./docs-site/market/overview.mdx) section.
+This monorepo hosts the **prediction-market** program and the surface around it.
+The in-house Kassandra oracles (dispute) program was removed; markets talk to
+GPT directly. Program ID `FEGNHWAB7kc7VC9CCwbvVPsv4Jykz2r2WQ758V4xCT9S`.
 
 ## Monorepo layout
 
 | Path | What it is |
 | --- | --- |
-| [`programs/oracles/`](./programs/oracles) | The oracle Solana program, written in **Pinocchio** (not Anchor). Owns oracle state, phases, facts, AI claims, plurality, staking, and the dynamic fee. Program ID `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY`. |
-| [`programs/markets/`](./programs/markets) | The **prediction-market** program — a Pinocchio wrapper over MetaDAO v0.4 vault + amm, resolved by the oracle. |
-| [`runner/`](./runner) | The open-source AI runner (`kassandra-runner`). Applies the fixed interpretation to the agreed facts and produces a categorical answer plus verifiable metadata. |
-| [`sdks/oracles/ts/`](./sdks/oracles/ts) · [`sdks/markets/ts/`](./sdks/markets/ts) | Hand-written TypeScript clients (`@kassandra-market/oracles`, `@kassandra-market/markets`) — instruction builders, account decoders, PDA helpers. No IDL; layouts mirror the programs. |
-| [`sdks/oracles/rust/`](./sdks/oracles/rust) · [`sdks/markets/rust/`](./sdks/markets/rust) | The Rust SDKs (`kassandra-oracles-sdk`, `kassandra-markets-sdk`). |
-| [`indexer/`](./indexer) | The single Carbon indexer — two pipelines (oracle transactions → `events`; market accounts → `market_accounts`) into one Postgres, serving both read + gateway APIs. |
-| [`app/`](./app) | The single frontend (Vite + React) — both the oracle (`/oracles`) and market (`/markets`) sections. |
-| [`docs-site/`](./docs-site) | The Mintlify documentation site (published via GitHub Actions → GitHub Pages) — covers both products. |
-| [`docs/`](./docs) | Design documents + the dated implementation plans (`docs/plans/`) for both programs. |
-| [`scripts/`](./scripts) | Helper scripts — dumping MetaDAO program binaries into the test fixtures. |
+| [`programs/markets/`](./programs/markets) | The **prediction-market** program — Pinocchio, GPT Subject, MetaDAO v0.4 vault + AMM. |
+| [`sdks/markets/ts/`](./sdks/markets/ts) | Hand-written TypeScript client (`@kassandra-market/markets`). |
+| [`sdks/markets/rust/`](./sdks/markets/rust) | Rust SDK (`kassandra-markets-sdk`, solana-sdk v2 island). |
+| [`indexer/`](./indexer) | Carbon indexer of market accounts → Postgres + axum `/api/*`. |
+| [`app/`](./app) | Vite + React dApp (`/markets`). |
+| [`docs-site/`](./docs-site) | Mintlify documentation site. |
+| [`docs/`](./docs) | Historical design documents (`docs/plans/` is append-only). |
+| [`scripts/`](./scripts) | Helper scripts — GPT oracle vendor, MetaDAO fixtures, e2e. |
 
-MetaDAO's deployed **conditional-vault + AMM** programs are reused via CPI — by the
-oracle for the pass/fail decision markets, and by Kassandra Market for the cYES/cNO
-AMM; neither reimplements the vault or AMM.
+MetaDAO's deployed **conditional-vault + AMM** programs are reused via CPI.
 
 ## Getting started
 
@@ -106,8 +77,8 @@ the chain alive so you can browse `/oracles` and `/markets`. Ctrl-C tears it dow
 ### Build & test the program
 
 ```bash
-just build            # cargo build-sbf for BOTH programs (oracle + market → target/deploy/*.so)
-just test             # rebuilds the .so files first, then runs both LiteSVM test suites
+just build            # cargo build-sbf for the markets program → target/deploy/*.so
+just test             # rebuilds the .so first, then runs LiteSVM tests
 ```
 
 The tests are **LiteSVM** unit + invariant + CPI-integration tests. `just test` depends on
@@ -117,15 +88,13 @@ The tests are **LiteSVM** unit + invariant + CPI-integration tests. `just test` 
 
 ```bash
 pnpm install
-pnpm --filter @kassandra-market/oracles build         # the app imports the built oracle SDK
-pnpm --filter ./sdks/markets/ts build  # …and the market SDK (note: `--filter sdk` won't match `@kassandra-market/oracles`)
+pnpm --filter @kassandra-market/markets build
 pnpm --filter ./app dev           # serve the frontend locally
 ```
 
 See each package's README for details:
-[program](./programs/oracles/README.md) ·
-[runner](./runner/README.md) ·
-[sdk](./sdk/README.md) ·
+[program](./programs/markets/README.md) ·
+[sdk](./sdks/markets/ts/README.md) ·
 [app](./app/README.md) ·
 [docs-site](./docs-site/README.md) ·
 [scripts](./scripts/README.md).
@@ -133,28 +102,20 @@ See each package's README for details:
 ## Architecture notes
 
 - **Pinocchio, not Anchor.** Manual account deserialization/validation and manual
-  instruction dispatch (no macros/IDL). CPI into MetaDAO's Anchor programs is constructed
-  by hand (8-byte sighash discriminators + account metas + Borsh args). The trade-off: more
-  manual serialization in exchange for a smaller, cheaper, dependency-light program.
-- **On-chain:** request config, all stakes/bonds (SOL) and market collateral (USDC), the
-  fact set & approvals, AI-claim metadata, plurality result, market triggers,
-  and dynamic-fee state.
-- **Off-chain:** model inference, private to each runner. No raw AI output on-chain — only
-  the categorical claim and verifiable metadata.
-- **Trust model:** economic + market-based. SOL slashing for bad facts/claims; MetaDAO
-  decision markets as the ultimate arbiter over a faulty AI claim.
+  instruction dispatch (no macros/IDL). CPI into MetaDAO's Anchor programs and
+  MagicBlock GPT oracle is constructed by hand.
+- **On-chain:** market config, Subject resolution, SOL funding/LP, MetaDAO vault+AMM.
+- **Off-chain:** MagicBlock `llm_oracle` inference. The GPT callback writes
+  `Subject.resolved_option`.
+- **Trust model:** economic + market-based (SOL liquidity/fees; MetaDAO cYES/cNO AMM).
 
 ## Tokens
 
-- **SOL** (wrapped, 9 decimals) — bonds, fact stakes, market funding/LP, and
-  in-app protocol fees. There is no native Kassandra token and no participation
-  minting; honesty is still enforced by slashing SOL bonds and by markets.
-- **USDC** (6 decimals) — a challenger's stake when opening a decision market,
-  and the quote side of the pass/fail AMMs.
+- **SOL** (wrapped, 9 decimals) — market funding/LP and protocol fees.
+- Conditional cYES/cNO via MetaDAO vault (inherit vault decimals).
 
 ## Status
 
-Kassandra is under active development. The program, SDK, runner, and dApp are implemented
-and covered by LiteSVM and end-to-end (surfpool) tests; economic parameters (fee-EMA
-constants, reward splits) are still being tuned. See `docs/plans/` for the
-implementation history and open items.
+Kassandra is under active development. The markets program, SDK, and dApp are
+covered by LiteSVM and end-to-end (surfpool) tests. See `docs/plans/` for
+historical design notes (append-only).

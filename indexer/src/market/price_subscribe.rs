@@ -57,7 +57,9 @@ async fn record(client: &Client, market: &str, slot: i64, base: u64, quote: u64)
     // reserve above 2^63 base units is not a real market — skip + log rather than
     // store garbage.
     let (Ok(base_i), Ok(quote_i)) = (i64::try_from(base), i64::try_from(quote)) else {
-        log::warn!("[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample");
+        log::warn!(
+            "[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample"
+        );
         return;
     };
     if let Err(e) =

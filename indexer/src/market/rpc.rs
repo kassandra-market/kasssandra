@@ -1,6 +1,6 @@
-//! On-demand RPC access for the tx gateway + foreign-account reads (oracle, AMM
-//! reserves, ATA existence/balances). A thin wrapper over the nonblocking
-//! `solana-rpc-client` so the API handlers stay small.
+//! On-demand RPC access for the tx gateway + enrichment reads (Subject PDA,
+//! AMM reserves). A thin wrapper over the nonblocking `solana-rpc-client` so
+//! the API handlers stay small.
 
 use anyhow::{Context, Result};
 use solana_account::Account;

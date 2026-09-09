@@ -4,19 +4,14 @@ import { join } from 'node:path'
 import { expect, test } from '@playwright/test'
 
 /**
- * The app's on-chain ActivityFeed, rendered from the REAL indexer.
- *
- * globalSetup seeded an oracle with create_oracle → propose×2 →
- * finalize_proposals → submit_fact, and the actual kassandra-indexer binary
- * crawled surfpool into Postgres. Here we open that oracle in the app (pointed at
- * the indexer via VITE_INDEXER_URL) and assert the feed shows those instructions.
+ * Indexer health + markets API, against the REAL indexer crawling a seeded market.
  */
 const fixture = JSON.parse(
   readFileSync(join(process.cwd(), 'e2e', 'indexer', '.wallet.json'), 'utf8'),
 ) as {
   secretKey: number[]
   indexerUrl: string
-  oracle: { address: string; expectedTypes: string[] }
+  market: string
 }
 
 test.beforeEach(async ({ page }) => {
@@ -26,8 +21,6 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('RPC gateway: POST /rpc forwards JSON-RPC to the backend RPC', async ({ request }) => {
-  // The backend crawls surfpool; its /rpc gateway forwards to that same RPC — so
-  // the app performs chain work through the backend, never holding an RPC URL.
   const res = await request.post(`${fixture.indexerUrl}/rpc`, {
     headers: { 'content-type': 'application/json' },
     data: { jsonrpc: '2.0', id: 1, method: 'getHealth' },
@@ -37,46 +30,16 @@ test('RPC gateway: POST /rpc forwards JSON-RPC to the backend RPC', async ({ req
   expect(body.result).toBe('ok')
 })
 
-test('indexer API: /accounts/:oracle/events returns the seeded instructions', async ({
-  request,
-}) => {
-  const res = await request.get(`${fixture.indexerUrl}/accounts/${fixture.oracle.address}/events`)
+test('indexer API: GET /api/markets includes the seeded market', async ({ request }) => {
+  const res = await request.get(`${fixture.indexerUrl}/api/markets`)
   expect(res.ok()).toBeTruthy()
-  const body = (await res.json()) as { events: { ixType: string; signature: string }[] }
-  const types = new Set(body.events.map((e) => e.ixType))
-  for (const t of fixture.oracle.expectedTypes) {
-    expect(types, `indexer should have a '${t}' event for the oracle`).toContain(t)
-  }
+  const body = (await res.json()) as { address?: string; pubkey?: string }[]
+  const pubkeys = body.map((m) => m.address ?? m.pubkey)
+  expect(pubkeys, 'indexer should list the seeded market').toContain(fixture.market)
 })
 
-test('ActivityFeed renders the indexed events on the oracle page', async ({ page }) => {
-  await page.goto(`/oracles/${fixture.oracle.address}`)
+test('MarketDetail renders the seeded market from the indexer', async ({ page }) => {
+  await page.goto(`/markets/${fixture.market}`)
   await expect(page.getByRole('button', { name: /^Connected:/ })).toBeVisible()
-
-  // The Activity feed lives in the Details tab (an "Activity" section, present only
-  // when the indexer backend is configured, i.e. VITE_INDEXER_URL is set).
-  await page.getByRole('tab', { name: /Details/ }).click()
-
-  const activity = page.getByRole('heading', { name: 'On-chain activity' })
-  await expect(activity).toBeVisible()
-
-  // Scope the row assertions to the activity feed card (not the whole Details panel,
-  // whose Proposers section would false-match /Propose/).
-  const feed = page.getByTestId('activity-feed')
-
-  // Each seeded instruction type shows as a human-labelled row (e.g. "Create
-  // oracle", "Propose", "Finalize proposals", "Submit fact").
-  const humanLabels: Record<string, RegExp> = {
-    create_oracle: /Create oracle/,
-    propose: /Propose/,
-    finalize_proposals: /Finalize proposals/,
-    submit_fact: /Submit fact/,
-  }
-  for (const t of fixture.oracle.expectedTypes) {
-    await expect(feed.getByText(humanLabels[t]).first()).toBeVisible()
-  }
-
-  // At least the 5 seeded events are listed.
-  const rows = feed.locator('ul > li')
-  expect(await rows.count()).toBeGreaterThanOrEqual(5)
+  await expect(page.getByRole('heading', { name: /prediction market/i })).toBeVisible()
 })

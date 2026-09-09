@@ -29,7 +29,7 @@ import {
   outcomeRow,
   truncateMiddle,
 } from "../../market/lib/marketView";
-import type { OracleMetaView } from "../../hooks/useOracleMeta";
+import type { OracleMetaView } from "../../market/lib/meta";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
@@ -106,7 +106,7 @@ export function CategoricalCard({
       <div className="flex items-center justify-between gap-2">
         <StatusChip status={overallStatus} />
         <span className="font-inter text-[12px] text-silver" title={group.oracle}>
-          Oracle {truncateMiddle(group.oracle, 4, 4)}
+          Subject {truncateMiddle(group.oracle, 4, 4)}
         </span>
       </div>
 

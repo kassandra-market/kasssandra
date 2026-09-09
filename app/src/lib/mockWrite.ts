@@ -7,7 +7,7 @@
  * {@link mockWriteConnection} so no RPC is touched.
  *
  * Everything here is gated behind {@link isMockMode} at the provider swap in
- * `AppProviders`, exactly like `mockOracles` — it does not pollute production.
+ * `AppProviders` — it does not pollute production.
  *
  * Query params (only read under `?mock`):
  *   - `wallet=connected`  → the mock wallet reports connected with a fake key.

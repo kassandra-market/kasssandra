@@ -9,7 +9,7 @@ updated: 2026-09-09
 
 Do **not** add `solana-gpt-oracle` (or `ephemeral-rollups-sdk`) as a program
 dependency. Those crates pull Anchor and pin pinocchio `^0.10`; this workspace
-is `0.11.2`. Reconstruct the wire in `programs/oracles/src/cpi/gpt_oracle.rs`.
+is `0.11.2`. Reconstruct the wire in `programs/markets/src/cpi/gpt_oracle.rs`.
 
 ## Program + PDAs
 
@@ -27,7 +27,7 @@ Production `callback_from_llm` requires payer == `ORACLE_IDENTITY`
 `A1ooMmN1fz6LbEFrjh6GukFS2ZeRYFzdyFjeafyyS7Ca`. We do **not** have that secret,
 and surfpool has no sigverify bypass, so a mainnet ELF cannot be driven in CI.
 
-The committed fixture `programs/oracles/tests/fixtures/solana_gpt_oracle.so` is
+The committed fixture `programs/markets/tests/fixtures/solana_gpt_oracle.so` is
 a source rebuild of
 [magicblock-labs/super-smart-contracts](https://github.com/magicblock-labs/super-smart-contracts)
 at SHA `96f1143f86cb83ec3df98bae29df7b7c8a9f92f2` with `ORACLE_IDENTITY` patched
@@ -40,7 +40,8 @@ to MagicBlock's **public test keypair**:
 | Fixture sha256 | `00553905d3a5a984766b13c4c605a8232dbe72b66cda50d4f26599f3b4cca9dc` |
 
 Rebuild: `./scripts/vendor-solana-gpt-oracle.sh`. Do **not** load this ELF into
-every `TestCtx` — only `programs/oracles/tests/gpt_oracle_cpi.rs`.
+every `TestCtx` — only GPT CPI / surfpool e2e (`programs/markets/tests/gpt_callback.rs`,
+`sdks/markets/ts/test/surfpool/gpt-oracle-e2e.test.ts`).
 
 Short-form callback tests that skip the GPT ELF still use
 `LiteSVM::with_sigverify(false)` so the identity PDA can be marked as a signer
@@ -52,7 +53,7 @@ without a keypair.
 OpenRouter via `chatgpt_rs`, and sends `callback_from_llm`. CI builds it with
 `./scripts/vendor-solana-gpt-oracle.sh --llm-oracle-only` (do **not** commit the
 host binary). The vendor patch makes `OPENROUTER_API_URL` overridable;
-`sdks/oracles/ts/test/surfpool/mock-openrouter.ts` serves a chatgpt_rs-shaped
+`sdks/markets/ts/test/surfpool/mock-openrouter.ts` serves a chatgpt_rs-shaped
 `POST /api/v1/chat/completions` body. Set `LLM_ORACLE_BIN`, `RPC_URL`,
 `WEBSOCKET_URL` (surfpool `--ws-port`), `OPENROUTER_API_KEY` (dummy).
 

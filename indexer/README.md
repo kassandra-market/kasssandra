@@ -1,56 +1,49 @@
 # Kassandra indexer
 
-A Solana indexing backend for the Kassandra program, built on the
-[**Carbon**](https://github.com/sevenlabs-hq/carbon) framework. It crawls the
-program's transactions into Postgres and serves a read-only JSON API.
+A Solana indexing backend for the **kassandra-markets** program, built on the
+[**Carbon**](https://github.com/sevenlabs-hq/carbon) framework. It indexes
+program accounts into Postgres and serves a JSON read + tx-gateway API.
 
-**It catches up on any events it missed.** Progress is a durable cursor in
-Postgres, not a live subscription — so every launch (including after downtime, a
-redeploy, or a crash) resumes from the last processed point and back-fills
-everything that happened while it was away.
+## How it works
 
-## How catch-up works
-
-- The datasource is Carbon's `RpcTransactionCrawler`, started with
-  `until = <durable cursor>`. `getSignaturesForAddress(program, { until })`
-  returns **every** signature newer than the cursor, paginated to chain head, so
-  no transaction in the gap is skipped.
-- Each Kassandra instruction becomes one row in `events`, inserted
-  **idempotently** (`ON CONFLICT (signature, ix_index) DO NOTHING`) — re-crawling
-  a range is harmless.
-- The durable cursor is only **promoted forward once the backfill frontier goes
-  stable** (the backlog has drained and we're caught up — see
-  `state::frontier_stable`). It is never advanced mid-backfill, so a crash re-scans
-  from the last safe cursor instead of skipping the un-backfilled older range.
-
-That combination gives at-least-once, gap-free indexing across restarts.
+- The datasource is Carbon's `GpaDatasource` (startup snapshot) plus an optional
+  `RpcProgramSubscribe` live tail of `MARKET_PROGRAM_ID`. Decoded accounts land
+  in `market_accounts`, slot-gated so an older event never clobbers a newer one.
+- A periodic getProgramAccounts reconcile keeps the table fresh and is the only
+  path that **prunes** accounts closed on-chain (the subscribe tail cannot see a
+  close). Set `INDEXER_RECONCILE_MS` > 0 to use polling as the freshness path
+  (e.g. surfpool, which has no working `programSubscribe`).
+- A websocket `accountSubscribe` on each Active market's cYES/cNO pool records
+  the `market_price` candle series (implied YES probability, 0..1).
+- Ctrl-C shuts the process down. The Carbon pipeline is non-fatal: if it exits,
+  reconcile keeps `market_accounts` correct.
 
 ## API
 
 | Route | Description |
 |---|---|
 | `GET /health` | liveness |
-| `GET /status` | program id, event count, current cursor |
-| `GET /events?type=&account=&beforeSlot=&limit=` | recent events, filterable |
-| `GET /accounts/{pubkey}/events` | events touching an account (e.g. an oracle) |
-| `GET /api/markets` · `GET /api/markets/{pubkey}` | market-program accounts (config, markets, one market's detail) |
-| `GET /api/markets/{pubkey}/candles?interval=&limit=` | OHLC candles of implied YES probability, from the ws-subscribed price series |
+| `GET /api/config` | governed singleton Config |
+| `GET /api/markets` | every indexed Market |
+| `GET /api/markets/{pubkey}` | market detail (contributions, Subject enrichment, AMM reserves) |
+| `GET /api/markets/{pubkey}/candles?interval=&limit=` | OHLC candles of implied YES probability |
+| `GET /api/account/{pubkey}` | on-demand account read |
+| `GET /api/blockhash` · `POST /api/transaction` · `GET /api/transaction/{sig}` | tx gateway |
 
-An `event` is one program instruction: `signature`, `slot`, `blockTime`,
-`ixType` (e.g. `propose`, `submit_fact`, `open_challenge` — from the on-chain
-`Ix` discriminant), `account0` (the primary subject, usually the oracle),
-`accounts`, and the raw `dataBase64`.
+`Market.oracle` is a markets-owned **Subject** PDA (88 bytes). Detail enrichment
+reads `options_count` @ 2, `status`/`phase` @ 3, `resolved_option` @ 4. JSON
+field names stay `oracle`, `optionsCount`, `phase`, `resolvedOption`.
 
 ## Configuration (env)
 
 | Var | Required | Default | Notes |
 |---|---|---|---|
-| `RPC_URL` | ✅ | — | Solana RPC to crawl (mainnet/devnet or custom) |
+| `RPC_URL` | ✅ | — | Solana RPC (mainnet/devnet or custom) |
 | `DATABASE_URL` | ✅ | — | Postgres connection string |
 | `PORT` | | `3000` | API port (Render sets this) |
-| `COMMITMENT` | | `finalized` | or `confirmed` |
-| `POLL_INTERVAL_MS` | | `10000` | crawler polling cadence |
-| `PROMOTE_INTERVAL_MS` | | `30000` | cursor-promotion check cadence |
+| `SOLANA_WS_URL` | | derived | Price subscriber; else `http`→`ws`, RPC port+1 |
+| `INDEXER_RECONCILE_MS` | | `0` | >0 → polling freshness path (no ws tail) |
+| `MARKET_PROGRAM_ID` | | program crate `ID` | Override the on-chain program id |
 | `RUST_LOG` | | `info` | |
 
 ## Run locally
@@ -59,14 +52,15 @@ An `event` is one program instruction: `signature`, `slot`, `blockTime`,
 # Postgres (any) + a Solana RPC:
 export DATABASE_URL=postgres://localhost/kassandra_indexer
 export RPC_URL=https://api.devnet.solana.com
-cargo run --release
+cargo run --release -p kassandra-indexer
 # then:
-curl localhost:3000/status
-curl "localhost:3000/events?type=propose&limit=20"
+curl localhost:3000/health
+curl localhost:3000/api/markets
 ```
 
-`cargo test` covers the instruction decoder, the `Ix` discriminant→name map, and
-the cursor-promotion predicate.
+`cargo test -p kassandra-indexer` covers the account decoder, Subject offset
+decode, ws-url derivation, and (when `TEST_DATABASE_URL` is set) the candle
+Postgres integration tests.
 
 ## Deploy (Render)
 
@@ -83,7 +77,3 @@ is the health check.
 (The read API's CORS layer is only exercised in local dev/e2e, where the app dev
 server points straight at the indexer cross-origin — in production the same-origin
 proxy makes CORS moot.)
-
-The crate is a **self-contained Cargo workspace** (its own `Cargo.lock`) so
-Render builds only the indexer and does not pull in the program's pinned Solana
-toolchain.

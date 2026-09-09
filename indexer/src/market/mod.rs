@@ -1,14 +1,12 @@
-//! Market side of the unified indexer.
+//! Market indexer: kassandra-markets program accounts via Carbon.
 //!
-//! The oracle side crawls transactions into an event log (`crate::db` → `events`);
-//! this side indexes the kassandra-market program's *accounts* (Config / Market /
-//! Contribution) via a Carbon pipeline (gpa snapshot + optional program-subscribe
-//! live tail) into the `market_accounts` Postgres table, and serves a read + tx
-//! gateway under `/api/*`.
+//! Indexes Config / Market / Contribution / ErSession via a Carbon pipeline
+//! (gpa snapshot + optional program-subscribe live tail) into the
+//! `market_accounts` Postgres table, and serves a read + tx gateway under
+//! `/health` + `/api/*`.
 //!
-//! Ported from the standalone `kassandra-market-indexer`: the in-memory `Store`
-//! became `db` (Postgres), and the program id + AMM discriminator are sourced
-//! locally (`kassandra_markets_program::ID` + the const below) so this crate never
+//! The program id + AMM discriminator are sourced locally
+//! (`kassandra_markets_program::ID` + the const below) so this crate never
 //! pulls the solana-sdk-v2 `kassandra-markets-sdk`.
 
 pub mod api;

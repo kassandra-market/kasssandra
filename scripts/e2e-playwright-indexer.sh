@@ -2,10 +2,8 @@
 #
 # e2e-playwright-indexer.sh — run the INDEXER browser E2E.
 #
-# Boots surfpool, seeds an oracle with real transactions, runs the actual
-# kassandra-indexer binary against surfpool + an ephemeral Postgres, then drives
-# the app's on-chain ActivityFeed (pointed at the indexer) in a browser. This
-# exercises the whole pipeline: chain → Carbon crawler → Postgres → read API → app.
+# Boots surfpool, seeds a prediction market, runs the actual
+# kassandra-indexer binary against surfpool + an ephemeral Postgres.
 #
 # Requirements: `surfpool` on PATH (or SURFPOOL_BIN), the Solana toolchain, a Rust
 # toolchain, `just`, pnpm, and the Postgres binaries (initdb/pg_ctl; PG_BIN
@@ -36,7 +34,7 @@ fi
 echo "==> [3/5] build the program (.so), the SDK, and the indexer binary"
 # Always rebuild (incremental) so a stale .so after a program change isn't deployed.
 just build
-pnpm --filter @kassandra-market/oracles build >/dev/null
+pnpm --filter @kassandra-market/markets build >/dev/null
 cargo build --release --locked --manifest-path indexer/Cargo.toml
 
 echo "==> [4/5] ensure Playwright + Chromium are installed"

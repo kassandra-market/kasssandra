@@ -1,9 +1,8 @@
-//! axum data + transaction gateway (market side) over Postgres + on-demand RPC.
+//! axum data + transaction gateway over Postgres + on-demand RPC.
 //!
-//! Mounted under `/api/*` and merged with the oracle router in `main`. The
-//! store-backed routes (`/api/config`, `/api/markets`) read `market_accounts`;
-//! the enrichment + tx routes use the on-demand [`Rpc`] (503 if none configured).
-//! No `/health` here — the oracle router owns the shared `/health`.
+//! Serves `/health` plus `/api/*`. The store-backed routes (`/api/config`,
+//! `/api/markets`) read `market_accounts`; the enrichment + tx routes use the
+//! on-demand [`Rpc`] (503 if none configured).
 
 use std::str::FromStr;
 use std::sync::Arc;
@@ -30,11 +29,11 @@ use crate::market::json::{
 };
 use crate::market::rpc::Rpc;
 
-// KASSANDRA oracle account field offsets (the oracle belongs to the Kassandra
-// program, not ours — the 3 status bytes are read directly).
-const ORACLE_OPTIONS_COUNT_OFFSET: usize = 160;
-const ORACLE_PHASE_OFFSET: usize = 161;
-const ORACLE_RESOLVED_OPTION_OFFSET: usize = 197;
+// Markets-owned Subject PDA (88 bytes). JSON field names stay `phase` for
+// Subject.status so the app contract is unchanged.
+const ORACLE_OPTIONS_COUNT_OFFSET: usize = 2;
+const ORACLE_PHASE_OFFSET: usize = 3;
+const ORACLE_RESOLVED_OPTION_OFFSET: usize = 4;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -60,6 +59,7 @@ pub fn router(state: AppState) -> Router {
     };
 
     Router::new()
+        .route("/health", get(|| async { "ok" }))
         .route("/api/config", get(get_config))
         .route("/api/markets", get(get_markets))
         .route("/api/markets/{pubkey}", get(get_market_detail))
@@ -163,8 +163,14 @@ async fn get_market_detail(
                     // history advances on a trade regardless of ws. Active-only;
                     // skipped when the pool is unchanged since the last sample.
                     if m.status == 1 {
-                        record_price_from_read(&state.client, &pubkey, read_slot as i64, base, quote)
-                            .await;
+                        record_price_from_read(
+                            &state.client,
+                            &pubkey,
+                            read_slot as i64,
+                            base,
+                            quote,
+                        )
+                        .await;
                     }
                 }
             }
@@ -184,7 +190,9 @@ async fn record_price_from_read(client: &Client, market: &str, slot: i64, base: 
     // would wrap negative and corrupt both the stored series and the change-guard
     // below). Not a real pool — skip + log. Mirrors `price_subscribe::record`.
     let (Ok(base_i), Ok(quote_i)) = (i64::try_from(base), i64::try_from(quote)) else {
-        log::warn!("[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample");
+        log::warn!(
+            "[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample"
+        );
         return;
     };
     match crate::market::db::latest_price_reserves(client, market).await {
@@ -240,6 +248,28 @@ fn decode_oracle(data: &[u8]) -> Option<OracleDto> {
         phase: *data.get(ORACLE_PHASE_OFFSET)?,
         resolved_option: *data.get(ORACLE_RESOLVED_OPTION_OFFSET)?,
     })
+}
+
+#[cfg(test)]
+mod decode_oracle_tests {
+    use super::decode_oracle;
+
+    #[test]
+    fn reads_subject_offsets() {
+        let mut data = vec![0u8; 88];
+        data[2] = 3; // options_count
+        data[3] = 1; // status / JSON `phase`
+        data[4] = 2; // resolved_option
+        let dto = decode_oracle(&data).expect("decodes");
+        assert_eq!(dto.options_count, 3);
+        assert_eq!(dto.phase, 1);
+        assert_eq!(dto.resolved_option, 2);
+    }
+
+    #[test]
+    fn rejects_truncated() {
+        assert!(decode_oracle(&[1, 2, 3, 4]).is_none());
+    }
 }
 
 async fn get_account(

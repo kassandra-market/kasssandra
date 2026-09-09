@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from "react";
 import { IndexerClient, IndexerContext } from "./indexer";
 import { MockIndexerClient } from "./mockIndexerClient";
-import { isMockMode } from "../../data/mockOracles";
+import { isMockMode } from "../../lib/mode";
 
 /**
  * Provides the app's single {@link IndexerClient} — the sole data + transaction

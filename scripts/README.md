@@ -44,7 +44,7 @@ the `declare_id!` / `Anchor.toml` source of truth). Do not edit the IDs from mem
 ```
 
 The `fetch-*` scripts dump binaries from mainnet-beta into
-[`programs/oracles/tests/fixtures/`](../programs/oracles/tests/fixtures).
+[`programs/markets/tests/fixtures/`](../programs/markets/tests/fixtures).
 `vendor-solana-gpt-oracle.sh` is a **source rebuild** of MagicBlock's GPT oracle
 (test identity) at a pinned SHA — not a mainnet dump. Runs are idempotent.
 Run them once (or whenever the pinned versions change) before the CPI
@@ -52,7 +52,5 @@ integration tests, so `just test` can load the real programs into LiteSVM.
 
 ## Related
 
-- [`programs/oracles/src/cpi/`](../programs/oracles/src/cpi) — the hand-built CPI into
-  these programs (`metadao.rs` = v0.4, `metadao_v06.rs` = v0.6, `gpt_oracle.rs`).
-- [Challenge markets](../docs-site/challenge) in the docs site — how the conditional vaults
-  and AMMs are composed into a decision market.
+- [`programs/markets/src/cpi/`](../programs/markets/src/cpi) — the hand-built CPI into
+  MetaDAO (`metadao.rs`) and GPT (`gpt_oracle.rs`).

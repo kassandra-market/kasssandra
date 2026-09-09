@@ -1,4 +1,4 @@
-import { KASSANDRA_PROGRAM_ID } from '@kassandra-market/oracles'
+import { ATA_PROGRAM_ID, MARKET_PROGRAM_ID, TOKEN_PROGRAM_ID } from '@kassandra-market/markets'
 import {
   AvatarBubble,
   Button,
@@ -180,8 +180,9 @@ export default function StyleGuide() {
       </Panel>
 
       <footer className="mt-16 border-t border-hairline pt-6 font-mono text-[12px] text-silver">
-        @kassandra-market/oracles workspace import resolves · KASSANDRA_PROGRAM_ID ={' '}
-        {KASSANDRA_PROGRAM_ID.toString()}
+        @kassandra-market/markets workspace import resolves · MARKET_PROGRAM_ID ={' '}
+        {MARKET_PROGRAM_ID.toString()} · TOKEN_PROGRAM_ID = {TOKEN_PROGRAM_ID.toString()} ·
+        ATA_PROGRAM_ID = {ATA_PROGRAM_ID.toString()}
       </footer>
     </main>
   )

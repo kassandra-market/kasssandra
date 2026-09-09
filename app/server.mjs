@@ -106,19 +106,10 @@ async function serveFile(res, file, { immutable = false } = {}) {
 const server = createServer((req, res) => {
   const url = req.url ?? '/'
 
-  // 1) Proxy the indexer API over the private network. Oracle routes live under
-  //    `/indexer/*` (prefix stripped); market routes live under `/api/*` (passed
-  //    through as-is). Both target the same single indexer.
+  // 1) Proxy the indexer API over the private network. Market routes live
+  //    under `/api/*` (passed through as-is).
   if (url === PROXY_PREFIX || url.startsWith(`${PROXY_PREFIX}/`)) {
     proxyToIndexer(req, res, url.slice(PROXY_PREFIX.length) || '/')
-    return
-  }
-  // Public oracle-metadata JSON host: the on-chain `uri` points here. Map it to
-  // the indexer's private `/oracles/{pk}/meta-json` route (GET serves it gated by
-  // uri_hash; POST stores the app-supplied JSON). Must precede the generic /api/*.
-  const metaMatch = url.match(/^\/api\/oracle\/([^/?]+)\/metadata\.json(?:\?.*)?$/)
-  if (metaMatch) {
-    proxyToIndexer(req, res, `/oracles/${metaMatch[1]}/meta-json`)
     return
   }
   if (url === '/api' || url.startsWith('/api/')) {

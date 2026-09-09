@@ -7,9 +7,11 @@ updated: 2026-09-09
 
 # The dApp (`app/`)
 
-Vite + React + Tailwind ("Auros" theme), Solana wallet-adapter, consuming the two
-TS SDKs' `dist/`. Package name is `app` (private). Reads chain directly + the
-indexer's read API; writes via the SDK instruction builders.
+Vite + React + Tailwind ("Auros" theme), Solana wallet-adapter, consuming
+**`@kassandra-market/markets` only**. Package name is `app` (private). Reads
+chain via the indexer's `/api/*` surface; writes via the markets SDK
+instruction builders. `Market.oracle` is a markets-owned GPT Subject PDA
+(MagicBlock GPT settles the subject). There is no oracles-program UI.
 
 ## Stack notes
 
@@ -26,37 +28,41 @@ indexer's read API; writes via the SDK instruction builders.
 
 ## Layout
 
-- `app/src/pages` — routes (OracleDetail, CreateOracle, Markets, MarketDetail…).
-- `app/src/components/{oracles,markets}` — feature components + `actions/` (the write forms).
-  AiClaim phase shows `RequestAiOracleForm` (MagicBlock `interact_with_llm`)
-  and `ApplyExternalAiClaimForm` (stamp from `AiOracleFeed`). `SubmitAiClaim`
-  (Ix 3) is retired.
-- `app/src/data` — oracle-side data/actions; `app/src/market/` — market-side data/hooks/lib.
-- `app/src/lib` — shared utils (base58, base64, oracleView formatters, cluster).
+- `app/src/pages` — routes: Landing, Markets, CreateMarket, MarketDetail, StyleGuide.
+  `/oracles`, `/oracles/*`, and `/admin` redirect to `/markets`.
+- `app/src/components/markets` — market cards + `actions/` (create / fund / trade / lifecycle).
+- `app/src/market/` — market-side data/hooks/lib (indexer client, ix builders, view helpers).
+- `app/src/lib` — shared utils (`mode.ts`, `heroFeed.ts`, cluster, formatters on the market side).
   Direct mode uses `VITE_MAGIC_ROUTER_URL` (when set) as the RPC for non-localnet
   clusters so MagicBlock ER txs route through Magic Router. Gateway mode still
   never ships RPC URLs.
-- `app/test` — vitest unit + litesvm e2e tests (run in CI).
-- `app/e2e` — Playwright browser specs + `seed*.ts` helpers + `dev-full.ts` (`make dev` entry). NOT run in the default unit lane.
+- `app/test` — vitest unit tests (run in CI).
+- `app/e2e` — Playwright browser specs + `seed*.ts` helpers + `dev-full.ts` (`make dev` entry).
+  Seed fabricates Subject accounts owned by `MARKET_PROGRAM_ID` (no oracles SDK, no runner).
 
 ## Amount display rule
 
-Token amounts are shown **scaled by decimals** (SOL 9, USDC 6). Use
-`formatSol`/`formatUsdc`/`formatUnits` (oracleView) and the market-side
+Token amounts are shown **scaled by decimals** (SOL 9). Use the market-side
 `formatSol`; input forms parse scaled amounts (`parseSolAmount`/`parseAmount`).
 The AMM carries `baseDecimals`/`quoteDecimals` — use them.
 ([`../memories/scaled-amounts-ui.md`](../memories/scaled-amounts-ui.md))
 
 ## Prediction-market UI specifics
 
+- Browse list is **markets only** (funding / active / resolved / closed).
+- Create market: `createSubject` then `createMarket` (`oracle` = Subject PDA).
+  Unique nonce; dummy `llmContext` = a fresh Keypair pubkey. Binary
+  `optionsCount=2`. Categorical: one Subject then N markets.
 - Trade panel: **buy** gates on SOL balance, **sell** gates on the held outcome
   **shares** (the gate message names the asset — don't hardcode "SOL").
 - The price chart draws **one line curve per share** (YES + complementary NO =
   1−YES) with the axis pinned 0–100% (`autoscaleInfoProvider` returns a fixed
   `0..1`). It uses lightweight-charts v5 (`addSeries(LineSeries, …)`).
+- ATA / `TOKEN_PROGRAM_ID` come from `@kassandra-market/markets` (`pda.associatedTokenAccount`).
 
 ## Verifying app changes
 
 `pnpm --filter ./app typecheck && pnpm --filter ./app lint && pnpm --filter ./app exec vitest run && pnpm --filter ./app build`
-(current suite: **215 unit tests**). The e2e/dev files need a temp tsconfig that
-includes `e2e`+`test` to typecheck (see [`../skills/running-and-verifying.md`](../skills/running-and-verifying.md)).
+
+The e2e/dev files need a temp tsconfig that includes `e2e`+`test` to typecheck
+(see [`../skills/running-and-verifying.md`](../skills/running-and-verifying.md)).

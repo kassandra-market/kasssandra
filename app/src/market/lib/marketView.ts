@@ -195,46 +195,34 @@ export function formatSol(amount: bigint): string {
   return neg ? `-${out}` : out;
 }
 
-/** Human label for a Kassandra oracle {@link Phase}. */
+/** Human label for a GPT Subject {@link Phase}. */
 export function phaseLabel(phase: Phase): string {
   switch (phase) {
-    case Phase.Created:
-      return "Created";
-    case Phase.Proposal:
-      return "Proposal";
-    case Phase.FactProposal:
-      return "Fact proposal";
-    case Phase.FactVoting:
-      return "Fact voting";
-    case Phase.AiClaim:
-      return "AI claim";
-    case Phase.Challenge:
-      return "Challenged";
-    case Phase.FinalRecompute:
-      return "Final recompute";
+    case Phase.Open:
+      return "Open";
     case Phase.Resolved:
       return "Resolved";
-    case Phase.InvalidDeadend:
-      return "Dead end";
+    case Phase.Void:
+      return "Void";
     default:
       return "Unknown";
   }
 }
 
 /**
- * Human resolution text for a market's linked oracle. `Resolved` → "YES won" /
+ * Human resolution text for a market's GPT Subject. `Resolved` → "YES won" /
  * "NO won" (from `resolvedOption` with YES=0 / NO=1, else "Resolved");
- * `InvalidDeadend` → "Voided"; any other phase falls back to the phase label. A
- * `null` oracle (unreadable) → "Oracle unavailable".
+ * `Void` → "Voided"; any other status falls back to the phase label. A
+ * `null` subject (unreadable) → "GPT subject unavailable".
  */
 export function resolutionText(oracle: MarketOracle | null | undefined): string {
-  if (!oracle) return "Oracle unavailable";
+  if (!oracle) return "GPT subject unavailable";
   if (oracle.phase === Phase.Resolved) {
     if (oracle.resolvedOption === YES_OPTION) return "YES won";
     if (oracle.resolvedOption === NO_OPTION) return "NO won";
     return "Resolved";
   }
-  if (oracle.phase === Phase.InvalidDeadend) return "Voided";
+  if (oracle.phase === Phase.Void) return "Voided";
   return phaseLabel(oracle.phase);
 }
 

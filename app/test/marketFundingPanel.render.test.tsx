@@ -5,8 +5,7 @@
  * for a non-Active market. Heavy action panels are stubbed.
  */
 import { vi } from "vitest";
-import { MarketStatus } from "@kassandra-market/markets";
-import { Phase } from "@kassandra-market/oracles";
+import { MarketStatus, Phase } from "@kassandra-market/markets";
 
 const PUB = "Market11111111111111111111111111111111111111";
 const ORACLE = "Orac1e1111111111111111111111111111111111111";
@@ -50,7 +49,6 @@ vi.mock("../src/market/hooks/useOracleGroup", () => ({
     refetch: () => {},
   }),
 }));
-vi.mock("../src/hooks/useOracleMeta", () => ({ useOracleMeta: () => new Map() }));
 vi.mock("../src/components/markets/actions/MarketActions", () => ({
   MarketLiquidityActions: () => null,
   MarketLifecycleActions: () => null,

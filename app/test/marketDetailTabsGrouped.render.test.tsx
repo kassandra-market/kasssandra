@@ -9,8 +9,7 @@
  * selector's own render behavior is covered by `groupTradePanel.render.test.tsx`.
  */
 import { vi } from 'vitest'
-import { MarketStatus } from '@kassandra-market/markets'
-import { Phase } from '@kassandra-market/oracles'
+import { MarketStatus, Phase } from '@kassandra-market/markets'
 
 const PUB = 'Market0111111111111111111111111111111111111'
 const SIBLING_PUB = 'Market2111111111111111111111111111111111111'
@@ -29,7 +28,7 @@ const fundingDetail = {
     feeCollected: false,
     oracle: { toString: () => ORACLE },
   },
-  oracle: { optionsCount: 3, phase: Phase.Challenge, resolvedOption: -1 },
+  oracle: { optionsCount: 3, phase: Phase.Open, resolvedOption: 0xff },
   reserves: null,
   contributions: [],
 }

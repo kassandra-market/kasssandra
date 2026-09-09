@@ -1,80 +1,23 @@
 /**
- * The unified `/markets` dashboard strip + filter toolbar — the combined-list
- * counterpart of `oracles/DashboardStats.tsx`, spanning both bare oracles and
- * bound market groups. Pure presentation over the already-fetched + merged
- * data; no fetching here.
+ * The `/markets` dashboard strip + filter toolbar. Pure presentation over
+ * already-fetched market groups; no fetching here.
  */
-import { formatSol } from '../../lib/oracleView'
-import type { CombinedStats } from '../../lib/unifiedList'
-import type { UnifiedCounts, UnifiedFilter, UnifiedSort } from '../../lib/unifiedList'
+import { formatSol } from '../../market/lib/marketView'
+import type { MarketCounts, MarketFilter, MarketSort, MarketStats } from '../../market/lib/marketList'
 
 const focusRing =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 ' +
   'focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss'
 
-/** One monetary figure: a scaled-SOL serif value over an Inter label. */
-function MoneyTile({ amount, label }: { amount: bigint; label: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-serif text-heading-sm font-light leading-none tabular-nums text-platinum">
-        {formatSol(amount)}
-      </span>
-      <span className="font-inter text-[12px] text-silver">{label}</span>
-    </div>
-  )
-}
-
-/**
- * The combined stats strip. The headline "Capital at stake" sums the oracle
- * bond economics (still-contestable oracles) and every loaded market's TVL —
- * both raw SOL, just two different economics riding on the same token — then
- * breaks that down into four tiles: the oracle bond pool, dispute bonds, and
- * stake, plus market TVL.
- */
-export function UnifiedStats({ stats }: { stats: CombinedStats }) {
-  const headline = stats.bondsAtRisk + stats.marketTvl
-  return (
-    <section
-      aria-label="Capital at stake"
-      className="mt-10 rounded-card border border-hairline bg-liquid-kelp px-6 py-5"
-    >
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-0.5">
-          <span className="font-inter text-[12px] uppercase tracking-wide text-silver">
-            Capital at stake
-          </span>
-          <span className="font-serif text-heading font-light leading-none tabular-nums text-lavender-phosphor">
-            {formatSol(headline)}
-          </span>
-          <span className="font-inter text-[12px] text-silver">SOL · oracles + markets</span>
-        </div>
-
-        <div className="flex flex-wrap gap-x-8 gap-y-3">
-          <MoneyTile amount={stats.bondPoolActive} label="Bond pool" />
-          <MoneyTile amount={stats.disputeBondsActive} label="Dispute bonds" />
-          <MoneyTile amount={stats.stakedActive} label="Staked" />
-          <MoneyTile amount={stats.marketTvl} label="Market TVL" />
-        </div>
-      </div>
-    </section>
-  )
-}
-
-// --- filter + sort toolbar ---------------------------------------------------
-
-const FILTERS: { value: UnifiedFilter; label: string; countKey: keyof UnifiedCounts; dot: string }[] = [
+const FILTERS: { value: MarketFilter; label: string; countKey: keyof MarketCounts; dot: string }[] = [
   { value: 'all', label: 'All', countKey: 'total', dot: 'bg-silver' },
-  { value: 'proposal', label: 'Proposal', countKey: 'proposal', dot: 'bg-silver' },
-  { value: 'inDispute', label: 'In dispute', countKey: 'inDispute', dot: 'bg-cyan-phosphor' },
-  { value: 'aiClaim', label: 'AI claim', countKey: 'aiClaim', dot: 'bg-lavender-phosphor' },
-  { value: 'challenge', label: 'Challenged', countKey: 'challenge', dot: 'bg-coral' },
   { value: 'funding', label: 'Funding', countKey: 'funding', dot: 'bg-cyan-phosphor' },
   { value: 'active', label: 'Active', countKey: 'active', dot: 'bg-coral' },
   { value: 'resolved', label: 'Resolved', countKey: 'resolved', dot: 'bg-aqua' },
   { value: 'closed', label: 'Closed', countKey: 'closed', dot: 'bg-silver-dim' },
 ]
 
-const SORTS: { value: UnifiedSort; label: string }[] = [
+const SORTS: { value: MarketSort; label: string }[] = [
   { value: 'value', label: 'Value at stake' },
   { value: 'stage', label: 'Stage' },
 ]
@@ -111,24 +54,55 @@ function ToggleChip({
   )
 }
 
+/**
+ * The stats strip. Headline is every loaded market's TVL (SOL seeded into escrow).
+ */
+export function UnifiedStats({ stats }: { stats: MarketStats }) {
+  return (
+    <section
+      aria-label="Capital at stake"
+      className="mt-10 rounded-card border border-hairline bg-liquid-kelp px-6 py-5"
+    >
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-inter text-[12px] uppercase tracking-wide text-silver">
+            Capital at stake
+          </span>
+          <span className="font-serif text-heading font-light leading-none tabular-nums text-lavender-phosphor">
+            {formatSol(stats.marketTvl)}
+          </span>
+          <span className="font-inter text-[12px] text-silver">SOL · market TVL</span>
+        </div>
+
+        <div className="flex flex-wrap gap-x-8 gap-y-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-serif text-heading-sm font-light leading-none tabular-nums text-platinum">
+              {formatSol(stats.marketTvl)}
+            </span>
+            <span className="font-inter text-[12px] text-silver">Market TVL</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export interface UnifiedFiltersProps {
   search: string
   onSearch: (value: string) => void
-  filter: UnifiedFilter
-  onFilter: (value: UnifiedFilter) => void
-  sort: UnifiedSort
-  onSort: (value: UnifiedSort) => void
+  filter: MarketFilter
+  onFilter: (value: MarketFilter) => void
+  sort: MarketSort
+  onSort: (value: MarketSort) => void
   /** Per-stage counts — shown on the filter chips. */
-  counts: UnifiedCounts
+  counts: MarketCounts
   /** Count shown after filtering (for the "showing N" a11y hint). */
   shown: number
 }
 
 /**
- * The accessible browse toolbar: a text search, the stage filter chips (real
- * `aria-pressed` toggle buttons carrying each stage's count + a subtle color
- * hint shared with the phase/status chips), and a sort control. All three
- * compose — the page applies search → filter → sort in that order.
+ * The accessible browse toolbar: a text search, the stage filter chips, and a
+ * sort control. All three compose — the page applies search → filter → sort.
  */
 export function UnifiedFilters({
   search,
@@ -144,12 +118,12 @@ export function UnifiedFilters({
     <div className="mt-8 flex flex-col gap-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <label className="flex items-center gap-2">
-          <span className="sr-only">Search markets and oracles</span>
+          <span className="sr-only">Search markets</span>
           <input
             type="search"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Search by question, phase, status, or address…"
+            placeholder="Search by status or address…"
             className={`w-full rounded-button border border-hairline bg-liquid-kelp px-3 py-2 font-inter text-[14px] text-platinum placeholder:text-silver sm:w-72 ${focusRing}`}
           />
         </label>
