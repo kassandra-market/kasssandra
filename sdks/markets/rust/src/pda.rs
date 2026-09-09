@@ -17,6 +17,11 @@ pub fn config() -> (Pubkey, u8) {
 pub fn program_data(program_id: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[program_id.as_ref()], &BPF_UPGRADEABLE_LOADER_ID)
 }
+/// GPT Subject PDA: `[b"subject", nonce_u64_le]`.
+pub fn subject(nonce: u64) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"subject", &nonce.to_le_bytes()], &PROGRAM_ID)
+}
+
 /// Per-outcome binary sub-market PDA: `[b"market", oracle, [outcome_index]]`.
 /// Binary markets use `outcome_index = 0`.
 pub fn market(oracle: &Pubkey, outcome_index: u8) -> (Pubkey, u8) {

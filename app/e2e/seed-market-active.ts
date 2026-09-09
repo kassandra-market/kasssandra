@@ -9,11 +9,8 @@ import { ComputeBudgetProgram } from '@solana/web3.js'
 import { metadao } from '@kassandra-market/markets'
 
 import { sendIxs, type SeedCtx } from './seed.ts'
-import {
-  createAndActivateMarket,
-  deployAndInitMarket,
-  type ActiveMarketSeed,
-} from './seed-market.ts'
+import { seedOpenSubject } from './seed-drivers.ts'
+import { createAndActivateMarket, type ActiveMarketSeed } from './seed-market.ts'
 
 export type { ActiveMarketSeed } from './seed-market.ts'
 
@@ -25,9 +22,9 @@ const TRADE_CU = 400_000
  * (outcome 0) with a split cYES+cNO trading inventory — the candle e2e's entry
  * point. Throws if activation didn't take.
  */
-export async function seedActiveMarket(ctx: SeedCtx, oracle: string): Promise<ActiveMarketSeed> {
-  const payerBase = await deployAndInitMarket(ctx)
-  return createAndActivateMarket(ctx, oracle, payerBase, { split: true })
+export async function seedActiveMarket(ctx: SeedCtx, oracle?: string): Promise<ActiveMarketSeed> {
+  const subject = oracle ?? (await seedOpenSubject(ctx)).toString()
+  return createAndActivateMarket(ctx, subject, ctx.payerBaseAta, { split: true })
 }
 
 /** Which leg to push: `"down"` sells cYES (P(YES)↓), `"up"` buys cYES (P(YES)↑). */

@@ -33,6 +33,8 @@ pub enum MarketError {
     /// `commit_market` / `undelegate_market` ran against a session that is not
     /// currently delegated.
     NotDelegated = 24,
+    /// GPT callback payload was not a parseable `{"option_index": N}` in range.
+    InvalidAiResponse = 25,
 }
 
 impl From<MarketError> for ProgramError {

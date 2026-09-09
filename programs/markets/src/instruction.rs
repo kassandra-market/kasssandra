@@ -19,6 +19,8 @@ pub enum Ix {
     DelegateMarket = 12,
     CommitMarket = 13,
     UndelegateMarket = 14,
+    CreateSubject = 15,
+    RequestAi = 16,
 }
 
 impl Ix {
@@ -39,6 +41,8 @@ impl Ix {
             12 => Some(Ix::DelegateMarket),
             13 => Some(Ix::CommitMarket),
             14 => Some(Ix::UndelegateMarket),
+            15 => Some(Ix::CreateSubject),
+            16 => Some(Ix::RequestAi),
             _ => None,
         }
     }

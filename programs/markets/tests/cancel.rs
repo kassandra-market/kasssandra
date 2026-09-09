@@ -10,9 +10,9 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-const PROPOSAL: u8 = 1; // kassandra Phase::Proposal
-const RESOLVED: u8 = 7; // kassandra Phase::Resolved
-const INVALID_DEADEND: u8 = 8; // kassandra Phase::InvalidDeadend
+const PROPOSAL: u8 = 0; // SubjectStatus::Open
+const RESOLVED: u8 = 1; // SubjectStatus::Resolved
+const INVALID_DEADEND: u8 = 2; // SubjectStatus::Void // kassandra Phase::InvalidDeadend
 
 const MIN_LIQUIDITY: u64 = 1_000_000_000;
 

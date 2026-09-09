@@ -15,7 +15,7 @@ use pinocchio::{account::AccountView, address::Address, error::ProgramError, Pro
 
 use crate::{
     error::MarketError,
-    processor::guards::{assert_key, load_kassandra_oracle, load_market, write_market},
+    processor::guards::{assert_key, load_subject, load_market, write_market},
     state::MarketStatus,
 };
 
@@ -35,10 +35,8 @@ pub fn process(
         return Err(MarketError::NotFunding.into());
     }
     assert_key(oracle_ai, &market.oracle)?;
-    let oracle = load_kassandra_oracle(oracle_ai)?;
-    let terminal = oracle.phase == crate::kass_oracle::PHASE_RESOLVED
-        || oracle.phase == crate::kass_oracle::PHASE_INVALID_DEADEND;
-    if !terminal {
+    let oracle = load_subject(oracle_ai, program_id)?;
+    if !oracle.is_terminal() {
         return Err(MarketError::OracleNotTerminal.into());
     }
     // A terminal oracle makes Phase-2 `activate` impossible, so `cancel` must

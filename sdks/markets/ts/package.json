@@ -30,7 +30,6 @@
     "local:stack": "tsx scripts/local-stack.mts"
   },
   "dependencies": {
-    "@kassandra-market/oracles": "workspace:*",
     "@solana/kit": "^6.10.0",
     "@solana/web3.js": "3.0.0-rc.2"
   },

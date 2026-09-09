@@ -32,24 +32,17 @@ use solana_sdk::{
     transaction::TransactionError,
 };
 
-/// Build a raw `Oracle` account body (`ORACLE_LEN` bytes) matching the sibling
-/// Kassandra layout the market gate reads: tag byte 0, plus `options_count`,
-/// `phase`, and `resolved_option` stamped at their exact offsets. Mirrors
-/// `kassandra_markets_program::kass_oracle::KassOracle::read` so the harness and
-/// the on-chain gate agree byte-for-byte.
-fn kass_oracle_bytes(options_count: u8, phase: u8, resolved_option: u8) -> Vec<u8> {
-    use kassandra_markets_program::kass_oracle as k;
-    let mut data = vec![0u8; k::ORACLE_LEN];
-    data[0] = k::ORACLE_ACCOUNT_TYPE;
-    data[k::OPTIONS_COUNT_OFFSET] = options_count;
-    data[k::PHASE_OFFSET] = phase;
-    data[k::RESOLVED_OPTION_OFFSET] = resolved_option;
-    data
-}
-
-/// The Kassandra program id that must own a fabricated oracle account.
-fn kass_oracle_owner() -> Pubkey {
-    Pubkey::new_from_array(kassandra_markets_program::kass_oracle::KASSANDRA_PROGRAM_ID.to_bytes())
+/// Build a raw `Subject` account body matching the on-chain layout the market
+/// gate reads: tag, `options_count`, `status`, `resolved_option`.
+fn subject_bytes(options_count: u8, status: u8, resolved_option: u8) -> Vec<u8> {
+    use bytemuck::Zeroable;
+    use kassandra_markets_program::state::{AccountType, Subject};
+    let mut s = Subject::zeroed();
+    s.account_type = AccountType::Subject.as_u8();
+    s.options_count = options_count;
+    s.status = status;
+    s.resolved_option = resolved_option;
+    bytemuck::bytes_of(&s).to_vec()
 }
 
 /// LiteSVM-backed test context: a funded payer plus the deployed program.

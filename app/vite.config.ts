@@ -45,17 +45,12 @@ function injectE2eWallet(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [injectE2eWallet(), react(), tailwindcss()],
-  // Both `@kassandra-market/oracles` and `@kassandra-market/markets` (and the app) resolve
-  // `@solana/web3.js` — dedupe to ONE copy so `Address`/`instanceof` checks pass
-  // across the app + both SDKs.
+  // `@kassandra-market/markets` and the app both resolve `@solana/web3.js` —
+  // dedupe to ONE copy so `Address`/`instanceof` checks pass across the app + SDK.
   resolve: { dedupe: ['@solana/web3.js'] },
-  // Dev: BOTH sides reach the chain through the local indexer, same-origin —
-  //   - the market client over `/api/*` (its own HTTP surface), and
-  //   - the oracle side (web3.js `Connection` in gateway mode) over `/indexer/rpc`,
-  //     the JSON-RPC gateway the indexer exposes at `/rpc` and production serves at
-  //     that same path. Without this proxy, oracle writes' blockhash fetch to
-  //     `/indexer/rpc` 404s ("Failed to fetch"). A direct `VITE_RPC_URL` still
-  //     bypasses the gateway entirely when set.
+  // Dev: the market client reaches the chain through the local indexer, same-origin
+  // (`/api/*`). `/indexer/rpc` forwards JSON-RPC to the indexer's `/rpc` gateway.
+  // A direct `VITE_RPC_URL` still bypasses the gateway when set.
   server: {
     proxy: {
       '/api': {
@@ -82,8 +77,6 @@ export default defineConfig({
           // The two workspace SDKs resolve to their dist/ (NOT node_modules), so
           // key on either the package name or the dist path.
           if (
-            id.includes('@kassandra-market/oracles') ||
-            id.includes('/sdks/oracles/ts/dist/') ||
             id.includes('@kassandra-market/markets') ||
             id.includes('/sdks/markets/ts/dist/')
           ) {

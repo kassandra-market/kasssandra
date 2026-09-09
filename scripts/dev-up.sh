@@ -2,7 +2,7 @@
 #
 # dev-up.sh — bring up the local dev stack: a seeded surfpool chain + the app.
 #
-#   dev-up.sh chain   boot surfpool + deploy + seed oracles, then HOLD (Ctrl-C to stop)
+#   dev-up.sh chain   boot surfpool + deploy + seed markets, then HOLD (Ctrl-C to stop)
 #   dev-up.sh app     run the app dev server against the local surfpool (funded e2e wallet)
 #   dev-up.sh all     run the seeded chain AND the app together (Ctrl-C stops both)
 #
@@ -25,8 +25,7 @@ ensure_built() {
   # before a program change is never deployed as-is (see dev-full.sh).
   echo "==> building both programs (.so)…"
   just build
-  echo "==> building both SDKs…"
-  pnpm --filter @kassandra-market/oracles build >/dev/null
+  echo "==> building the markets SDK…"
   pnpm --filter @kassandra-market/markets build >/dev/null
 }
 

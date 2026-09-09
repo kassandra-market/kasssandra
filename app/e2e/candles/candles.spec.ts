@@ -18,7 +18,7 @@ const fixture = JSON.parse(
   secretKey: number[]
   indexerUrl: string
   market: string
-  oracle: string
+  subject?: string
   candleCount: number
   priceRange: number
 }

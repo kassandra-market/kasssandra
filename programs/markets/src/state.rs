@@ -21,6 +21,8 @@ pub enum AccountType {
     Contribution = 3,
     /// Companion PDA recording MagicBlock ER delegation for one market.
     ErSession = 4,
+    /// GPT-resolved question a binary sub-market binds to.
+    Subject = 5,
 }
 impl AccountType {
     pub fn as_u8(self) -> u8 {
@@ -89,12 +91,14 @@ impl Config {
     pub const LEN: usize = core::mem::size_of::<Self>();
 }
 
-/// One sub-market per outcome per oracle, PDA `[b"market", oracle, [outcome_index]]`.
-/// A categorical (N-option) oracle is modeled as N independent binary sub-markets,
-/// each a "will the oracle resolve to `outcome_index`? YES/NO" market; binary is
-/// the special case `outcome_index = 0` on a 2-option oracle. `min_liquidity` is
+/// One sub-market per outcome per GPT [`Subject`], PDA `[b"market", subject, [outcome_index]]`.
+/// A categorical (N-option) subject is modeled as N independent binary sub-markets,
+/// each a "will GPT resolve to `outcome_index`? YES/NO" market; binary is
+/// the special case `outcome_index = 0` on a 2-option subject. `min_liquidity` is
 /// snapshot from `Config` at creation so in-flight markets are immune to
-/// governance changes (config-as-state, mirroring Kassandra).
+/// governance changes (config-as-state). The `oracle` field stores the Subject
+/// pubkey (PDA seed + resolution source) — named for the MetaDAO `question_id`
+/// binding, not the retired Kassandra oracles program.
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Market {
@@ -124,7 +128,7 @@ pub struct Market {
     pub _pad2: u8,
     pub fee_bps: u16, // protocol fee snapshot from Config at creation (config-as-state)
     pub fee_collected: u8, // 1 once `collect_fee` has cut the accrued LP fee (gates `claim_lp`)
-    pub outcome_index: u8, // this sub-market's oracle outcome (YES = oracle resolves to it)
+    pub outcome_index: u8, // this sub-market's subject outcome (YES = GPT resolves to it)
     pub _pad3: [u8; 2],
     // --- post-activation liquidity accounting (gross-LP basis) ---
     // `activation_lp`/`activation_contributed` are FROZEN at `activate` and are the
@@ -189,5 +193,51 @@ impl ErSession {
 
     pub fn is_delegated(&self) -> bool {
         self.status == ER_STATUS_DELEGATED
+    }
+}
+
+/// GPT-attested question. PDA `[b"subject", nonce_u64_le]`. Binary sub-markets
+/// key off this pubkey (`Market.oracle`) and resolve YES iff GPT's option equals
+/// `Market.outcome_index`.
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SubjectStatus {
+    Open = 0,
+    Resolved = 1,
+    Void = 2,
+}
+impl SubjectStatus {
+    pub fn as_u8(self) -> u8 {
+        self as u8
+    }
+}
+
+pub const SUBJECT_OPTION_PENDING: u8 = 0xff;
+
+#[repr(C)]
+#[derive(Clone, Copy, Pod, Zeroable)]
+pub struct Subject {
+    pub account_type: u8, // AccountType::Subject
+    pub bump: u8,
+    pub options_count: u8,
+    pub status: u8,           // SubjectStatus
+    pub resolved_option: u8,  // 0xFF pending; meaningful when status == Resolved
+    pub _pad: [u8; 3],
+    pub creator: Pubkey,
+    pub llm_context: Pubkey, // MagicBlock ContextAccount
+    pub nonce: u64,
+    pub resolved_slot: u64,
+}
+impl Subject {
+    pub const LEN: usize = core::mem::size_of::<Self>();
+    pub const SEED_PREFIX: &'static [u8] = b"subject";
+
+    pub fn is_terminal(&self) -> bool {
+        self.status == SubjectStatus::Resolved.as_u8()
+            || self.status == SubjectStatus::Void.as_u8()
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.status == SubjectStatus::Open.as_u8()
     }
 }

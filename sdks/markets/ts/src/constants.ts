@@ -4,9 +4,9 @@
  * against the program and guarded by `test/parity.test.ts` (a mismatch fails CI
  * = drift guard). Sources:
  *
- *   - `programs/markets/src/instruction.rs` — {@link Ix} discriminants (0..=14)
- *   - `programs/markets/src/state.rs`       — {@link AccountType} (0..=4), {@link MarketStatus} (0..=4)
- *   - `programs/markets/src/error.rs`       — {@link MarketError} (0..=24)
+ *   - `programs/markets/src/instruction.rs` — {@link Ix} discriminants (0..=16)
+ *   - `programs/markets/src/state.rs`       — {@link AccountType} (0..=5), {@link MarketStatus} (0..=4)
+ *   - `programs/markets/src/error.rs`       — {@link MarketError} (0..=25)
  *   - `programs/markets/tests/state_layout.rs` — {@link ACCOUNT_SIZES}
  *   - `sdks/oracles/rust/src/{metadao,lib}.rs`                  — external program IDs
  */
@@ -14,6 +14,14 @@ import { Address } from "@solana/web3.js";
 
 /** kassandra-market program ID (`programs/markets/src/lib.rs::ID`). */
 export const MARKET_PROGRAM_ID = new Address("FEGNHWAB7kc7VC9CCwbvVPsv4Jykz2r2WQ758V4xCT9S");
+
+/** MagicBlock solana-gpt-oracle program. */
+export const GPT_ORACLE_PROGRAM_ID = new Address("LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab");
+
+/** 8-byte GPT callback disc (`sha256("global:callback_from_gpt_oracle")[..8]`). */
+export const GPT_ORACLE_CALLBACK_DISCRIMINATOR = Uint8Array.of(
+  0x3b, 0x24, 0x82, 0x78, 0x4d, 0x6f, 0xac, 0x00,
+);
 
 /** The Solana System program, referenced by account-creating instructions. */
 export const SYSTEM_PROGRAM_ID = new Address("11111111111111111111111111111111");
@@ -52,7 +60,9 @@ export enum Ix {
   AddLiquidity = 11,
   DelegateMarket = 12,
   CommitMarket = 13,
-  UndelegateMarket = 14,
+    UndelegateMarket = 14,
+    CreateSubject = 15,
+    RequestAi = 16,
 }
 
 /**
@@ -66,6 +76,7 @@ export enum AccountType {
   Market = 2,
   Contribution = 3,
   ErSession = 4,
+  Subject = 5,
 }
 
 /**
@@ -112,6 +123,7 @@ export enum MarketError {
   NotUpgradeAuthority = 22,
   AlreadyDelegated = 23,
   NotDelegated = 24,
+  InvalidAiResponse = 25,
 }
 
 /** Governance guardrail: max protocol `fee_bps` (10% = 1000 bps). Mirror of `state::MAX_FEE_BPS`. */
@@ -169,6 +181,8 @@ export const MARKET_ERROR_MESSAGES: Record<MarketError, string> = {
     "delegate_market was called on a market whose ErSession is already delegated.",
   [MarketError.NotDelegated]:
     "commit_market / undelegate_market ran against an ErSession that is not currently delegated.",
+  [MarketError.InvalidAiResponse]:
+    "The GPT callback payload was not a parseable option_index in range.",
 };
 
 /**
@@ -192,6 +206,7 @@ export const ACCOUNT_SIZES = {
   Market: 424,
   Contribution: 96,
   ErSession: 96,
+  Subject: 88,
 } as const;
 
 /** `ErSession.status`: account is on the base layer (not delegated). */

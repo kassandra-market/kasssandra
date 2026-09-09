@@ -7,63 +7,60 @@ updated: 2026-09-09
 
 # System overview
 
-Kassandra is an **optimistic oracle** on Solana with a dispute path backed by an
-**external attested AI feed** and decision markets. Interactive dispute/trading
-state can be **delegated** to a MagicBlock Ephemeral Rollup; programs stay on
-Solana L1. Truth is enforced economically (SOL staking/slashing) and by markets
-(the final arbiter). Interpretation is fixed at oracle creation, so disputes are
-about *which evidence is real*, not *what it means*.
+Kassandra is a **Solana prediction-market** protocol. A question is a
+markets-owned **Subject** PDA; MagicBlock's GPT oracle resolves it; binary
+sub-markets (`Market.oracle` = Subject pubkey) trade cYES/cNO until
+`ResolveMarket` reads the Subject.
 
-## Resolution flow (happy path is cheap)
+## Resolution flow
 
-1. **Create** — prompt + immutable interpretation + categorical options + deadline; pay a dynamic SOL creation fee (burned).
-2. **Propose** — after the deadline, proposers submit a value + SOL bond. All agree → **Resolved** immediately (no AI, no markets).
-3. **Dispute** (on conflict) — proposers lock in; a **fact proposal** window then a disjoint **fact voting** window freeze the agreed evidence set.
-4. **AI claim** — MagicBlock solana-gpt-oracle fills `AiOracleFeed` (via
-   `RequestAiOracle` + callback); `ApplyExternalAiClaim` stamps proposers.
-   The in-house [runner](runner.md) is off-chain reproduction / `RequestAiOracle`
-   keeper only; `SubmitAiClaim` (Ix 3) is retired.
-5. **Challenge market** — a MetaDAO-style decision market can override a faulty AI claim; TWAP over a window decides.
-6. **Settle / finalize** — the oracle resolves (or hits an invalid dead-end); winners claim, losers are slashed.
+1. **CreateSubject** — nonce + `options_count` + GPT `llm_context` pubkey.
+2. **CreateMarket** — one binary sub-market per outcome, keyed
+   `[b"market", subject, [outcome_index]]`.
+3. **Fund → compose MetaDAO → Activate** — live cYES/cNO AMM.
+4. **RequestAi** — CPI `interact_with_llm` into MagicBlock solana-gpt-oracle.
+5. **Callback** — GPT identity PDA signs the 8-byte callback; markets write
+   `Subject.resolved_option`.
+6. **ResolveMarket** — winning outcome from the Subject.
 
-See [`../specs/oracle-program.md`](../specs/oracle-program.md) and
+See [`../specs/market-program.md`](../specs/market-program.md) and
 [`../specs/ephemeral-rollups-and-ai-oracle.md`](../specs/ephemeral-rollups-and-ai-oracle.md).
 
 ## Components & data flow
 
 ```
-                 creates/proposes/challenges (writes)
-   app (react) ───────────────────────────────────────────▶ oracle + market programs (on-chain)
+                 creates/trades (writes)
+   app (react) ───────────────────────────────────────────▶ markets program (on-chain)
       │  ▲                                                        │
-      │  │ reads (chain + activity feed)                          │ tx logs / accounts
+      │  │ reads                                                  │ accounts
       │  │                                                        ▼
-      │  └──────────────── indexer (Carbon → Postgres, axum read API)
-      │                          ▲
-      └── TS SDKs (oracles, markets) build the instructions
-                                 │
-   runner (off-chain) ── RequestAiOracle ──▶ oracle program
-                         (MagicBlock GPT oracle writes the feed via callback)
+      │  └──────────────── indexer (Carbon GPA → Postgres, axum `/api/*`)
+      │
+      └── TS SDK (@kassandra-market/markets) builds the instructions
+
+   MagicBlock llm_oracle ── callback_from_llm ──▶ Subject.resolved_option
 ```
 
-- **Programs** are pinocchio-based, bytemuck-`Pod` account layouts, no Anchor. → [`programs.md`](programs.md)
-- **SDKs** hand-build instructions/PDAs/decoders; single source of truth is the program crates' wire contract. → [`sdks.md`](sdks.md)
-- **App** is Vite/React on `@solana/web3.js@3.0.0-rc.2` (class-`Address`) + wallet-adapter, consuming the two TS SDK `dist/`s. → [`app.md`](app.md)
-- **Runner** is a reproducible AI pipeline (deterministic hashing of model/params/io) → the 97-byte `submit_ai_claim` payload. → [`runner.md`](runner.md)
-- **Indexer** crawls the oracle (transactions) + market (accounts + websocket price) sides into one Postgres + one read API. → [`indexer.md`](indexer.md)
+- **Program** is pinocchio, bytemuck-`Pod` layouts, no Anchor. → [`programs.md`](programs.md)
+- **SDKs** hand-build instructions/PDAs/decoders. → [`sdks.md`](sdks.md)
+- **App** is Vite/React on `@solana/web3.js@3.0.0-rc.2` (class-`Address`). → [`app.md`](app.md)
+- **Indexer** indexes market accounts + websocket price into Postgres. → [`indexer.md`](indexer.md)
+
+The in-house Kassandra oracles program and `kassandra-runner` were **removed**.
+GPT is the attested AI source.
 
 ## Tokens & economics
 
-- **SOL** (9 decimals) — bonds, stakes, contributions, market seeding, fees.
-- **USDC** (6 decimals) — the challenge-market quote side + challenger escrow.
-- Conditional tokens (cYES/cNO) are minted from SOL (9 dp) / USDC (6 dp) via the
-  MetaDAO conditional-vault CPI. **Scale by the right decimals in the UI** — see
+- **SOL** (9 decimals) — contributions, market seeding, fees.
+- Conditional tokens (cYES/cNO) via MetaDAO conditional-vault CPI.
+  **Scale by the right decimals in the UI** — see
   [`../memories/scaled-amounts-ui.md`](../memories/scaled-amounts-ui.md).
 
 ## History worth knowing
 
-- The market program + its SDK were **merged in** from a separate repo; one app +
-  one indexer now serve both sides.
-- SDKs were **restructured** to `sdks/{oracles,markets}/{rust,ts}` with
-  single-source versioning + a publish workflow.
-- The programs were **renamed** to oracles/markets (crate + artifact names only).
-- All large files (>400 lines) were split into folder modules.
+- A dispute-oracle program (`programs/oracles`) used to sit in front of markets;
+  markets now own Subject PDAs and CPI GPT directly. `docs/plans/` is append-only
+  history of that design.
+- SDKs live at `sdks/markets/{rust,ts}` with single-source versioning.
+- The programs were **renamed** to oracles/markets (crate + artifact names only);
+  the markets program ID did not change.

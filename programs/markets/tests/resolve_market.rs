@@ -22,8 +22,8 @@ mod binary;
 #[path = "resolve_market/categorical.rs"]
 mod categorical;
 
-pub(crate) const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
-pub(crate) const INVALID_DEADEND: u8 = 8; // kassandra Phase::InvalidDeadend (terminal void)
+pub(crate) const PROPOSAL: u8 = 0; // SubjectStatus::Open (non-terminal)
+pub(crate) const INVALID_DEADEND: u8 = 2; // SubjectStatus::Void
 pub(crate) const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 pub(crate) const SPLIT_AMT: u64 = 2_000_000_000; // 2 SOL a test user splits for redemption
 

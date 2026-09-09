@@ -66,8 +66,7 @@ pub struct Candle {
     pub close: f64,
 }
 
-/// Create the market schema (idempotent; runs alongside the oracle schema on the
-/// same Postgres connection).
+/// Create the market schema (idempotent).
 pub async fn create_schema(client: &Client) -> Result<()> {
     client.batch_execute(SCHEMA).await?;
     Ok(())

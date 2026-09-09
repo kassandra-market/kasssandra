@@ -39,7 +39,7 @@ EXPECTED_SO_SHA="00553905d3a5a984766b13c4c605a8232dbe72b66cda50d4f26599f3b4cca9d
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-FIXTURE_DIR="${ROOT}/programs/oracles/tests/fixtures"
+FIXTURE_DIR="${ROOT}/programs/markets/tests/fixtures"
 PATCH="${SCRIPT_DIR}/patches/solana-gpt-oracle/test-identity-and-openrouter.patch"
 SRC_DIR="${SOLANA_GPT_ORACLE_SRC:-${TMPDIR:-/tmp}/solana-gpt-oracle-${PINNED_SHA}}"
 

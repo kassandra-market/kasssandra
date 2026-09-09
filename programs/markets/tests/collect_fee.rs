@@ -26,8 +26,8 @@ mod basic;
 #[path = "collect_fee/guards.rs"]
 mod guards;
 
-pub(crate) const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
-pub(crate) const INVALID_DEADEND: u8 = 8; // kassandra Phase::InvalidDeadend (terminal void)
+pub(crate) const PROPOSAL: u8 = 0; // SubjectStatus::Open (non-terminal)
+pub(crate) const INVALID_DEADEND: u8 = 2; // SubjectStatus::Void
 pub(crate) const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp) — the seeded pool depth
 pub(crate) const SWAP_SOL: u64 = 3_000_000_000; // SOL the swapper splits for a trading position
 pub(crate) const SWAP_IN: u64 = 1_500_000_000; // cYES sold into the pool to move price + accrue fees

@@ -2,8 +2,8 @@ import { SectionHeader } from '../components/ui'
 import { CreateMarketForm } from '../components/markets/actions/CreateMarketForm'
 
 /**
- * Create-market page: bind a new binary prediction market to an existing
- * Kassandra oracle and seed its funding via {@link CreateMarketForm}.
+ * Create-market page: stand up a GPT Subject and bind a prediction market to it
+ * via {@link CreateMarketForm}.
  */
 export default function CreateMarket() {
   return (
@@ -12,7 +12,7 @@ export default function CreateMarket() {
         as="h1"
         eyebrow="Create"
         line1="New market"
-        paragraph="Bind a new prediction market to an existing Kassandra oracle and seed its liquidity."
+        paragraph="Open a prediction market resolved by MagicBlock GPT. A binary market is one question with two outcomes; a categorical question shares one subject across N outcome markets."
       />
       <div className="mx-auto mt-16 max-w-[640px]">
         <CreateMarketForm />

@@ -7,16 +7,10 @@
  *   - MarketDetail header: the question as h1 + the bound option label in words.
  */
 import { vi } from 'vitest'
-import { MarketStatus } from '@kassandra-market/markets'
-import { Phase } from '@kassandra-market/oracles'
+import { MarketStatus, Phase } from '@kassandra-market/markets'
 
 const ORACLE = 'Orac1e1111111111111111111111111111111111111'
 const META = { subject: 'Will it rain in Paris on Bastille Day?', options: ['Rain', 'No rain'] }
-
-// MarketDetail reads the question via useOracleMeta — mock it to a ready map.
-vi.mock('../src/hooks/useOracleMeta', () => ({
-  useOracleMeta: () => new Map([[ORACLE, META]]),
-}))
 
 // CategoricalCard's FundGroupCta (rendered whenever any outcome is Funding)
 // reaches for indexer/wallet-modal context this structural test doesn't
@@ -57,7 +51,7 @@ const detail = {
     feeCollected: false,
     oracle: { toString: () => ORACLE },
   },
-  oracle: { optionsCount: 2, phase: Phase.Challenge, resolvedOption: -1 },
+  oracle: { optionsCount: 2, phase: Phase.Open, resolvedOption: 0xff },
   reserves: { base: 6n, quote: 4n },
   contributions: [],
 }
@@ -224,8 +218,8 @@ describe('CategoricalCard question/labels', () => {
   })
 })
 
-describe('MarketDetail header question', () => {
-  it('renders the question as the title and the bound label in the binding text', () => {
+describe('MarketDetail header', () => {
+  it('falls back to "Prediction market" without on-chain subject text', () => {
     const html = renderToStaticMarkup(
       <MemoryRouter initialEntries={[`/markets/${PUB0}`]}>
         <Routes>
@@ -233,8 +227,8 @@ describe('MarketDetail header question', () => {
         </Routes>
       </MemoryRouter>,
     )
-    expect(html).toMatch(/<h1[^>]*>Will it rain in Paris on Bastille Day\?<\/h1>/)
-    // The outcome this market pays YES on is named in words (options[0] = "Rain").
-    expect(html).toContain('“Rain”')
+    expect(html).toMatch(/<h1[^>]*>Prediction market<\/h1>/)
+    expect(html).toContain('outcome 0')
+    expect(html).not.toContain('href="/oracles/')
   })
 })

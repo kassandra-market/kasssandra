@@ -1,89 +1,69 @@
 /**
- * Minimal reader for the external Kassandra `Oracle` account.
+ * Markets-owned GPT `Subject` account decoder.
  *
- * kassandra-market only needs three fields off the oracle to drive its lifecycle
- * (is it binary? has it resolved? which option won?), so rather than depend on
- * the full `@kassandra-market/oracles` this reads those bytes directly at the offsets pinned
- * in `../kassandra/programs/oracles/src/state.rs` +
- * `../kassandra/programs/oracles/tests/state_layout.rs`:
+ * A Subject is the resolution source a binary sub-market binds to (`Market.oracle`
+ * stores this pubkey). GPT's callback stamps `resolved_option`.
  *
- *   - `options_count: u8` @160  (after the 8-byte header + 4 pubkeys + 3 i64s)
- *   - `phase: u8`         @161
- *   - `resolved_option: u8` @197  (pinned; valid ONLY when `phase == Resolved`)
- *
- * The oracle account is `Oracle::LEN == 360` bytes; we require at least enough
- * bytes to cover `resolved_option` but do NOT pin the exact size (the oracle
- * struct grows independently of this market program).
+ * Layout (`programs/markets/src/state.rs::Subject`, 88 bytes):
+ *   account_type u8 @0, bump @1, options_count @2, status @3, resolved_option @4,
+ *   pad[3] @5, creator @8, llm_context @40, nonce u64 @72, resolved_slot u64 @80.
  */
-import { readU8, view } from "./common.js";
+import { Address } from "@solana/web3.js";
 
-/** Byte offset of `Oracle.options_count`. */
-export const ORACLE_OPTIONS_COUNT_OFFSET = 160;
-/** Byte offset of `Oracle.phase`. */
-export const ORACLE_PHASE_OFFSET = 161;
-/** Byte offset of `Oracle.resolved_option`. */
-export const ORACLE_RESOLVED_OPTION_OFFSET = 197;
+import { readPubkey, readU64LE, readU8, view } from "./common.js";
 
-/**
- * Kassandra oracle dispute phase (`state.rs::Phase`), stored on-chain as a `u8`.
- * `Created` (0) is reserved/unused — live oracles start at `Proposal`.
- */
+export const SUBJECT_LEN = 88;
+export const SUBJECT_OPTIONS_COUNT_OFFSET = 2;
+export const SUBJECT_STATUS_OFFSET = 3;
+export const SUBJECT_RESOLVED_OPTION_OFFSET = 4;
+
+/** Resolution status (`SubjectStatus`). Aliases keep older `Phase.*` call sites. */
 export enum Phase {
-  Created = 0,
-  Proposal = 1,
-  FactProposal = 2,
-  FactVoting = 3,
-  AiClaim = 4,
-  Challenge = 5,
-  FinalRecompute = 6,
-  Resolved = 7,
-  InvalidDeadend = 8,
+  Open = 0,
+  /** @deprecated use {@link Phase.Open} */
+  Proposal = 0,
+  Resolved = 1,
+  Void = 2,
+  /** @deprecated use {@link Phase.Void} */
+  InvalidDeadend = 2,
 }
 
-/** The three oracle fields kassandra-market reads. */
+export enum SubjectStatus {
+  Open = 0,
+  Resolved = 1,
+  Void = 2,
+}
+
 export interface MarketOracle {
-  /** Number of categorical options (binary markets require 2). */
   optionsCount: number;
-  /** Current dispute phase. */
   phase: Phase;
-  /**
-   * Winning categorical option. CONTRACT: meaningful ONLY when
-   * `phase == Resolved`; on `InvalidDeadend` it is the `0xFF` sentinel and on
-   * any non-terminal phase it is its zeroed default — use
-   * {@link resolvedOptionOrNull}, never this field raw.
-   */
   resolvedOption: number;
+  creator?: Address;
+  llmContext?: Address;
+  nonce?: bigint;
+  resolvedSlot?: bigint;
 }
 
-/** Read the three oracle fields kassandra-market needs from raw account bytes. */
 export function decodeMarketOracle(data: Uint8Array): MarketOracle {
-  if (data.length <= ORACLE_RESOLVED_OPTION_OFFSET) {
-    throw new Error(
-      `Oracle: too short — need > ${ORACLE_RESOLVED_OPTION_OFFSET} bytes, got ${data.length}.`,
-    );
+  if (data.length < SUBJECT_LEN) {
+    throw new Error(`Subject: too short — need ${SUBJECT_LEN} bytes, got ${data.length}.`);
   }
   const dv = view(data);
   return {
-    optionsCount: readU8(dv, ORACLE_OPTIONS_COUNT_OFFSET),
-    phase: readU8(dv, ORACLE_PHASE_OFFSET) as Phase,
-    resolvedOption: readU8(dv, ORACLE_RESOLVED_OPTION_OFFSET),
+    optionsCount: readU8(dv, SUBJECT_OPTIONS_COUNT_OFFSET),
+    phase: readU8(dv, SUBJECT_STATUS_OFFSET) as Phase,
+    resolvedOption: readU8(dv, SUBJECT_RESOLVED_OPTION_OFFSET),
+    creator: readPubkey(data, 8),
+    llmContext: readPubkey(data, 40),
+    nonce: readU64LE(dv, 72),
+    resolvedSlot: readU64LE(dv, 80),
   };
 }
 
-/**
- * True when the oracle has reached a terminal phase — `Resolved` (a winning
- * option was stamped) or `InvalidDeadend` (tie / no survivors). `cancel` requires
- * a terminal oracle; `resolve_market` requires specifically `Resolved`.
- */
 export function isTerminal(phase: Phase): boolean {
-  return phase === Phase.Resolved || phase === Phase.InvalidDeadend;
+  return phase === Phase.Resolved || phase === Phase.Void;
 }
 
-/**
- * The winning option, or `null` unless the oracle is `Resolved`. Guards against
- * reading the `0xFF` `InvalidDeadend` sentinel (or a pre-finalize zero) as a real
- * outcome.
- */
 export function resolvedOptionOrNull(oracle: MarketOracle): number | null {
   return oracle.phase === Phase.Resolved ? oracle.resolvedOption : null;
 }

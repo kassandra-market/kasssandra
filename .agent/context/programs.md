@@ -7,59 +7,40 @@ updated: 2026-09-09
 
 # On-chain programs
 
-Two Solana programs, both **pinocchio** (no Anchor), with **bytemuck-`Pod`**
-account layouts (zero-copy, fixed byte offsets), a single-byte instruction
-discriminant, and `overflow-checks = true` on release.
+One Solana program, **pinocchio** (no Anchor), with **bytemuck-`Pod`** account
+layouts (zero-copy, fixed byte offsets), a single-byte instruction discriminant
+(plus an 8-byte GPT callback intercept), and `overflow-checks = true` on release.
 
 | Crate | Dir | Artifact | Role |
 |---|---|---|---|
-| `kassandra-oracles-program` | `programs/oracles` | `target/deploy/kassandra_oracles_program.so` | Oracle / dispute core |
-| `kassandra-markets-program` | `programs/markets` | `target/deploy/kassandra_markets_program.so` | Prediction / decision markets |
+| `kassandra-markets-program` | `programs/markets` | `target/deploy/kassandra_markets_program.so` | Prediction markets + GPT Subject |
 
-- Build with `cargo build-sbf` (via `just build` / `just build-oracle` / `just build-market`).
+- Build with `cargo build-sbf` (via `just build`).
 - MagicBlock ER CPIs are hand-rolled in `cpi/magicblock.rs`; solana-gpt-oracle
   CPIs in `cpi/gpt_oracle.rs` (do not depend on Anchor / `ephemeral-rollups-sdk`).
   The GPT ELF used in tests is a **test-identity rebuild** (see
   [`../memories/solana-gpt-oracle.md`](../memories/solana-gpt-oracle.md)), not a
   mainnet dump.
-- Program IDs are declared in-crate and are **independent of the crate name** —
-  the oracles/markets rename did not change deployed addresses.
-
-## Oracle program
-
-- Instructions: `Ix` enum in `programs/oracles/src/instruction.rs` (discriminants 0–29).
-- Accounts (`AccountType` tag @ byte 0): `Oracle`, `Proposer`, `Fact`, `FactVote`,
-  `AiClaim`, `Market`, `Protocol`, `OracleMeta`, plus companion `ErSession` (9),
-  `AiOracleConfig` (10), `AiOracleFeed` (11). Layouts in `programs/oracles/src/state/`.
-- Phase machine (`Phase`): Created → Proposal → FactProposal → FactVoting →
-  AiClaim → Challenge → FinalRecompute → Resolved (or InvalidDeadend).
-- Oracle subject + option labels live on-chain in a companion **`oracle_meta`**
-  PDA (`WriteOracleMeta`, Ix 23); extended JSON is off-chain bound by `uri_hash`.
-- ER + AI-oracle: [`../specs/ephemeral-rollups-and-ai-oracle.md`](../specs/ephemeral-rollups-and-ai-oracle.md).
-- Full detail: [`../specs/oracle-program.md`](../specs/oracle-program.md).
+- Program ID `FEGNHWAB7kc7VC9CCwbvVPsv4Jykz2r2WQ758V4xCT9S` is independent of the
+  crate name.
 
 ## Market program
 
-- Instructions: `Ix` in `programs/markets/src/instruction.rs` (0–14): InitConfig,
+- Instructions: `Ix` in `programs/markets/src/instruction.rs` (0–16): InitConfig,
   UpdateConfig, CreateMarket, Contribute, Cancel, Refund, Activate, ClaimLp,
   ResolveMarket, CollectFee, CloseMarket, AddLiquidity, DelegateMarket,
-  CommitMarket, UndelegateMarket.
+  CommitMarket, UndelegateMarket, **CreateSubject (15)**, **RequestAi (16)**.
+- GPT callback (`sha256("global:callback_from_gpt_oracle")[..8]`) is intercepted
+  in `lib.rs` **before** 1-byte dispatch and writes `Subject.resolved_option`.
+- `Subject` (88 B, tag 5) is the resolution source. `Market.oracle` stores that
+  pubkey so MetaDAO `question_id` wiring is unchanged.
 - A market funds in SOL, then **composes** a MetaDAO question / conditional vault
   / AMM and **activates** into a live cYES/cNO pool; resolution pays winners.
 - Full detail: [`../specs/market-program.md`](../specs/market-program.md).
-
-## Source layout (post large-file split)
-
-Big source files are split into folder modules (`foo/mod.rs` + submodules) that
-re-export the prior public surface — e.g. `state/`, `cpi/metadao/`,
-`cpi/metadao_v06/`, `processor/{claims,settle_challenge,open_challenge}/`.
-Integration tests keep `include_bytes!` `.so` consts at each test's root file with
-`#[path]` submodules. See [`../skills/splitting-large-files.md`](../skills/splitting-large-files.md).
 
 ## Gotchas
 
 - **Rebuild the `.so` before running Rust tests** — LiteSVM `include_bytes!`s it.
   ([`../memories/rebuild-so-before-tests.md`](../memories/rebuild-so-before-tests.md))
-- **`cargo test -p kassandra-oracles-program` fails** in isolation (Pod
-  feature-unification) — use `cargo test --workspace`.
+- Prefer **`cargo test --workspace`**.
   ([`../memories/cargo-test-workspace-only.md`](../memories/cargo-test-workspace-only.md))

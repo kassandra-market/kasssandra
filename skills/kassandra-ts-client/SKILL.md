@@ -1,64 +1,80 @@
 ---
 name: kassandra-ts-client
-description: "Use when integrating with the Kassandra optimistic-oracle Solana program from TypeScript or a dApp - building an instruction (propose, submit a fact, vote, submit an AI claim, open or settle a challenge, finalize, claim, close), decoding an on-chain account (oracle, proposer, fact, market), or deriving a Kassandra PDA. Reach for it before hand-writing account metas, discriminants, or PDA seeds."
+description: "Use when integrating with the Kassandra prediction-market Solana program from TypeScript or a dApp - building an instruction (create a GPT Subject, create/trade/resolve a market, request AI), decoding an on-chain account (market, config, Subject), or deriving a Kassandra PDA. Reach for it before hand-writing account metas, discriminants, or PDA seeds."
 ---
 
 # Integrating Kassandra from TypeScript
 
-The `@kassandra-market/oracles` package is the client for the Kassandra dispute-oracle program
-(`KASSANDRA_PROGRAM_ID` = `KassVxvXUEPr5apSr2MqiGva4VFtJXyYLLDFS3f83nY`). It is ESM, built on
-`@solana/web3.js` (v3) + `@solana/kit`. Never hand-roll a Kassandra instruction — every one
-has a builder here, and the discriminants/seeds/layouts are the SDK's job.
+The `@kassandra-market/markets` package is the client for the Kassandra markets program
+(`MARKET_PROGRAM_ID` = `FEGNHWAB7kc7VC9CCwbvVPsv4Jykz2r2WQ758V4xCT9S`). It is ESM, built on
+`@solana/web3.js` (v3 class-`Address`, no codec helpers). Never hand-roll a Kassandra
+instruction — every one has a builder here, and the discriminants/seeds/layouts are the
+SDK's job.
+
+Resolution is MagicBlock's GPT oracle, not a Kassandra dispute program. `Market.oracle`
+stores a markets-owned **Subject** PDA. GPT's callback stamps `Subject.resolved_option`;
+`resolveMarket` reads that.
 
 ## Instruction builders
 
 Each is `async` and returns a web3.js `TransactionInstruction`. The builder **derives its own
-PDAs** (proposer, stake vault, etc.) — you pass wallets + token accounts, not PDAs.
+PDAs** (config, market, escrow, subject, etc.) — you pass wallets + token accounts, not PDAs.
 
-`propose`, `createOracle`, `submitFact`, `voteFact`, `submitAiClaim`, `openChallenge`,
-`settleChallenge`, `finalizeProposals`, `finalizeFacts`, `finalizeOracle`, `finalizeAiClaims`,
-`advancePhase`, `claimProposer`, `claimFact`, `claimFactVote`, `closeAiClaim`, `closeMarket`,
-`sweepOracle`, `initProtocol`, `setGovernance`, `setConfig`, `resolveDeadend`, `spotPrice`.
+Lifecycle: `initConfig`, `updateConfig`, `createSubject`, `createMarket`, `contribute`,
+`cancel`, `refund`, `activate`, `addLiquidity`, `claimLp`, `resolveMarket`, `collectFee`,
+`closeMarket`, `requestAi`. ER: `delegateMarket`, `commitMarket`, `undelegateMarket`.
 
-Each takes one args object; a `programId?` override is always accepted. Import the `*Args`
-type (e.g. `ProposeArgs`) for the exact fields.
+Each takes one args object; a `programId?` override is always accepted.
+
+`createSubject` takes `payer`, `nonce`, `optionsCount`, `llmContext`. `createMarket` binds
+a binary sub-market to that Subject (`oracle` = Subject pubkey, `outcomeIndex`). `requestAi`
+takes `subject`, `payer`, `text`, and optional `llmContext` (when set, remaining accounts
+for the GPT-oracle CPI are appended).
 
 ## Decoders, PDAs, enums
 
-- Decoders (bytes to typed struct): `decodeOracle`, `decodeProposer`, `decodeFact`,
-  `decodeFactVote`, `decodeAiClaim`, `decodeMarket`, `decodeProtocol`. An oracle exposes
-  `phase` (a `Phase`), `optionsCount`, `phaseEndsAt`, `baseMint`, `stakeVault`, `resolvedOption`.
-- PDAs (`pda` namespace, async, return `{ address, bump }`): `pda.oracle(nonce)`,
-  `pda.proposer(oracle, authority)`, `pda.fact(oracle, contentHash)`, `pda.factVote(fact, voter)`,
-  `pda.aiClaim(oracle, proposer)`, `pda.market(aiClaim)`, `pda.stakeVault(oracle)`,
-  `pda.challengeUsdcVault(market)`, `pda.protocol()`, `pda.mintAuthority()`.
-- Enums/constants: `Phase`, `Ix`, `CLAIM_OPTION_NONE`, `VOTE_APPROVE`, `VOTE_DUPLICATE`,
-  `KASSANDRA_PROGRAM_ID`, `EXTERNAL_PROGRAM_IDS`.
+- Decoders: `decodeMarket`, `decodeConfig`, `decodeMarketOracle` (88-byte Subject). A
+  Subject exposes `phase` (`Phase.Open` / `Resolved` / `Void`), `optionsCount`,
+  `resolvedOption`.
+- PDAs (`pda` namespace, async, return `{ address, bump }`): `pda.config()`,
+  `pda.subject(nonce)`, `pda.market(oracle, outcomeIndex)`, `pda.escrow(market)`,
+  `pda.contribution(market, contributor)`, plus GPT helpers `pda.gptOracleIdentity()`,
+  `pda.gptOracleInteraction(payer, llmContext)`, `pda.gptOracleCounter()`,
+  `pda.gptOracleContext(...)`.
+- Enums/constants: `Ix`, `MarketStatus`, `Phase`, `MARKET_PROGRAM_ID`,
+  `GPT_ORACLE_PROGRAM_ID`.
 
 ## Example
 
 ```ts
-import { propose, decodeOracle, Phase } from "@kassandra-market/oracles";
+import { createSubject, createMarket, decodeMarketOracle, Phase, pda } from "@kassandra-market/markets";
 
-// Build the propose instruction. `authorityBase` is the proposer's SOL token account
-// (the bond source); the proposer PDA + stake vault are derived inside the builder.
-async function buildProposeIx(oracle, authority, authorityBase, option, bond) {
-  return propose({ oracle, authority, authorityBase, option, bond });
+async function standUpBinaryMarket(payer, llmContext, baseMint, creatorBaseAta, seedAmount) {
+  const nonce = 1n;
+  const subjectIx = await createSubject({ payer, nonce, optionsCount: 2, llmContext });
+  const { address: subject } = await pda.subject(nonce);
+  const marketIx = await createMarket({
+    creator: payer,
+    oracle: subject,
+    outcomeIndex: 0,
+    baseMint,
+    creatorBaseAta,
+    seedAmount,
+  });
+  return { subjectIx, marketIx, subject };
 }
 
-// Read an oracle's current phase from chain.
-async function readOraclePhase(accountData: Uint8Array) {
-  const oracle = decodeOracle(accountData);
-  return { phase: oracle.phase, phaseEndsAt: oracle.phaseEndsAt, options: oracle.optionsCount };
-  // oracle.phase === Phase.Proposal, Phase.FactVoting, Phase.Challenge, Phase.Resolved, ...
+function readSubject(accountData: Uint8Array) {
+  const subject = decodeMarketOracle(accountData);
+  return { phase: subject.phase, option: subject.resolvedOption, options: subject.optionsCount };
+  // subject.phase === Phase.Open, Phase.Resolved, Phase.Void
 }
 ```
 
 ## Notes
 
-- Proposals only land once the oracle is in `Phase.Proposal` and past its deadline; check
-  `decodeOracle(...).phase` first.
-- The app wraps builders in a `data/actions/*` layer returning `TransactionInstruction[]` — a
-  good pattern to copy, but the builders above are the real primitives.
-- Cross-language parity: the Rust client is `kassandra-oracles-sdk` (see the `kassandra-rust-client`
-  skill); both mirror the same program, kept in lockstep by a byte-parity test.
+- The app's `@solana/web3.js@3.0.0-rc.2` has **no** codec helpers (`getBase58Encoder` /
+  `getU64Encoder`). Byte helpers are hand-rolled or use `bs58`.
+- Cross-language parity: the Rust client is `kassandra-markets-sdk` (see the
+  `kassandra-rust-client` skill); both mirror the same program, kept in lockstep by
+  byte-parity tests.

@@ -2,28 +2,23 @@ import { Card, Reveal, SectionHeader } from '../ui'
 
 const FEATURES: { title: string; body: string }[] = [
   {
-    title: 'Economic security',
-    body: 'Proposer, fact, and vote bonds put capital behind every claim. Stakers settle disputes, wrong answers are slashed, and the accounting stays conservation-safe.',
+    title: 'Prediction markets',
+    body: 'Binary and categorical questions on Solana. Seed liquidity, trade the AMM, redeem when GPT resolves.',
   },
   {
-    title: 'AI-assisted, verifiable',
-    body: 'A pinned model reruns over the agreed facts and commits its hashes on-chain — so a challenger can independently reproduce the verdict, not just trust it.',
+    title: 'Resolved by MagicBlock GPT',
+    body: 'Each market binds to a markets-owned GPT Subject. MagicBlock GPT settles the outcome on-chain — no optimistic dispute round.',
   },
   {
     title: 'Futarchy-governed',
-    body: 'Parameters and the treasury are set by market-based governance through MetaDAO — the protocol tunes itself by what the market decides, not by decree.',
+    body: 'Parameters and the treasury are set by market-based governance through MetaDAO — the protocol tunes itself by what the market decides.',
   },
   {
-    title: 'Optimistic by default',
-    body: 'Most answers resolve uncontested and cheap. Only genuine disputes escalate to the AI rerun and the challenge markets, where the stakes are real.',
+    title: 'On Solana',
+    body: 'Fast settlement, cheap transactions, and a live AMM for every Active market. Create a question in one wallet session.',
   },
 ]
 
-/**
- * "Why Kassandra" — a centered SectionHeader over a 2-col grid of flat feature
- * cards (Feature Side Card pattern): serif heading, bronze body, hairline edge.
- * Collapses to a single column on mobile.
- */
 export default function WhyKassandra() {
   return (
     <section id="why-kassandra" aria-label="Why Kassandra" className="px-6 py-20">
@@ -32,9 +27,9 @@ export default function WhyKassandra() {
           <SectionHeader
             eyebrow="Why Kassandra"
             eyebrowPill
-            line1="Credible answers,"
-            line2="not just confident ones."
-            paragraph="Bonds, an open-source resolver, and market-based governance combine into an oracle you can audit end to end."
+            line1="Markets that settle,"
+            line2="not just debate."
+            paragraph="Prediction markets on Solana, resolved by MagicBlock GPT, governed by MetaDAO."
           />
         </Reveal>
 

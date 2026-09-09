@@ -1,17 +1,18 @@
-//! axum data + transaction gateway (market side) over Postgres + on-demand RPC.
+//! axum data + transaction gateway over Postgres + on-demand RPC.
 //!
-//! Mounted under `/api/*` and merged with the oracle router in `main`. The
-//! store-backed routes (`/api/config`, `/api/markets`) read `market_accounts`;
-//! the enrichment + tx routes use the on-demand [`Rpc`] (503 if none configured).
-//! No `/health` here — the oracle router owns the shared `/health`.
+//! Serves `/health`, `/rpc` (allowlisted JSON-RPC proxy for the app Connection),
+//! and `/api/*`. The store-backed routes (`/api/config`, `/api/markets`) read
+//! `market_accounts`; the enrichment + tx routes use the on-demand [`Rpc`]
+//! (503 if none configured).
 
 use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::{
+    body::Bytes,
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::{header, StatusCode},
+    response::{IntoResponse, Json},
     routing::{get, post},
     Router,
 };
@@ -29,17 +30,23 @@ use crate::market::json::{
     ReservesDto,
 };
 use crate::market::rpc::Rpc;
+use crate::ratelimit::RateLimiter;
 
-// KASSANDRA oracle account field offsets (the oracle belongs to the Kassandra
-// program, not ours — the 3 status bytes are read directly).
-const ORACLE_OPTIONS_COUNT_OFFSET: usize = 160;
-const ORACLE_PHASE_OFFSET: usize = 161;
-const ORACLE_RESOLVED_OPTION_OFFSET: usize = 197;
+// Markets-owned Subject PDA (88 bytes). JSON field names stay `phase` for
+// Subject.status so the app contract is unchanged.
+const ORACLE_OPTIONS_COUNT_OFFSET: usize = 2;
+const ORACLE_PHASE_OFFSET: usize = 3;
+const ORACLE_RESOLVED_OPTION_OFFSET: usize = 4;
 
 #[derive(Clone)]
 pub struct AppState {
     pub client: Arc<Client>,
     pub rpc: Option<Arc<Rpc>>,
+    /// Upstream Solana RPC for the `/rpc` JSON-RPC gateway. Never leaves the
+    /// backend (the browser has no RPC endpoint of its own in gateway mode).
+    pub rpc_url: String,
+    pub http: reqwest::Client,
+    pub rpc_rate: Arc<RateLimiter>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -60,6 +67,8 @@ pub fn router(state: AppState) -> Router {
     };
 
     Router::new()
+        .route("/health", get(|| async { "ok" }))
+        .route("/rpc", post(rpc_gateway))
         .route("/api/config", get(get_config))
         .route("/api/markets", get(get_markets))
         .route("/api/markets/{pubkey}", get(get_market_detail))
@@ -163,8 +172,14 @@ async fn get_market_detail(
                     // history advances on a trade regardless of ws. Active-only;
                     // skipped when the pool is unchanged since the last sample.
                     if m.status == 1 {
-                        record_price_from_read(&state.client, &pubkey, read_slot as i64, base, quote)
-                            .await;
+                        record_price_from_read(
+                            &state.client,
+                            &pubkey,
+                            read_slot as i64,
+                            base,
+                            quote,
+                        )
+                        .await;
                     }
                 }
             }
@@ -184,7 +199,9 @@ async fn record_price_from_read(client: &Client, market: &str, slot: i64, base: 
     // would wrap negative and corrupt both the stored series and the change-guard
     // below). Not a real pool — skip + log. Mirrors `price_subscribe::record`.
     let (Ok(base_i), Ok(quote_i)) = (i64::try_from(base), i64::try_from(quote)) else {
-        log::warn!("[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample");
+        log::warn!(
+            "[market-price] {market}: reserve exceeds i64::MAX ({base}/{quote}); skipping sample"
+        );
         return;
     };
     match crate::market::db::latest_price_reserves(client, market).await {
@@ -240,6 +257,28 @@ fn decode_oracle(data: &[u8]) -> Option<OracleDto> {
         phase: *data.get(ORACLE_PHASE_OFFSET)?,
         resolved_option: *data.get(ORACLE_RESOLVED_OPTION_OFFSET)?,
     })
+}
+
+#[cfg(test)]
+mod decode_oracle_tests {
+    use super::decode_oracle;
+
+    #[test]
+    fn reads_subject_offsets() {
+        let mut data = vec![0u8; 88];
+        data[2] = 3; // options_count
+        data[3] = 1; // status / JSON `phase`
+        data[4] = 2; // resolved_option
+        let dto = decode_oracle(&data).expect("decodes");
+        assert_eq!(dto.options_count, 3);
+        assert_eq!(dto.phase, 1);
+        assert_eq!(dto.resolved_option, 2);
+    }
+
+    #[test]
+    fn rejects_truncated() {
+        assert!(decode_oracle(&[1, 2, 3, 4]).is_none());
+    }
 }
 
 async fn get_account(
@@ -314,5 +353,87 @@ async fn get_transaction_status(
         }
         Ok(None) => Ok(Json(json!({ "status": "pending", "err": null }))),
         Err(e) => Err(error(StatusCode::BAD_GATEWAY, e)),
+    }
+}
+
+/// JSON-RPC methods the dApp's `@solana/web3.js` Connection issues through this
+/// gateway. The gateway is same-origin and unauthenticated, so without this
+/// allowlist it is a free open proxy to the private upstream RPC.
+const RPC_METHOD_ALLOWLIST: &[&str] = &[
+    "getAccountInfo",
+    "getMultipleAccounts",
+    "getProgramAccounts",
+    "getBalance",
+    "getTokenAccountBalance",
+    "getTokenAccountsByOwner",
+    "getLatestBlockhash",
+    "isBlockhashValid",
+    "getSignatureStatuses",
+    "getSlot",
+    "getBlockHeight",
+    "getMinimumBalanceForRentExemption",
+    "getFeeForMessage",
+    "sendTransaction",
+    "simulateTransaction",
+    "getVersion",
+    "getHealth",
+    "getGenesisHash",
+    "getEpochInfo",
+];
+
+fn rpc_body_is_allowed(body: &[u8]) -> bool {
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return false;
+    };
+    let allowed = |call: &serde_json::Value| -> bool {
+        call.get("method")
+            .and_then(|m| m.as_str())
+            .is_some_and(|m| RPC_METHOD_ALLOWLIST.contains(&m))
+    };
+    match v {
+        serde_json::Value::Array(calls) => !calls.is_empty() && calls.iter().all(allowed),
+        obj => allowed(&obj),
+    }
+}
+
+/// Forward an allowlisted JSON-RPC body to the upstream RPC.
+async fn rpc_gateway(State(s): State<Arc<AppState>>, body: Bytes) -> impl IntoResponse {
+    if !rpc_body_is_allowed(&body) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "rpc method not allowed through this gateway" })),
+        )
+            .into_response();
+    }
+    if !s.rpc_rate.try_acquire() {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({ "error": "rpc gateway rate limit exceeded" })),
+        )
+            .into_response();
+    }
+    match s
+        .http
+        .post(&s.rpc_url)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(body)
+        .send()
+        .await
+    {
+        Ok(resp) => {
+            let status =
+                StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+            match resp.bytes().await {
+                Ok(bytes) => {
+                    (status, [(header::CONTENT_TYPE, "application/json")], bytes).into_response()
+                }
+                Err(e) => error(StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
+            }
+        }
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(json!({ "error": format!("rpc upstream: {e}") })),
+        )
+            .into_response(),
     }
 }

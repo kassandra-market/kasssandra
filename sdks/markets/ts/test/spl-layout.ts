@@ -40,20 +40,19 @@ export function tokenAccountAmount(data: Uint8Array): bigint {
   return new DataView(data.buffer, data.byteOffset, data.length).getBigUint64(64, true);
 }
 
-// --- Kassandra Oracle (392 bytes) — mirrors kassandra `state.rs` --------------
-const ORACLE_LEN = 392; // Oracle::LEN — `load_kassandra_oracle` requires ≥ this.
-const ORACLE_ACCOUNT_TYPE_OFFSET = 0;
-const ORACLE_OPTIONS_COUNT_OFFSET = 160;
-const ORACLE_PHASE_OFFSET = 161;
-const ORACLE_RESOLVED_OPTION_OFFSET = 197;
-const KASS_ACCOUNT_TYPE_ORACLE = 1; // kassandra `AccountType::Oracle`.
+// --- GPT Subject (88 bytes) — markets-owned resolution source --------------
+const SUBJECT_LEN = 88;
+const SUBJECT_ACCOUNT_TYPE = 5; // AccountType::Subject
+const SUBJECT_OPTIONS_COUNT_OFFSET = 2;
+const SUBJECT_STATUS_OFFSET = 3;
+const SUBJECT_RESOLVED_OPTION_OFFSET = 4;
 
-/** A 392-byte Kassandra `Oracle` carrying just the fields the market reads. */
+/** An 88-byte markets `Subject` carrying the fields the market gate reads. */
 export function oracleBytes(optionsCount: number, phase: number, resolvedOption: number): Uint8Array {
-  const data = new Uint8Array(ORACLE_LEN);
-  data[ORACLE_ACCOUNT_TYPE_OFFSET] = KASS_ACCOUNT_TYPE_ORACLE;
-  data[ORACLE_OPTIONS_COUNT_OFFSET] = optionsCount;
-  data[ORACLE_PHASE_OFFSET] = phase;
-  data[ORACLE_RESOLVED_OPTION_OFFSET] = resolvedOption;
+  const data = new Uint8Array(SUBJECT_LEN);
+  data[0] = SUBJECT_ACCOUNT_TYPE;
+  data[SUBJECT_OPTIONS_COUNT_OFFSET] = optionsCount;
+  data[SUBJECT_STATUS_OFFSET] = phase;
+  data[SUBJECT_RESOLVED_OPTION_OFFSET] = resolvedOption;
   return data;
 }

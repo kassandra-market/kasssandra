@@ -3,31 +3,28 @@ import { Card, EyebrowTag, Reveal, SectionHeader, TriggerPreviewCard } from '../
 const STEPS: { step: string; title: string; body: string }[] = [
   {
     step: '01',
-    title: 'Propose',
-    body: 'Anyone answers an open question and posts a proposer bond. Optimism is the default — most answers are correct and cheap.',
+    title: 'Create',
+    body: 'Stand up a GPT Subject and bind a binary or categorical prediction market to it. Seed the funding pool in the same transaction.',
   },
   {
     step: '02',
-    title: 'Challenge window',
-    body: 'A timed window opens. Anyone can dispute the answer by posting a challenge bond and staking against it.',
+    title: 'Fund',
+    body: 'Anyone can contribute SOL until the market hits its liquidity floor. At the floor, anyone can activate and compose the cYES/cNO pool.',
   },
   {
     step: '03',
-    title: 'AI verdict',
-    body: 'An open-source runner reruns a pinned model over the agreed facts. The inputs and verdict hashes are committed on-chain.',
+    title: 'Trade',
+    body: 'Once Active, the AMM prices YES against NO. Buy or sell shares; implied probability is the live market estimate.',
   },
   {
     step: '04',
-    title: 'Settle',
-    body: 'Bonds and stakes are distributed to the honest side, the wrong side is slashed, and dead-end disputes are burned.',
+    title: 'GPT resolves',
+    body: 'MagicBlock GPT settles the subject. Winning shares redeem 1 SOL; the market closes after claims.',
   },
 ]
 
 /**
- * "How it works" — a centered SectionHeader over the optimistic lifecycle as a
- * 4-up row of flat Cards (collapses to 2-col then 1-col), plus a TriggerPreview-
- * Card rendering the core Kassandra mechanic: the AI rerun on challenge, with
- * the state variable in ember orange and a "+ Settle" action row.
+ * "How it works" — create → fund → trade → GPT resolves.
  */
 export default function HowItWorks() {
   return (
@@ -37,9 +34,9 @@ export default function HowItWorks() {
           <SectionHeader
             eyebrow="How it works"
             eyebrowPill
-            line1="An optimistic oracle"
+            line1="A prediction market"
             line2="with a mind."
-            paragraph="Propose an answer, open a challenge window, let an open-source runner rerun a pinned model over the agreed facts, then settle — every input and verdict hash committed on-chain."
+            paragraph="Create a market, fund it to the floor, trade the live AMM, and let MagicBlock GPT resolve the question on-chain."
           />
         </Reveal>
         <ol className="mt-16 grid list-none grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -57,9 +54,9 @@ export default function HowItWorks() {
         <Reveal className="mx-auto mt-10 max-w-[520px]" delay={120}>
           <TriggerPreviewCard
             whenLabel="When"
-            condition="AI reruns the pinned model over the agreed facts while"
-            variable="oracle.state == Challenged"
-            actionLabel="+ Settle · commit verdict hash on-chain"
+            condition="MagicBlock GPT settles the subject while"
+            variable="subject.status == Resolved"
+            actionLabel="+ Redeem · winning shares pay 1 SOL"
           />
         </Reveal>
       </div>

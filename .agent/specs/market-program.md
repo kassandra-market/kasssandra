@@ -2,7 +2,7 @@
 id: spec-market-program
 title: Market program spec
 tags: [spec, market, program, onchain, metadao]
-updated: 2026-09-07
+updated: 2026-09-09
 source: programs/markets/src/{instruction.rs,state.rs,processor/}
 ---
 
@@ -31,6 +31,13 @@ composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
 | 12 | DelegateMarket | Create/update per-market `ErSession`; optional MagicBlock CPI |
 | 13 | CommitMarket | Stamp last-commit slot; optional Magic Program commit CPI |
 | 14 | UndelegateMarket | Mark undelegated; optional commit-and-undelegate CPI |
+| 15 | CreateSubject | Stand up a GPT-resolved Subject PDA `[b"subject", nonce_u64_le]` |
+| 16 | RequestAi | CPI MagicBlock `interact_with_llm` (short form skips remaining accounts) |
+
+GPT callback (not an `Ix` byte): 8-byte disc
+`[0x3b, 0x24, 0x82, 0x78, 0x4d, 0x6f, 0xac, 0x00]`. Accounts: identity PDA
+(signer), subject (writable). Payload: Borsh `String` parsed as
+`{"option_index": N}`.
 
 ## Accounts
 
@@ -39,11 +46,15 @@ composes a MetaDAO conditional market and activates a live cYES/cNO AMM pool.
   min_liquidity, total_contributed, SOL/USDC vaults, outcome index, settled flag.
 - `Contribution` — per-LP contribution amount.
 - `ErSession` (96 B, tag 4) — `[b"er_session", market]` MagicBlock delegation record.
+- `Subject` (88 B, tag 5) — `[b"subject", nonce_u64_le]`. GPT resolution source.
+  Layout: `account_type, bump, options_count, status, resolved_option, pad[3],
+  creator, llm_context, nonce u64, resolved_slot u64`. Status 0=Open, 1=Resolved,
+  2=Void. `SUBJECT_OPTION_PENDING = 0xff`.
 
 ## Lifecycle
 
 ```
-CreateMarket (Funding) ──Contribute*──▶ (funded to floor)
+CreateSubject → CreateMarket (Funding) ──Contribute*──▶ (funded to floor)
   ──compose (MetaDAO question / conditional vault / AMM, off the SDK flows)──▶
   ──Activate──▶ Active (cYES/cNO pool live) ──trade (split/swap)──▶
   ──ResolveMarket──▶ settled ──ClaimLp / CollectFee / CloseMarket

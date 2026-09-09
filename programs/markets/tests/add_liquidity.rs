@@ -9,7 +9,7 @@ use kassandra_markets_program::state::{Contribution, Market};
 use kassandra_markets_sdk::metadao::SwapType;
 use solana_sdk::{pubkey::Pubkey, signature::{Keypair, Signer}};
 
-const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
+const PROPOSAL: u8 = 0; // SubjectStatus::Open (non-terminal)
 const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 const SEED_A: u64 = 600_000_000;
 const SEED_B: u64 = 400_000_000;

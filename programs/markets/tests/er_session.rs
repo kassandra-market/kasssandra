@@ -7,7 +7,7 @@ use kassandra_markets_program::state::{ErSession, ER_STATUS_DELEGATED, ER_STATUS
 use kassandra_markets_sdk::ix;
 use solana_sdk::{signature::Keypair, signer::Signer};
 
-const PROPOSAL: u8 = 1;
+const PROPOSAL: u8 = 0; // SubjectStatus::Open
 
 #[test]
 fn delegate_commit_undelegate_roundtrip() {

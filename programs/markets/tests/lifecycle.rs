@@ -11,8 +11,8 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-const PROPOSAL: u8 = 1;
-const RESOLVED: u8 = 7;
+const PROPOSAL: u8 = 0; // SubjectStatus::Open
+const RESOLVED: u8 = 1; // SubjectStatus::Resolved
 
 #[test]
 fn full_crowdfunding_lifecycle_cancel_and_refund() {

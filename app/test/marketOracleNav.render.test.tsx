@@ -1,11 +1,10 @@
 /**
- * Cross-navigation: the market detail header links to its linked oracle
- * (`/oracles/:oracle`), and the Details tab repeats the link. The reverse
- * (oracle → market) selection is unit-tested via `firstBoundMarketPubkey`.
+ * Cross-navigation: the market detail must NOT link to `/oracles/` (the
+ * oracles program is gone). The GPT Subject address is shown as an address
+ * row on Details, not as a route.
  */
 import { vi } from "vitest";
-import { MarketStatus } from "@kassandra-market/markets";
-import { Phase } from "@kassandra-market/oracles";
+import { MarketStatus, Phase } from "@kassandra-market/markets";
 
 const PUB = "Market11111111111111111111111111111111111111";
 const ORACLE = "Orac1e1111111111111111111111111111111111111";
@@ -36,7 +35,7 @@ const detail = {
     activationLp: 0n,
     activationContributed: 0n,
   },
-  oracle: { optionsCount: 2, phase: Phase.Proposal, resolvedOption: 0 },
+  oracle: { optionsCount: 2, phase: Phase.Open, resolvedOption: 0 },
   reserves: null,
   contributions: [],
 };
@@ -57,7 +56,6 @@ vi.mock("../src/market/hooks/useOracleGroup", () => ({
     refetch: () => {},
   }),
 }));
-vi.mock("../src/hooks/useOracleMeta", () => ({ useOracleMeta: () => new Map() }));
 vi.mock("@solana/wallet-adapter-react", () => ({ useWallet: () => ({ publicKey: null }) }));
 vi.mock("../src/components/markets/actions/MarketActions", () => ({
   MarketLiquidityActions: () => null,
@@ -67,8 +65,6 @@ vi.mock("../src/components/markets/actions/GroupLiquidityPanel", () => ({
   GroupLiquidityPanel: () => null,
 }));
 vi.mock("../src/components/markets/actions/TradePanel", () => ({ TradePanel: () => null }));
-// GroupTradePanel now renders the real PriceChart behind the legend, which
-// needs an IndexerProvider this lightweight structural test doesn't provide.
 vi.mock("../src/components/markets/PriceChart", () => ({ PriceChart: () => null }));
 
 import React from "react";
@@ -88,16 +84,17 @@ function render(query = ""): string {
   );
 }
 
-describe("market → oracle navigation", () => {
-  it("links the header to the linked oracle's detail page", () => {
+describe("market detail — no oracle routes", () => {
+  it("does not link the header to /oracles/", () => {
     const html = render();
-    expect(html).toContain(`href="/oracles/${ORACLE}"`);
-    expect(html).toContain("View oracle");
+    expect(html).not.toContain(`href="/oracles/${ORACLE}"`);
+    expect(html).not.toContain("View oracle");
   });
 
-  it("repeats the link on the Details tab", () => {
+  it("does not link the Details tab to /oracles/", () => {
     const html = render("?tab=details");
-    expect(html).toContain("Open oracle page");
-    expect(html).toContain(`href="/oracles/${ORACLE}"`);
+    expect(html).not.toContain("Open oracle page");
+    expect(html).not.toContain(`href="/oracles/`);
+    expect(html).toContain("GPT subject");
   });
 });

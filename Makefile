@@ -4,10 +4,9 @@
 # tools (cargo, just, pnpm, and scripts/*.sh) so there is a single surface to
 # remember. Grouped: setup · build · test · lint · dev (local nodes + seed) · docs.
 #
-# This repo hosts BOTH on-chain programs — the optimistic oracle
-# (`programs/oracles`) and the prediction market (`programs/markets`) —
-# a single web app (`app/`, both `/oracles*` and `/markets*`), and a single
-# Postgres-backed indexer (`indexer/`) that indexes both programs.
+# This repo hosts the prediction-market program (`programs/markets`), resolved
+# by MagicBlock's GPT oracle, a single web app (`app/`), and a Postgres-backed
+# indexer (`indexer/`).
 #
 # Requirements: rust + the Solana/Anza toolchain (cargo build-sbf), `just`, pnpm,
 # and — for the e2e / dev targets — `surfpool` and Postgres (initdb/pg_ctl).
@@ -26,20 +25,19 @@ help: ## List all targets
 	@echo "  Common flows:  make setup  ·  make test  ·  make lint  ·  make dev"
 
 # ===== Setup ================================================================
-setup: install build-program build-sdk ## Install deps + build both programs (.so) & both SDKs (first-run bootstrap)
+setup: install build-program build-sdk ## Install deps + build the program (.so) & SDK (first-run bootstrap)
 
 install: ## Install JS workspace deps (frozen lockfile)
 	corepack enable >/dev/null 2>&1 || true
 	pnpm install --frozen-lockfile
 
 # ===== Build ================================================================
-build: build-program build-sdk build-app build-runner build-indexer ## Build everything
+build: build-program build-sdk build-app build-indexer ## Build everything
 
-build-program: ## Build BOTH SBF program artifacts (oracle + market → target/deploy/*.so)
+build-program: ## Build the SBF program artifact (market → target/deploy/*.so)
 	just build
 
-build-sdk: ## Build BOTH TypeScript SDKs (@kassandra-market/oracles + @kassandra-market/markets → dist/)
-	pnpm --filter @kassandra-market/oracles build
+build-sdk: ## Build the TypeScript SDK (@kassandra-market/markets → dist/)
 	pnpm --filter @kassandra-market/markets build
 
 version-sync: ## Stamp Cargo [workspace.package].version into the TS SDK package.json files
@@ -51,23 +49,19 @@ version-check: ## Verify every TS SDK version matches the workspace version (CI 
 build-app: build-sdk ## Build the web app (Vite → app/dist)
 	pnpm --filter ./app build
 
-build-runner: ## Build the AI runner binary
-	cargo build -p kassandra-runner
-
-build-indexer: ## Build the indexer service (release, own lockfile)
+build-indexer: ## Build the indexer service (release)
 	cargo build --release --locked --manifest-path indexer/Cargo.toml
 
 # ===== Test =================================================================
-test: test-rust test-sdk test-app test-indexer ## Run all UNIT tests (rust workspace + sdks + app + indexer)
+test: test-rust test-sdk test-app test-indexer ## Run all UNIT tests (rust workspace + sdk + app + indexer)
 
-test-rust: build-program ## Rust workspace tests (both programs' LiteSVM + runner + rust SDKs)
+test-rust: build-program ## Rust workspace tests (program LiteSVM + rust SDK + indexer)
 	cargo test --workspace
 
-test-program: ## Both programs' tests only (rebuilds the .so files first)
+test-program: ## Program tests only (rebuilds the .so first)
 	just test
 
-test-sdk: ## Both SDKs' vitest (litesvm + decoders)
-	pnpm --filter @kassandra-market/oracles test
+test-sdk: ## Markets SDK vitest (litesvm + decoders)
 	pnpm --filter @kassandra-market/markets test
 
 test-app: ## App vitest (unit + render)
@@ -79,10 +73,7 @@ test-indexer: ## Indexer cargo tests
 test-e2e: ## Browser E2E: surfpool + funded wallet + app (scripts/e2e-playwright.sh)
 	scripts/e2e-playwright.sh
 
-test-e2e-fork: ## Browser E2E: mainnet-forked challenge-market cluster
-	scripts/e2e-playwright-fork.sh
-
-test-e2e-indexer: ## Browser E2E: surfpool + Postgres + indexer + app ActivityFeed
+test-e2e-indexer: ## Browser E2E: surfpool + Postgres + indexer + app
 	scripts/e2e-playwright-indexer.sh
 
 test-e2e-candles: ## Browser E2E: surfpool + ws + Postgres + indexer + app candlestick chart
@@ -96,8 +87,7 @@ lint: ## Lint: app (oxlint) + rust clippy (workspace + indexer)
 	cargo clippy --workspace --all-targets
 	cargo clippy --manifest-path indexer/Cargo.toml --all-targets
 
-typecheck: build-sdk ## Typecheck both SDKs + app
-	pnpm --filter @kassandra-market/oracles typecheck
+typecheck: build-sdk ## Typecheck SDK + app
 	pnpm --filter @kassandra-market/markets typecheck
 	pnpm --filter ./app typecheck
 
@@ -117,13 +107,13 @@ fmt-check: ## Check Rust formatting without writing
 # — that live indexer then fails every getBlockhash call. Set distinct
 # SURFPOOL_PORT/INDEXER_PORT/APP_PORT env vars per concurrent worktree, e.g.
 # `SURFPOOL_PORT=8901 INDEXER_PORT=3112 APP_PORT=5175 make dev`.
-chain: ## Boot surfpool + deploy + seed oracles, and HOLD (Ctrl-C to stop)
+chain: ## Boot surfpool + deploy + seed markets, and HOLD (Ctrl-C to stop)
 	scripts/dev-up.sh chain
 
 app-local: ## Run the app dev server against the local surfpool (VITE_E2E funded wallet)
 	scripts/dev-up.sh app
 
-dev: ## Full production-like local stack: surfpool + indexer + mock-runner + app (real wallet); logs/ + Ctrl-C teardown
+dev: ## Full production-like local stack: surfpool + indexer + app (real wallet); logs/ + Ctrl-C teardown
 	scripts/dev-full.sh
 
 dev-e2e: ## Lighter dev: seeded chain + app in VITE_E2E mode (auto-connected scripted wallet, no indexer)
@@ -137,12 +127,10 @@ docs: ## Serve the Mintlify docs locally (needs Node 20 — see docs-site/README
 	pnpm --filter kassandra-docs-site dev
 
 # ===== CI mirror / housekeeping ============================================
-ci: ## Run what CI runs: build both .so, rust workspace tests, and the JS lane
+ci: ## Run what CI runs: build .so, rust workspace tests, and the JS lane
 	just build
 	cargo test --workspace
-	pnpm --filter @kassandra-market/oracles build
 	pnpm --filter @kassandra-market/markets build
-	pnpm --filter @kassandra-market/oracles test
 	pnpm --filter @kassandra-market/markets test
 	pnpm --filter ./app typecheck
 	pnpm --filter ./app lint
@@ -151,9 +139,9 @@ ci: ## Run what CI runs: build both .so, rust workspace tests, and the JS lane
 clean: ## Remove build artifacts (cargo target, dist, indexer target)
 	cargo clean
 	cargo clean --manifest-path indexer/Cargo.toml
-	rm -rf app/dist sdks/oracles/ts/dist sdks/markets/ts/dist
+	rm -rf app/dist sdks/markets/ts/dist
 
-.PHONY: help setup install build build-program build-sdk build-app build-runner \
+.PHONY: help setup install build build-program build-sdk build-app \
         build-indexer test test-rust test-program test-sdk test-app test-indexer \
-        test-e2e test-e2e-fork test-e2e-indexer test-all lint typecheck fmt \
+        test-e2e test-e2e-indexer test-all lint typecheck fmt \
         fmt-check chain app-local dev indexer-run docs ci clean

@@ -14,19 +14,18 @@ import { useActionSequence } from "../../market/hooks/useActionSequence";
 import { parseSolAmount } from "../../market/data/amount";
 import type { MarketSummary } from "../../market/data/markets";
 import { formatSol, fundingProgress, impliedYesProbability, truncateMiddle } from "../../market/lib/marketView";
-import type { OracleMetaView } from "../../hooks/useOracleMeta";
+import type { OracleMetaView } from "../../market/lib/meta";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-platinum/40 " +
   "focus-visible:ring-offset-2 focus-visible:ring-offset-liquid-abyss";
 
 /**
- * One market rendered as a card. The header carries the status badge + a link
- * to the linked oracle (independent of the card's own "view market" target —
- * two distinct destinations, so neither is nested inside the other). The
- * on-chain oracle metadata (subject, read best-effort via {@link OracleMetaView})
- * leads the title; without it, the short pubkey. The body shows a funding bar
- * (Funding) or the live YES probability (Active), plus TVL.
+ * One market rendered as a card. The header carries the status badge and a
+ * truncated GPT Subject address (not a link — there is no oracle page).
+ * Optional {@link OracleMetaView} labels lead the title; without them, the
+ * short pubkey. The body shows a funding bar (Funding) or the live YES
+ * probability (Active), plus TVL.
  *
  * The footer is a status-driven CTA, not a link: a Funding market under its
  * floor gets an inline stake input, a Funding market AT its floor gets a
@@ -70,13 +69,9 @@ export function MarketCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <StatusChip status={market.status} />
-          <Link
-            to={`/oracles/${oraclePubkey}`}
-            className={`font-inter text-[12px] text-silver hover:text-aqua ${focusRing}`}
-            title={oraclePubkey}
-          >
-            Oracle {truncateMiddle(oraclePubkey, 4, 4)}
-          </Link>
+          <span className="font-inter text-[12px] text-silver" title={oraclePubkey}>
+            Subject {truncateMiddle(oraclePubkey, 4, 4)}
+          </span>
         </div>
         {/* Active markets are tradeable — surface the trade entry right on the
             card so every interface showing a tradeable market points into its

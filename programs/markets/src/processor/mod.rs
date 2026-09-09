@@ -4,6 +4,7 @@ use crate::instruction::Ix;
 
 pub mod activate;
 pub mod add_liquidity;
+pub mod callback_from_gpt;
 pub mod cancel;
 pub mod claim_lp;
 pub mod close_market;
@@ -11,10 +12,12 @@ pub mod collect_fee;
 pub mod contribute;
 pub mod contribution;
 pub mod create_market;
+pub mod create_subject;
 pub mod er;
 pub mod guards;
 pub mod init_config;
 pub mod refund;
+pub mod request_ai;
 pub mod resolve_market;
 pub mod update_config;
 
@@ -39,5 +42,7 @@ pub fn process(program_id: &Address, accounts: &mut [AccountView], data: &[u8]) 
         Ix::DelegateMarket | Ix::CommitMarket | Ix::UndelegateMarket => {
             er::process(program_id, accounts, payload, ix)
         }
+        Ix::CreateSubject => create_subject::process(program_id, accounts, payload),
+        Ix::RequestAi => request_ai::process(program_id, accounts, payload),
     }
 }

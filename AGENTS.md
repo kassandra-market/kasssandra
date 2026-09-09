@@ -6,44 +6,38 @@
 
 ## What this project is
 
-**Kassandra** — a decentralized, AI-assisted optimistic oracle on Solana that
-answers binary/categorical questions. The cheap path: an uncontested proposal
-settles with no AI and no markets. The dispute machinery (fact agreement → AI
-claim → MetaDAO-style decision market) only fires on proposer disagreement.
-Honesty is enforced economically (SOL staking/slashing, no native token) and by markets.
+**Kassandra** — a Solana prediction-market protocol. Binary/categorical questions
+are posted as a markets-owned **Subject** PDA; MagicBlock's GPT oracle resolves
+the Subject, and `ResolveMarket` reads that result. Honesty is enforced
+economically (SOL liquidity / fees) and by MetaDAO-style cYES/cNO markets.
 
-Two on-chain programs: the **oracle** (dispute core) and the **market**
-(prediction/decision markets). Client SDKs (Rust + TS) wrap each; a React app,
-an off-chain AI runner, and a Postgres indexer complete the stack.
+One on-chain program: **markets** (prediction/decision markets + GPT Subject).
+Client SDKs (Rust + TS) wrap it; a React app and a Postgres indexer complete
+the stack. MagicBlock `llm_oracle` is the off-chain AI sidecar.
 
 ## Repository map (monorepo: Cargo workspace + pnpm workspace)
 
 | Path | Crate / package | What |
 |---|---|---|
-| `programs/oracles` | `kassandra-oracles-program` (`.so` `kassandra_oracles_program.so`) | On-chain oracle/dispute program (pinocchio) |
-| `programs/markets` | `kassandra-markets-program` (`.so` `kassandra_markets_program.so`) | On-chain prediction-market program (pinocchio) |
-| `sdks/oracles/rust` | `kassandra-oracles-sdk` | Rust client SDK for the oracle program |
-| `sdks/oracles/ts` | `@kassandra-market/oracles` | TS client SDK for the oracle program |
+| `programs/markets` | `kassandra-markets-program` (`.so` `kassandra_markets_program.so`) | On-chain prediction-market program (pinocchio) + GPT Subject |
 | `sdks/markets/rust` | `kassandra-markets-sdk` | Rust client SDK for the market program (solana-sdk **v2 island**) |
 | `sdks/markets/ts` | `@kassandra-market/markets` | TS client SDK for the market program |
-| `runner` | `kassandra-runner` | Off-chain, reproducible AI runner (Anthropic) + CLI |
-| `indexer` | `kassandra-indexer` | Carbon → Postgres crawler + axum read API |
-| `app` | (vite/react) | The dApp; consumes the two TS SDKs' `dist/` |
+| `indexer` | `kassandra-indexer` | Carbon → Postgres account indexer + axum read API |
+| `app` | (vite/react) | The dApp; consumes the markets TS SDK `dist/` |
 | `docs-site` | (mintlify) | Public documentation site |
 | `docs/plans` | — | Historical design docs (do NOT rewrite; append-only history) |
 
 ## Golden commands (the ones that actually work)
 
-- `just build` — builds BOTH SBF `.so` artifacts (`cargo build-sbf`). **Run this
+- `just build` — builds the SBF `.so` (`cargo build-sbf`). **Run this
   before `cargo test`** — LiteSVM tests `include_bytes!` the `.so`, so a stale
   `.so` silently tests old bytecode.
-- `make test` — all unit tests (rust workspace + both SDKs + app + indexer).
+- `make test` — all unit tests (rust workspace + SDK + app + indexer).
 - `make dev` — the full production-like local stack (surfpool + indexer +
-  mock-runner + app, real wallet, Ctrl-C teardown). Narrates each seeding step.
+  app, real wallet, Ctrl-C teardown). Narrates each seeding step.
 - `make ci` — exactly what CI runs.
-- `cargo test --workspace` — the ONLY reliable way to run Rust tests. **`cargo
-  test -p <crate>` fails** on a Pod feature-unification artifact — always use the
-  whole workspace. See [`.agent/skills/running-and-verifying.md`](.agent/skills/running-and-verifying.md).
+- `cargo test --workspace` — the reliable way to run Rust tests. Prefer the
+  whole workspace over `cargo test -p <crate>`. See [`.agent/skills/running-and-verifying.md`](.agent/skills/running-and-verifying.md).
 - `pnpm --filter <pkg> {build,typecheck,test}` — per TS package.
 
 ## Read next — the `.agent/` knowledge base
@@ -58,7 +52,7 @@ to your task before editing.** Index: [`.agent/README.md`](.agent/README.md).
 
 ## Non-negotiable conventions (top gotchas — full list in `.agent/memories/`)
 
-1. **`cargo test -p …` is broken here** — use `cargo test --workspace`.
+1. **Prefer `cargo test --workspace`** over `cargo test -p …`.
 2. **Rebuild `.so` before Rust tests** (`just build`) or you test stale bytecode.
 3. **The app's `@solana/web3.js@3.0.0-rc.2` is a class-`Address` build with NO
    codec helpers** — no `getBase58Encoder`/`getU64Encoder`. Byte helpers are
@@ -68,8 +62,9 @@ to your task before editing.** Index: [`.agent/README.md`](.agent/README.md).
 5. **Versioning is single-source**: `[workspace.package].version` in root
    `Cargo.toml`; `scripts/sync-version.mjs` stamps it into TS `package.json`s. Bump
    once, run `make version-sync`. See [`.agent/specs/versioning-and-publishing.md`](.agent/specs/versioning-and-publishing.md).
-6. **Program IDs are independent of crate names** — the rename to oracles/markets
-   changed crate/artifact names, not deployed addresses.
+6. **Resolution is GPT, not a Kassandra dispute program** — `Market.oracle` stores
+   a markets-owned Subject pubkey. MagicBlock `solana-gpt-oracle` callbacks stamp
+   `Subject.resolved_option`.
 
 ## Maintenance
 

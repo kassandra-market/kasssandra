@@ -7,7 +7,6 @@ import { StatusChip } from "../components/markets/StatusChip";
 import { FundingBar } from "../components/markets/FundingBar";
 import { ProbabilityGauge } from "../components/markets/ProbabilityGauge";
 import { Truncated } from "../components/markets/Truncated";
-import { useOracleMeta } from "../hooks/useOracleMeta";
 import { GroupTradePanel } from "../components/markets/actions/GroupTradePanel";
 import {
   MarketLiquidityActions,
@@ -284,16 +283,16 @@ function DetailBody({
 }) {
   const { pubkey, market, contributions, oracle, reserves } = detail;
   const isActive = market.status === MarketStatus.Active;
-  // The oracle outcome this sub-market binds to. YES = the oracle resolves to it.
-  // Binary markets are `outcome 0 of 2`; a categorical oracle exposes N outcomes.
+  // The GPT Subject outcome this sub-market binds to. YES = MagicBlock GPT
+  // resolves the subject to that option. Binary markets are `outcome 0 of 2`.
   const optionsCount = oracle?.optionsCount ?? null;
   const yesProbability = impliedYesProbability(reserves);
 
-  // The categorical group this market's oracle spans (empty/lone for a binary
+  // The categorical group this market's subject spans (empty/lone for a binary
   // market) — computed once here so the per-outcome contribute form and the
   // cumulative funding bar agree on the exact same set of sibling markets.
   const group = useOracleGroup(market.oracle.toString());
-  // Every sub-market in the group shares this ONE oracle, so its phase gates
+  // Every sub-market in the group shares this ONE subject, so its phase gates
   // activation identically for all of them — computed once here (rather than
   // per-outcome) and handed to GroupLiquidityPanel's funding→activation handoff.
   const oracleTerminal = oracle ? isTerminal(oracle.phase) : false;
@@ -308,21 +307,6 @@ function DetailBody({
   const independentLp = grossLp > fundingLp ? grossLp - fundingLp : 0n;
   const hasPool = grossLp > 0n;
 
-  // The human-readable question + option labels — on-chain (oracle_meta PDA),
-  // read best-effort via the indexer. Absent (no indexer / not yet loaded) → the
-  // view degrades to the pubkey + numeric outcome index it always had.
-  const oracleKey = market.oracle.toString();
-  const metaItems = useMemo(() => [oracleKey], [oracleKey]);
-  const meta = useOracleMeta(metaItems).get(oracleKey);
-  const subject = meta?.subject?.trim();
-  const options = meta?.options ?? [];
-  // The full-text label of the specific outcome THIS sub-market pays YES on.
-  const boundLabel = options[market.outcomeIndex]?.trim() || null;
-
-  // Trade is available whenever SOME outcome in the group has a live pool — this
-  // market's own (isActive) or a sibling's — since GroupTradePanel lets the page
-  // trade any of them without navigating away. A still-Funding outcome viewed
-  // directly thus still gets a Trade tab as soon as one sibling activates.
   const hasTradableOutcome = isActive || group.active.some((m) => m.pubkey !== pubkey);
 
   // Tabs are grouped by intent: act on the AMM (Trade, whenever an outcome is
@@ -362,15 +346,11 @@ function DetailBody({
       <header>
         <EyebrowTag pill>Market</EyebrowTag>
         <h1 className="mt-3 text-balance font-serif text-heading font-light text-platinum">
-          {subject ?? "Prediction market"}
+          Prediction market
         </h1>
         <p className="mt-3 font-inter text-body text-silver">
-          Pays <span className="font-medium text-coral">YES</span> if the oracle resolves to{" "}
-          {boundLabel ? (
-            <span className="font-medium text-platinum">“{boundLabel}”</span>
-          ) : (
-            <span className="font-medium text-platinum">outcome {market.outcomeIndex}</span>
-          )}
+          Pays <span className="font-medium text-coral">YES</span> if MagicBlock GPT resolves to{" "}
+          <span className="font-medium text-platinum">outcome {market.outcomeIndex}</span>
           {optionsCount !== null ? (
             <span className="text-silver">
               {" "}
@@ -382,12 +362,6 @@ function DetailBody({
           <StatusChip status={market.status} />
           <span>{outcomeResolutionText(oracle, market.outcomeIndex)}</span>
           <Truncated value={pubkey} copyable label="market address" head={4} tail={4} />
-          <Link
-            to={`/oracles/${market.oracle.toString()}`}
-            className={`font-inter text-[13px] font-medium text-aqua hover:text-coral ${focusRing}`}
-          >
-            View oracle →
-          </Link>
         </div>
       </header>
 
@@ -401,8 +375,8 @@ function DetailBody({
           <GroupTradePanel
             detail={detail}
             group={group}
-            subject={subject}
-            options={options}
+            subject={undefined}
+            options={[]}
             refetch={refetch}
           />
         </TabPanel>
@@ -541,34 +515,7 @@ function DetailBody({
           )}
         </Panel>
 
-        <Panel title="Linked oracle">
-          {subject ? (
-            <p className="text-balance font-serif text-subheading font-light text-platinum">
-              “{subject}”
-            </p>
-          ) : null}
-          {options.length > 0 ? (
-            <div className="flex flex-wrap gap-2" aria-label="Oracle options">
-              {options.map((opt, i) => {
-                const bound = i === market.outcomeIndex;
-                return (
-                  <span
-                    key={i}
-                    className={`rounded-tag border px-2.5 py-1 font-inter text-[13px] ${
-                      bound
-                        ? "border-coral/50 bg-liquid-deep text-platinum"
-                        : "border-hairline bg-liquid-deep text-silver"
-                    }`}
-                  >
-                    <span className="tabular-nums text-silver">{i}</span>
-                    <span className="mx-1 text-silver">·</span>
-                    {opt}
-                    {bound ? <span className="ml-1.5 text-[11px] text-coral">YES</span> : null}
-                  </span>
-                );
-              })}
-            </div>
-          ) : null}
+        <Panel title="GPT subject">
           {oracle ? (
             <dl className="flex flex-wrap gap-x-8 gap-y-1 font-inter text-[13px] text-silver">
               <div className="flex gap-1">
@@ -588,20 +535,14 @@ function DetailBody({
             </dl>
           ) : (
             <p className="font-inter text-[13px] text-silver">
-              The linked oracle account could not be read.
+              The GPT subject account could not be read.
             </p>
           )}
-          <Link
-            to={`/oracles/${market.oracle.toString()}`}
-            className={`font-inter text-[13px] font-medium text-aqua hover:text-coral ${focusRing}`}
-          >
-            Open oracle page →
-          </Link>
         </Panel>
 
         <Panel title="Bindings">
           <div className="divide-y divide-hairline/60">
-            <AddressRow label="Oracle" address={market.oracle} />
+            <AddressRow label="GPT subject" address={market.oracle} />
             <AddressRow label="Creator" address={market.creator} />
             <AddressRow label="SOL mint" address={market.baseMint} />
             <AddressRow label="Escrow vault" address={market.escrowVault} />

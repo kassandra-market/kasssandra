@@ -7,8 +7,7 @@
  * per-component, which the other test files already cover in isolation).
  */
 import { vi } from "vitest";
-import { MarketStatus } from "@kassandra-market/markets";
-import { Phase } from "@kassandra-market/oracles";
+import { MarketStatus, Phase } from "@kassandra-market/markets";
 
 const PUB1 = "Market11111111111111111111111111111111111111"; // outcome 1 of the group
 const ORACLE = "Orac1eGroup111111111111111111111111111111111";
@@ -26,7 +25,7 @@ const detail = {
     feeCollected: false,
     oracle: { toString: () => ORACLE },
   },
-  oracle: { optionsCount: 3, phase: Phase.Proposal, resolvedOption: 0 },
+  oracle: { optionsCount: 3, phase: Phase.Open, resolvedOption: 0 },
   reserves: null,
   contributions: [],
 };
@@ -54,7 +53,6 @@ vi.mock("../src/market/hooks/useOracleGroup", () => ({
     refetch: () => {},
   }),
 }));
-vi.mock("../src/hooks/useOracleMeta", () => ({ useOracleMeta: () => new Map() }));
 vi.mock("@solana/wallet-adapter-react", () => ({ useWallet: () => ({ publicKey: null }) }));
 vi.mock("../src/market/hooks/useWriteAction", () => ({
   useWriteAction: () => ({ status: { kind: "idle" }, address: null, connected: false, indexer: {}, run: async () => {} }),

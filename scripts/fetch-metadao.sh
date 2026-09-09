@@ -57,7 +57,7 @@ URL="${SOLANA_MAINNET_URL:-https://api.mainnet-beta.solana.com}"
 # Fixtures live next to the LiteSVM tests so `include_bytes!`/runtime loads find
 # them relative to programs/oracles/tests/.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FIXTURE_DIR="${SCRIPT_DIR}/../programs/oracles/tests/fixtures"
+FIXTURE_DIR="${SCRIPT_DIR}/../programs/markets/tests/fixtures"
 mkdir -p "${FIXTURE_DIR}"
 
 dump() {

@@ -11,7 +11,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-const PROPOSAL: u8 = 1; // kassandra Phase::Proposal
+const PROPOSAL: u8 = 0; // SubjectStatus::Open
 
 const BASE: u64 = 1_000_000_000; // 1 SOL
 const MAX: u64 = 10_000_000_000; // 10 SOL

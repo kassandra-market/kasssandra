@@ -1,65 +1,53 @@
 ---
 name: kassandra-ai-runner
-description: "Use when producing, submitting, or verifying a Kassandra AI claim - i.e. running the open-source kassandra-runner to resolve an oracle over its agreed fact set, submitting the on-chain submit_ai_claim as a proposer, or reproducing a claim to decide whether to challenge it. Covers the run and verify subcommands, config sources, keeper (--submit) mode, and the pinned model."
+description: "Use when driving MagicBlock's llm_oracle keeper against a Kassandra Subject - requesting AI resolution via RequestAi, running the off-chain GPT oracle sidecar, or mocking OpenRouter in tests. The in-house kassandra-runner crate was removed."
 ---
 
-# Running the Kassandra AI runner
+# Driving MagicBlock's GPT oracle
 
-`kassandra-runner` is the open-source, reproducible AI runner. It assembles the pinned prompt
-+ interpretation + agreed fact set, calls a model behind a provider trait, and emits the
-on-chain claim metadata — the 97-byte `submit_ai_claim` payload
-`model_id[32] || params_hash[32] || io_hash[32] || option[1]`. Anyone runs it to propose a
-claim, or to verify one before challenging.
+Kassandra no longer ships an in-house AI runner. Markets own a **Subject** PDA;
+`RequestAi` CPIs into MagicBlock `solana-gpt-oracle`, and the off-chain
+`llm_oracle` keeper posts the callback that stamps `Subject.resolved_option`.
 
-Build/install the `kassandra-runner` crate; it needs an `ANTHROPIC_API_KEY` env var for the
-default provider (or use `--mock` for offline/deterministic runs). `ANTHROPIC_BASE_URL`
-overrides the API base.
+## On-chain path
 
-## Subcommands
+1. `CreateSubject` — payer + nonce + `options_count` + `llm_context` pubkey.
+2. `RequestAi` — subject + payer + prompt text. Pass `llmContext` in the TS
+   builder so GPT remaining accounts (program, interaction PDA, context) are
+   appended.
+3. GPT callback (`sha256("global:callback_from_gpt_oracle")[..8]`) writes
+   `status=Resolved` and `resolved_option`.
+4. `ResolveMarket` reads the Subject and settles the binary sub-market.
 
-- **`run`** — resolve an oracle: fetch + verify facts, call the model, print the claim
-  metadata + the 97-byte payload as JSON.
-- **`verify`** — re-run for the same config and compare the produced `option` to a submitted
-  claim's option; advises whether to challenge.
+Program id: `LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab`.
 
-## Config source (pick one)
+## Off-chain keeper
 
-- `--config <path.json>` — an explicit config (or stdin if omitted).
-- `--oracle <pubkey> --rpc-url <url> --prompt-file <path>` — build the config from chain: the
-  oracle's `options_count`/`deadline`/agreed facts are read over RPC, and the interpretation
-  text comes from `--prompt-file`, whose **sha256 must equal** the on-chain `oracle.prompt_hash`
-  (else the run is rejected).
-
-Model knobs: `--model` (default `claude-opus-4-8`), `--max-tokens` (default `4096`), `--mock`.
-
-## Submit as a keeper
-
-`run --submit` signs + sends + confirms the `submit_ai_claim` transaction itself:
+Build MagicBlock's host binary from the pin in `scripts/vendor-solana-gpt-oracle.sh`
+(`GPT_ORACLE_SHA`, currently `96f1143f…`):
 
 ```bash
-kassandra-runner run \
-  --oracle <ORACLE_PUBKEY> --rpc-url <RPC_URL> --prompt-file interpretation.txt \
-  --submit --keypair ~/.config/solana/id.json
+./scripts/vendor-solana-gpt-oracle.sh --llm-oracle-only
 ```
 
-The `--keypair` MUST be the proposer's registered `authority`; the Proposer PDA is derived
-from the oracle + the keypair pubkey. Without `--submit` it only emits the payload (no network
-write) — you can then submit it yourself via the SDK (`submitAiClaim` / `ix::submit_ai_claim`).
+Env the keeper needs:
 
-## Verify before challenging
+- `IDENTITY` — MagicBlock identity secret (test identity is public; production
+  identity is not committed).
+- `RPC_URL` / `WEBSOCKET_URL`
+- `OPENROUTER_API_KEY` / `OPENROUTER_API_URL` (override the latter to a mock)
 
-```bash
-kassandra-runner verify \
-  --oracle <ORACLE_PUBKEY> --rpc-url <RPC_URL> --prompt-file interpretation.txt \
-  --option <SUBMITTED_OPTION>
-```
+Surfpool GPT e2e **must** use `--offline`. Mainnet-forked identity/counter PDAs
+make Anchor `initialize` fail. Fixture ELF:
+`programs/markets/tests/fixtures/solana_gpt_oracle.so` (test identity
+`tEsT3eV6RFCWs1BZ7AXTzasHqTtMnMLCB2tjQ42TDXD`).
 
-If your reproduced option differs from the submitted one, that's your signal to open a
-challenge market against the claim.
+## Tests
 
-## Determinism caveat
+The gated suite is
+`sdks/markets/ts/test/surfpool/gpt-oracle-e2e.test.ts`
+(`KASSANDRA_MARKET_E2E=1`). It deploys the tracked ELF, stands up a Subject,
+calls `RequestAi`, runs `llm_oracle` against `MockOpenRouter`, and asserts
+`Subject.resolved_option`.
 
-`model_id` and `params_hash` reproduce byte-for-byte; `io_hash` is a **commitment**, not a
-bit-identical transcript — a challenger reproduces the categorical **option**, not the exact
-model text. Fabrication is caught economically (via the decision market), not by on-chain
-verification.
+Do **not** commit a host `llm_oracle` binary. CI builds it at the pin.

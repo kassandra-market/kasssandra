@@ -1,8 +1,8 @@
 const COLUMNS: { heading: string; links: string[] }[] = [
-  { heading: 'Protocol', links: ['Oracles', 'Disputes', 'Bonds'] },
-  { heading: 'Docs', links: ['Overview', 'Runner', 'SDK'] },
+  { heading: 'Protocol', links: ['Markets', 'Subjects', 'Config'] },
+  { heading: 'Docs', links: ['Overview', 'SDK', 'Indexer'] },
   { heading: 'Governance', links: ['MetaDAO', 'Parameters', 'Treasury'] },
-  { heading: 'GitHub', links: ['Programs', 'Runner', 'App'] },
+  { heading: 'GitHub', links: ['Programs', 'App', 'Indexer'] },
 ]
 
 const linkFocus =
@@ -22,7 +22,7 @@ export default function SiteFooter() {
           <div className="col-span-2 sm:col-span-3 lg:col-span-1">
             <span className="font-serif text-[24px] font-light text-platinum">Kassandra</span>
             <p className="mt-3 max-w-[28ch] font-inter text-[14px] text-silver">
-              An optimistic oracle with a mind. Built on Solana.
+              Prediction markets resolved by MagicBlock GPT. Built on Solana.
             </p>
           </div>
           {COLUMNS.map((col) => (
@@ -46,7 +46,7 @@ export default function SiteFooter() {
           ))}
         </div>
         <p className="mt-12 border-t border-hairline pt-6 font-inter text-[13px] text-silver">
-          © 2026 Kassandra · A decentralized, AI-assisted optimistic oracle.
+          © 2026 Kassandra · Prediction markets resolved by MagicBlock GPT.
         </p>
       </div>
     </footer>

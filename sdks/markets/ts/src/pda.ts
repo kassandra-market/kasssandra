@@ -12,7 +12,14 @@
  */
 import { Address } from "@solana/web3.js";
 
-import { ATA_PROGRAM_ID, BPF_UPGRADEABLE_LOADER_ID, MARKET_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
+import {
+  ATA_PROGRAM_ID,
+  BPF_UPGRADEABLE_LOADER_ID,
+  GPT_ORACLE_PROGRAM_ID,
+  MARKET_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "./constants.js";
+import { u32LE, u64LE } from "./bytes.js";
 
 /** Anything that can name an account: a web3.js `Address`/`PublicKey` or a base58 string. */
 export type AddressInput = Address | string;
@@ -48,6 +55,11 @@ export function config(programId?: Address): Promise<Pda> {
  */
 export function programData(programId: Address = MARKET_PROGRAM_ID): Promise<Pda> {
   return derive([pubkeyBytes(programId)], BPF_UPGRADEABLE_LOADER_ID);
+}
+
+/** GPT Subject PDA — seeds `[b"subject", nonce_u64_le]`. */
+export function subject(nonce: number | bigint, programId?: Address): Promise<Pda> {
+  return derive([enc.encode("subject"), u64LE(nonce)], programId);
 }
 
 /**
@@ -103,4 +115,34 @@ export function associatedTokenAccount(
   mint: AddressInput,
 ): Promise<Pda> {
   return derive([pubkeyBytes(owner), TOKEN_PROGRAM_ID.toBytes(), pubkeyBytes(mint)], ATA_PROGRAM_ID);
+}
+
+/** MagicBlock solana-gpt-oracle identity PDA — seeds `[b"identity"]`. */
+export function gptOracleIdentity(): Promise<Pda> {
+  return Address.findProgramAddress([enc.encode("identity")], GPT_ORACLE_PROGRAM_ID).then(
+    ([address, bump]) => ({ address, bump }),
+  );
+}
+
+/** MagicBlock interaction PDA — seeds `[b"interaction", payer, context]`. */
+export function gptOracleInteraction(payer: AddressInput, context: AddressInput): Promise<Pda> {
+  return Address.findProgramAddress(
+    [enc.encode("interaction"), pubkeyBytes(payer), pubkeyBytes(context)],
+    GPT_ORACLE_PROGRAM_ID,
+  ).then(([address, bump]) => ({ address, bump }));
+}
+
+/** MagicBlock counter PDA — seeds `[b"counter"]`. First context uses count 0. */
+export function gptOracleCounter(): Promise<Pda> {
+  return Address.findProgramAddress([enc.encode("counter")], GPT_ORACLE_PROGRAM_ID).then(
+    ([address, bump]) => ({ address, bump }),
+  );
+}
+
+/** MagicBlock `ContextAccount` PDA — seeds `[b"test-context", count_u32_le]`. */
+export function gptOracleContext(count: number): Promise<Pda> {
+  return Address.findProgramAddress(
+    [enc.encode("test-context"), u32LE(count)],
+    GPT_ORACLE_PROGRAM_ID,
+  ).then(([address, bump]) => ({ address, bump }));
 }

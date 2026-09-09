@@ -31,8 +31,7 @@ pub fn rent_exempt_lamports(len: usize) -> Result<u64, ProgramError> {
 use crate::cpi::metadao;
 use crate::cpi::spl::{SPL_TOKEN_MINT_OFFSET, SPL_TOKEN_OWNER_OFFSET};
 use crate::error::MarketError;
-use crate::kass_oracle::{KassOracle, KASSANDRA_PROGRAM_ID, ORACLE_ACCOUNT_TYPE, ORACLE_LEN};
-use crate::state::{AccountType, Config, Contribution, Market};
+use crate::state::{AccountType, Config, Contribution, Market, Subject};
 
 pub fn assert_owned_by_program(a: &AccountView, program_id: &Address) -> ProgramResult {
     if !a.owned_by(program_id) {
@@ -336,22 +335,11 @@ macro_rules! loader {
 loader!(load_config, Config, AccountType::Config);
 loader!(load_market, Market, AccountType::Market);
 loader!(load_contribution, Contribution, AccountType::Contribution);
+loader!(load_subject, Subject, AccountType::Subject);
 
-/// Read a Kassandra `Oracle` account: it must be owned by the Kassandra program,
-/// large enough, and tagged `AccountType::Oracle` (reject type-confusion).
-pub fn load_kassandra_oracle(a: &AccountView) -> Result<KassOracle, ProgramError> {
-    if !a.owned_by(&KASSANDRA_PROGRAM_ID) {
-        return Err(MarketError::InvalidAccount.into());
-    }
-    if a.data_len() < ORACLE_LEN {
-        return Err(MarketError::InvalidAccount.into());
-    }
-    let o = {
-        let d = a.try_borrow()?;
-        KassOracle::read(&d[..ORACLE_LEN])
-    };
-    if o.account_type != ORACLE_ACCOUNT_TYPE {
-        return Err(MarketError::InvalidAccount.into());
-    }
-    Ok(o)
+/// Overwrite the first [`Subject::LEN`] bytes of a program-owned subject.
+pub fn write_subject(subject_ai: &mut AccountView, s: &Subject) -> ProgramResult {
+    let mut d = subject_ai.try_borrow_mut()?;
+    d[..Subject::LEN].copy_from_slice(bytemuck::bytes_of(s));
+    Ok(())
 }

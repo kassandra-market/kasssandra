@@ -1,19 +1,14 @@
 //! A tiny, dependency-free token-bucket rate limiter.
 //!
-//! Used to bound the QPS the `/rpc` gateway forwards to the private (typically
-//! paid / rate-limited) upstream Solana RPC, so the unauthenticated same-origin
-//! gateway can't be turned into a high-volume amplifier (sendTransaction spam,
-//! bulk getProgramAccounts) against the upstream. This is a GLOBAL cap (the
-//! indexer usually sees the app-server proxy's single IP, not per-client IPs), a
-//! defense-in-depth layer under any per-IP limiting / network isolation applied
-//! at the deployment edge.
+//! Bounds the QPS the `/rpc` JSON-RPC gateway forwards to the upstream Solana
+//! RPC so the unauthenticated same-origin gateway cannot amplify against a
+//! paid/rate-limited provider.
 
 use std::sync::Mutex;
 use std::time::Instant;
 
 /// A refilling token bucket. `capacity` tokens are available at rest and refill
-/// at `refill_per_sec`; each [`RateLimiter::try_acquire`] consumes one token and
-/// returns whether one was available.
+/// at `refill_per_sec`; each [`RateLimiter::try_acquire`] consumes one token.
 pub struct RateLimiter {
     inner: Mutex<Bucket>,
     capacity: f64,
@@ -39,14 +34,11 @@ impl RateLimiter {
         }
     }
 
-    /// Try to consume one token. Returns `true` if the request is allowed, `false`
-    /// if the bucket is empty (caller should reject, e.g. HTTP 429).
+    /// Try to consume one token. Returns `true` if the request is allowed.
     pub fn try_acquire(&self) -> bool {
         self.try_acquire_at(Instant::now())
     }
 
-    /// [`try_acquire`](Self::try_acquire) against an explicit clock — the testable
-    /// core (real callers pass `Instant::now()`).
     fn try_acquire_at(&self, now: Instant) -> bool {
         let mut b = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let elapsed = now.saturating_duration_since(b.last).as_secs_f64();
@@ -70,22 +62,19 @@ mod tests {
     fn allows_a_burst_up_to_capacity_then_blocks() {
         let rl = RateLimiter::new(3.0, 1.0);
         let t0 = Instant::now();
-        // Full bucket: three requests at the same instant succeed.
         assert!(rl.try_acquire_at(t0));
         assert!(rl.try_acquire_at(t0));
         assert!(rl.try_acquire_at(t0));
-        // Bucket empty: the fourth (same instant) is rejected.
         assert!(!rl.try_acquire_at(t0));
     }
 
     #[test]
     fn refills_over_time() {
-        let rl = RateLimiter::new(2.0, 2.0); // 2 tokens, +2/sec
+        let rl = RateLimiter::new(2.0, 2.0);
         let t0 = Instant::now();
         assert!(rl.try_acquire_at(t0));
         assert!(rl.try_acquire_at(t0));
         assert!(!rl.try_acquire_at(t0));
-        // After 0.5s at 2/sec, exactly one token is back.
         let t1 = t0 + Duration::from_millis(500);
         assert!(rl.try_acquire_at(t1));
         assert!(!rl.try_acquire_at(t1));
@@ -97,7 +86,6 @@ mod tests {
         let t0 = Instant::now();
         assert!(rl.try_acquire_at(t0));
         assert!(rl.try_acquire_at(t0));
-        // Wait long enough to refill far past capacity; still only `capacity` burst.
         let t1 = t0 + Duration::from_secs(10);
         assert!(rl.try_acquire_at(t1));
         assert!(rl.try_acquire_at(t1));

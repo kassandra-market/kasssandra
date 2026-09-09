@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 #
 # dev-full.sh — bring up the FULL production-like local stack in one command:
-# surfpool (seeded) + indexer (ephemeral Postgres) + mock-Anthropic runner + the
-# app in real-wallet mode. Driven by `make dev`. Streams each service to
-# `logs/<service>.log`; Ctrl-C tears everything down (the TS orchestrator traps
-# SIGINT/SIGTERM and cleans up children + the temp Postgres).
+# surfpool (seeded markets) + indexer (ephemeral Postgres) + the
+# app in real-wallet mode. Driven by `make dev`.
 #
 # Requires: surfpool (or SURFPOOL_BIN), the Solana toolchain (to build the .so),
 # and Postgres client binaries (`initdb`/`pg_ctl` — or PG_BIN).
@@ -27,16 +25,8 @@ if ! command -v initdb >/dev/null 2>&1 && [ -z "${PG_BIN:-}" ] \
   exit 1
 fi
 
-echo "==> [2/4] build both programs (.so), both SDKs, and the indexer binary"
-# ALWAYS (re)build the programs. `cargo build-sbf` is incremental (~1s no-op when
-# the .so is already current) and — crucially — rebuilds a STALE .so after a
-# program change. The old "build only if the .so is MISSING" guard silently
-# deployed a stale .so left from before a merge, so the current SDK's instruction
-# layout no longer matched the deployed program → "invalid instruction data".
+echo "==> [2/4] build the market program (.so), the markets SDK, and the indexer binary"
 just build
-# The app dev server imports BOTH @kassandra-market/oracles and @kassandra-market/markets, so
-# both dist/ must exist before vite starts.
-pnpm --filter @kassandra-market/oracles build >/dev/null
 pnpm --filter @kassandra-market/markets build >/dev/null
 cargo build --release --locked --manifest-path indexer/Cargo.toml
 

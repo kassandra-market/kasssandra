@@ -8,24 +8,27 @@ import type { SeedCtx } from '../seed.ts'
 import type { ActiveMarketSeed } from '../seed-market.ts'
 import { swapOnPool } from '../seed-market-active.ts'
 
-/** Wait until the indexer's /status reports it has crawled `minEvents`. */
-export async function waitForIndexer(minEvents: number, timeoutMs = 60_000): Promise<void> {
+/** Wait until `/health` is ok and `/api/markets` lists at least `minMarkets`. */
+export async function waitForIndexer(minMarkets = 1, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
   let last = ''
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${indexerUrl}/status`)
-      if (res.ok) {
-        const s = (await res.json()) as { eventCount: number }
-        last = JSON.stringify(s)
-        if (s.eventCount >= minEvents) return
+      const health = await fetch(`${indexerUrl}/health`)
+      if (health.ok) {
+        const res = await fetch(`${indexerUrl}/api/markets`)
+        if (res.ok) {
+          const body = (await res.json()) as unknown[]
+          last = String(body.length)
+          if (body.length >= minMarkets) return
+        }
       }
     } catch {
       /* still starting */
     }
     await new Promise((r) => setTimeout(r, 500))
   }
-  log(`[dev] ⚠ indexer did not reach ${minEvents} events in ${timeoutMs}ms (last: ${last}) — continuing`)
+  log(`[dev] ⚠ indexer did not list ${minMarkets} market(s) in ${timeoutMs}ms (last: ${last}) — continuing`)
 }
 
 /**

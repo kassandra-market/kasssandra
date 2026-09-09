@@ -2,24 +2,16 @@
  * Playwright globalSetup for the CANDLE e2e — the full-stack proof of the
  * subscription-driven price chart.
  *
- * Boots surfpool (with an explicit ws port), seeds an ACTIVE market with a live
- * cYES/cNO pool, then runs the real `kassandra-indexer` binary against surfpool +
- * an ephemeral Postgres with `SOLANA_WS_URL` pointed at surfpool's websocket. The
- * indexer opens an `accountSubscribe` on the pool; once it's subscribed (a first
- * candle exists), we fire REAL swaps that move the price, and wait until the
- * `/candles` API reflects that movement — proving each swap was captured live.
- *
- * The spec then loads the app at `/markets/:pubkey` and asserts the candlestick
- * chart renders from that indexed data. This exercises the whole pipeline:
- * chain swap → ws accountSubscribe → Postgres market_price → /candles API → chart.
+ * Boots surfpool, seeds an ACTIVE market with a live cYES/cNO pool, then runs
+ * the real `kassandra-indexer` binary against surfpool + ephemeral Postgres.
  */
 import { spawn, type ChildProcess } from 'node:child_process'
 import { openSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { Keypair } from '@solana/web3.js'
-
-import { bootAndInit, createOracleReal } from '../seed.ts'
+import { Keypair } from '../../../sdks/markets/ts/test/surfpool/harness/index.ts'
+import { bootAndInit } from '../seed.ts'
+import { seedOpenSubject } from '../seed-drivers.ts'
 import { seedActiveMarket, swapOnPool, type ActiveMarketSeed } from '../seed-market-active.ts'
 import { startEphemeralPg, type EphemeralPg } from '../indexer/pg.ts'
 
@@ -27,9 +19,6 @@ const SURFPOOL_PORT = 8964
 const WS_PORT = 8965
 const INDEXER_PORT = 3113
 const WALLET_FILE = join(process.cwd(), 'e2e', 'candles', '.fixture.json')
-// The indexer is a workspace member, so `cargo build -p kassandra-indexer` (and
-// `--manifest-path indexer/Cargo.toml`) emit to the WORKSPACE target dir, not
-// `indexer/target/`. Point at the workspace binary so we always run the fresh build.
 const INDEXER_BIN = join(process.cwd(), '..', 'target', 'release', 'kassandra-indexer')
 
 interface Candle {
@@ -46,12 +35,10 @@ async function fetchCandles(indexerUrl: string, market: string): Promise<Candle[
     if (!res.ok) return []
     return (await res.json()) as Candle[]
   } catch {
-    // Indexer not listening yet (ECONNREFUSED) — treat as "no candles, keep polling".
     return []
   }
 }
 
-/** Poll until the candles API satisfies `pred` (or throw after `timeoutMs`). */
 async function waitForCandles(
   indexerUrl: string,
   market: string,
@@ -69,7 +56,6 @@ async function waitForCandles(
   throw new Error(`candles never satisfied "${what}" in ${timeoutMs}ms (last: ${JSON.stringify(last)})`)
 }
 
-/** Price range across all candles — the amount the pool price moved. */
 function priceRange(candles: Candle[]): number {
   if (candles.length === 0) return 0
   const highs = candles.map((c) => c.high)
@@ -82,28 +68,19 @@ async function globalSetup(): Promise<() => Promise<void>> {
   const rpcUrl = `http://127.0.0.1:${SURFPOOL_PORT}`
   const indexerUrl = `http://127.0.0.1:${INDEXER_PORT}`
 
-  // A funded browser wallet (parity with the other specs; the chart is read-only).
   const wallet = await Keypair.generate()
   await ctx.harness.airdrop(wallet.publicKey.toString(), 50_000_000_000)
 
-  // Seed an oracle + an ACTIVE market with a live pool (starts ~50/50 → P(YES)≈0.5).
-  // Any failure here must tear surfpool down, else a leaked node holds the port and
-  // the next run hits AlreadyInitialized on its own protocol init.
-  let oracle: Awaited<ReturnType<typeof createOracleReal>>
+  let subject: Awaited<ReturnType<typeof seedOpenSubject>>
   let seed: ActiveMarketSeed
   try {
-    oracle = await createOracleReal(ctx, 1n, 2, 'Candle e2e: tradeable market')
-    seed = await seedActiveMarket(ctx, oracle.toString())
+    subject = await seedOpenSubject(ctx, 2)
+    seed = await seedActiveMarket(ctx, subject.toString())
   } catch (e) {
     await ctx.harness.teardown()
     throw e
   }
 
-  // Ephemeral Postgres + the REAL indexer. SOLANA_WS_URL points at surfpool's
-  // websocket: the market account pipeline uses the live `programSubscribe` tail
-  // (surfpool ≥ 1.1.2 implements it) to keep market_accounts fresh, and the price
-  // subscriber `accountSubscribe`s each Active pool. No INDEXER_RECONCILE_MS — we
-  // deliberately run in subscribe mode so the ws tail (not polling) is exercised.
   const pg: EphemeralPg = await startEphemeralPg()
   const indexerLog = openSync(join(process.cwd(), 'e2e', 'candles', '.indexer.log'), 'w')
   const indexer: ChildProcess = spawn(INDEXER_BIN, [], {
@@ -113,26 +90,21 @@ async function globalSetup(): Promise<() => Promise<void>> {
       SOLANA_WS_URL: `ws://127.0.0.1:${WS_PORT}`,
       DATABASE_URL: pg.databaseUrl,
       PORT: String(INDEXER_PORT),
-      COMMITMENT: 'confirmed',
+      INDEXER_RECONCILE_MS: '1000',
       RUST_LOG: 'info',
     },
     stdio: ['ignore', indexerLog, indexerLog],
   })
 
   try {
-    // 1) Wait until the subscriber has a baseline point (proves it subscribed).
     await waitForCandles(indexerUrl, seed.market, (c) => c.length >= 1, 'baseline candle', 60_000)
 
-    // 2) Fire REAL swaps that move the price both ways. These happen AFTER the
-    //    subscription is live, so each pool account update is captured as a point.
-    await swapOnPool(ctx, seed, 'down', 2_000_000_000n) // sell cYES → P(YES) down
+    await swapOnPool(ctx, seed, 'down', 2_000_000_000n)
     await new Promise((r) => setTimeout(r, 1200))
-    await swapOnPool(ctx, seed, 'up', 3_000_000_000n) // buy cYES → P(YES) up
+    await swapOnPool(ctx, seed, 'up', 3_000_000_000n)
     await new Promise((r) => setTimeout(r, 1200))
-    await swapOnPool(ctx, seed, 'down', 1_000_000_000n) // sell cYES → P(YES) down again
+    await swapOnPool(ctx, seed, 'down', 1_000_000_000n)
 
-    // 3) Wait until the captured series shows real movement (high != low across
-    //    candles) — the proof the subscription recorded the live swaps intra-minute.
     const candles = await waitForCandles(
       indexerUrl,
       seed.market,
@@ -150,7 +122,7 @@ async function globalSetup(): Promise<() => Promise<void>> {
           rpcUrl,
           indexerUrl,
           market: seed.market,
-          oracle: oracle.toString(),
+          subject: subject.toString(),
           candleCount: candles.length,
           priceRange: priceRange(candles),
         },
@@ -159,7 +131,6 @@ async function globalSetup(): Promise<() => Promise<void>> {
       ),
     )
 
-    // eslint-disable-next-line no-console
     console.log(
       `[e2e:candles] market ${seed.market} active; ${candles.length} candle(s), range ${priceRange(
         candles,
