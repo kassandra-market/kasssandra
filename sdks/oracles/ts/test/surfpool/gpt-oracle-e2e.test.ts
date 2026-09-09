@@ -2,7 +2,7 @@
  * Gated surfpool E2E: the tracked MagicBlock GPT-oracle ELF + real `llm_oracle`
  * keeper against a local mock OpenRouter (no live API).
  *
- *   deploy test-identity `solana_gpt_oracle.so`
+ *   deploy test-identity `solana_gpt_oracle.so` on an `--offline` surfpool
  *     → initialize + create_llm_context
  *     → SetAiOracleConfig
  *     → dispute to AiClaim
@@ -108,26 +108,28 @@ describe.skipIf(!ENABLED)("surfpool GPT oracle + llm_oracle (mock OpenRouter)", 
   let f: Fixture;
   let mock: MockOpenRouter;
   let keeper: ChildProcess | undefined;
+  let harness: SurfpoolHarness | undefined;
 
   beforeAll(async () => {
-    const harness = await SurfpoolHarness.start({ port: 8932, wsPort: 8933 });
-    await harness.deployElf(GPT_ORACLE_PROGRAM_ID.toString(), GPT_SO_PATH);
+    const sp = await SurfpoolHarness.start({ port: 8932, wsPort: 8933, offline: true });
+    harness = sp;
+    await sp.deployElf(GPT_ORACLE_PROGRAM_ID.toString(), GPT_SO_PATH);
 
     const payer = await Keypair.generate();
     const identity = await Keypair.fromSecretKey(TEST_IDENTITY_SECRET);
-    await harness.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
-    await harness.airdrop(identity.publicKey.toString(), 2_000_000_000);
+    await sp.airdrop(payer.publicKey.toString(), 1_000_000_000_000);
+    await sp.airdrop(identity.publicKey.toString(), 2_000_000_000);
 
     const mintAuth = await pda.mintAuthority();
     const baseMint = await Keypair.generate();
     const usdcMint = await Keypair.generate();
-    await harness.setAccount(baseMint.publicKey.toString(), {
+    await sp.setAccount(baseMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
       data: toHex(mintBytes(mintAuth.address.toBytes(), 10n ** 18n, 9)),
     });
-    await harness.setAccount(usdcMint.publicKey.toString(), {
+    await sp.setAccount(usdcMint.publicKey.toString(), {
       lamports: 1_000_000_000,
       owner: TOKEN_PROGRAM_ID.toString(),
       executable: false,
@@ -135,7 +137,7 @@ describe.skipIf(!ENABLED)("surfpool GPT oracle + llm_oracle (mock OpenRouter)", 
     });
 
     await sendIx(
-      harness,
+      sp,
       payer,
       await initProtocol({
         admin: payer.publicKey,
@@ -149,7 +151,7 @@ describe.skipIf(!ENABLED)("surfpool GPT oracle + llm_oracle (mock OpenRouter)", 
     const llmContext = (await pda.gptOracleContext(0)).address;
 
     await sendIx(
-      harness,
+      sp,
       payer,
       new TransactionInstruction({
         programId: GPT_ORACLE_PROGRAM_ID,
@@ -167,7 +169,7 @@ describe.skipIf(!ENABLED)("surfpool GPT oracle + llm_oracle (mock OpenRouter)", 
     const enc = new TextEncoder();
     const contextBytes = enc.encode(contextText);
     await sendIx(
-      harness,
+      sp,
       payer,
       new TransactionInstruction({
         programId: GPT_ORACLE_PROGRAM_ID,
@@ -182,7 +184,7 @@ describe.skipIf(!ENABLED)("surfpool GPT oracle + llm_oracle (mock OpenRouter)", 
     );
 
     await sendIx(
-      harness,
+      sp,
       payer,
       await setAiOracleConfig({
         authority: payer.publicKey,
@@ -195,7 +197,7 @@ describe.skipIf(!ENABLED)("surfpool GPT oracle + llm_oracle (mock OpenRouter)", 
 
     expect(identity.publicKey.toString()).toBe("tEsT3eV6RFCWs1BZ7AXTzasHqTtMnMLCB2tjQ42TDXD");
 
-    f = { harness, payer, baseMint, usdcMint, llmContext };
+    f = { harness: sp, payer, baseMint, usdcMint, llmContext };
     mock = await MockOpenRouter.start();
     mock.setOption(1);
   }, 90_000);
@@ -205,7 +207,7 @@ describe.skipIf(!ENABLED)("surfpool GPT oracle + llm_oracle (mock OpenRouter)", 
       keeper.kill("SIGKILL");
     }
     await mock?.stop();
-    await f?.harness.teardown();
+    await harness?.teardown();
   });
 
   it("requestAiOracle → llm_oracle(mock) → applyExternalAiClaim", async () => {

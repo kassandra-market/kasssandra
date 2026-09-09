@@ -56,6 +56,11 @@ host binary). The vendor patch makes `OPENROUTER_API_URL` overridable;
 `POST /api/v1/chat/completions` body. Set `LLM_ORACLE_BIN`, `RPC_URL`,
 `WEBSOCKET_URL` (surfpool `--ws-port`), `OPENROUTER_API_KEY` (dummy).
 
+The GPT surfpool e2e boots surfpool `--offline` so MagicBlock's mainnet
+identity/counter PDAs are not lazily fetched (Anchor `init` would fail) and
+`llm_oracle`'s `getProgramAccounts` backlog stays empty of live Interaction
+accounts.
+
 chatgpt_rs expects `{ id, created, model, usage:{prompt_tokens,completion_tokens,total_tokens},
 choices:[{ message:{role:"assistant",content}, finish_reason, index }] }`.
 `content` is `{"option_index": N}`.

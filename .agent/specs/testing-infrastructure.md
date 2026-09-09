@@ -32,8 +32,9 @@ Four test surfaces, each with a specific harness.
     fast slot-time.
   - No sig-verify-bypass cheat — use LiteSVM `withSigverify(false)` instead.
   - The price subscriber uses surfpool's websocket at **RPC port + 1**.
-- GPT keeper e2e (`gpt-oracle-e2e.test.ts`): deploy the tracked GPT ELF, run
-  MagicBlock `llm_oracle` with `OPENROUTER_API_URL` pointed at
+- GPT keeper e2e (`gpt-oracle-e2e.test.ts`): deploy the tracked GPT ELF on
+  surfpool `--offline` (so mainnet identity/counter PDAs are not lazily fetched),
+  run MagicBlock `llm_oracle` with `OPENROUTER_API_URL` pointed at
   `mock-openrouter.ts`. Needs `LLM_ORACLE_BIN` + surfpool v1.4.0 (`programSubscribe`).
   CI job `gpt-oracle-e2e` builds the keeper via
   `scripts/vendor-solana-gpt-oracle.sh --llm-oracle-only`.
