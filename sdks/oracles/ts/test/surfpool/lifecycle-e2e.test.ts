@@ -16,7 +16,8 @@
  *      advance_phase (→ FactVoting) → vote_fact → advance → finalize_facts
  *      (→ AiClaim) → **invoke the REAL runner** (its genuine AnthropicProvider
  *      against the T2 mock, `setOption(N)`) to PRODUCE the claim metadata →
- *      `submitAiClaimFromRunner` (the SDK bridge) → submit over RPC →
+ *      write those hashes onto `AiOracleFeed` (GPT callback stand-in) →
+ *      `applyExternalAiClaim` over RPC →
  *      finalize_ai_claims (→ Challenge) → finalize_oracle → Oracle decodes to
  *      `Resolved` with the AI's option, and the on-chain AiClaim decodes to the
  *      runner's exact model_id/params_hash/io_hash/option.
@@ -31,10 +32,9 @@
  * creator/proposer/submitter/voter SOL token accounts), packed as canonical SPL
  * byte layouts and written token-program-owned — exactly as the litesvm
  * `e2e.test.ts` and the Rust `common/mod.rs` harness fund them (the program's own
- * SPL CPIs run against the real Token program). The full phase chain — propose,
- * finalize_proposals, submit_fact, advance_phase, vote_fact, finalize_facts,
- * submit_ai_claim (via the runner bridge), finalize_ai_claims, finalize_oracle —
- * is REAL, with `surfnet_timeTravel` only moving the clock between phases.
+ * SPL CPIs run against the real Token program). The GPT config + feed PDAs are
+ * written via `surfnet_setAccount` (the GPT-oracle callback cannot sign the
+ * identity PDA on surfpool); `apply_external_ai_claim` is then driven REAL.
  *
  * GATING: only included when `KASSANDRA_E2E=1` (see `vitest.config.ts`), and
  * skips (not fails) when surfpool / the `.so` / the runner binary are absent.
@@ -57,7 +57,7 @@ import {
   voteFact,
 } from "../../src/instructions/index.js";
 import * as pda from "../../src/pda.js";
-import { submitAiClaimFromRunner } from "../../src/runner-bridge.js";
+import { stampGptClaimForAuthority } from "../helpers/gptFeed.js";
 
 import {
   SurfpoolHarness,
@@ -228,13 +228,11 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
     o = decodeOracle(await fetchAccount(f, oracle));
     expect(o.phase).toBe(Phase.AiClaim);
 
-    // ===================== RUNNER IN THE LOOP =====================
-    // The mock AI resolves the disputed question to `aiOption`. For EACH proposer
-    // we invoke the REAL runner (its genuine AnthropicProvider HTTP+parse path,
-    // against the mock) with that proposer in the config so the bridge's
-    // claim_pda_seeds cross-check is exercised, then submit the produced claim via
-    // the SDK bridge over RPC. Wall-clock time does not move the on-chain clock,
-    // so the AiClaim window stays open across the subprocess invocations.
+    // ===================== RUNNER + GPT FEED =====================
+    // The mock AI resolves the disputed question to `aiOption`. The runner still
+    // produces the option + hashes (off-chain reproduction). We write those onto
+    // the MagicBlock GPT feed PDA and stamp each proposer via apply_external_ai_claim
+    // (Ix 3 submit_ai_claim is retired).
     mock.setOption(aiOption, "claude-opus-4-8");
     let firstOut: RunOutput | undefined;
     for (let i = 0; i < proposerPdas.length; i++) {
@@ -255,14 +253,21 @@ describe.skipIf(!ENABLED)("surfpool core lifecycle (runner-in-the-loop, mock AI)
       expect(out.option_index).toBe(aiOption);
       if (i === 0) firstOut = out;
 
-      // The bridge rebuilds + byte-parity-checks the payload AND cross-checks the
-      // runner's claim_pda_seeds against our oracle/proposer.
-      const ix = await submitAiClaimFromRunner(out, {
-        oracle,
-        proposer: proposerPdas[i],
-        authority: authorities[i].publicKey,
-      });
-      await sendIx(f, ix, [authorities[i]]);
+      await sendIx(
+        f,
+        await stampGptClaimForAuthority(
+          (pk, u) => f.harness.setAccount(pk, u),
+          oracle,
+          authorities[i],
+          aiOption,
+          {
+            modelId: hexToBytes32(out.model_id_hex),
+            paramsHash: hexToBytes32(out.params_hash_hex),
+            ioHash: hexToBytes32(out.io_hash_hex),
+          },
+        ),
+        [authorities[i]],
+      );
     }
 
     // The on-chain AiClaim (proposer 0) decodes to the runner's EXACT metadata.
@@ -390,4 +395,12 @@ async function proposeRealWithAuthority(
   );
   const proposer = (await pda.proposer(oracle, authority.publicKey)).address;
   return { authority, proposer };
+}
+
+function hexToBytes32(hex: string): Uint8Array {
+  const t = hex.replace(/^0x/i, "");
+  if (t.length !== 64) throw new Error(`expected 32-byte hex, got ${t.length} chars`);
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) out[i] = parseInt(t.slice(i * 2, i * 2 + 2), 16);
+  return out;
 }

@@ -43,7 +43,7 @@ const IX_VARIANTS: [Ix; 30] = [
     Ix::CommitOracle,
     Ix::UndelegateOracle,
     Ix::SetAiOracleConfig,
-    Ix::PushAiOracleFeed,
+    Ix::RequestAiOracle,
     Ix::ApplyExternalAiClaim,
 ];
 

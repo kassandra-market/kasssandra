@@ -18,8 +18,9 @@ see [On-chain program](/architecture/program) for the framework rationale.
 
 ## The account model
 
-Kassandra stores everything in **7 zero-copy account types**. Each is `#[repr(C)]`, `Pod + Zeroable`,
-and begins with an 8-byte header whose first byte is an `AccountType` tag (rejecting type-confusion).
+Kassandra stores state in **zero-copy Pod accounts**. Each is `#[repr(C)]`, `Pod + Zeroable`,
+and begins with an `AccountType` tag (rejecting type-confusion). `Oracle` (368) and `Protocol`
+(392) are not resized for MagicBlock — ER session and AI-oracle state live on companion PDAs.
 
 | Account | Tag | Role |
 | --- | --- | --- |
@@ -30,20 +31,25 @@ and begins with an 8-byte header whose first byte is an `AccountType` tag (rejec
 | `FactVote` | 4 | One stake-weighted vote on a fact. |
 | `AiClaim` | 5 | A proposer's pinned-model AI claim + reproducibility metadata. |
 | `Market` | 6 | A challenge decision-market binding for one `AiClaim`. |
+| `ErSession` | 9 | Per-oracle MagicBlock Ephemeral Rollup delegation record. |
+| `AiOracleConfig` | 10 | Protocol singleton: GPT `llm_context`, staleness, enabled. |
+| `AiOracleFeed` | 11 | Latest attested categorical answer from solana-gpt-oracle. |
 
 See [Accounts](/protocol/accounts) for the full field tables.
 
 ## The instruction set at a glance
 
-The program exposes **23 instructions** (`Ix` = 0–22). The first byte of `instruction_data` selects
-the variant; the rest is a per-instruction payload.
+The program exposes **30 instructions** (`Ix` = 0–29). The first byte of `instruction_data` selects
+the variant; the rest is a per-instruction payload. Two **8-byte** discriminators (MagicBlock
+undelegate callback, GPT-oracle callback) are intercepted *before* 1-byte `Ix` dispatch.
 
 | Group | Instructions |
 | --- | --- |
-| Init / config / governance | `InitProtocol` (9), `CreateOracle` (10), `SetGovernance` (13), `SetConfig` (14), `SpotPrice` (16) |
+| Init / config / governance | `InitProtocol` (9), `CreateOracle` (10), `WriteOracleMeta` (23), `SetGovernance` (13), `SetConfig` (14), `SpotPrice` (16) |
 | Proposal lifecycle | `Propose` (11), `FinalizeProposals` (12), `AdvancePhase` (7) |
 | Fact phase | `SubmitFact` (0), `VoteFact` (1), `FinalizeFacts` (2) |
-| AI claim | `SubmitAiClaim` (3), `FinalizeAiClaims` (8) |
+| AI claim | `SubmitAiClaim` (3, retired), `FinalizeAiClaims` (8), `SetAiOracleConfig` (27), `RequestAiOracle` (28), `ApplyExternalAiClaim` (29) |
+| Ephemeral rollup | `DelegateOracle` (24), `CommitOracle` (25), `UndelegateOracle` (26) |
 | Challenge | `OpenChallenge` (4), `SettleChallenge` (5) |
 | Resolution | `FinalizeOracle` (6), `ResolveDeadend` (15) |
 | Claim / close / sweep | `ClaimProposer` (17), `ClaimFact` (18), `ClaimFactVote` (19), `CloseAiClaim` (20), `CloseMarket` (21), `SweepOracle` (22) |
@@ -64,10 +70,10 @@ inferred from each processor. Byte offsets and sizes are pinned by
 
 <CardGroup cols={2}>
   <Card title="Instructions" icon="list-check" href="/protocol/instructions">
-    All 23 instructions: accounts, payloads, phase gates, and errors.
+    All 30 instructions: accounts, payloads, phase gates, and errors.
   </Card>
   <Card title="Accounts" icon="database" href="/protocol/accounts">
-    The 7 account structs with full field tables + byte sizes.
+    Pod account structs with full field tables + byte sizes, including ER and AI-oracle companions.
   </Card>
   <Card title="Phases" icon="diagram-project" href="/protocol/phases">
     The `Phase` enum and the full transition map.

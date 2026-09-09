@@ -98,22 +98,9 @@ fn drive_real_dispute(ctx: &mut TestCtx, claim_options: [u8; 2]) -> Driven {
         .expect("finalize_facts");
     assert_eq!(ctx.fact(fact).agreed, 1, "fact cleared the 2/3 quorum");
 
-    // submit_ai_claim per proposer with the chosen claim options.
-    for (i, (auth, pda)) in authorities.iter().zip(&proposer_pdas).enumerate() {
-        ctx.svm.airdrop(&auth.pubkey(), 1_000_000_000).unwrap();
-        let (claim, _) = claim_pda(&ctx.program_id, &oracle, pda);
-        ctx.send(
-            submit_ai_claim_ix(
-                ctx,
-                oracle,
-                *pda,
-                claim,
-                auth.pubkey(),
-                submit_ai_payload(claim_options[i]),
-            ),
-            &[auth],
-        )
-        .expect("submit_ai_claim");
+    // Stamp each proposer from the GPT feed with the chosen claim options.
+    for (i, pda) in proposer_pdas.iter().enumerate() {
+        ctx.stamp_gpt_claim_ok(oracle, *pda, claim_options[i]);
     }
 
     // warp past AiClaim, finalize_ai_claims → Challenge.

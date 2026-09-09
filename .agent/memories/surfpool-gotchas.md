@@ -2,7 +2,7 @@
 id: mem-surfpool-gotchas
 title: "surfpool simnet gotchas"
 tags: [memory, gotcha, surfpool, e2e]
-updated: 2026-07-10
+updated: 2026-09-09
 ---
 
 # surfpool simnet gotchas
@@ -20,5 +20,9 @@ surfpool is the local simnet for TS/browser e2e. Notes learned:
   1** (bound explicitly, e.g. `ws://127.0.0.1:8900` for RPC `8899`).
 - `make dev` owns port 8899; a leftover surfpool from a hard-killed run must be
   cleared (init_protocol would otherwise fail `AlreadyInitialized`).
+- **Default datasource is mainnet.** Tests that deploy an ELF at a live program
+  id (MagicBlock GPT oracle) must pass `--offline` (`HarnessOptions.offline`),
+  or Anchor `init` hits "account already in use" on the identity/counter PDAs.
+  `offline` and `fork` are mutually exclusive.
 
 See also `NOTES-surfpool.md` at the repo root.

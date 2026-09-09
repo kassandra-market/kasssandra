@@ -12,8 +12,8 @@ import {
 } from '../../../data/actions/finalize'
 import { ProposeForm } from './ProposeForm'
 import { SubmitFactForm } from './SubmitFactForm'
-import { SubmitAiClaimForm } from './SubmitAiClaimForm'
 import { ApplyExternalAiClaimForm } from './ApplyExternalAiClaimForm'
+import { RequestAiOracleForm } from './RequestAiOracleForm'
 import { FinalizeControl } from './FinalizeControl'
 import { SweepControl } from './SweepControl'
 
@@ -30,8 +30,8 @@ function Note({ children }: { children: React.ReactNode }) {
  * The Manage-tab PARTICIPATION surface — the wallet-signed write FORMS plus the
  * permissionless phase-advance CRANK, phase-gated and co-located so both live in
  * one place: propose + finalize-proposals in Proposal, submit-fact + advance-to-
- * fact-voting in FactProposal, submit-AI-claim + finalize-AI-claims in AiClaim, the
- * finalize-facts / finalize-oracle cranks in FactVoting / Challenge, and the sweep
+ * fact-voting in FactProposal, request-AI + apply-feed + finalize-AI-claims in
+ * AiClaim, the finalize-facts / finalize-oracle cranks in FactVoting / Challenge, and the sweep
  * once settled. Voting is per-fact (on the Facts tab); the challenge market is
  * composed beside this in Manage; the Overview mirrors the crank's countdown and
  * routes here when it unlocks. Read-only browsing is intact when disconnected.
@@ -53,7 +53,7 @@ export function OracleActions({
   proposers?: string[]
   /** Fact-PDA pubkeys (the finalize-facts tail). */
   facts?: string[]
-  /** Latest attested feed, if a pusher has written one. */
+  /** Latest attested feed, if the GPT-oracle callback has written one. */
   aiFeed?: { pubkey: string; feed: AiOracleFeed }
 }) {
   const baseMint = oracle.baseMint
@@ -122,7 +122,7 @@ export function OracleActions({
     case Phase.AiClaim:
       return (
         <div className="flex flex-col gap-4">
-          <SubmitAiClaimForm pubkey={pubkey} oracle={oracle} refetch={refetch} />
+          <RequestAiOracleForm pubkey={pubkey} refetch={refetch} />
           <ApplyExternalAiClaimForm pubkey={pubkey} feed={aiFeed} refetch={refetch} />
           <FinalizeControl
             title="Finalize AI claims"

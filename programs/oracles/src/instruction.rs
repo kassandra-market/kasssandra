@@ -15,6 +15,9 @@ pub enum Ix {
     SubmitFact = 0,
     VoteFact = 1,
     FinalizeFacts = 2,
+    /// Retired. Discriminant kept for wire stability; the processor returns
+    /// [`crate::error::KassandraError::SubmitAiClaimRetired`]. Use
+    /// [`Ix::ApplyExternalAiClaim`] after the GPT-oracle callback writes the feed.
     SubmitAiClaim = 3,
     OpenChallenge = 4,
     SettleChallenge = 5,
@@ -128,15 +131,15 @@ pub enum Ix {
     /// MagicBlock undelegate discriminator.
     UndelegateOracle = 26,
     /// DAO-gated create-or-update of the `[b"ai_oracle_config"]` singleton:
-    /// pusher `authority`, `max_staleness_slots`, `source`, `enabled`.
+    /// MagicBlock `llm_context`, `max_staleness_slots`, `source`, `enabled`.
     SetAiOracleConfig = 27,
-    /// Authority-gated write of `[b"ai_feed", oracle]`. The program stamps
-    /// `Clock.slot` / `Clock.unix_timestamp`; the pusher supplies the
-    /// categorical option + opaque commitment hashes + attestation.
-    PushAiOracleFeed = 28,
+    /// Ensure `[b"ai_feed", oracle]` exists and, when the remaining-account
+    /// GPT-oracle set is present, CPI MagicBlock `interact_with_llm`. The
+    /// feed is written later by the 8-byte GPT-oracle callback.
+    RequestAiOracle = 28,
     /// In `Phase::AiClaim`, create this proposer's `AiClaim` from the live
-    /// `AiOracleFeed` (one proposer per tx). Replaces the in-house runner as
-    /// the protocol's source of truth when the feed is enabled.
+    /// MagicBlock GPT `AiOracleFeed` (one proposer per tx). This is the only
+    /// way to stamp an AI claim.
     ApplyExternalAiClaim = 29,
     // Future variants are APPENDED here with the next discriminant; add a
     // matching arm to `from_u8` below.
@@ -175,7 +178,7 @@ impl Ix {
             25 => Some(Ix::CommitOracle),
             26 => Some(Ix::UndelegateOracle),
             27 => Some(Ix::SetAiOracleConfig),
-            28 => Some(Ix::PushAiOracleFeed),
+            28 => Some(Ix::RequestAiOracle),
             29 => Some(Ix::ApplyExternalAiClaim),
             _ => None,
         }

@@ -21,6 +21,10 @@ matching TypeScript derivers are in [SDK · PDAs](/sdk/pdas).
 | Market | `[b"market", ai_claim_pubkey]` | `open_challenge.rs` |
 | Challenger USDC escrow | `[b"challenge_usdc", market_pubkey]` | `open_challenge.rs`; SPL token account, authority = oracle PDA |
 | Mint-authority | `[b"mint_authority"]` (`MINT_AUTHORITY_SEED`) | Still derived by clients as account 9 of `create_oracle`; unused (no minting). |
+| OracleMeta | `[b"oracle_meta", oracle_pubkey]` | `write_oracle_meta.rs` |
+| ErSession | `[b"er_session", oracle_pubkey]` | `delegate_oracle.rs`; MagicBlock ER record |
+| AiOracleConfig | `[b"ai_oracle_config"]` | `set_ai_oracle_config.rs`; protocol singleton |
+| AiOracleFeed | `[b"ai_feed", oracle_pubkey]` | `request_ai_oracle.rs`; written by GPT-oracle callback |
 
 <Note>
 The **Oracle** PDA is re-derived from `oracle_nonce` inside every instruction whose payload carries the
@@ -50,3 +54,13 @@ seed internals live in `programs/oracles/src/cpi/metadao.rs` and `cpi/metadao_v0
 
 For these, see [Challenge markets](/challenge/overview) and
 [Conditional vaults](/challenge/conditional-vaults).
+
+## External MagicBlock solana-gpt-oracle PDAs
+
+Derived under `LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab`, not Kassandra:
+
+| Account | Seeds | Notes |
+| --- | --- | --- |
+| Identity | `[b"identity"]` | Trust root; must sign the GPT callback |
+| Interaction | `[b"interaction", payer, context]` | Created/resized by `interact_with_llm` |
+| Context | `[b"test-context", counter.count LE]` | Created via GPT `create_llm_context`; stored on `AiOracleConfig.llm_context` |

@@ -8,8 +8,9 @@ use super::build;
 use crate::SYSTEM_PROGRAM_ID;
 
 // ===================================================================== Ix 3
-/// `SubmitAiClaim` (Ix 3) — resubmit a value + AI-claim metadata over the agreed
-/// facts. Assembles the 97-byte payload from its components.
+/// `SubmitAiClaim` (Ix 3) — **retired**. Discriminant kept for wire stability;
+/// the on-chain processor returns `SubmitAiClaimRetired`. Assembles the 97-byte
+/// payload from its components so clients can still encode the historical ix.
 #[allow(clippy::too_many_arguments)]
 pub fn submit_ai_claim(
     program_id: &Pubkey,

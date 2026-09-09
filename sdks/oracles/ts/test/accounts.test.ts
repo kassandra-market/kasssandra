@@ -364,7 +364,7 @@ describe("Pod account decoders — synthetic buffers at pinned offsets", () => {
     const c = decodeAiOracleConfig(b.bytes);
     expect(c.enabled).toBe(true);
     expect(c.source).toBe(0);
-    expect(c.authority.toString()).toBe(key32Addr(90));
+    expect(c.llmContext.toString()).toBe(key32Addr(90));
     expect(c.maxStalenessSlots).toBe(64n);
   });
 

@@ -24,29 +24,29 @@ Discriminant bytes and error codes are a **stable public contract** — never re
 ```text
 programs/oracles/src/
 ├── lib.rs          entrypoint! + process_instruction + program ID
-├── instruction.rs  Ix enum (0..=22) + from_u8 dispatch discriminants
-├── processor/      one module per instruction + mod.rs dispatch table + guards.rs
-├── state.rs        7 account structs (Pod/Zeroable), AccountType, Phase enums
+├── instruction.rs  Ix enum (0..=29) + from_u8 dispatch discriminants
+├── processor/      one module per instruction + 8-byte callbacks + guards.rs
+├── state/          Pod/Zeroable accounts, AccountType (0..=11), Phase enums
 ├── config.rs       compile-time constants + defaults
-├── error.rs        KassandraError (36 codes) → ProgramError::Custom
+├── error.rs        KassandraError (0..=42) → ProgramError::Custom
 ├── reward.rs       reward-bucket + pro-rata settlement math (pure, no token movement)
 ├── fee.rs          dynamic creation-fee EMA (decay / charge / bump)
 ├── price.rs        governance-anchored SOL/USDC TWAP (spot_price)
 ├── plurality.rs    strict-plurality resolution over surviving proposers
 ├── clock.rs        unix-time helpers / phase-window gates
-└── cpi/            metadao.rs (v0.4 vault+AMM), metadao_v06.rs (futarchy/Meteora)
+└── cpi/            metadao.rs, metadao_v06.rs, magicblock.rs, gpt_oracle.rs
 ```
 
 | Module | Responsibility |
 | --- | --- |
-| `lib.rs` | Installs the entrypoint (gated behind `no-entrypoint` for library reuse) and forwards to the processor. |
-| `instruction.rs` | The `Ix` enum and its `from_u8` mapping — the 23 discriminants. |
-| `processor/` | One file per instruction (`submit_fact.rs`, `create_oracle.rs`, …), plus `mod.rs` (dispatch) and `guards.rs` (shared validation). |
-| `state.rs` | The `#[repr(C)]`, `Pod + Zeroable` account structs read/written zero-copy via `bytemuck`; the `AccountType` and `Phase` enums. |
+| `lib.rs` | Installs the entrypoint (gated behind `no-entrypoint` for library reuse) and intercepts 8-byte MagicBlock / GPT-oracle callbacks before 1-byte `Ix` dispatch. |
+| `instruction.rs` | The `Ix` enum and its `from_u8` mapping — 30 discriminants (0–29). |
+| `processor/` | One file per instruction, plus `callback_from_gpt_oracle.rs` / `undelegate_callback.rs`, `mod.rs` (dispatch) and `guards.rs`. |
+| `state/` | The `#[repr(C)]`, `Pod + Zeroable` account structs; `AccountType` and `Phase` enums. Companion PDAs: `ErSession`, `AiOracleConfig`, `AiOracleFeed`. |
 | `config.rs` | Compile-time constants and the genesis defaults snapshotted onto Protocol/Oracle. |
 | `error.rs` | The `KassandraError` enum (`#[repr(u32)]`). |
 | `reward.rs`, `fee.rs`, `price.rs`, `plurality.rs` | Pure economic-logic helpers — no token movement of their own. |
-| `cpi/` | Hand-reconstructed MetaDAO Anchor CPI (discriminators, metas, Borsh args). |
+| `cpi/` | Hand-reconstructed MetaDAO, MagicBlock ER, and solana-gpt-oracle CPI (no Anchor crates). |
 
 See [Protocol reference](/protocol/overview) for the exhaustive instruction, account, phase, PDA,
 error, and constant tables.
@@ -55,9 +55,11 @@ error, and constant tables.
 
 <Steps>
   <Step title="Entrypoint">
-    `entrypoint!(process_instruction)` receives `(program_id, accounts, instruction_data)` and
-    forwards to `processor::process` (`lib.rs`). The entrypoint is gated behind the `no-entrypoint`
-    feature so the crate can be reused as a plain library (the runner does exactly this).
+    `entrypoint!(process_instruction)` receives `(program_id, accounts, instruction_data)`.
+    If the first 8 bytes match MagicBlock's undelegate disc or Kassandra's GPT-oracle callback
+    disc, those processors run immediately; otherwise it forwards to `processor::process`
+    (`lib.rs`). The entrypoint is gated behind the `no-entrypoint` feature so the crate can
+    be reused as a plain library (the runner does exactly this).
   </Step>
   <Step title="Dispatch">
     `processor::process` reads `instruction_data[0]` as the discriminant, resolves it to an `Ix`
@@ -93,10 +95,10 @@ enforced by the Solana runtime, not the program — the account tables in
 
 <CardGroup cols={2}>
   <Card title="Instructions" icon="list-check" href="/protocol/instructions">
-    All 23 instructions with accounts, payloads, phase gates, and errors.
+    All 30 instructions with accounts, payloads, phase gates, and errors.
   </Card>
   <Card title="Accounts" icon="database" href="/protocol/accounts">
-    The 7 account structs with full field tables and byte offsets.
+    Companion PDAs (`ErSession`, `AiOracleConfig`, `AiOracleFeed`) plus the Pod account field tables.
   </Card>
   <Card title="Phases" icon="diagram-project" href="/protocol/phases">
     The `Phase` enum and the full transition map.

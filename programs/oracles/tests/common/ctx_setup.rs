@@ -9,7 +9,17 @@ impl TestCtx {
     /// The `.so` is `include_bytes!`'d at compile time, so `just build`
     /// (`cargo build-sbf`) must run **before** `cargo test`.
     pub fn new() -> Self {
-        let mut svm = LiteSVM::new();
+        Self::from_svm(LiteSVM::new())
+    }
+
+    /// Same as [`Self::new`] but skips transaction signature verification, so
+    /// tests can mark the MagicBlock GPT-oracle identity PDA as a signer
+    /// without possessing its (non-existent) private key.
+    pub fn new_unverified() -> Self {
+        Self::from_svm(LiteSVM::new().with_sigverify(false))
+    }
+
+    fn from_svm(mut svm: LiteSVM) -> Self {
         let payer = Keypair::new();
         svm.airdrop(&payer.pubkey(), 1_000_000_000_000).unwrap();
 

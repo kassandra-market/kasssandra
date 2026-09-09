@@ -7,7 +7,7 @@
  *   proposal      — Proposal, window open        → wallet proposes
  *   factProposal  — dispute → FactProposal open   → wallet submits a fact
  *   factVoting    — → FactVoting (1 fact)         → wallet votes
- *   aiClaim       — → AiClaim, WALLET is proposer → wallet submits an AI claim
+ *   aiClaim       — → AiClaim, WALLET is proposer → wallet applies GPT feed
  *   finalizeReady — Proposal, window ELAPSED      → wallet cranks finalize
  *   resolved      — uncontested → Resolved,
  *                   WALLET is a winning proposer  → wallet claims
@@ -21,6 +21,7 @@ import { Keypair } from '@solana/web3.js'
 import { TOKEN_PROGRAM_ID, associatedTokenAccount, finalizeProposals, pda } from '@kassandra-market/oracles'
 
 import { toHex, tokenAccountBytes } from '../../sdks/oracles/ts/test/surfpool/harness.ts'
+import { writeGptFeed } from '../../sdks/oracles/ts/test/helpers/gptFeed.ts'
 import {
   advanceToAiClaim,
   advanceToFactVoting,
@@ -38,7 +39,6 @@ import {
   keepWindowOpen,
   openProposals,
   proposeAs,
-  runnerClaim,
   seedDeadendOracle,
   sendIx,
   submitOneFact,
@@ -97,21 +97,18 @@ async function globalSetup(): Promise<() => Promise<void>> {
 
   // 4) AiClaim — the WALLET is a locked-in proposer; it submits its AI claim.
   {
-    const o = await createOracleReal(ctx, 4n, 2, 'E2E submitAiClaim: wallet is a proposer')
+    const o = await createOracleReal(ctx, 4n, 2, 'E2E apply GPT feed: wallet is a proposer')
     const proposers = await driveToFactProposal(ctx, o, wallet)
     const fact = await submitOneFact(ctx, o)
     await advanceToFactVoting(ctx, o)
     await approveVote(ctx, o, fact)
     await advanceToAiClaim(ctx, o, 4n, fact)
     await keepWindowOpen(ctx, o)
-    // Produce a REAL runner payload (mock Anthropic) for the browser test to paste
-    // via the form's "Paste runner output" mode — no fabricated hashes.
-    const claim = await runnerClaim(0)
+    await writeGptFeed((pk, u) => ctx.harness.setAccount(pk, u), o.toString(), 0)
     oracles.aiClaim = {
       nonce: '4',
       address: o.toString(),
       proposer: proposers[0].toString(),
-      runner: JSON.stringify(claim.formPayload),
     }
   }
 

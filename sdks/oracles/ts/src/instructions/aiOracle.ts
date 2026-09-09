@@ -1,27 +1,34 @@
 /**
- * External AI-oracle builders (Ix 27–29): set config, push feed, apply claim.
+ * External AI-oracle builders (Ix 27–29): set config, request MagicBlock GPT
+ * oracle, apply claim.
  */
 import { Address, TransactionInstruction } from "@solana/web3.js";
 
-import { Ix, KASSANDRA_PROGRAM_ID, SYSTEM_PROGRAM_ID } from "../constants.js";
+import {
+  GPT_ORACLE_CALLBACK_DISCRIMINATOR,
+  GPT_ORACLE_PROGRAM_ID,
+  Ix,
+  KASSANDRA_PROGRAM_ID,
+  SYSTEM_PROGRAM_ID,
+} from "../constants.js";
 import * as pda from "../pda.js";
 import type { AddressInput } from "../pda.js";
-import { addr, fixedBytes, pubkeyBytes, ro, u64LE, u8, w, withDisc } from "./payload.js";
+import { addr, pubkeyBytes, ro, u32LE, u64LE, u8, w, withDisc } from "./payload.js";
 
 // ---------------------------------------------------------------------------
 // SetAiOracleConfig (Ix=27) — processor/set_ai_oracle_config.rs
 // Accounts: 0 protocol(ro) 1 config(w) 2 authority(signer,w) 3 system(ro).
-// Payload (42): authority[32] ++ max_staleness_slots u64 LE ++ source u8 ++ enabled u8.
+// Payload (42): llm_context[32] ++ max_staleness_slots u64 LE ++ source u8 ++ enabled u8.
 // Admin until Protocol.governance_set, then dao_authority.
 // ---------------------------------------------------------------------------
 export interface SetAiOracleConfigArgs {
   /** Signer: Protocol.admin pre-handoff, dao_authority after. */
   authority: AddressInput;
-  /** Pusher allowed to `pushAiOracleFeed`. */
-  pusher: AddressInput;
+  /** MagicBlock `ContextAccount` created via `create_llm_context`. */
+  llmContext: AddressInput;
   /** `Clock.slot - feed.slot` must be <= this. Must be > 0. */
   maxStalenessSlots: bigint | number;
-  /** `AI_ORACLE_SOURCE_*` (0 external / 1 magicblock / 2 switchboard). */
+  /** `AI_ORACLE_SOURCE_*` (0 reserved / 1 magicblock / 2 switchboard). */
   source: number;
   enabled: boolean;
   programId?: Address;
@@ -33,7 +40,7 @@ export async function setAiOracleConfig(args: SetAiOracleConfigArgs): Promise<Tr
   const config = await pda.aiOracleConfig(programId);
   const data = withDisc(
     Ix.SetAiOracleConfig,
-    pubkeyBytes(args.pusher),
+    pubkeyBytes(args.llmContext),
     u64LE(args.maxStalenessSlots),
     u8(args.source),
     u8(args.enabled ? 1 : 0),
@@ -51,45 +58,70 @@ export async function setAiOracleConfig(args: SetAiOracleConfigArgs): Promise<Tr
 }
 
 // ---------------------------------------------------------------------------
-// PushAiOracleFeed (Ix=28) — processor/push_ai_oracle_feed.rs
-// Accounts: 0 config(ro) 1 oracle(ro) 2 feed(w) 3 authority(signer,w) 4 system(ro).
-// Payload (161): option u8 ++ model_id[32] ++ params_hash[32] ++ io_hash[32] ++ attestation[64].
+// RequestAiOracle (Ix=28) — processor/request_ai_oracle.rs
+// Accounts: 0 config(ro) 1 oracle(ro) 2 feed(w) 3 payer(signer,w) 4 system(ro)
+//           [5 gpt program 6 interaction(w) 7 llm_context] when CPI-ing.
+// Payload: text_len u32 LE ++ text.
 // ---------------------------------------------------------------------------
-export interface PushAiOracleFeedArgs {
+export interface RequestAiOracleArgs {
   oracle: AddressInput;
-  /** Must equal `AiOracleConfig.authority`. */
-  authority: AddressInput;
-  option: number;
-  modelId: Uint8Array;
-  paramsHash: Uint8Array;
-  ioHash: Uint8Array;
-  /** Opaque 64-byte attestation (ed25519 signature, TEE quote hash, …). */
-  attestation: Uint8Array;
+  payer: AddressInput;
+  /** User text forwarded to MagicBlock `interact_with_llm` (max 700 bytes). */
+  text: string | Uint8Array;
+  /** When set, remaining accounts for the GPT-oracle CPI are appended. */
+  llmContext?: AddressInput;
   programId?: Address;
 }
 
-export async function pushAiOracleFeed(args: PushAiOracleFeedArgs): Promise<TransactionInstruction> {
+export async function requestAiOracle(args: RequestAiOracleArgs): Promise<TransactionInstruction> {
   const programId = args.programId ?? KASSANDRA_PROGRAM_ID;
   const oracle = addr(args.oracle);
+  const payer = addr(args.payer);
   const config = await pda.aiOracleConfig(programId);
   const feed = await pda.aiOracleFeed(oracle, programId);
-  const data = withDisc(
-    Ix.PushAiOracleFeed,
-    u8(args.option),
-    fixedBytes(args.modelId, 32),
-    fixedBytes(args.paramsHash, 32),
-    fixedBytes(args.ioHash, 32),
-    fixedBytes(args.attestation, 64),
-  );
+  const text = typeof args.text === "string" ? new TextEncoder().encode(args.text) : args.text;
+  const data = withDisc(Ix.RequestAiOracle, u32LE(text.length), text);
+  const keys = [
+    ro(config.address),
+    ro(oracle),
+    w(feed.address),
+    w(payer, true),
+    ro(SYSTEM_PROGRAM_ID),
+  ];
+  if (args.llmContext !== undefined) {
+    const llmContext = addr(args.llmContext);
+    const interaction = await pda.gptOracleInteraction(payer, llmContext);
+    keys.push(ro(GPT_ORACLE_PROGRAM_ID));
+    keys.push(w(interaction.address));
+    keys.push(ro(llmContext));
+  }
+  return new TransactionInstruction({ programId, keys, data });
+}
+
+/** 8-byte GPT-oracle callback (not a Kassandra `Ix` byte). */
+export interface CallbackFromGptOracleArgs {
+  oracle: AddressInput;
+  response: string;
+  programId?: Address;
+}
+
+export async function callbackFromGptOracle(
+  args: CallbackFromGptOracleArgs,
+): Promise<TransactionInstruction> {
+  const programId = args.programId ?? KASSANDRA_PROGRAM_ID;
+  const oracle = addr(args.oracle);
+  const identity = await pda.gptOracleIdentity();
+  const config = await pda.aiOracleConfig(programId);
+  const feed = await pda.aiOracleFeed(oracle, programId);
+  const enc = new TextEncoder();
+  const response = enc.encode(args.response);
+  const data = new Uint8Array(8 + 4 + response.length);
+  data.set(GPT_ORACLE_CALLBACK_DISCRIMINATOR, 0);
+  data.set(u32LE(response.length), 8);
+  data.set(response, 12);
   return new TransactionInstruction({
     programId,
-    keys: [
-      ro(config.address),
-      ro(oracle),
-      w(feed.address),
-      w(addr(args.authority), true),
-      ro(SYSTEM_PROGRAM_ID),
-    ],
+    keys: [ro(identity.address, true), ro(config.address), ro(oracle), w(feed.address)],
     data,
   });
 }

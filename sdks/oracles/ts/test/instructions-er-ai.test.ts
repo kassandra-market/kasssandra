@@ -10,7 +10,7 @@ import {
   applyExternalAiClaim,
   commitOracle,
   delegateOracle,
-  pushAiOracleFeed,
+  requestAiOracle,
   setAiOracleConfig,
   undelegateOracle,
 } from "../src/instructions/index.js";
@@ -65,17 +65,17 @@ describe("ER + AI-oracle instruction builders", () => {
   it("setAiOracleConfig: 42-byte payload", async () => {
     const ix = await setAiOracleConfig({
       authority: ADMIN,
-      pusher: AUTHORITY,
+      llmContext: AUTHORITY,
       maxStalenessSlots: 64n,
-      source: 0,
+      source: 1,
       enabled: true,
     });
     const protocol = await pda.protocol();
     const config = await pda.aiOracleConfig();
-    const pusherBytes = new Address(AUTHORITY).toBytes();
+    const ctxBytes = new Address(AUTHORITY).toBytes();
     expect(ix.data[0]).toBe(Ix.SetAiOracleConfig);
     expect(ix.data.length).toBe(1 + 42);
-    expect(Array.from(ix.data.slice(1, 33))).toEqual(Array.from(pusherBytes));
+    expect(Array.from(ix.data.slice(1, 33))).toEqual(Array.from(ctxBytes));
     expect(metaTriples(ix.keys)).toEqual([
       [protocol.address.toString(), false, true],
       [config.address.toString(), false, true],
@@ -84,27 +84,20 @@ describe("ER + AI-oracle instruction builders", () => {
     ]);
   });
 
-  it("pushAiOracleFeed: 161-byte payload", async () => {
-    const modelId = new Uint8Array(32).fill(0xaa);
-    const paramsHash = new Uint8Array(32).fill(0xbb);
-    const ioHash = new Uint8Array(32).fill(0xcc);
-    const attestation = new Uint8Array(64).fill(0xdd);
-    const ix = await pushAiOracleFeed({
+  it("requestAiOracle: length-prefixed text, 5 accounts", async () => {
+    const ix = await requestAiOracle({
       oracle: ORACLE,
-      authority: AUTHORITY,
-      option: 1,
-      modelId,
-      paramsHash,
-      ioHash,
-      attestation,
+      payer: AUTHORITY,
+      text: "hi",
     });
-    expect(ix.data[0]).toBe(Ix.PushAiOracleFeed);
-    expect(ix.data.length).toBe(1 + 161);
-    expect(ix.data[1]).toBe(1);
+    expect(ix.data[0]).toBe(Ix.RequestAiOracle);
+    expect(ix.data.length).toBe(1 + 4 + 2);
+    expect(ix.data[1]).toBe(2);
     const config = await pda.aiOracleConfig();
     const feed = await pda.aiOracleFeed(ORACLE);
     expect(ix.keys[0].pubkey.toString()).toBe(config.address.toString());
     expect(ix.keys[2].pubkey.toString()).toBe(feed.address.toString());
+    expect(ix.keys.length).toBe(5);
   });
 
   it("applyExternalAiClaim: empty payload, 7 accounts", async () => {
@@ -120,5 +113,21 @@ describe("ER + AI-oracle instruction builders", () => {
     expect(ix.keys[1].pubkey.toString()).toBe(proposer.address.toString());
     expect(ix.keys[2].pubkey.toString()).toBe(claim.address.toString());
     expect(ix.keys[5].isSigner).toBe(true);
+  });
+
+  it("applyExternalAiClaim: foreign Address-like (duplicate web3.js copy)", async () => {
+    // Playwright's Node loader can resolve two copies of `@solana/web3.js`.
+    // A foreign object fails `instanceof Address` and `new Address(obj)` throws.
+    const foreignAuthority = {
+      toString: () => AUTHORITY,
+      toBytes: () => new Address(AUTHORITY).toBytes(),
+    };
+    const ix = await applyExternalAiClaim({
+      oracle: ORACLE,
+      proposerAuthority: foreignAuthority as unknown as Address,
+      payer: ADMIN,
+    });
+    const proposer = await pda.proposer(ORACLE, AUTHORITY);
+    expect(ix.keys[1].pubkey.toString()).toBe(proposer.address.toString());
   });
 });

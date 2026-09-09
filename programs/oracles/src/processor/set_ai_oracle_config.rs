@@ -16,14 +16,14 @@ use crate::{
     state::{AccountType, AiOracleConfig, AI_ORACLE_SOURCE_SWITCHBOARD},
 };
 
-/// `authority[32] ++ max_staleness_slots u64 LE ++ source u8 ++ enabled u8`.
+/// `llm_context[32] ++ max_staleness_slots u64 LE ++ source u8 ++ enabled u8`.
 const PAYLOAD_LEN: usize = 32 + 8 + 1 + 1;
 
 pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]) -> ProgramResult {
     if payload.len() != PAYLOAD_LEN {
         return Err(ProgramError::InvalidInstructionData);
     }
-    let authority: Pubkey = <[u8; 32]>::try_from(&payload[..32]).unwrap().into();
+    let llm_context: Pubkey = <[u8; 32]>::try_from(&payload[..32]).unwrap().into();
     let max_staleness_slots = u64::from_le_bytes(payload[32..40].try_into().unwrap());
     let source = payload[40];
     let enabled = payload[41];
@@ -33,7 +33,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     if source > AI_ORACLE_SOURCE_SWITCHBOARD {
         return Err(KassandraError::InvalidConfig.into());
     }
-    if authority == Pubkey::default() {
+    if enabled != 0 && llm_context == Pubkey::default() {
         return Err(KassandraError::InvalidConfig.into());
     }
 
@@ -82,7 +82,7 @@ pub fn process(program_id: &Pubkey, accounts: &mut [AccountInfo], payload: &[u8]
     cfg.bump = bump;
     cfg.enabled = if enabled == 0 { 0 } else { 1 };
     cfg.source = source;
-    cfg.authority = authority;
+    cfg.llm_context = llm_context;
     cfg.max_staleness_slots = max_staleness_slots;
     {
         let mut data = config_ai.try_borrow_mut()?;

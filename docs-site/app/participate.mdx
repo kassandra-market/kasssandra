@@ -39,12 +39,14 @@ Approved, non-duplicate facts form the agreed set the AI claim is resolved again
 
 ## Submit an AI claim (AiClaim phase)
 
-After the facts are settled, a proposer submits the resolved categorical answer plus its reproducibility metadata. The action layer is `app/src/data/actions/claims.ts`.
+After the facts are settled, the oracle detail page shows two write forms
+(`RequestAiOracleForm`, `ApplyExternalAiClaimForm`).
 
-- **UI action:** three 32-byte hashes (model / params / io) plus the chosen option — entered as hex fields **or** by pasting the runner's JSON output directly. The proposer PDA is derived from the connected wallet.
-- **Instruction:** `submitAiClaim` (`sdk/src/instructions/dispute.ts`, Ix = 3) — payload(97): `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option u8`.
-
-The three hashes and the 97-byte payload come from the AI runner. When you paste its JSON, the SDK's `submitAiClaimFromRunner` bridge byte-asserts that the SDK-built payload equals the runner's precomputed 97-byte payload (`sdk/src/runner-bridge.ts`), so the submitted claim can never diverge from the runner's metadata. See [Running the runner](/ops/runner).
+- **Request MagicBlock AI:** permissionless `requestAiOracle` (`Ix = 28`) with a prompt
+  (max 700 bytes). When `AiOracleConfig` is enabled, remaining accounts CPI
+  `interact_with_llm`. The GPT-oracle callback later writes `AiOracleFeed`.
+- **Apply attested feed:** `applyExternalAiClaim` (`Ix = 29`) stamps the connected wallet's
+  proposer from the live feed. `submitAiClaim` (`Ix = 3`) is retired.
 
 <CardGroup cols={3}>
   <Card title="Proposals" icon="hand-point-up" href="/concepts/proposals">

@@ -34,11 +34,6 @@ fn finalize_facts_ix(ctx: &TestCtx, oracle: Pubkey, tail: &[Pubkey]) -> Instruct
     ctx.finalize_facts_ix(oracle, tail)
 }
 
-/// AiClaim PDA seeds `[b"claim", oracle, proposer]`.
-fn claim_pda(program_id: &Pubkey, oracle: &Pubkey, proposer: &Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[b"claim", oracle.as_ref(), proposer.as_ref()], program_id)
-}
-
 fn finalize_oracle_ix(ctx: &TestCtx, oracle: Pubkey, tail: &[Pubkey]) -> Instruction {
     // S3 account order (oracle, base_mint, stake_vault, token program, tail) +
     // the oracle-nonce payload, via the shared harness builder.
@@ -271,11 +266,6 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
 
     // Capture proposer handles for the dispute core.
     let proposer_pdas: Vec<Pubkey> = ctx.proposers(oracle).iter().map(|p| p.pda).collect();
-    let authorities: Vec<Keypair> = ctx
-        .proposers(oracle)
-        .iter()
-        .map(|p| p.authority.insecure_clone())
-        .collect();
 
     // 1) submit_fact (one fact) — FactProposal window still open.
     let submitter = Keypair::new();
@@ -329,24 +319,11 @@ fn e2e_dispute_through_dispute_core_to_resolved() {
     assert_eq!(o.phase, Phase::AiClaim.as_u8());
     assert_eq!(ctx.fact(fact).agreed, 1, "the approved fact cleared quorum");
 
-    // 5) submit_ai_claim for each surviving proposer, ALL claiming the SAME
-    //    option (0) so the plurality has a clear winner. The proposer that
-    //    originally proposed option 1 thereby flips (partial slash, but remains
-    //    surviving); the option-0 proposer claims honestly.
+    // 5) apply the GPT feed onto each surviving proposer. The feed option is 0,
+    //    so the option-1 proposer flips (partial slash, still surviving).
     let agreed_option = 0u8;
-    for (auth, pda) in authorities.iter().zip(&proposer_pdas) {
-        ctx.svm.airdrop(&auth.pubkey(), 1_000_000_000).unwrap();
-        let (claim, _) = claim_pda(&ctx.program_id, &oracle, pda);
-        let ix = submit_ai_claim_ix(
-            &ctx,
-            oracle,
-            *pda,
-            claim,
-            auth.pubkey(),
-            submit_ai_payload(agreed_option),
-        );
-        ctx.send(ix, &[auth])
-            .expect("submit_ai_claim should succeed");
+    for pda in &proposer_pdas {
+        ctx.stamp_gpt_claim_ok(oracle, *pda, agreed_option);
     }
 
     // 6) warp past the AiClaim window, finalize_ai_claims => Challenge.

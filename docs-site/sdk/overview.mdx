@@ -91,9 +91,9 @@ the top level; the external-protocol builders are namespaced.
 | Module | Import path / namespace | What it provides |
 | --- | --- | --- |
 | Constants | `sdk/src/constants.ts` | `KASSANDRA_PROGRAM_ID`, `Ix`, `AccountType`, `Phase`, `KassandraError` + `decodeError`, `EXTERNAL_PROGRAM_IDS`, `CONFIG`, `ACCOUNT_SIZES`, sentinels. See [Constants](/protocol/constants). |
-| Instruction builders | `sdk/src/instructions/` | The 23 core builders (Ix 0–22) + their `*Args` types + payload helpers. |
-| Account decoders | `sdk/src/accounts/` | The 7 `decodeX` functions + decoded types. |
-| PDAs | `sdk/src/pda.ts` (flat + `pda.*`) | The 11 PDA derivers, each `Promise<Pda>`. |
+| Instruction builders | `sdk/src/instructions/` | Builders for Ix 0–29 + GPT-oracle callback helper + payload helpers. |
+| Account decoders | `sdk/src/accounts/` | Pod decoders including `ErSession`, `AiOracleConfig`, `AiOracleFeed`. |
+| PDAs | `sdk/src/pda.ts` (flat + `pda.*`) | Kassandra PDA derivers plus GPT identity/interaction, each `Promise<Pda>`. |
 | `ammV04.*` | `sdk/src/amm-v04/` | MetaDAO v0.4 standalone AMM builders + PDA derivers. |
 | `futarchy.*` | `sdk/src/futarchy/` | futarchy v0.6 + Squads v4 + conditional-vault builders + `bootstrapGovernance`. |
 | `meteora.*` | `sdk/src/meteora/` | Meteora DAMM v2 (cp-amm) spot builders + Pool/Position decoders. |
@@ -108,15 +108,14 @@ litesvm). See [Recipes](/sdk/recipes).
 
 <CardGroup cols={2}>
   <Card title="Instruction builders" icon="scroll" href="/sdk/instruction-builders">
-    All 23 core builders (Ix 0–22) grouped by lifecycle, dispute, challenge, settlement,
+    All builders (Ix 0–29) grouped by lifecycle, dispute, challenge, ER, AI oracle, settlement,
     and payload — with exact `*Args` fields.
   </Card>
   <Card title="Account decoders" icon="box-open" href="/sdk/account-decoders">
-    The 7 `decodeProtocol`…`decodeMarket` decoders — the account each reads, its size, and
-    returned fields.
+    Decoders for Protocol, Oracle, dispute accounts, ErSession, and the MagicBlock AI feed.
   </Card>
   <Card title="PDAs" icon="fingerprint" href="/sdk/pdas">
-    The 11 async PDA derivers, their seeds, and the `{ address, bump }` they return.
+    Async PDA derivers (Kassandra + GPT-oracle identity/interaction) and the `{ address, bump }` they return.
   </Card>
   <Card title="AMM v0.4" icon="right-left" href="/sdk/amm-v04">
     The `ammV04.*` submodule — create AMM, add liquidity, swap, crank the TWAP.

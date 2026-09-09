@@ -19,10 +19,9 @@ pub const ER_STATUS_UNDELEGATED: u8 = 0;
 /// `ErSession.status`: account is delegated to an Ephemeral Rollup validator.
 pub const ER_STATUS_DELEGATED: u8 = 1;
 
-/// `AiOracleConfig.source`: generic external pusher (runner, MagicBlock chain
-/// pusher, or any other attested writer).
+/// `AiOracleConfig.source`: reserved (legacy generic pusher; unused).
 pub const AI_ORACLE_SOURCE_EXTERNAL: u8 = 0;
-/// `AiOracleConfig.source`: MagicBlock oracle pusher.
+/// `AiOracleConfig.source`: MagicBlock solana-gpt-oracle.
 pub const AI_ORACLE_SOURCE_MAGICBLOCK: u8 = 1;
 /// `AiOracleConfig.source`: Switchboard on-demand (reserved).
 pub const AI_ORACLE_SOURCE_SWITCHBOARD: u8 = 2;
@@ -46,7 +45,7 @@ pub enum AccountType {
     OracleMeta = 8,
     /// Companion PDA recording MagicBlock ER delegation for one oracle.
     ErSession = 9,
-    /// Protocol singleton: which authority may push the external AI feed.
+    /// Protocol singleton: MagicBlock GPT-oracle context + staleness.
     AiOracleConfig = 10,
     /// Latest attested external-AI answer for one oracle.
     AiOracleFeed = 11,

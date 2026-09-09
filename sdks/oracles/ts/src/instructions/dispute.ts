@@ -163,7 +163,9 @@ export async function finalizeFacts(args: FinalizeFactsArgs): Promise<Transactio
 }
 
 // ---------------------------------------------------------------------------
-// SubmitAiClaim (Ix=3) — processor/submit_ai_claim.rs
+// SubmitAiClaim (Ix=3) — RETIRED. Discriminant kept for wire stability; the
+// processor returns SubmitAiClaimRetired. Builder still encodes the historical
+// payload so clients/tests can prove the retired ix is rejected.
 // Accounts: 0 oracle(w) 1 proposer(w) 2 ai_claim(w,PDA) 3 authority(w,signer)
 //           4 system program(ro).
 // Payload: model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option u8.

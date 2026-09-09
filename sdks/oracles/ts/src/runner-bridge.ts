@@ -10,7 +10,7 @@
  * encoding drift between the two implementations (disc, field order, widths) is
  * a hard failure rather than a silent on-chain mismatch.
  */
-import { Address, TransactionInstruction } from "@solana/web3.js";
+import type { Address, TransactionInstruction } from "@solana/web3.js";
 
 import { Ix } from "./constants.js";
 import type { AddressInput } from "./pda.js";
@@ -103,7 +103,7 @@ function firstDiff(a: Uint8Array, b: Uint8Array): number {
 
 /** Normalize an address to its canonical base58 string. */
 function asBase58(a: AddressInput): string {
-  return (a instanceof Address ? a : new Address(a)).toString();
+  return typeof a === "string" ? a : a.toString();
 }
 
 /**

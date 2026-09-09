@@ -147,44 +147,13 @@ fn submit_off_yields_no_target() {
 }
 
 #[test]
-fn submit_requires_keypair() {
-    let common = common_args_empty();
-    let config = sample_config("https://x/y", b"z");
-    let err = resolve_submit_target(&common, true, None, &config).unwrap_err();
-    assert!(err.to_string().contains("--keypair"), "{err}");
-}
-
-#[test]
-fn submit_explicit_mode_requires_rpc_url() {
-    // Explicit-config mode (no --oracle / --rpc-url), keypair provided → the
-    // missing --rpc-url must be surfaced.
-    let common = common_args_empty();
-    let config = sample_config("https://x/y", b"z");
-    let err = resolve_submit_target(&common, true, Some(Path::new("/tmp/kp.json")), &config)
-        .unwrap_err();
-    assert!(err.to_string().contains("--rpc-url"), "{err}");
-}
-
-#[test]
-fn submit_needs_an_oracle() {
-    let mut common = common_args_empty();
-    common.rpc_url = Some("http://localhost:8899".to_string());
-    let config = sample_config("https://x/y", b"z"); // config.oracle == None
-    let err = resolve_submit_target(&common, true, Some(Path::new("/tmp/kp.json")), &config)
-        .unwrap_err();
-    assert!(err.to_string().contains("oracle"), "{err}");
-}
-
-#[test]
-fn submit_oracle_resolved_from_config() {
+fn submit_is_retired() {
     let mut common = common_args_empty();
     common.rpc_url = Some("http://localhost:8899".to_string());
     let mut config = sample_config("https://x/y", b"z");
-    let oracle_pk = "So11111111111111111111111111111111111111112";
-    config.oracle = Some(oracle_pk.to_string());
-    let target = resolve_submit_target(&common, true, Some(Path::new("/tmp/kp.json")), &config)
-        .unwrap()
-        .unwrap();
-    assert_eq!(target.oracle.to_string(), oracle_pk);
-    assert_eq!(target.rpc_url, "http://localhost:8899");
+    config.oracle = Some("So11111111111111111111111111111111111111112".to_string());
+    let err = resolve_submit_target(&common, true, Some(Path::new("/tmp/kp.json")), &config)
+        .unwrap_err();
+    assert!(err.to_string().contains("retired"), "{err}");
+    assert!(err.to_string().contains("--request-ai"), "{err}");
 }

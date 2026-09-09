@@ -52,7 +52,7 @@ export function ErAiOraclePanel({
             External AI feed
           </h3>
           <p className="mt-1 font-inter text-[13px] text-silver">
-            Latest attested categorical answer written by the configured pusher.
+            Latest attested categorical answer from MagicBlock’s solana-gpt-oracle.
             Apply it onto a proposer during the AI-claim round.
           </p>
           <dl className="mt-3 space-y-1 font-inter text-[13px] text-silver">
@@ -65,9 +65,9 @@ export function ErAiOraclePanel({
               <dd className="tabular-nums text-platinum">{feed.feed.slot.toString()}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-4">
-              <dt>Pushed by</dt>
+              <dt>Written by</dt>
               <dd>
-                <Truncated value={feed.feed.updatedBy.toString()} label="feed pusher" />
+                <Truncated value={feed.feed.updatedBy.toString()} label="GPT oracle identity" />
               </dd>
             </div>
           </dl>

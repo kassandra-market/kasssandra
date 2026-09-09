@@ -15,8 +15,8 @@
  */
 import { Address } from "@solana/web3.js";
 
-import { u64LE } from "./bytes.js";
-import { ATA_PROGRAM_ID, KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
+import { u32LE, u64LE } from "./bytes.js";
+import { ATA_PROGRAM_ID, GPT_ORACLE_PROGRAM_ID, KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
 
 /** Anything that can name an account: a web3.js `Address`/`PublicKey` or a base58 string. */
 export type AddressInput = Address | string;
@@ -29,9 +29,22 @@ export interface Pda {
 
 const enc = new TextEncoder();
 
+/**
+ * Coerce an {@link AddressInput} into **this module's** `Address` class.
+ *
+ * Playwright's Node loader can resolve two copies of `@solana/web3.js`. A
+ * foreign `Address` fails `instanceof` here, and `new Address(foreignObject)`
+ * throws `Invalid public key input`. Reconstruct from base58 (`String(a)` /
+ * `.toString()`) so callers can pass either copy.
+ */
+export function toAddress(a: AddressInput): Address {
+  if (a instanceof Address) return a;
+  return new Address(String(a));
+}
+
 /** 32 raw bytes of an address (the seed form of a pubkey). */
 function pubkeyBytes(a: AddressInput): Uint8Array {
-  return (a instanceof Address ? a : new Address(a)).toBytes();
+  return toAddress(a).toBytes();
 }
 
 async function derive(seeds: Array<Uint8Array>, programId: Address = KASSANDRA_PROGRAM_ID): Promise<Pda> {
@@ -124,6 +137,39 @@ export function aiOracleConfig(programId?: Address): Promise<Pda> {
 /** Per-oracle AI feed PDA — seeds `[b"ai_feed", oracle]`. */
 export function aiOracleFeed(oracleAddr: AddressInput, programId?: Address): Promise<Pda> {
   return derive([enc.encode("ai_feed"), pubkeyBytes(oracleAddr)], programId);
+}
+
+/** MagicBlock solana-gpt-oracle identity PDA — seeds `[b"identity"]`. */
+export function gptOracleIdentity(): Promise<Pda> {
+  return Address.findProgramAddress([enc.encode("identity")], GPT_ORACLE_PROGRAM_ID).then(
+    ([address, bump]) => ({ address, bump }),
+  );
+}
+
+/** MagicBlock interaction PDA — seeds `[b"interaction", payer, context]`. */
+export function gptOracleInteraction(
+  payer: AddressInput,
+  context: AddressInput,
+): Promise<Pda> {
+  return Address.findProgramAddress(
+    [enc.encode("interaction"), pubkeyBytes(payer), pubkeyBytes(context)],
+    GPT_ORACLE_PROGRAM_ID,
+  ).then(([address, bump]) => ({ address, bump }));
+}
+
+/** MagicBlock counter PDA — seeds `[b"counter"]`. First context uses count 0. */
+export function gptOracleCounter(): Promise<Pda> {
+  return Address.findProgramAddress([enc.encode("counter")], GPT_ORACLE_PROGRAM_ID).then(
+    ([address, bump]) => ({ address, bump }),
+  );
+}
+
+/** MagicBlock `ContextAccount` PDA — seeds `[b"test-context", count_u32_le]`. */
+export function gptOracleContext(count: number): Promise<Pda> {
+  return Address.findProgramAddress(
+    [enc.encode("test-context"), u32LE(count)],
+    GPT_ORACLE_PROGRAM_ID,
+  ).then(([address, bump]) => ({ address, bump }));
 }
 
 /**

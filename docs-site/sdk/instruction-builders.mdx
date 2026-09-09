@@ -1,6 +1,6 @@
 ---
 title: "Instruction builders"
-description: "The core Kassandra instruction builders (Ix 0–23) — exact names, *Args fields, and the on-chain instruction each produces."
+description: "The core Kassandra instruction builders (Ix 0–29) — exact names, *Args fields, and the on-chain instruction each produces."
 ---
 
 The SDK exposes one builder per on-chain instruction. Each is **async** and returns a
@@ -354,6 +354,43 @@ Builds a `submit_ai_claim` instruction directly from the runner's JSON output, t
 a parity guard against drift. `SubmitAiClaimFromRunnerOpts` is
 `{ oracle, proposer, authority, programId? }`. The `RunnerOutput` and `RunnerClaimPdaSeeds`
 interfaces are also exported. See [AI-assisted claims](/guide/ai-assisted-claims).
+
+## Ephemeral rollup — `sdk/src/instructions/er.ts`
+
+Short-form builders write Kassandra's `ErSession` companion PDA. Production MagicBlock CPI
+remaining-accounts are appended by the caller when present.
+
+| Builder | `Ix` | On-chain ix | Purpose |
+| --- | --- | --- | --- |
+| `delegateOracle` | 24 | `delegate_oracle` | Create/update `ErSession`; optional Delegation Program CPI. |
+| `commitOracle` | 25 | `commit_oracle` | Stamp `last_commit_slot`; optional `schedule_commit` CPI. |
+| `undelegateOracle` | 26 | `undelegate_oracle` | Mark undelegated; optional commit-and-undelegate CPI. |
+
+```ts
+DelegateOracleArgs { oracle, payer, nonce, commitFrequencyMs?, validator?, programId? }
+CommitOracleArgs { oracle, programId? }
+UndelegateOracleArgs { oracle, programId? }
+```
+
+## MagicBlock AI oracle — `sdk/src/instructions/aiOracle.ts`
+
+| Builder | `Ix` | On-chain ix | Purpose |
+| --- | --- | --- | --- |
+| `setAiOracleConfig` | 27 | `set_ai_oracle_config` | DAO-gated GPT `llm_context` + enable. |
+| `requestAiOracle` | 28 | `request_ai_oracle` | Create pending feed; optional `interact_with_llm` CPI. |
+| `callbackFromGptOracle` | 8-byte | GPT callback | Test helper: Borsh `String` after the callback disc. |
+| `applyExternalAiClaim` | 29 | `apply_external_ai_claim` | Stamp one proposer's `AiClaim` from the feed. |
+
+```ts
+SetAiOracleConfigArgs { authority, llmContext, maxStalenessSlots, source, enabled, programId? }
+RequestAiOracleArgs { oracle, payer, text, llmContext?, programId? }
+CallbackFromGptOracleArgs { oracle, response, programId? }
+ApplyExternalAiClaimArgs { oracle, proposerAuthority, payer, programId? }
+```
+
+When `llmContext` is set, `requestAiOracle` appends the GPT program, interaction PDA
+(`[b"interaction", payer, context]`), and context. Constants:
+`GPT_ORACLE_PROGRAM_ID`, `GPT_ORACLE_CALLBACK_DISCRIMINATOR`.
 
 ## litesvm interop — `toLiteSvmTransaction`
 

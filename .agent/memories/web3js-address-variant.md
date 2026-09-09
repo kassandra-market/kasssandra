@@ -2,7 +2,7 @@
 id: mem-web3js-address-variant
 title: "web3.js@3.0.0-rc.2 here has NO codec helpers"
 tags: [memory, gotcha, typescript, web3js]
-updated: 2026-07-10
+updated: 2026-09-09
 ---
 
 # `@solana/web3.js@3.0.0-rc.2` is the class-`Address` build with no codecs
@@ -26,5 +26,17 @@ instruction/PDA hot paths.
   available there.
 - Don't "modernize" to kit codecs in the hot paths; it mixes two address models
   and pulls kit into the published SDK surface.
+
+## Duplicate `@solana/web3.js` copies (Playwright Node loader)
+
+The app and `@kassandra-market/oracles` each depend on `@solana/web3.js@3.0.0-rc.2`.
+Vite's browser bundle dedupes to one copy; **Playwright `globalSetup` (Node)
+does not**. A foreign `Address` fails the SDK's `instanceof Address`, and
+`new Address(foreignObject)` throws `Invalid public key input`.
+
+- E2E seeders pass **base58 strings** (`.toString()`) into SDK builders
+  (`app/e2e/seed.ts`, `sdks/oracles/ts/test/helpers/gptFeed.ts`).
+- SDK `toAddress` / `addr` reconstruct from `String(a)` when `instanceof` fails
+  (`sdks/oracles/ts/src/pda.ts`).
 
 Related: [external-crates-over-handrolled.md](external-crates-over-handrolled.md).

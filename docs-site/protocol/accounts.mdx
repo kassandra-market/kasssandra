@@ -28,6 +28,9 @@ account carries `Uninitialized` (0) until it is stamped.
 | `Market` | 6 |
 | `Protocol` | 7 |
 | `OracleMeta` | 8 |
+| `ErSession` | 9 |
+| `AiOracleConfig` | 10 |
+| `AiOracleFeed` | 11 |
 
 ### Phase (`#[repr(u8)]`)
 
@@ -42,23 +45,27 @@ strictly-highest option), `Tie` (≥2 options share the maximum), `NoSurvivors` 
 ### Sentinels (`state.rs`)
 
 - `CLAIM_OPTION_NONE: u8 = 0xFF` — `Proposer.claim_option` "no AI claim yet"; also stamped into
-  `Oracle.resolved_option` on `InvalidDeadend`.
+  `Oracle.resolved_option` on `InvalidDeadend`. `AiOracleFeed.option` uses the same `0xFF` as
+  **pending** (request created, GPT callback not yet written).
 - `VOTE_APPROVE: u8 = 0`, `VOTE_DUPLICATE: u8 = 1` — the `FactVote.kind` values.
 
 ## Account sizes
 
 | Account | Tag | `LEN` (bytes) |
 | --- | --- | --- |
-| `Protocol` | 7 | 368 |
-| `Oracle` | 1 | 360 |
+| `Protocol` | 7 | 392 |
+| `Oracle` | 1 | 368 |
 | `Proposer` | 2 | 96 |
 | `Fact` | 3 | 336 |
 | `FactVote` | 4 | 88 |
 | `AiClaim` | 5 | 208 |
 | `Market` | 6 | 416 |
 | `OracleMeta` | 8 | variable |
+| `ErSession` | 9 | 96 |
+| `AiOracleConfig` | 10 | 48 |
+| `AiOracleFeed` | 11 | 248 |
 
-## Protocol — LEN 368
+## Protocol — LEN 392
 
 The program singleton / global config. Created once by `init_protocol`, never re-initialized. Pins the
 canonical SOL/USDC mints and carries the creation-fee EMA state plus the governable
@@ -100,12 +107,15 @@ monetary/behavioral params (the mutable source snapshotted onto each Oracle). **
 | `challenge_fail_usdc_fee_den` | u64 | 344 | denominator |
 | `challenge_success_base_fee_num` | u64 | 352 | SOL fee on successful challenge numerator |
 | `challenge_success_base_fee_den` | u64 | 360 | denominator |
+| `stake_floor_ema_threshold` | u64 | 368 | fee-EMA below which `min_stake` is 0 |
+| `stake_floor_ema_cap` | u64 | 376 | fee-EMA at which the floor reaches max |
+| `stake_floor_max` | u64 | 384 | max floor (SOL lamports); 0 = disabled |
 
 The governable params are detailed in [Constants](/protocol/constants). Identity/accounting fields
 (`admin`, mints, `fee_ema`, `last_creation_unix`, `bump`, `governance_set`, `dao_authority`,
 `spot_dao`) are **not** touched by `set_config`.
 
-## Oracle — LEN 360
+## Oracle — LEN 368
 
 The top-level dispute account. Its governable params are **snapshotted from `Protocol` at
 `create_oracle`** and read by downstream processors from the Oracle, so mid-dispute governance changes
@@ -155,6 +165,7 @@ cannot move the goalposts. **PDA:** `[b"oracle", nonce_le]`.
 | `total_approved_fact_stake` | u64 | 336 | Σ (`fact.stake` + `fact.approve_stake`) over agreed facts |
 | `reward_pool` | u64 | 344 | distributable pool at resolution; `= bond_pool + reward_emission` on Resolved; 0 on InvalidDeadend |
 | `reward_emission` | u64 | 352 | Always 0 at create (no native-token minting). Pinned in the Pod layout; folded into `reward_pool` on Resolved / burned on InvalidDeadend if a harness seeds a non-zero value. |
+| `min_stake` | u64 | 360 | snapshotted activity-scaled participation floor; 0 = disabled |
 
 ## OracleMeta — variable
 
@@ -283,6 +294,60 @@ USDC. **PDA:** `[b"market", ai_claim]`.
 | `settled` | u8 | 408 | bool; set by `settle_challenge` |
 | `bump` | u8 | 409 | PDA bump |
 | `_pad` | [u8;6] | 410 | padding |
+
+## ErSession — LEN 96
+
+Per-oracle MagicBlock Ephemeral Rollup record. Companion PDA so `Oracle` stays 368 bytes.
+**PDA:** `[b"er_session", oracle]`. Created by `delegate_oracle`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::ErSession` |
+| `bump` | u8 | 1 | PDA bump |
+| `status` | u8 | 2 | `0` undelegated / `1` delegated |
+| `_pad` | [u8;5] | 3 | padding |
+| `oracle` | Pubkey | 8 | parent oracle |
+| `validator` | Pubkey | 40 | ER validator (32 zero = Magic Router default) |
+| `commit_frequency_ms` | u32 | 72 | commit cadence |
+| `_pad2` | [u8;4] | 76 | padding |
+| `delegated_at` | i64 | 80 | unix timestamp of last delegate |
+| `last_commit_slot` | u64 | 88 | last `commit_oracle` slot |
+
+## AiOracleConfig — LEN 48
+
+Protocol singleton configuring MagicBlock solana-gpt-oracle. Offset 8 is `llm_context` (layout-stable
+with the former in-house pusher `authority` field). **PDA:** `[b"ai_oracle_config"]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::AiOracleConfig` |
+| `bump` | u8 | 1 | PDA bump |
+| `enabled` | u8 | 2 | `0` → GPT path disabled (no AI stamps); `1` → GPT feed path |
+| `source` | u8 | 3 | `0` reserved / `1` MagicBlock / `2` Switchboard (reserved) |
+| `_pad` | [u8;4] | 4 | padding |
+| `llm_context` | Pubkey | 8 | MagicBlock `ContextAccount` |
+| `max_staleness_slots` | u64 | 40 | `apply_external_ai_claim` rejects older feeds |
+
+## AiOracleFeed — LEN 248
+
+Latest attested categorical answer for one oracle. Created pending (`option = 0xFF`) by
+`request_ai_oracle`; written by the GPT-oracle callback (identity PDA signer). **PDA:**
+`[b"ai_feed", oracle]`.
+
+| Field | Type | Offset | Meaning |
+| --- | --- | --- | --- |
+| `account_type` | u8 | 0 | `AccountType::AiOracleFeed` |
+| `bump` | u8 | 1 | PDA bump |
+| `option` | u8 | 2 | categorical answer, or `0xFF` pending |
+| `_pad` | [u8;5] | 3 | padding |
+| `oracle` | Pubkey | 8 | parent oracle |
+| `slot` | u64 | 40 | `Clock.slot` when the callback was accepted |
+| `timestamp` | i64 | 48 | unix time of that callback |
+| `model_id` | [u8;32] | 56 | GPT program id |
+| `params_hash` | [u8;32] | 88 | `llm_context` pubkey bytes |
+| `io_hash` | [u8;32] | 120 | truncated LLM response (32 B) |
+| `attestation` | [u8;64] | 152 | truncated LLM response (64 B); not an ed25519 sig |
+| `updated_by` | Pubkey | 216 | GPT identity PDA |
 
 ## See also
 

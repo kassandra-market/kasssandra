@@ -70,7 +70,7 @@ export interface OracleDetail {
   market?: { pubkey: string; market: Market };
   /** MagicBlock ER-delegation record, if `DelegateOracle` has ever run. */
   erSession?: { pubkey: string; session: ErSession };
-  /** Latest attested external AI feed, if a pusher has written one. */
+  /** Latest attested external AI feed, if the GPT-oracle callback has written one. */
   aiFeed?: { pubkey: string; feed: AiOracleFeed };
 }
 

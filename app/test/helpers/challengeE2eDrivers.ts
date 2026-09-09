@@ -27,8 +27,8 @@ import {
 import * as pda from "@kassandra-market/oracles";
 
 import {
+  buildApplyExternalAiClaimIxs,
   buildOpenChallengeIxs,
-  buildSubmitAiClaimIxs,
 } from "../../src/data/actions/challenge.ts";
 import { buildSettleFromMarketIxs } from "../../src/data/actions/challengeSettle.ts";
 import { keypairSender, sendAndConfirm } from "../../src/data/send.ts";
@@ -51,6 +51,7 @@ import {
   sendIx,
   setTokenAccountAt,
 } from "./challengeE2eHarness.ts";
+import { writeGptFeed } from "../../../sdks/oracles/ts/test/helpers/gptFeed.ts";
 
 // ---------------------------------------------------------------------------
 // App-seam senders: build via the app builders, send via keypairSender/sendAndConfirm.
@@ -123,17 +124,13 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
   await advancePastPhaseEnd(f, oracle);
   await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [fact] }));
 
-  // --- submit_ai_claim via the APP builder (each proposer authority signs) ---
+  // --- apply GPT-feed claims via the APP builder (each proposer authority signs) ---
   for (let i = 0; i < proposerPdas.length; i++) {
-    const ixs = await buildSubmitAiClaimIxs({
+    await writeGptFeed((pk, u) => f.harness.setAccount(pk, u), oracle, aiOption);
+    const ixs = await buildApplyExternalAiClaimIxs({
       oracle,
-      proposer: proposerPdas[i],
-      submitter: authorities[i].publicKey,
-      modelId: new Uint8Array(32).fill(0xa1),
-      paramsHash: new Uint8Array(32).fill(0xb2),
-      ioHash: new Uint8Array(32).fill(0xc3),
-      option: aiOption,
-      optionsCount: 2,
+      proposerAuthority: authorities[i].publicKey,
+      payer: authorities[i].publicKey,
     });
     await sendViaApp(f, authorities[i], ixs);
   }

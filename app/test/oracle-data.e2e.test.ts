@@ -35,7 +35,6 @@ import {
   finalizeProposals,
   initProtocol,
   propose,
-  submitAiClaim,
   submitFact,
   voteFact,
 } from "@kassandra-market/oracles";
@@ -49,6 +48,7 @@ import {
   toHex,
   tokenAccountBytes,
 } from "../../sdks/oracles/ts/test/surfpool/harness.ts";
+import { stampGptClaimForAuthority } from "../../sdks/oracles/ts/test/helpers/gptFeed.ts";
 import { fetchOracleDetail, fetchOracles } from "../src/data/oracles.ts";
 
 const ENABLED = process.env.KASSANDRA_E2E === "1" && surfpoolReady();
@@ -165,15 +165,12 @@ describe.skipIf(!ENABLED)("oracle read data layer over a seeded surfpool cluster
     await sendIx(f, await finalizeFacts({ nonce: 3n, baseMint: f.baseMint.publicKey, tail: [factPda] }));
     await sendIx(
       f,
-      await submitAiClaim({
-        oracle: o3,
-        proposer: p3[0],
-        authority: authorities[0].publicKey,
-        modelId: new Uint8Array(32).fill(0x11),
-        paramsHash: new Uint8Array(32).fill(0x22),
-        ioHash: new Uint8Array(32).fill(0x33),
-        option: 0,
-      }),
+      await stampGptClaimForAuthority(
+        (pk, u) => f.harness.setAccount(pk, u),
+        o3,
+        authorities[0],
+        0,
+      ),
       [authorities[0]],
     );
   }, 240_000);

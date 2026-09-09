@@ -93,8 +93,17 @@ export interface HarnessOptions {
    * `--network <fork>` to surfpool (e.g. `"mainnet"`). When unset the simnet
    * still boots against surfpool's default datasource but the core path stays
    * local (T1-T3). Forking needs network reachable + is slower (RPC fetches).
+   * Mutually exclusive with {@link HarnessOptions.offline}.
    */
   fork?: "mainnet" | "devnet";
+  /**
+   * Pass `--offline`: no remote RPC datasource. Needed when a test deploys its
+   * own ELF at a **mainnet program id** (MagicBlock GPT oracle) — otherwise
+   * surfpool lazily fetches the live identity/counter PDAs and Anchor `init`
+   * fails with "account already in use". Also keeps `getProgramAccounts` from
+   * pulling mainnet Interaction accounts into `llm_oracle`'s backlog.
+   */
+  offline?: boolean;
   /**
    * Block-production mode. Defaults to `"transaction"` (one block per tx, the
    * deterministic mode T1-T3 use). `"clock"` produces blocks on a wall-clock
@@ -131,7 +140,17 @@ export class SurfpoolHarness {
     const port = opts.port ?? 8899;
     const rpcUrl = `http://127.0.0.1:${port}`;
 
+    if (opts.offline && opts.fork) {
+      throw new Error("SurfpoolHarness: `offline` and `fork` are mutually exclusive");
+    }
+
     const mode = opts.blockProductionMode ?? "transaction";
+    const env: NodeJS.ProcessEnv = { ...process.env, PATH: augmentedPath() };
+    if (opts.offline) {
+      // `--offline` should win; drop the env datasource so a CI/dev export
+      // cannot re-enable mainnet fetches.
+      delete env.SURFPOOL_DATASOURCE_RPC_URL;
+    }
     const child = spawn(
       bin,
       [
@@ -141,6 +160,7 @@ export class SurfpoolHarness {
         mode,
         ...(opts.slotTimeMs ? ["--slot-time", String(opts.slotTimeMs)] : []),
         "--no-deploy",
+        ...(opts.offline ? ["--offline"] : []),
         ...(opts.fork ? ["--network", opts.fork] : []),
         "--port",
         String(port),
@@ -148,7 +168,7 @@ export class SurfpoolHarness {
       ],
       {
         stdio: ["ignore", "ignore", "ignore"],
-        env: { ...process.env, PATH: augmentedPath() },
+        env,
         detached: false,
       },
     );
@@ -204,18 +224,25 @@ export class SurfpoolHarness {
   }
 
   /**
-   * Write the local ELF at the fixed program id as a non-upgradeable BPFLoader2
-   * program account. surfpool's `surfnet_setAccount` takes the account `data` as
-   * a HEX string.
+   * Write an ELF at `programId` as a non-upgradeable BPFLoader2 program account.
+   * surfpool's `surfnet_setAccount` takes the account `data` as a HEX string.
    */
-  private async deployProgram(): Promise<void> {
-    const elfHex = readFileSync(SO_PATH).toString("hex");
-    await this.setAccount(KASSANDRA_PROGRAM_ID.toString(), {
+  async deployElf(programId: string, soPath: string): Promise<void> {
+    const elfHex = readFileSync(soPath).toString("hex");
+    await this.setAccount(programId, {
       lamports: 5_000_000_000,
       owner: BPF_LOADER_2,
       executable: true,
       data: elfHex,
     });
+  }
+
+  /**
+   * Write the local Kassandra ELF at the fixed program id as a non-upgradeable
+   * BPFLoader2 program account.
+   */
+  private async deployProgram(): Promise<void> {
+    await this.deployElf(KASSANDRA_PROGRAM_ID.toString(), SO_PATH);
   }
 
   /** `surfnet_setAccount` cheatcode: write/overwrite an account at `pubkey`. */

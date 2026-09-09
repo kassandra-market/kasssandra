@@ -195,12 +195,14 @@ AiClaim PDA seeds. The payload hex is what you hand to the SDK/CLI that actually
 submits the transaction — unless you use `--submit` (below), where the runner
 submits it for you.
 
-### Keeper mode (`run --submit`)
+### Keeper mode (`run --request-ai`)
 
-By default `run` only emits the payload (no network write). With `--submit`, the
-runner becomes a **self-contained keeper**: after producing the claim it BUILDS,
-SIGNS, SENDS, and CONFIRMS the `submit_ai_claim` transaction itself, then reports
-the confirmed signature (or a clear program error). No SDK bridge needed.
+`--submit` is **retired**: `SubmitAiClaim` (Ix 3) is no longer accepted on-chain.
+
+With `--request-ai` (alias `--push-feed`) the runner becomes a **self-contained
+keeper** that signs, sends, and confirms `RequestAiOracle`. MagicBlock's GPT
+oracle later callbacks and writes `AiOracleFeed`; crank `apply_external_ai_claim`
+to stamp proposers.
 
 ```sh
 export ANTHROPIC_API_KEY=sk-...
@@ -263,9 +265,10 @@ provided, the submitted hashes) to a submitted claim, advising
 | `--oracle <pubkey>` | Build the config from this on-chain oracle instead of `--config`. Requires `--rpc-url` + `--prompt-file`. |
 | `--rpc-url <url>` | Solana JSON-RPC url used with `--oracle`. |
 | `--prompt-file <path>` | Interpretation text file used with `--oracle`; its `sha256` must equal the on-chain `prompt_hash`. |
-| `--submit` | (`run`) Keeper mode: sign + send + confirm the `submit_ai_claim` tx. Requires `--keypair` + `--rpc-url` + an oracle. Default is emit-only. |
-| `--push-feed` | (`run`) Keeper mode: sign + send + confirm `PushAiOracleFeed`. Signer must be `AiOracleConfig.authority`. Can combine with `--submit`. |
-| `--keypair <path>` | (`run --submit` / `--push-feed`) Solana CLI keypair JSON (64-byte array) that signs the tx. |
+| `--submit` | (`run`) **Retired.** `SubmitAiClaim` (Ix 3) is no longer accepted. Use `--request-ai`. |
+| `--request-ai` (`--push-feed`) | (`run`) Keeper mode: sign + send + confirm `RequestAiOracle` (MagicBlock GPT oracle). Can combine with `--submit`. |
+| `--llm-context <pubkey>` | (`run --request-ai`) MagicBlock `ContextAccount`; when set, the tx CPIs `interact_with_llm`. |
+| `--keypair <path>` | (`run --submit` / `--request-ai`) Solana CLI keypair JSON (64-byte array) that signs the tx. |
 | `--mock` | Use the deterministic `MockProvider` (offline, no key). Also enabled by `KASSANDRA_RUNNER_MOCK=1`. |
 | `--model <str>` | Override the pinned model string (default `claude-opus-4-8`). |
 | `--max-tokens <n>` | Override `max_tokens` (default `4096`). |

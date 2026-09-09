@@ -15,9 +15,9 @@ program dependency. Those crates pin pinocchio `^0.10`; this workspace is on
 ## Discriminators
 
 Kassandra `Ix` is a **single byte**. MagicBlock's undelegate **callback** is an
-**8-byte** discriminator `[196, 28, 41, 206, 48, 37, 51, 167]`. Intercept it in
-`process_instruction` **before** the 1-byte `Ix` dispatch, or a callback will
-be parsed as a garbage Kassandra instruction.
+**8-byte** discriminator `[196, 28, 41, 206, 48, 37, 51, 167]`. The GPT-oracle
+callback is `[0x3b, 0x24, 0x82, 0x78, 0x4d, 0x6f, 0xac, 0x00]`. Intercept both
+in `process_instruction` **before** the 1-byte `Ix` dispatch.
 
 Delegate CPI data: `u64 LE disc (0)` ++ serialized args (`commit_frequency_ms`,
 seeds, `Option<Address>`).

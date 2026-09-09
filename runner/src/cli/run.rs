@@ -73,6 +73,11 @@ pub async fn run_core(
         submission: None,
         feed_submission: None,
         submit_ai_claim_payload: payload,
+        request_text: {
+            let mut t = req.user.into_bytes();
+            t.truncate(kassandra_oracles_sdk::ix::MAX_INTERACT_TEXT);
+            t
+        },
     })
 }
 
@@ -184,35 +189,29 @@ pub(crate) fn resolve_submit_target(
     if !submit {
         return Ok(None);
     }
-    let keypair_path = keypair
-        .ok_or_else(|| anyhow::anyhow!("--submit requires --keypair <path>"))?
-        .to_path_buf();
-    let rpc_url = common.rpc_url.clone().ok_or_else(|| {
-        anyhow::anyhow!("--submit requires --rpc-url <url> (the network to submit the claim to)")
-    })?;
-    let oracle = resolve_submit_oracle(common, config)?;
-    Ok(Some(SubmitTarget {
-        rpc_url,
-        keypair_path,
-        oracle,
-    }))
+    let _ = (common, keypair, config);
+    anyhow::bail!(
+        "--submit is retired: SubmitAiClaim (Ix 3) is no longer accepted on-chain. \
+         Use --request-ai (alias --push-feed) to ask MagicBlock solana-gpt-oracle, \
+         then crank apply_external_ai_claim."
+    );
 }
 
-/// Validate `--push-feed` the same way as `--submit` (keypair + rpc + oracle).
-pub(crate) fn resolve_push_feed_target(
+/// Validate `--request-ai` the same way as `--submit` (keypair + rpc + oracle).
+pub(crate) fn resolve_request_ai_target(
     common: &CommonArgs,
-    push_feed: bool,
+    request_ai: bool,
     keypair: Option<&Path>,
     config: &RunnerConfig,
 ) -> anyhow::Result<Option<SubmitTarget>> {
-    if !push_feed {
+    if !request_ai {
         return Ok(None);
     }
     let keypair_path = keypair
-        .ok_or_else(|| anyhow::anyhow!("--push-feed requires --keypair <path>"))?
+        .ok_or_else(|| anyhow::anyhow!("--request-ai requires --keypair <path>"))?
         .to_path_buf();
     let rpc_url = common.rpc_url.clone().ok_or_else(|| {
-        anyhow::anyhow!("--push-feed requires --rpc-url <url> (the network to push the feed to)")
+        anyhow::anyhow!("--request-ai requires --rpc-url <url> (the network to request on)")
     })?;
     let raw = common
         .oracle
@@ -220,7 +219,7 @@ pub(crate) fn resolve_push_feed_target(
         .or(config.oracle.as_deref())
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "--push-feed needs an oracle: pass --oracle <pubkey> or set `oracle` in the config"
+                "--request-ai needs an oracle: pass --oracle <pubkey> or set `oracle` in the config"
             )
         })?;
     let oracle =
@@ -258,17 +257,24 @@ pub async fn submit_claim(
     })
 }
 
-/// Sign + push + confirm `PushAiOracleFeed` from the run's 97-byte claim payload.
-/// Attestation is the ed25519 signature of those 97 bytes (64 bytes on the wire).
-pub async fn push_feed(
+/// Sign + send + confirm `RequestAiOracle`.
+pub async fn request_ai(
     rpc: &dyn crate::rpc::JsonRpc,
     oracle: &Pubkey,
     authority: &Keypair,
-    payload: &[u8; SUBMIT_AI_CLAIM_PAYLOAD_LEN],
+    text: &[u8],
+    llm_context: Option<&Pubkey>,
     opts: ConfirmOptions,
 ) -> Result<FeedSubmissionOutput, SubmitError> {
-    let confirmation =
-        crate::submit::push_feed_and_confirm(rpc, oracle, authority, payload, opts).await?;
+    let confirmation = crate::submit::request_ai_oracle_and_confirm(
+        rpc,
+        oracle,
+        authority,
+        text,
+        llm_context,
+        opts,
+    )
+    .await?;
     let program_id = crate::submit::program_id();
     let feed = kassandra_oracles_sdk::pda::ai_oracle_feed(&program_id, oracle).0;
     Ok(FeedSubmissionOutput {

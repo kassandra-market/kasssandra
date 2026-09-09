@@ -2,7 +2,7 @@
 id: context-build-test-ci
 title: Build, test & CI
 tags: [context, build, test, ci, toolchain]
-updated: 2026-07-10
+updated: 2026-09-09
 ---
 
 # Build, test & CI
@@ -46,6 +46,8 @@ updated: 2026-07-10
   SDKs + app, oxlint, vitest; runs the version-parity check.
 - **Indexer · Postgres integration** — ephemeral Postgres, db-layer tests.
 - **E2E · real runner + mock Anthropic (offline)** — the surfpool runner test.
+- **E2E · GPT oracle + mock OpenRouter (offline)** — tracked GPT ELF +
+  `llm_oracle` against a local OpenRouter mock (no live API).
 - **E2E · surfpool + Playwright (browser)** — the local-simnet browser suite.
 - **E2E · indexer + candles (Postgres)** — ephemeral PG + real indexer + chart.
 - **Docs** workflow builds the Mintlify site.

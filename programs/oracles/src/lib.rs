@@ -31,12 +31,21 @@ pub fn process_instruction(
     accounts: &mut [AccountInfo],
     instruction_data: &[u8],
 ) -> ProgramResult {
-    // MagicBlock's undelegate callback uses an 8-byte discriminator that is
-    // not a Kassandra `Ix` byte. Intercept it before 1-byte dispatch.
+    // 8-byte discriminators (MagicBlock undelegate callback, GPT-oracle
+    // callback) are not Kassandra `Ix` bytes. Intercept before 1-byte dispatch.
     if instruction_data.len() >= 8
         && instruction_data[..8] == crate::cpi::magicblock::EXTERNAL_UNDELEGATE_DISCRIMINATOR
     {
         return processor::undelegate_callback::process(program_id, accounts, &instruction_data[8..]);
+    }
+    if instruction_data.len() >= 8
+        && instruction_data[..8] == crate::cpi::gpt_oracle::CALLBACK_DISCRIMINATOR
+    {
+        return processor::callback_from_gpt_oracle::process(
+            program_id,
+            accounts,
+            &instruction_data[8..],
+        );
     }
     processor::process(program_id, accounts, instruction_data)
 }

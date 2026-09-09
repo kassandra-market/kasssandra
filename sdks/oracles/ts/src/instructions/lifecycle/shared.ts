@@ -2,14 +2,13 @@
  * Shared meta helpers for the protocol + oracle-lifecycle instruction builders.
  * Internal to the `lifecycle/` folder module — NOT re-exported by `./index.ts`.
  */
-import { Address } from "@solana/web3.js";
-import type { AccountMeta } from "@solana/web3.js";
+import type { Address, AccountMeta } from "@solana/web3.js";
 
-import type { AddressInput } from "../../pda.js";
+import { type AddressInput, toAddress } from "../../pda.js";
 
-/** Coerce an `AddressInput` into a web3.js `Address`. */
+/** Coerce an `AddressInput` into this module's web3.js `Address`. */
 export function addr(a: AddressInput): Address {
-  return a instanceof Address ? a : new Address(a);
+  return toAddress(a);
 }
 
 /** Writable account meta. */

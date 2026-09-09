@@ -1,31 +1,9 @@
 /**
- * W2 — litesvm END-TO-END proof: a GENUINE runner payload, wired through the
- * SDK bridge, is ACCEPTED by the REAL program, and the resulting on-chain
- * `AiClaim` is byte-identical to the runner's metadata.
+ * W2 — litesvm proof: Ix 3 `submit_ai_claim` is retired.
  *
- * The full path proven here:
- *   runner-output.json (genuine Rust `run` output, committed in W1)
- *     → `submitAiClaimFromRunner` (the SDK bridge + its byte-parity guard)
- *       → `toLiteSvmTransaction` → the REAL `kassandra_oracles_program.so`
- *         → on-chain `AiClaim` decoded by `decodeAiClaim`.
- *
- * --- Seeding the precondition (vs. driving it live) ---
- * `submit_ai_claim` (processor/submit_ai_claim.rs) only requires that the oracle
- * is a program-owned `Oracle` in `Phase::AiClaim` with the window still open,
- * that the proposer is a program-owned `Proposer` whose `oracle == the oracle`
- * and `authority == the signer` and who is NOT disqualified, and that
- * `option < oracle.options_count`. It does NOT re-derive the Oracle/Proposer
- * addresses (the `[b"oracle", nonce]` / `[b"proposer", oracle, authority]` PDA
- * derivations are only enforced at create/propose time). So we SEED that exact
- * precondition directly with `svm.setAccount` — writing program-owned `Oracle`
- * + `Proposer` bytes (mirroring the Rust harness `seed_disputed_oracle` +
- * `set_phase`, layout per `state.rs`) — rather than driving the whole
- * create → propose×2 → finalize_proposals → submit_fact → finalize_facts →
- * AiClaim-phase pipeline through the SDK. Driving that pipeline live is heavy
- * and is already COVERED BY THE RUST SUITE; here we isolate the runner→bridge→
- * program→AiClaim leg. We seed the Oracle/Proposer at the EXACT addresses the
- * runner fixture's `claim_pda_seeds` names, so the bridge's PDA cross-check
- * passes and the AiClaim PDA `[b"claim", oracle, proposer]` is the runner's.
+ * A GENUINE runner payload, wired through the SDK bridge, is REJECTED by the
+ * REAL program with `SubmitAiClaimRetired` (43). MagicBlock GPT is the only AI
+ * source; stamp proposers via `apply_external_ai_claim`.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -33,13 +11,11 @@ import { fileURLToPath } from "node:url";
 
 import { address, lamports } from "@solana/kit";
 import { Address, Keypair, Transaction, type TransactionInstruction } from "@solana/web3.js";
-import { FailedTransactionMetadata, LiteSVM, TransactionMetadata } from "litesvm";
+import { FailedTransactionMetadata, LiteSVM } from "litesvm";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { decodeAiClaim } from "../src/accounts/index.js";
 import { AccountType, ACCOUNT_SIZES, CLAIM_OPTION_NONE, KASSANDRA_PROGRAM_ID, Phase } from "../src/constants.js";
 import { toLiteSvmTransaction } from "../src/litesvm-interop.js";
-import * as pda from "../src/pda.js";
 import { submitAiClaimFromRunner, type RunnerOutput } from "../src/runner-bridge.js";
 
 const PROGRAM_ID = KASSANDRA_PROGRAM_ID.toString();
@@ -108,7 +84,7 @@ function proposerBytes(opts: {
   return data;
 }
 
-describe("W2 litesvm proof — genuine runner payload accepted by submit_ai_claim", () => {
+describe("W2 litesvm proof — genuine runner payload rejected as SubmitAiClaimRetired", () => {
   beforeAll(() => {
     if (!existsSync(SO_PATH)) {
       throw new Error(
@@ -117,7 +93,7 @@ describe("W2 litesvm proof — genuine runner payload accepted by submit_ai_clai
     }
   });
 
-  it("seeds AiClaim-phase oracle+proposer, submits the bridge-built ix, and the on-chain AiClaim matches the fixture", async () => {
+  it("seeds AiClaim-phase oracle+proposer; the bridge-built Ix 3 is rejected as retired", async () => {
     const fixture: RunnerOutput = JSON.parse(readFileSync(FIXTURE_PATH, "utf8"));
     expect(fixture.claim_pda_seeds).toBeDefined();
     const oracle = new Address(fixture.claim_pda_seeds!.oracle);
@@ -161,29 +137,9 @@ describe("W2 litesvm proof — genuine runner payload accepted by submit_ai_clai
     await tx.sign(payer, authority);
     const result = svm.sendTransaction(await toLiteSvmTransaction(tx));
 
-    // --- Assert ACCEPTANCE (surface the real program error if it failed) ------
-    if (result instanceof FailedTransactionMetadata) {
-      throw new Error(`submit_ai_claim was rejected by the real program: ${result.toString()}`);
+    if (!(result instanceof FailedTransactionMetadata)) {
+      throw new Error("expected SubmitAiClaimRetired; Ix 3 was accepted");
     }
-    expect(result).toBeInstanceOf(TransactionMetadata);
-
-    // --- Assert the on-chain AiClaim matches the runner fixture ---------------
-    const claimPda = await pda.aiClaim(oracle, proposer);
-    const acct = svm.getAccount(address(claimPda.address.toString()));
-    if (!acct || !acct.exists) throw new Error(`AiClaim PDA ${claimPda.address} was not created`);
-    const claimData = acct.data;
-    expect(claimData.length).toBe(ACCOUNT_SIZES.AiClaim); // 208 bytes
-
-    const claim = decodeAiClaim(claimData);
-    expect(claim.accountType).toBe(AccountType.AiClaim);
-    expect(claim.oracle.toString()).toBe(oracle.toString());
-    expect(claim.proposer.toString()).toBe(proposer.toString());
-    // The runner's metadata is now on-chain, byte-for-byte.
-    expect(Buffer.from(claim.modelId).toString("hex")).toBe(fixture.model_id_hex);
-    expect(Buffer.from(claim.paramsHash).toString("hex")).toBe(fixture.params_hash_hex);
-    expect(Buffer.from(claim.ioHash).toString("hex")).toBe(fixture.io_hash_hex);
-    expect(claim.option).toBe(fixture.option_index); // 0
-    // The submit-time authority was recorded on the claim.
-    expect(claim.authority.toString()).toBe(authority.publicKey.toString());
+    expect(String(result)).toMatch(/43/);
   });
 });

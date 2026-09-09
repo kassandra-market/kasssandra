@@ -178,12 +178,18 @@ pub enum KassandraError {
     /// `apply_external_ai_claim` read an `AiOracleFeed` whose stamped slot is
     /// older than `AiOracleConfig.max_staleness_slots` relative to `Clock.slot`.
     StaleAiOracle = 39,
-    /// `apply_external_ai_claim` was called while `AiOracleConfig.enabled == 0`
-    /// (or the config PDA has not been initialized). Use `submit_ai_claim`.
+    /// `apply_external_ai_claim` / `request_ai_oracle` was called while
+    /// `AiOracleConfig.enabled == 0` (or the config PDA has not been initialized).
     AiOracleDisabled = 40,
     /// `apply_external_ai_claim` was given a feed whose `oracle` pubkey does not
     /// match the instruction's oracle account.
     AiOracleMismatch = 41,
+    /// GPT-oracle callback payload was not a Borsh string carrying a parseable
+    /// categorical `option_index` (or the option was out of range).
+    InvalidAiOracleResponse = 42,
+    /// `submit_ai_claim` (Ix 3) is retired. Stamp proposers from the MagicBlock
+    /// GPT feed via `request_ai_oracle` + callback + `apply_external_ai_claim`.
+    SubmitAiClaimRetired = 43,
 }
 
 impl From<KassandraError> for ProgramError {
