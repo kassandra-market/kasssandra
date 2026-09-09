@@ -15,7 +15,7 @@
  */
 import { Address } from "@solana/web3.js";
 
-import { u64LE } from "./bytes.js";
+import { u32LE, u64LE } from "./bytes.js";
 import { ATA_PROGRAM_ID, GPT_ORACLE_PROGRAM_ID, KASSANDRA_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
 
 /** Anything that can name an account: a web3.js `Address`/`PublicKey` or a base58 string. */
@@ -153,6 +153,21 @@ export function gptOracleInteraction(
 ): Promise<Pda> {
   return Address.findProgramAddress(
     [enc.encode("interaction"), pubkeyBytes(payer), pubkeyBytes(context)],
+    GPT_ORACLE_PROGRAM_ID,
+  ).then(([address, bump]) => ({ address, bump }));
+}
+
+/** MagicBlock counter PDA — seeds `[b"counter"]`. First context uses count 0. */
+export function gptOracleCounter(): Promise<Pda> {
+  return Address.findProgramAddress([enc.encode("counter")], GPT_ORACLE_PROGRAM_ID).then(
+    ([address, bump]) => ({ address, bump }),
+  );
+}
+
+/** MagicBlock `ContextAccount` PDA — seeds `[b"test-context", count_u32_le]`. */
+export function gptOracleContext(count: number): Promise<Pda> {
+  return Address.findProgramAddress(
+    [enc.encode("test-context"), u32LE(count)],
     GPT_ORACLE_PROGRAM_ID,
   ).then(([address, bump]) => ({ address, bump }));
 }

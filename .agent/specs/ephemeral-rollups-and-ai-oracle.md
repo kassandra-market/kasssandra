@@ -27,7 +27,7 @@ They are recorded here so later work does not re-litigate them silently.
 | Keep the dispute machine? | **Yes.** Facts + challenge markets stay. The AI round: one attested GPT feed is applied onto proposers (`ApplyExternalAiClaim`) instead of N independent Anthropic re-runs. |
 | Markets program too? | **Yes** — parallel `DelegateMarket` / `CommitMarket` / `UndelegateMarket`. |
 | Resize `Oracle`/`Protocol`? | **No.** Companion PDAs so existing Pod ABIs stay pinned (368 / 392). |
-| Live MagicBlock in CI? | **No.** LiteSVM tests the Kassandra state machine (short-form, no ownership transfer). Full MagicBlock account lists are encoded in the SDK for production; CPI is taken when those remaining accounts are present. Callback tests skip sigverify so the identity PDA can be marked as a signer. |
+| Live MagicBlock in CI? | **GPT oracle ELF + `llm_oracle`, yes; live ER validator, no.** LiteSVM loads the committed test-identity `solana_gpt_oracle.so` (`programs/oracles/tests/fixtures/`). CI builds MagicBlock's `llm_oracle` at pin `96f1143f…` and drives it against a mock OpenRouter (`OPENROUTER_API_URL`). Production identity `A1ooMmN1…` is not used (no secret; surfpool has no sigverify bypass). Short-form Kassandra tests still skip the CPI remaining accounts. Full ER account lists stay SDK-only. |
 | Pinocchio SDK crate? | **Do not depend on `ephemeral-rollups-pinocchio` or `solana-gpt-oracle`** (Anchor + ER SDK pin pinocchio `^0.10`; this workspace is `0.11.2`). Hand-roll the CPI wire in `cpi/magicblock.rs` and `cpi/gpt_oracle.rs`. |
 
 Out of this slice: session keys, eATA Global Vault custody, Magic Actions

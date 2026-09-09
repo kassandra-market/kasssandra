@@ -17,6 +17,9 @@ Four test surfaces, each with a specific harness.
 - LiteSVM `withSigverify(false)` is how you drive an instruction with a hardcoded
   signer you don't hold (surfpool has no sig-verify-bypass cheat).
 - MetaDAO CPI fixtures: `programs/oracles/tests/fixtures/*.so`.
+- GPT-oracle CPI: `programs/oracles/tests/gpt_oracle_cpi.rs` loads
+  `fixtures/solana_gpt_oracle.so` (test-identity rebuild, not a mainnet dump).
+  Do **not** add that ELF to every `TestCtx`.
 - Run Rust tests with **`cargo test --workspace`** (never `-p`).
 
 ## 2. surfpool (local simnet, TS e2e)
@@ -29,6 +32,11 @@ Four test surfaces, each with a specific harness.
     fast slot-time.
   - No sig-verify-bypass cheat — use LiteSVM `withSigverify(false)` instead.
   - The price subscriber uses surfpool's websocket at **RPC port + 1**.
+- GPT keeper e2e (`gpt-oracle-e2e.test.ts`): deploy the tracked GPT ELF, run
+  MagicBlock `llm_oracle` with `OPENROUTER_API_URL` pointed at
+  `mock-openrouter.ts`. Needs `LLM_ORACLE_BIN` + surfpool v1.4.0 (`programSubscribe`).
+  CI job `gpt-oracle-e2e` builds the keeper via
+  `scripts/vendor-solana-gpt-oracle.sh --llm-oracle-only`.
 
 ## 3. Ephemeral Postgres (indexer)
 

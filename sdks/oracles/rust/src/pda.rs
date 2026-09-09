@@ -100,6 +100,20 @@ pub fn gpt_oracle_interaction(payer: &Pubkey, context: &Pubkey) -> (Pubkey, u8) 
     )
 }
 
+/// MagicBlock counter PDA — seeds `[b"counter"]`. First `create_llm_context`
+/// uses `count = 0`.
+pub fn gpt_oracle_counter() -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[b"counter"], &GPT_ORACLE_PROGRAM_ID)
+}
+
+/// MagicBlock `ContextAccount` PDA — seeds `[b"test-context", count_u32_le]`.
+pub fn gpt_oracle_context(count: u32) -> (Pubkey, u8) {
+    Pubkey::find_program_address(
+        &[b"test-context", &count.to_le_bytes()],
+        &GPT_ORACLE_PROGRAM_ID,
+    )
+}
+
 /// The canonical SOL associated-token-account of `owner` — where the DAO
 /// treasury lives. Derived under the ATA program from `[owner, token_program, mint]`.
 pub fn base_ata(owner: &Pubkey, base_mint: &Pubkey) -> Pubkey {

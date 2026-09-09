@@ -1,0 +1,31 @@
+diff --git a/llm_oracle/src/main.rs b/llm_oracle/src/main.rs
+index 0c9d693..a794d6a 100644
+--- a/llm_oracle/src/main.rs
++++ b/llm_oracle/src/main.rs
+@@ -77,11 +77,12 @@ async fn run_oracle(
+     interaction_memory: &Mutex<InteractionMemory>,
+     processing_state: &Mutex<ProcessingState>,
+ ) -> Result<(), Box<dyn Error>> {
++    let openrouter_api_url = env::var("OPENROUTER_API_URL").unwrap_or_else(|_| OPENROUTER_API_URL.to_string());
+     let openrouter_client = ChatGPT::new_with_config(
+         openrouter_api_key,
+         ModelConfiguration {
+             engine: chatgpt::config::ChatGPTEngine::Custom(openrouter_model),
+-            api_url: OPENROUTER_API_URL.parse()?,
++            api_url: openrouter_api_url.parse()?,
+             presence_penalty: 0.3,
+             frequency_penalty: 0.3,
+             max_tokens: Some(100),
+diff --git a/programs/solana-gpt-oracle/src/lib.rs b/programs/solana-gpt-oracle/src/lib.rs
+index 7088923..d64066b 100644
+--- a/programs/solana-gpt-oracle/src/lib.rs
++++ b/programs/solana-gpt-oracle/src/lib.rs
+@@ -7,7 +7,7 @@ use ephemeral_rollups_sdk::cpi::DelegateConfig;
+ 
+ declare_id!("LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab");
+ 
+-const ORACLE_IDENTITY: Pubkey = pubkey!("A1ooMmN1fz6LbEFrjh6GukFS2ZeRYFzdyFjeafyyS7Ca");
++const ORACLE_IDENTITY: Pubkey = pubkey!("tEsT3eV6RFCWs1BZ7AXTzasHqTtMnMLCB2tjQ42TDXD");
+ 
+ #[ephemeral]
+ #[program]

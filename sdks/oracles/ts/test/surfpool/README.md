@@ -49,7 +49,7 @@ The harness (`harness.ts` `SurfpoolHarness`) spawns `surfpool start --no-tui
 `getHealth`, writes the `.so` at the fixed id, and tears the process down. Each
 suite owns a distinct port (smoke 8899, lifecycle 8901, challenge 8920,
 futarchy-governance 8921, meteora-spot 8922, futarchy-meteora-treasury 8923,
-dao-meteora-treasury 8924) so they never collide.
+dao-meteora-treasury 8924, gpt-oracle 8932) so they never collide.
 
 ## Files
 
@@ -57,10 +57,12 @@ dao-meteora-treasury 8924) so they never collide.
 | --- | --- |
 | `harness.ts` | `SurfpoolHarness` (spawn → wait → deploy → teardown), cheatcode helpers (`setAccount`, `airdrop`, `timeTravel`/`advanceToUnix`), SPL byte fabrication. `fork: "mainnet"` boots a forked simnet (T4). |
 | `mock-anthropic.ts` | A local `node:http` Anthropic Messages mock (`POST /v1/messages`) returning the exact shape the runner's `parse_messages_response` consumes; `setOption(N)` / `setRefusal(...)`. |
+| `mock-openrouter.ts` | A local OpenAI-compatible Chat Completions mock (`POST /api/v1/chat/completions`) for MagicBlock `llm_oracle` / `chatgpt_rs`; `setOption(N)`. |
 | `run-runner.ts` | Invoke the real runner binary (`AnthropicProvider` → the mock) and capture the claim metadata. |
 | `surfpool-smoke.test.ts` | T1: surfpool up → `.so` deployed → `initProtocol` over RPC → decode Protocol. |
 | `runner-mock-anthropic.test.ts` | T2: the real runner against the mock (success + refusal). No surfpool. |
 | `lifecycle-e2e.test.ts` | T3: full core lifecycle on a standalone simnet — uncontested resolve + dispute→AI-claim (runner in the loop). |
+| `gpt-oracle-e2e.test.ts` | Tracked GPT ELF + real `llm_oracle` against mock OpenRouter: `RequestAiOracle` CPI → callback → `ApplyExternalAiClaim`. Needs `LLM_ORACLE_BIN`. Port 8932 / WS 8933. |
 | `challenge-market-e2e.test.ts` | T4 + CS2: the challenge-market path against **forked-mainnet** MetaDAO programs — opens a challenge, then drives `settle_challenge` end to end through a **real swap-driven v0.4 AMM TWAP** (both arms: disqualify + survive). Runs in `clock` block-production mode so the on-chain execution slot advances for the slot-based AMM crank. |
 | `futarchy-governance-e2e.test.ts` | G3: the FULL futarchy governance loop against **forked-mainnet** MetaDAO programs — bootstrap → staged Squads VaultTransaction → proposal → real TWAP verdict → `vault_transaction_execute` → Kassandra `set_config` + `resolve_deadend` applied on-chain. Requires futarchy **v0.6.1** (the deployed program). |
 | `meteora-spot-e2e.test.ts` | M2 + F1: the Meteora **DAMM v2 (cp-amm)** spot path against the **forked-mainnet** real program — clones a real public `Config`, drives `initializePool → addLiquidity → swap → createPosition → claimPositionFee → removeLiquidity` over RPC, and decodes the resulting `Pool`/`Position` to VERIFY the M1 zero-copy offsets (`sqrt_price`@456, reserves@680/688, `unlocked_liquidity`@152, `fee_b_pending`@144) against the DEPLOYED binary. F1 adds a NONZERO fee claim + a full liquidity removal. Also decodes a genuine mainnet pool. |

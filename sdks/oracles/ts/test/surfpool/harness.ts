@@ -204,18 +204,25 @@ export class SurfpoolHarness {
   }
 
   /**
-   * Write the local ELF at the fixed program id as a non-upgradeable BPFLoader2
-   * program account. surfpool's `surfnet_setAccount` takes the account `data` as
-   * a HEX string.
+   * Write an ELF at `programId` as a non-upgradeable BPFLoader2 program account.
+   * surfpool's `surfnet_setAccount` takes the account `data` as a HEX string.
    */
-  private async deployProgram(): Promise<void> {
-    const elfHex = readFileSync(SO_PATH).toString("hex");
-    await this.setAccount(KASSANDRA_PROGRAM_ID.toString(), {
+  async deployElf(programId: string, soPath: string): Promise<void> {
+    const elfHex = readFileSync(soPath).toString("hex");
+    await this.setAccount(programId, {
       lamports: 5_000_000_000,
       owner: BPF_LOADER_2,
       executable: true,
       data: elfHex,
     });
+  }
+
+  /**
+   * Write the local Kassandra ELF at the fixed program id as a non-upgradeable
+   * BPFLoader2 program account.
+   */
+  private async deployProgram(): Promise<void> {
+    await this.deployElf(KASSANDRA_PROGRAM_ID.toString(), SO_PATH);
   }
 
   /** `surfnet_setAccount` cheatcode: write/overwrite an account at `pubkey`. */

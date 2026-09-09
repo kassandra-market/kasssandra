@@ -5,8 +5,9 @@ edition = "2021"
 description = "On-chain Kassandra oracle (dispute-core) Solana program: instruction discriminants, account layouts, and processing logic. The canonical wire contract the client SDKs build on."
 license.workspace = true
 repository.workspace = true
-# The integration tests carry ~6.5 MiB of external program .so fixtures (meteora,
-# squads, metadao) for LiteSVM CPI — dev-only, kept out of the published crate.
+# The integration tests carry ~6.8 MiB of external program .so fixtures (meteora,
+# squads, metadao, solana-gpt-oracle) for LiteSVM CPI — dev-only, kept out of
+# the published crate.
 exclude = ["tests/"]
 
 [lib]

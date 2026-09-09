@@ -2,7 +2,7 @@
 id: context-programs
 title: On-chain programs
 tags: [context, programs, solana, pinocchio]
-updated: 2026-09-07
+updated: 2026-09-09
 ---
 
 # On-chain programs
@@ -19,6 +19,9 @@ discriminant, and `overflow-checks = true` on release.
 - Build with `cargo build-sbf` (via `just build` / `just build-oracle` / `just build-market`).
 - MagicBlock ER CPIs are hand-rolled in `cpi/magicblock.rs`; solana-gpt-oracle
   CPIs in `cpi/gpt_oracle.rs` (do not depend on Anchor / `ephemeral-rollups-sdk`).
+  The GPT ELF used in tests is a **test-identity rebuild** (see
+  [`../memories/solana-gpt-oracle.md`](../memories/solana-gpt-oracle.md)), not a
+  mainnet dump.
 - Program IDs are declared in-crate and are **independent of the crate name** —
   the oracles/markets rename did not change deployed addresses.
 

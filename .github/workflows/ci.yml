@@ -15,6 +15,9 @@
 #                key, no network): the mock's chosen option flows through the real
 #                HTTP+parse path and the runner emits a genuine 97-byte AI-claim
 #                payload (plus a refusal arm). Deterministic and offline.
+#   gpt-oracle-e2e — load the tracked MagicBlock solana-gpt-oracle ELF, build
+#                `llm_oracle` from a pinned SHA, and drive RequestAiOracle →
+#                callback through a LOCAL MOCK OpenRouter (no live API).
 #   e2e        — boot a local surfpool validator + run the non-forked Playwright
 #                browser suite (write/crank/claim/settle/admin flows against the
 #                real program).
@@ -206,6 +209,74 @@ jobs:
         run: pnpm --filter @kassandra-market/oracles exec vitest run test/surfpool/runner-mock-anthropic.test.ts
         env:
           KASSANDRA_E2E: "1"
+
+  gpt-oracle-e2e:
+    name: E2E · GPT oracle + mock OpenRouter (offline)
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GPT_ORACLE_SHA: 96f1143f86cb83ec3df98bae29df7b7c8a9f92f2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo + target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Cache llm_oracle clone + target
+        uses: actions/cache@v4
+        with:
+          path: /tmp/solana-gpt-oracle-${{ env.GPT_ORACLE_SHA }}
+          key: llm-oracle-${{ env.GPT_ORACLE_SHA }}-${{ runner.os }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install surfpool
+        env:
+          SURFPOOL_VERSION: v1.4.0
+        run: |
+          curl -fsSL "https://github.com/txtx/surfpool/releases/download/${SURFPOOL_VERSION}/surfpool-linux-x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin surfpool
+          sudo chmod +x /usr/local/bin/surfpool
+          surfpool --version
+
+      - name: Download program artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: program-so
+          path: target/deploy
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build oracles TS SDK
+        run: pnpm --filter @kassandra-market/oracles build
+
+      # Clone the pinned MagicBlock SHA, patch OPENROUTER_API_URL + test identity,
+      # and build the host keeper. Does NOT rebuild the SBF fixture (that is
+      # committed and loaded by the test). OpenRouter is mocked at runtime.
+      - name: Build llm_oracle (OpenRouter mocked at runtime)
+        run: |
+          chmod +x scripts/vendor-solana-gpt-oracle.sh
+          ./scripts/vendor-solana-gpt-oracle.sh --llm-oracle-only | tee /tmp/vendor-llm-oracle.log
+          grep '^LLM_ORACLE_BIN=' /tmp/vendor-llm-oracle.log >> "$GITHUB_ENV"
+
+      - name: Run GPT-oracle surfpool e2e (mock OpenRouter)
+        run: pnpm --filter @kassandra-market/oracles exec vitest run test/surfpool/gpt-oracle-e2e.test.ts
+        env:
+          KASSANDRA_E2E: "1"
+          SURFPOOL_BIN: /usr/local/bin/surfpool
 
   e2e:
     name: E2E · surfpool + Playwright (browser)

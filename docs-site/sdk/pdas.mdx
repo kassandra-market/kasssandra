@@ -37,6 +37,8 @@ definitions these mirror, see [Program PDAs](/protocol/pdas).
 | `aiOracleFeed` | `(oracleAddr, programId?)` | Per-oracle AI feed | `[b"ai_feed", oracle]` |
 | `gptOracleIdentity` | `()` | GPT identity PDA | `[b"identity"]` under `GPT_ORACLE_PROGRAM_ID` |
 | `gptOracleInteraction` | `(payer, context)` | GPT interaction PDA | `[b"interaction", payer, context]` under GPT |
+| `gptOracleCounter` | `()` | GPT counter PDA | `[b"counter"]` under GPT |
+| `gptOracleContext` | `(count: number)` | GPT `ContextAccount` | `[b"test-context", count_u32_le]` under GPT |
 | `associatedTokenAccount` | `(owner, mint)` | Owner's ATA (SPL) | `[owner, TOKEN_PROGRAM, mint]` under `ATA_PROGRAM_ID` |
 
 <Note>
