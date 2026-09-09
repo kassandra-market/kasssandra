@@ -112,23 +112,10 @@ pub(crate) fn front_door_to_challenge(ctx: &mut TestCtx) -> Challenged {
         .expect("finalize_facts");
     assert_eq!(ctx.oracle(oracle).phase, Phase::AiClaim.as_u8());
 
-    // Both proposers claim option 0: proposer[0] (orig 0) does NOT flip (survives
-    // un-slashed); proposer[1] (orig 1) flips (partial slash, still surviving).
-    for (auth, pda) in authorities.iter().zip(&proposer_pdas) {
-        ctx.svm.airdrop(&auth.pubkey(), 1_000_000_000).unwrap();
-        let (claim, _) = claim_pda(&ctx.program_id, &oracle, pda);
-        ctx.send(
-            submit_ai_claim_ix(
-                ctx,
-                oracle,
-                *pda,
-                claim,
-                auth.pubkey(),
-                submit_ai_payload(0),
-            ),
-            &[auth],
-        )
-        .expect("submit_ai_claim");
+    // Both proposers stamped from GPT feed option 0: proposer[0] (orig 0) does
+    // NOT flip (survives un-slashed); proposer[1] (orig 1) flips (partial slash).
+    for pda in &proposer_pdas {
+        ctx.stamp_gpt_claim_ok(oracle, *pda, 0);
     }
 
     // warp past AiClaim, finalize_ai_claims => Challenge.

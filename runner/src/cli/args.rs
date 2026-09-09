@@ -77,11 +77,8 @@ pub struct RunArgs {
     /// Shared options.
     #[command(flatten)]
     pub common: CommonArgs,
-    /// Keeper mode: after producing the claim, SIGN + SEND + CONFIRM the
-    /// `submit_ai_claim` transaction on chain (default: emit-only, no network
-    /// write). Requires `--keypair` and `--rpc-url`; the signer MUST be the
-    /// proposer's authority. The oracle comes from `--oracle` or the config's
-    /// `oracle` field; the Proposer PDA is derived from it + the keypair pubkey.
+    /// Keeper mode: RETIRED. `SubmitAiClaim` (Ix 3) is no longer accepted.
+    /// Use `--request-ai` to ask MagicBlock solana-gpt-oracle instead.
     #[arg(long)]
     pub submit: bool,
     /// Path to the Solana CLI keypair JSON (a 64-byte array) that signs the

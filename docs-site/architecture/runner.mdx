@@ -94,12 +94,11 @@ The metadata payload is `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ optio
 on-chain `AiClaim` field offsets). See [AI claims](/concepts/ai-claims).
 </Info>
 
-## Keeper mode (`run --submit` / `--request-ai`)
+## Keeper mode (`run --request-ai`)
 
-With `--submit`, the runner **builds, signs, sends, and confirms** the `submit_ai_claim`
-transaction (`submit.rs`) — the in-house fallback when `AiOracleConfig.enabled == 0`.
+`--submit` is **retired**: `SubmitAiClaim` (Ix 3) is no longer accepted on-chain.
 
-With `--request-ai` (alias `--push-feed`), it sends `RequestAiOracle` with the assembled user
+With `--request-ai` (alias `--push-feed`), the runner sends `RequestAiOracle` with the assembled user
 prompt (truncated to 700 bytes). `--llm-context <pubkey>` appends the GPT program, interaction
 PDA, and context so the tx CPIs `interact_with_llm`. The GPT identity PDA's later callback is
 what writes `AiOracleFeed`.

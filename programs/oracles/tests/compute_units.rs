@@ -36,10 +36,6 @@ fn kp(seed: u8) -> Keypair {
 
 // ----- dispute-core instruction builders (mirror lifecycle_e2e.rs) -----------
 
-fn claim_pda(program_id: &Pubkey, oracle: &Pubkey, proposer: &Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[b"claim", oracle.as_ref(), proposer.as_ref()], program_id)
-}
-
 /// Path to the committed golden CU snapshot the metering test compares against.
 const SNAPSHOT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/compute_units.snap");
 
@@ -135,19 +131,9 @@ fn cu_metering_full_lifecycle_matches_snapshot() {
         .expect("finalize_facts");
     assert_eq!(ctx.oracle(oracle).phase, Phase::AiClaim.as_u8());
 
-    // 5) submit_ai_claim (each surviving proposer agrees on option 0).
-    for (auth, pda) in authorities.iter().zip(&proposer_pdas) {
-        ctx.svm.airdrop(&auth.pubkey(), 1_000_000_000).unwrap();
-        let (claim, _) = claim_pda(&ctx.program_id, &oracle, pda);
-        let ix = submit_ai_claim_ix(
-            &ctx,
-            oracle,
-            *pda,
-            claim,
-            auth.pubkey(),
-            submit_ai_payload(0),
-        );
-        ctx.send(ix, &[auth]).expect("submit_ai_claim");
+    // 5) apply_external_ai_claim (each surviving proposer stamped from GPT feed option 0).
+    for pda in &proposer_pdas {
+        ctx.stamp_gpt_claim_ok(oracle, *pda, 0);
     }
 
     // 6) finalize_ai_claims => Challenge.

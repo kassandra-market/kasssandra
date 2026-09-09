@@ -189,18 +189,12 @@ pub(crate) fn resolve_submit_target(
     if !submit {
         return Ok(None);
     }
-    let keypair_path = keypair
-        .ok_or_else(|| anyhow::anyhow!("--submit requires --keypair <path>"))?
-        .to_path_buf();
-    let rpc_url = common.rpc_url.clone().ok_or_else(|| {
-        anyhow::anyhow!("--submit requires --rpc-url <url> (the network to submit the claim to)")
-    })?;
-    let oracle = resolve_submit_oracle(common, config)?;
-    Ok(Some(SubmitTarget {
-        rpc_url,
-        keypair_path,
-        oracle,
-    }))
+    let _ = (common, keypair, config);
+    anyhow::bail!(
+        "--submit is retired: SubmitAiClaim (Ix 3) is no longer accepted on-chain. \
+         Use --request-ai (alias --push-feed) to ask MagicBlock solana-gpt-oracle, \
+         then crank apply_external_ai_claim."
+    );
 }
 
 /// Validate `--request-ai` the same way as `--submit` (keypair + rpc + oracle).

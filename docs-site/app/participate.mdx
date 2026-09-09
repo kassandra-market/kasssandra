@@ -39,19 +39,14 @@ Approved, non-duplicate facts form the agreed set the AI claim is resolved again
 
 ## Submit an AI claim (AiClaim phase)
 
-After the facts are settled, the oracle detail page shows three write forms
-(`RequestAiOracleForm`, `SubmitAiClaimForm`, `ApplyExternalAiClaimForm`).
+After the facts are settled, the oracle detail page shows two write forms
+(`RequestAiOracleForm`, `ApplyExternalAiClaimForm`).
 
 - **Request MagicBlock AI:** permissionless `requestAiOracle` (`Ix = 28`) with a prompt
   (max 700 bytes). When `AiOracleConfig` is enabled, remaining accounts CPI
   `interact_with_llm`. The GPT-oracle callback later writes `AiOracleFeed`.
 - **Apply attested feed:** `applyExternalAiClaim` (`Ix = 29`) stamps the connected wallet's
-  proposer from the live feed.
-- **In-house fallback:** three 32-byte hashes plus the chosen option — hex fields **or**
-  paste the runner JSON. `submitAiClaim` (`Ix = 3`) payload(97):
-  `model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option u8`. The SDK's
-  `submitAiClaimFromRunner` bridge byte-asserts the payload. See
-  [Running the runner](/ops/runner).
+  proposer from the live feed. `submitAiClaim` (`Ix = 3`) is retired.
 
 <CardGroup cols={3}>
   <Card title="Proposals" icon="hand-point-up" href="/concepts/proposals">

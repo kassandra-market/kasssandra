@@ -48,7 +48,7 @@ undelegate callback, GPT-oracle callback) are intercepted *before* 1-byte `Ix` d
 | Init / config / governance | `InitProtocol` (9), `CreateOracle` (10), `WriteOracleMeta` (23), `SetGovernance` (13), `SetConfig` (14), `SpotPrice` (16) |
 | Proposal lifecycle | `Propose` (11), `FinalizeProposals` (12), `AdvancePhase` (7) |
 | Fact phase | `SubmitFact` (0), `VoteFact` (1), `FinalizeFacts` (2) |
-| AI claim | `SubmitAiClaim` (3), `FinalizeAiClaims` (8), `SetAiOracleConfig` (27), `RequestAiOracle` (28), `ApplyExternalAiClaim` (29) |
+| AI claim | `SubmitAiClaim` (3, retired), `FinalizeAiClaims` (8), `SetAiOracleConfig` (27), `RequestAiOracle` (28), `ApplyExternalAiClaim` (29) |
 | Ephemeral rollup | `DelegateOracle` (24), `CommitOracle` (25), `UndelegateOracle` (26) |
 | Challenge | `OpenChallenge` (4), `SettleChallenge` (5) |
 | Resolution | `FinalizeOracle` (6), `ResolveDeadend` (15) |

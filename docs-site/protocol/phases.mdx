@@ -74,7 +74,7 @@ extend the window without changing the phase.
 | `Proposal` | `propose` (11), `finalize_proposals` (12) |
 | `FactProposal` | `submit_fact` (0), `advance_phase` (7) |
 | `FactVoting` | `vote_fact` (1), `finalize_facts` (2) |
-| `AiClaim` | `submit_ai_claim` (3), `finalize_ai_claims` (8) |
+| `AiClaim` | `request_ai_oracle` (28), `apply_external_ai_claim` (29), `finalize_ai_claims` (8) |
 | `Challenge` | `open_challenge` (4), `settle_challenge` (5), `finalize_oracle` (6) |
 | `Resolved` / `InvalidDeadend` (terminal) | `claim_proposer` (17), `claim_fact` (18), `claim_fact_vote` (19), `close_ai_claim` (20), `close_market` (21), `sweep_oracle` (22) |
 | `InvalidDeadend` only | `resolve_deadend` (15) |

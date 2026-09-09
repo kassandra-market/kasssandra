@@ -2,17 +2,18 @@
 id: context-runner
 title: The AI runner (runner/)
 tags: [context, runner, ai, offchain]
-updated: 2026-09-08
+updated: 2026-09-09
 ---
 
 # The AI runner (`runner/`)
 
 `kassandra-runner` — an off-chain, **reproducible** binary that produces a
-categorical AI claim for a disputed oracle. `--submit` signs + sends
-`submit_ai_claim` (in-house fallback). `--request-ai` (alias `--push-feed`)
+categorical AI claim for a disputed oracle. `--submit` is retired (`SubmitAiClaim`
+Ix 3 is rejected on-chain). `--request-ai` (alias `--push-feed`)
 signs + sends `RequestAiOracle` with the assembled user prompt; pass
 `--llm-context` so the tx CPIs MagicBlock `interact_with_llm`. The GPT oracle's
-callback (identity PDA signer) is what writes `AiOracleFeed`.
+callback (identity PDA signer) is what writes `AiOracleFeed`. `verify` still
+reproduces the option/hashes off-chain.
 
 ## Pipeline (a black box: config in → 97-byte payload out)
 

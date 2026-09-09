@@ -16,11 +16,11 @@ import {
   finalizeProposals,
   openChallenge,
   settleChallenge,
-  submitAiClaim,
   submitFact,
   voteFact,
 } from "../../src/instructions/index.js";
 import * as pda from "../../src/pda.js";
+import { stampGptClaimForAuthority } from "../helpers/gptFeed.js";
 
 import {
   enc,
@@ -142,15 +142,12 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
   for (let i = 0; i < proposerPdas.length; i++) {
     await sendIx(
       f,
-      await submitAiClaim({
+      await stampGptClaimForAuthority(
+        (pk, u) => f.harness.setAccount(pk, u),
         oracle,
-        proposer: proposerPdas[i],
-        authority: authorities[i].publicKey,
-        modelId: new Uint8Array(32).fill(0xa1),
-        paramsHash: new Uint8Array(32).fill(0xb2),
-        ioHash: new Uint8Array(32).fill(0xc3),
-        option: aiOption,
-      }),
+        authorities[i],
+        aiOption,
+      ),
       [authorities[i]],
     );
   }

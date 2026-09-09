@@ -1,23 +1,22 @@
 ---
 title: "AI claims"
-description: "The AI-resolution phase — MagicBlock solana-gpt-oracle fills AiOracleFeed; proposers apply it or fall back to the in-house runner, then no-shows and flips are slashed."
+description: "The AI-resolution phase — MagicBlock solana-gpt-oracle fills AiOracleFeed; proposers apply it, then no-shows and flips are slashed."
 ---
 
 Once the agreed fact set is settled, the oracle enters the **AI-claim** phase. The protocol's
 attested source is **MagicBlock [solana-gpt-oracle](https://github.com/magicblock-labs/super-smart-contracts/blob/main/programs/solana-gpt-oracle/src/lib.rs)**
 (`LLMrieZMpbJFwN52WgmBNMxYojrpRVYXdC1RCweEbab`): `request_ai_oracle` CPIs `interact_with_llm`,
 the GPT identity PDA signs a callback that writes `AiOracleFeed`, and `apply_external_ai_claim`
-stamps each proposer's `AiClaim` from that feed.
+stamps each proposer's `AiClaim` from that feed. `SubmitAiClaim` (Ix 3) is **retired**.
 
-The in-house runner remains the **fallback** when `AiOracleConfig.enabled == 0`: each locked-in
-proposer reruns it over the agreed facts and submits with `submit_ai_claim`. Either path can
-collapse the dispute if proposers converge.
+The in-house runner remains an **off-chain reproduction** tool (`run` / `verify`) and
+can request the GPT feed (`--request-ai`). It cannot stamp proposers on-chain.
 
 ## Who submits, and why the value can change
 
 The **AiClaim** accounts that count toward plurality still belong to the **proposers** from
 the proposal window — the ones locked in by the dispute. Anyone may request the MagicBlock
-feed or crank `apply_external_ai_claim` for a proposer; only the in-house `submit_ai_claim`
+feed or crank `apply_external_ai_claim` for a proposer. The retired in-house `submit_ai_claim`
 path requires the proposer's authority as signer. Anyone may also run the runner to *verify
 and challenge*.
 
@@ -47,23 +46,15 @@ When `SetAiOracleConfig` has `enabled = 1` and a MagicBlock `ContextAccount` in 
 
 Challenge markets remain the economic override of a faulty feed.
 
-## Submitting a fallback claim
+## Submitting is retired
 
-When the feed is disabled, a proposer submits with `submit_ai_claim` (`Ix::SubmitAiClaim = 3`) during `Phase::AiClaim`
-(`submit_ai_claim.rs`). There is **no token CPI** — the proposer's bond is already escrowed;
-this instruction only records the claim. It:
+`submit_ai_claim` (`Ix::SubmitAiClaim = 3`) is **retired**. The discriminant is kept for
+wire stability; the processor always returns `SubmitAiClaimRetired`. Stamp proposers from
+the GPT feed with `apply_external_ai_claim`.
 
-- checks the signer is the proposer's `authority` and the proposer is not disqualified
-  (else `Unauthorized`), and `option < options_count` (else `InvalidOption`);
-- records `claim_option = option` on the `Proposer`, marking `flipped` if it differs from
-  `original_option`; and
-- creates an `AiClaim` PDA at `[b"claim", oracle, proposer]` — a second submit for the same
-  proposer fails with `DuplicateClaim`.
-
-The payload is exactly **97 bytes**:
-`model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option[1]` — the exact bytes the runner
-emits (`submit_ai_claim.rs`; `runner` docs). See
-[AI-assisted claims](/guide/ai-assisted-claims) for how the runner produces them.
+The runner still emits the historical 97-byte payload for off-chain `verify`:
+`model_id[32] ++ params_hash[32] ++ io_hash[32] ++ option[1]`. See
+[AI-assisted claims](/guide/ai-assisted-claims).
 
 ## The `AiClaim` account
 

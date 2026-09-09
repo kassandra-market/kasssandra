@@ -6,7 +6,7 @@
  *
  *   - `programs/oracles/src/instruction.rs` — {@link Ix} discriminants (0..=29)
  *   - `programs/oracles/src/state.rs`       — {@link AccountType} (0..=11)
- *   - `programs/oracles/src/error.rs`       — {@link KassandraError} (0..=42)
+ *   - `programs/oracles/src/error.rs`       — {@link KassandraError} (0..=43)
  *   - `programs/oracles/tests/state_layout.rs` — {@link ACCOUNT_SIZES}
  *   - `programs/oracles/src/config.rs`      — protocol consts
  *   - `programs/oracles/src/cpi/{metadao,metadao_v06}.rs` — external program IDs
@@ -173,6 +173,7 @@ export enum KassandraError {
   AiOracleDisabled = 40,
   AiOracleMismatch = 41,
   InvalidAiOracleResponse = 42,
+  SubmitAiClaimRetired = 43,
 }
 
 /** Human-readable message per {@link KassandraError} (condensed from error.rs docs). */
@@ -217,9 +218,10 @@ const ERROR_MESSAGES: Record<KassandraError, string> = {
   [KassandraError.AlreadyDelegated]: "delegate_oracle was called on an oracle whose ErSession is already delegated.",
   [KassandraError.NotDelegated]: "commit_oracle / undelegate_oracle ran against an ErSession that is not currently delegated.",
   [KassandraError.StaleAiOracle]: "apply_external_ai_claim read an AiOracleFeed older than AiOracleConfig.max_staleness_slots.",
-  [KassandraError.AiOracleDisabled]: "The external AI oracle is disabled; use submit_ai_claim instead.",
+  [KassandraError.AiOracleDisabled]: "The MagicBlock GPT oracle is disabled (AiOracleConfig.enabled == 0, or the config PDA is uninitialized). No AI claims can be stamped until governance enables it.",
   [KassandraError.AiOracleMismatch]: "apply_external_ai_claim was given a feed whose oracle pubkey does not match the instruction's oracle.",
   [KassandraError.InvalidAiOracleResponse]: "GPT-oracle callback payload was not a parseable categorical option_index.",
+  [KassandraError.SubmitAiClaimRetired]: "submit_ai_claim (Ix 3) is retired. Stamp proposers from the MagicBlock GPT feed via request_ai_oracle + callback + apply_external_ai_claim.",
 };
 
 /**

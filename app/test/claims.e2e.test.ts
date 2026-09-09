@@ -53,7 +53,6 @@ import {
   futarchy,
   initProtocol,
   setGovernance,
-  submitAiClaim,
   submitFact,
   voteFact,
 } from "@kassandra-market/oracles";
@@ -66,6 +65,7 @@ import {
   toHex,
   tokenAccountBytes,
 } from "../../sdks/oracles/ts/test/surfpool/harness.ts";
+import { stampGptClaimForAuthority } from "../../sdks/oracles/ts/test/helpers/gptFeed.ts";
 import {
   buildClaimFactIxs,
   buildClaimFactVoteIxs,
@@ -228,11 +228,16 @@ describe.skipIf(!ENABLED)("RF2 claim/close/sweep action layer over a real surfpo
     // ---- submit_ai_claim ×3 (0/0/1 → plurality option 0) --------------------
     const claimOptions = [0, 0, 1];
     for (let i = 0; i < props.length; i++) {
-      await sendIx(f, await submitAiClaim({
-        oracle, proposer: props[i].proposer, authority: props[i].authority.publicKey,
-        modelId: new Uint8Array(32).fill(0xa1), paramsHash: new Uint8Array(32).fill(0xb2),
-        ioHash: new Uint8Array(32).fill(0xc3), option: claimOptions[i],
-      }), [props[i].authority]);
+      await sendIx(
+        f,
+        await stampGptClaimForAuthority(
+          (pk, u) => f.harness.setAccount(pk, u),
+          oracle,
+          props[i].authority,
+          claimOptions[i],
+        ),
+        [props[i].authority],
+      );
     }
 
     // ---- finalize_ai_claims → Challenge → finalize_oracle → Resolved(0) -----

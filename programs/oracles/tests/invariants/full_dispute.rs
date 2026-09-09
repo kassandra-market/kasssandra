@@ -17,10 +17,6 @@ fn finalize_facts_ix(ctx: &TestCtx, oracle: Pubkey, tail: &[Pubkey]) -> Instruct
     ctx.finalize_facts_ix(oracle, tail)
 }
 
-fn claim_pda(program_id: &Pubkey, oracle: &Pubkey, proposer: &Pubkey) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[b"claim", oracle.as_ref(), proposer.as_ref()], program_id)
-}
-
 // ---------------------------------------------------------------------------
 // Conservation check (§9 #3, asserted at every step)
 // ---------------------------------------------------------------------------
@@ -217,28 +213,15 @@ fn run_full_dispute(s: &Scenario) -> Result<(), TestCaseError> {
     }
     assert_conservation_step(&ctx, oracle, vault)?;
 
-    // ---- submit AI claims (AiClaim window) --------------------------------
+    // ---- stamp GPT-feed AI claims (AiClaim window) ------------------------
     for (i, p) in s.proposers.iter().enumerate() {
         if p.no_show {
             continue;
         }
-        let authority = ctx.proposers(oracle)[i].authority.insecure_clone();
-        ctx.svm.airdrop(&authority.pubkey(), 1_000_000_000).unwrap();
         let proposer_pda = proposer_pdas[i];
-        let (claim, _) = claim_pda(&ctx.program_id, &oracle, &proposer_pda);
         let option = p.claim_raw % model.options_count;
-        ctx.send(
-            submit_ai_claim_ix(
-                &ctx,
-                oracle,
-                proposer_pda,
-                claim,
-                authority.pubkey(),
-                submit_ai_payload(option),
-            ),
-            &[&authority],
-        )
-        .map_err(|e| TestCaseError::fail(format!("submit_ai_claim: {e:?}")))?;
+        ctx.stamp_gpt_claim(oracle, proposer_pda, option)
+            .map_err(|e| TestCaseError::fail(format!("apply_external_ai_claim: {e:?}")))?;
     }
     assert_conservation_step(&ctx, oracle, vault)?;
 

@@ -1,6 +1,6 @@
 ---
 title: "Errors"
-description: "All 43 KassandraError codes (0–42) — code, name, and meaning."
+description: "All 44 KassandraError codes (0–43) — code, name, and meaning."
 ---
 
 Every failure the program raises is a variant of `KassandraError` (`programs/oracles/src/error.rs`),
@@ -53,6 +53,7 @@ declared `#[repr(u32)]` and surfaced to clients as `ProgramError::Custom(n)`. Er
 | 40 | `AiOracleDisabled` | GPT feed config missing or `enabled == 0`. |
 | 41 | `AiOracleMismatch` | Feed PDA's `oracle` pubkey does not match the instruction's oracle. |
 | 42 | `InvalidAiOracleResponse` | GPT-oracle callback payload was not a parseable `option_index`. |
+| 43 | `SubmitAiClaimRetired` | `submit_ai_claim` (Ix 3) is retired. Stamp from the GPT feed instead. |
 
 <Note>
 Code **0 `NotImplemented`** exists in `error.rs` but is never returned live — every instruction

@@ -2,7 +2,7 @@
 id: spec-er-ai-oracle
 title: Ephemeral Rollups + external AI oracle
 tags: [spec, magicblock, ephemeral-rollups, ai-oracle, architecture]
-updated: 2026-09-08
+updated: 2026-09-09
 source: programs/oracles/src/{instruction.rs,state,cpi/{magicblock,gpt_oracle},processor}
 ---
 
@@ -93,7 +93,10 @@ governance SetAiOracleConfig(llm_context, max_staleness_slots, source=MAGICBLOCK
   → existing FinalizeAiClaims → Challenge → FinalizeOracle
 ```
 
-When `enabled=0`, `SubmitAiClaim` is unchanged (in-house runner still works).
+When `enabled=0`, `RequestAiOracle` and `ApplyExternalAiClaim` reject
+(`AiOracleDisabled`). `SubmitAiClaim` (Ix 3) is retired and always returns
+`SubmitAiClaimRetired`. Governance must enable the GPT config for any AI stamps;
+otherwise every proposer is a no-show at finalize.
 
 `ApplyExternalAiClaim` rejects: wrong phase, closed window, stale feed
 (`Clock.slot - feed.slot > max_staleness_slots`), option out of range
@@ -106,7 +109,7 @@ Flip-slash semantics are unchanged: `claim_option != original_option` marks
 
 - TS + Rust SDKs grow builders, PDAs, decoders, parity pins.
 - App: `VITE_MAGIC_ROUTER_URL` (Magic Router as the RPC when set); ER session
-  + AI feed panel on oracle detail; Request-AI + Apply-claim next to SubmitAiClaim.
+  + AI feed panel on oracle detail; Request-AI + Apply-claim (no in-house submit).
 - Runner: `run --request-ai` (alias `--push-feed`) sends `RequestAiOracle` with
   the assembled user prompt; `--llm-context` appends the GPT CPI accounts.
 - Indexer: Ix 28 is `request_ai_oracle`; child tags 9 and 11 (`oracle` still at offset 8).

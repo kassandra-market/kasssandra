@@ -15,6 +15,9 @@ pub enum Ix {
     SubmitFact = 0,
     VoteFact = 1,
     FinalizeFacts = 2,
+    /// Retired. Discriminant kept for wire stability; the processor returns
+    /// [`crate::error::KassandraError::SubmitAiClaimRetired`]. Use
+    /// [`Ix::ApplyExternalAiClaim`] after the GPT-oracle callback writes the feed.
     SubmitAiClaim = 3,
     OpenChallenge = 4,
     SettleChallenge = 5,
@@ -135,8 +138,8 @@ pub enum Ix {
     /// feed is written later by the 8-byte GPT-oracle callback.
     RequestAiOracle = 28,
     /// In `Phase::AiClaim`, create this proposer's `AiClaim` from the live
-    /// `AiOracleFeed` (one proposer per tx). Replaces the in-house runner as
-    /// the protocol's source of truth when the feed is enabled.
+    /// MagicBlock GPT `AiOracleFeed` (one proposer per tx). This is the only
+    /// way to stamp an AI claim.
     ApplyExternalAiClaim = 29,
     // Future variants are APPENDED here with the next discriminant; add a
     // matching arm to `from_u8` below.

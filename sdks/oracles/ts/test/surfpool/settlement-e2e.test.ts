@@ -79,7 +79,6 @@ import {
   finalizeFacts,
   finalizeOracle,
   finalizeProposals,
-  submitAiClaim,
   submitFact,
   sweepOracle,
   voteFact,
@@ -87,6 +86,7 @@ import {
 import * as pda from "../../src/pda.js";
 
 import { toHex, tokenAccountBytes } from "./harness.js";
+import { stampGptClaimForAuthority } from "../helpers/gptFeed.js";
 import {
   ENABLED,
   type Fixture,
@@ -184,14 +184,19 @@ describe.skipIf(!ENABLED)("surfpool settlement tail (claim/close/sweep, real pro
     expect(decodeFact(await fetchAccount(f, agreedFact)).agreed).toBe(true);
     expect(decodeFact(await fetchAccount(f, rejectedFact)).agreed).toBe(false);
 
-    // ---- submit_ai_claim ×3 (claims 0/0/1 → plurality option 0) -------------
+    // ---- apply GPT-feed claims ×3 (0/0/1 → plurality option 0) --------------
     const claimOptions = [0, 0, 1];
     for (let i = 0; i < props.length; i++) {
-      await sendIx(f, await submitAiClaim({
-        oracle, proposer: props[i].proposer, authority: props[i].authority.publicKey,
-        modelId: new Uint8Array(32).fill(0xa1), paramsHash: new Uint8Array(32).fill(0xb2),
-        ioHash: new Uint8Array(32).fill(0xc3), option: claimOptions[i],
-      }), [props[i].authority]);
+      await sendIx(
+        f,
+        await stampGptClaimForAuthority(
+          (pk, u) => f.harness.setAccount(pk, u),
+          oracle,
+          props[i].authority,
+          claimOptions[i],
+        ),
+        [props[i].authority],
+      );
     }
 
     // ---- finalize_ai_claims → Challenge → finalize_oracle → Resolved(0) -----

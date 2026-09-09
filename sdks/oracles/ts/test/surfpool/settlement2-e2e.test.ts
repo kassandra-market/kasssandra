@@ -26,7 +26,6 @@ import {
   finalizeFacts,
   finalizeOracle,
   finalizeProposals,
-  submitAiClaim,
   submitFact,
   sweepOracle,
   voteFact,
@@ -49,6 +48,7 @@ import {
   setupFixture,
   tokenBalance,
 } from "./settlement-harness.js";
+import { stampGptClaimForAuthority } from "../helpers/gptFeed.js";
 
 describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real program)", () => {
   let f: Fixture;
@@ -102,13 +102,18 @@ describe.skipIf(!ENABLED)("surfpool settlement tail — invalid-deadend (real pr
     await advancePastPhaseEnd(f, oracle);
     await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [fact] }));
 
-    // Distinct claim options 0/1 → plurality tie → InvalidDeadend.
+    // Distinct GPT-feed options 0/1 → plurality tie → InvalidDeadend.
     for (let i = 0; i < props.length; i++) {
-      await sendIx(f, await submitAiClaim({
-        oracle, proposer: props[i].proposer, authority: props[i].authority.publicKey,
-        modelId: new Uint8Array(32).fill(0xa1), paramsHash: new Uint8Array(32).fill(0xb2),
-        ioHash: new Uint8Array(32).fill(0xc3), option: i,
-      }), [props[i].authority]);
+      await sendIx(
+        f,
+        await stampGptClaimForAuthority(
+          (pk, u) => f.harness.setAccount(pk, u),
+          oracle,
+          props[i].authority,
+          i,
+        ),
+        [props[i].authority],
+      );
     }
     await advancePastPhaseEnd(f, oracle);
     await sendIx(f, await finalizeAiClaims({ oracle, proposers: props.map((p) => p.proposer) }));

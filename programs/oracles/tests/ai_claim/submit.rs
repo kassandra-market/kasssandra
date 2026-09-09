@@ -2,7 +2,6 @@ use super::*;
 
 use kassandra_oracles_program::{error::KassandraError, state::CLAIM_OPTION_NONE};
 use solana_instruction_error::InstructionError;
-use solana_keypair::Keypair;
 use solana_transaction_error::TransactionError;
 
 #[test]
@@ -58,7 +57,7 @@ fn submit_flipped_claim_marks_flipped() {
 }
 
 #[test]
-fn submit_wrong_authority_fails() {
+fn submit_ai_claim_ix_is_retired() {
     let (mut ctx, oracle) = seed_ai(&[
         ProposerSpec {
             option: 0,
@@ -70,27 +69,7 @@ fn submit_wrong_authority_fails() {
         },
     ]);
     let proposer_pda = ctx.proposers(oracle)[0].pda;
-    let (claim, _) = claim_pda(&ctx.program_id, &oracle, &proposer_pda);
-
-    // A signer who is NOT the proposer's authority.
-    let attacker = Keypair::new();
-    ctx.svm.airdrop(&attacker.pubkey(), 1_000_000_000).unwrap();
-    let ix = submit_ai_claim_ix(
-        &ctx,
-        oracle,
-        proposer_pda,
-        claim,
-        attacker.pubkey(),
-        submit_payload(0),
-    );
-    let err = ctx.send(ix, &[&attacker]).unwrap_err().err;
-    assert_eq!(
-        err,
-        TransactionError::InstructionError(
-            0,
-            InstructionError::Custom(KassandraError::Unauthorized as u32),
-        ),
-    );
+    assert_submit_ai_claim_retired(&mut ctx, oracle, proposer_pda);
 }
 
 #[test]

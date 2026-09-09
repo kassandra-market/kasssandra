@@ -218,10 +218,13 @@ phase semantics are in [Phases](/protocol/phases).
 ## AI claim
 
 <AccordionGroup>
-  <Accordion title="Ix 3 · SubmitAiClaim — submit a categorical claim" icon="robot">
-    A locked-in proposer submits a categorical AI claim + reproducibility metadata; records
-    `claim_option` on the proposer (marking `flipped` if it differs from `original_option`). No token
-    CPI (`processor/submit_ai_claim.rs`).
+  <Accordion title="Ix 3 · SubmitAiClaim — RETIRED" icon="robot">
+    Discriminant kept for wire stability. The processor always returns
+    `SubmitAiClaimRetired` (43). Stamp proposers from the MagicBlock GPT feed via
+    `RequestAiOracle` + callback + `ApplyExternalAiClaim`.
+
+    **Accounts / payload:** historical `submit_ai_claim` layout (97-byte payload). Builders
+    still encode it so clients can prove the retired ix is rejected.
 
     **Accounts:** `0` oracle (writable) · `1` proposer PDA (writable, the submitter's) · `2` ai_claim
     PDA (writable, uninit; `[b"claim", oracle, proposer]`) · `3` authority (signer, writable; ==
@@ -510,7 +513,8 @@ phase semantics are in [Phases](/protocol/phases).
   <Accordion title="Ix 29 · ApplyExternalAiClaim — stamp from feed" icon="stamp">
     In `Phase::AiClaim`, create this proposer's `AiClaim` from the live `AiOracleFeed`
     (`processor/apply_external_ai_claim.rs`). One proposer per transaction. Flip-slash
-    semantics match `submit_ai_claim`. When the feed is disabled, use `SubmitAiClaim` instead.
+    semantics: `feed.option != original_option` marks `flipped`. Disabled config →
+    `AiOracleDisabled` (no in-house fallback).
 
     **Accounts:** `0` oracle · `1` proposer (writable) · `2` claim (writable, uninit) ·
     `3` config · `4` feed · `5` payer (signer, writable) · `6` system program. **Payload:** empty.

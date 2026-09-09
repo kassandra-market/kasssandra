@@ -7,9 +7,10 @@ use super::Pubkey;
 /// Protocol singleton configuring MagicBlock's solana-gpt-oracle. `size_of == 48`.
 ///
 /// PDA `[b"ai_oracle_config"]`. Created/updated by `set_ai_oracle_config`
-/// (DAO-gated). When `enabled == 0` the in-house `submit_ai_claim` path is the
-/// only AI round; when `enabled == 1`, `request_ai_oracle` CPIs into
-/// MagicBlock and `callback_from_gpt_oracle` writes [`AiOracleFeed`].
+/// (DAO-gated). When `enabled == 0`, `request_ai_oracle` / `apply_external_ai_claim`
+/// reject (`AiOracleDisabled`) — MagicBlock is the only AI source. When
+/// `enabled == 1`, `request_ai_oracle` CPIs into MagicBlock and
+/// `callback_from_gpt_oracle` writes [`AiOracleFeed`].
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct AiOracleConfig {

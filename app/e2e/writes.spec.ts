@@ -9,7 +9,7 @@ import { getAccountData, oracleAt, factAt, poll, proposerAt, setClockTo } from '
  * Browser E2E covering every participant write the protocol allows, each driven
  * through the real app UI with the funded e2e wallet against a surfpool oracle
  * seeded (by globalSetup) into the phase where the action is legal:
- *   propose · submitFact · voteFact · submitAiClaim · finalize (crank) · claim.
+ *   propose · submitFact · voteFact · apply GPT feed · finalize (crank) · claim.
  *
  * Each write signs + sends + confirms on the local validator (a real funded
  * keypair), and is asserted by its PERSISTENT ON-CHAIN effect (the transient UI
@@ -74,17 +74,11 @@ test('voteFact: approve a fact with a stake', async ({ page }) => {
   await poll(() => factAt(o.fact!), (x) => x.approveStake >= 1_000_000_000n)
 })
 
-test('submitAiClaim: a locked-in proposer stamps its AI claim', async ({ page }) => {
+test('applyAiClaim: a locked-in proposer stamps its AI claim from the GPT feed', async ({ page }) => {
   const o = wallet.oracles.aiClaim
   await openOracle(page, o.address)
-  // Participation forms live under the Manage tab. Paste the payload produced by the
-  // REAL runner (mock Anthropic) in globalSetup — not fabricated hashes — through the
-  // form's "Paste runner output" mode.
   await page.getByRole('tab', { name: /Manage/ }).click()
-  await page.getByRole('radio', { name: 'Paste runner output' }).click()
-  await page.getByPlaceholder(/"model_id".*"io_hash"/s).fill(o.runner!)
-  await page.getByRole('button', { name: 'Submit AI claim' }).click()
-  // On-chain: the wallet's Proposer now carries a claim option (was 0xFF = none).
+  await page.getByRole('button', { name: 'Apply feed' }).click()
   await poll(() => proposerAt(o.proposer!), (x) => x.claimOption !== 0xff)
 })
 

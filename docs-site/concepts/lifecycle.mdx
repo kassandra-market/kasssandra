@@ -94,8 +94,7 @@ live oracle.
   <Step title="AiClaim — apply the fixed interpretation">
     When the external feed is enabled, anyone can `request_ai_oracle` (`Ix=28`); MagicBlock
     solana-gpt-oracle later callbacks and writes `AiOracleFeed`. `apply_external_ai_claim`
-    (`Ix=29`) stamps that option onto each proposer. When the feed is disabled, each locked-in
-    proposer still reruns the in-house runner and submits with `submit_ai_claim` (`Ix=3`).
+    (`Ix=29`) stamps that option onto each proposer. `submit_ai_claim` (`Ix=3`) is retired.
     The value may change from the original (this can collapse the dispute). See
     [AI claims](/concepts/ai-claims).
   </Step>

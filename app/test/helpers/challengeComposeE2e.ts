@@ -32,7 +32,8 @@ import {
   tokenAccountAmount,
   tokenAccountBytes,
 } from "../../../sdks/oracles/ts/test/surfpool/harness.ts";
-import { buildSubmitAiClaimIxs } from "../../src/data/actions/challenge.ts";
+import { writeGptFeed } from "../../../sdks/oracles/ts/test/helpers/gptFeed.ts";
+import { buildApplyExternalAiClaimIxs } from "../../src/data/actions/challenge.ts";
 import { keypairSender, sendAndConfirm } from "../../src/data/send.ts";
 
 export const BOND = 1_000_000_000n;
@@ -97,15 +98,11 @@ export async function frontDoorToChallenge(f: Fixture, nonce: bigint): Promise<C
   await sendIx(f, await finalizeFacts({ nonce, baseMint: f.baseMint.publicKey, tail: [fact] }));
 
   for (let i = 0; i < proposerPdas.length; i++) {
-    const ixs = await buildSubmitAiClaimIxs({
+    await writeGptFeed((pk, u) => f.harness.setAccount(pk, u), oracle, aiOption);
+    const ixs = await buildApplyExternalAiClaimIxs({
       oracle,
-      proposer: proposerPdas[i],
-      submitter: authorities[i].publicKey,
-      modelId: new Uint8Array(32).fill(0xa1),
-      paramsHash: new Uint8Array(32).fill(0xb2),
-      ioHash: new Uint8Array(32).fill(0xc3),
-      option: aiOption,
-      optionsCount: 2,
+      proposerAuthority: authorities[i].publicKey,
+      payer: authorities[i].publicKey,
     });
     await sendAndConfirm(f.harness.connection, keypairSender(f.harness.connection, authorities[i]), ixs);
   }

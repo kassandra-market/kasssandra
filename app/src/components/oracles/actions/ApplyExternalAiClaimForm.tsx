@@ -10,7 +10,7 @@ import { WriteStatusRegion } from './WriteStatusRegion'
 /**
  * Permissionless crank: apply the attested `AiOracleFeed` onto the connected
  * wallet's proposer (creates that proposer's `AiClaim` from the feed). Shown
- * next to the in-house `SubmitAiClaimForm` when the external feed exists.
+ * next to `RequestAiOracleForm` once the GPT callback has written a feed.
  */
 export function ApplyExternalAiClaimForm({
   pubkey,

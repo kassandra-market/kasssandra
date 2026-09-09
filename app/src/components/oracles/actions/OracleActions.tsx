@@ -12,7 +12,6 @@ import {
 } from '../../../data/actions/finalize'
 import { ProposeForm } from './ProposeForm'
 import { SubmitFactForm } from './SubmitFactForm'
-import { SubmitAiClaimForm } from './SubmitAiClaimForm'
 import { ApplyExternalAiClaimForm } from './ApplyExternalAiClaimForm'
 import { RequestAiOracleForm } from './RequestAiOracleForm'
 import { FinalizeControl } from './FinalizeControl'
@@ -123,7 +122,6 @@ export function OracleActions({
     case Phase.AiClaim:
       return (
         <div className="flex flex-col gap-4">
-          <SubmitAiClaimForm pubkey={pubkey} oracle={oracle} refetch={refetch} />
           <RequestAiOracleForm pubkey={pubkey} refetch={refetch} />
           <ApplyExternalAiClaimForm pubkey={pubkey} feed={aiFeed} refetch={refetch} />
           <FinalizeControl

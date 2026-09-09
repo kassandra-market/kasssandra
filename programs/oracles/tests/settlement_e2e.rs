@@ -277,22 +277,9 @@ fn drive_real_fact_vote_deadend(ctx: &mut TestCtx) -> DrivenFactVoteDeadend {
         "bond_pool = rejected submitter stake + floor(approve·1/2)"
     );
 
-    // ---- submit_ai_claim ×2 (DISTINCT options 0/1 → tie) -------------------
-    for (i, (auth, pda)) in authorities.iter().zip(&proposer_pdas).enumerate() {
-        ctx.svm.airdrop(&auth.pubkey(), 1_000_000_000).unwrap();
-        let (claim, _) = claim_pda(&ctx.program_id, &oracle, pda);
-        ctx.send(
-            submit_ai_claim_ix(
-                ctx,
-                oracle,
-                *pda,
-                claim,
-                auth.pubkey(),
-                submit_ai_payload(i as u8),
-            ),
-            &[auth],
-        )
-        .expect("submit_ai_claim");
+    // ---- apply GPT-feed claims ×2 (DISTINCT options 0/1 → tie) --------------
+    for (i, pda) in proposer_pdas.iter().enumerate() {
+        ctx.stamp_gpt_claim_ok(oracle, *pda, i as u8);
     }
 
     // ---- finalize_ai_claims → Challenge ------------------------------------

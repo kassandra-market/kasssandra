@@ -322,7 +322,7 @@ with the former in-house pusher `authority` field). **PDA:** `[b"ai_oracle_confi
 | --- | --- | --- | --- |
 | `account_type` | u8 | 0 | `AccountType::AiOracleConfig` |
 | `bump` | u8 | 1 | PDA bump |
-| `enabled` | u8 | 2 | `0` → in-house `submit_ai_claim` only; `1` → GPT feed path |
+| `enabled` | u8 | 2 | `0` → GPT path disabled (no AI stamps); `1` → GPT feed path |
 | `source` | u8 | 3 | `0` reserved / `1` MagicBlock / `2` Switchboard (reserved) |
 | `_pad` | [u8;4] | 4 | padding |
 | `llm_context` | Pubkey | 8 | MagicBlock `ContextAccount` |

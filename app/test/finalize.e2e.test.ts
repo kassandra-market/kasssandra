@@ -34,7 +34,6 @@ import {
   decodeAiClaim,
   decodeOracle,
   propose,
-  submitAiClaim,
   submitFact,
   voteFact,
 } from "@kassandra-market/oracles";
@@ -48,6 +47,7 @@ import {
   toHex,
   tokenAccountBytes,
 } from "../../sdks/oracles/ts/test/surfpool/harness.ts";
+import { stampGptClaimForAuthority } from "../../sdks/oracles/ts/test/helpers/gptFeed.ts";
 import {
   buildAdvancePhaseIxs,
   buildFinalizeAiClaimsIxs,
@@ -195,15 +195,12 @@ describe.skipIf(!ENABLED)("finalize/crank action layer over a real surfpool clus
     for (let i = 0; i < proposerPdas.length; i++) {
       await sendIx(
         f,
-        await submitAiClaim({
+        await stampGptClaimForAuthority(
+          (pk, u) => f.harness.setAccount(pk, u),
           oracle,
-          proposer: proposerPdas[i],
-          authority: authorities[i].publicKey,
-          modelId: new Uint8Array(32).fill(0x11),
-          paramsHash: new Uint8Array(32).fill(0x22),
-          ioHash: new Uint8Array(32).fill(0x33),
-          option: aiOption,
-        }),
+          authorities[i],
+          aiOption,
+        ),
         [authorities[i]],
       );
     }

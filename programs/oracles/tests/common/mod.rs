@@ -44,8 +44,8 @@ use kassandra_oracles_program::cpi::metadao_v06 as md6;
 use kassandra_oracles_program::instruction::Ix;
 use kassandra_oracles_program::reward;
 use kassandra_oracles_program::state::{
-    AccountType, AiClaim, Fact, FactVote, Market, Oracle, Phase, Proposer, CLAIM_OPTION_NONE,
-    VOTE_APPROVE, VOTE_DUPLICATE,
+    AccountType, AiClaim, AiOracleConfig, AiOracleFeed, Fact, FactVote, Market, Oracle, Phase,
+    Proposer, AI_ORACLE_SOURCE_MAGICBLOCK, CLAIM_OPTION_NONE, VOTE_APPROVE, VOTE_DUPLICATE,
 };
 use litesvm::{types::TransactionResult, LiteSVM};
 use solana_account::Account;
@@ -357,6 +357,9 @@ mod claim_seed;
 #[allow(unused_imports)]
 pub use claim_seed::*;
 mod claim_ix;
+mod gpt_ai;
+#[allow(unused_imports)]
+pub use gpt_ai::*;
 mod ix_builders;
 #[allow(unused_imports)]
 pub use ix_builders::*;

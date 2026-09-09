@@ -17,12 +17,12 @@ import {
   finalizeProposals,
   pda,
   propose,
-  submitAiClaim,
   submitFact,
   voteFact,
 } from '@kassandra-market/oracles'
 
 import { toHex } from '../../sdks/oracles/ts/test/surfpool/harness.ts'
+import { stampGptClaimForAuthority } from '../../sdks/oracles/ts/test/helpers/gptFeed.ts'
 import {
   type RunnerClaim,
   type SeedCtx,
@@ -306,30 +306,26 @@ export async function driveToResolvedFull(
 }
 
 /**
- * Submit an AI claim as `authority` for its `proposer`, using hashes produced by
- * the REAL runner (mock Anthropic — see {@link runnerClaim}), not fabricated ones.
- * Returns the runner claim so callers can reuse its payload (e.g. the browser
- * paste-mode test).
+ * Stamp an AI claim as `authority` for its proposer from a fabricated MagicBlock
+ * GPT feed (`apply_external_ai_claim`). Ix 3 `submit_ai_claim` is retired.
  */
 export async function submitAiClaimAs(
   ctx: SeedCtx,
   oracle: Address,
-  proposer: Address,
+  _proposer: Address,
   authority: Keypair,
   option: number,
 ): Promise<RunnerClaim> {
   const claim = await runnerClaim(option)
   await sendIx(
     ctx,
-    await submitAiClaim({
-      oracle: oracle.toString(),
-      proposer: proposer.toString(),
-      authority: authority.publicKey.toString(),
-      modelId: claim.modelId,
-      paramsHash: claim.paramsHash,
-      ioHash: claim.ioHash,
-      option: claim.option,
-    }),
+    await stampGptClaimForAuthority(
+      (pk, u) => ctx.harness.setAccount(pk, u),
+      oracle,
+      authority,
+      option,
+      { modelId: claim.modelId, paramsHash: claim.paramsHash, ioHash: claim.ioHash },
+    ),
     [authority],
   )
   return claim

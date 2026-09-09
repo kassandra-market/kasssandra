@@ -22,6 +22,35 @@ export interface AiOracleFeed {
   updatedBy: Address;
 }
 
+/** Encode an `AiOracleFeed` account (248 bytes). */
+export function encodeAiOracleFeed(feed: {
+  bump: number;
+  option: number;
+  oracle: Address;
+  slot: bigint;
+  timestamp: bigint;
+  modelId?: Uint8Array;
+  paramsHash?: Uint8Array;
+  ioHash?: Uint8Array;
+  attestation?: Uint8Array;
+  updatedBy?: Address;
+}): Uint8Array {
+  const data = new Uint8Array(ACCOUNT_SIZES.AiOracleFeed);
+  const dv = new DataView(data.buffer);
+  data[0] = AccountType.AiOracleFeed;
+  data[1] = feed.bump;
+  data[2] = feed.option;
+  data.set(feed.oracle.toBytes(), 8);
+  dv.setBigUint64(40, feed.slot, true);
+  dv.setBigInt64(48, feed.timestamp, true);
+  data.set(feed.modelId ?? new Uint8Array(32).fill(0xaa), 56);
+  data.set(feed.paramsHash ?? new Uint8Array(32).fill(0xbb), 88);
+  data.set(feed.ioHash ?? new Uint8Array(32).fill(0xcc), 120);
+  data.set(feed.attestation ?? new Uint8Array(64), 152);
+  if (feed.updatedBy) data.set(feed.updatedBy.toBytes(), 216);
+  return data;
+}
+
 /** Decode an `AiOracleFeed` account from its raw bytes. Throws on wrong size or tag. */
 export function decodeAiOracleFeed(data: Uint8Array): AiOracleFeed {
   assertAccount(data, AccountType.AiOracleFeed, ACCOUNT_SIZES.AiOracleFeed, "AiOracleFeed");
