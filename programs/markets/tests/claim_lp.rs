@@ -76,7 +76,7 @@ pub(crate) fn set_token_at(ctx: &mut TestCtx, addr: Pubkey, mint: Pubkey, owner:
         .unwrap();
 }
 
-pub(crate) const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
+pub(crate) const PROPOSAL: u8 = 0; // SubjectStatus::Open (non-terminal)
 pub(crate) const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 pub(crate) const SEED_A: u64 = 600_000_000; // creator's stake
 pub(crate) const SEED_B: u64 = 400_000_000; // second contributor's stake

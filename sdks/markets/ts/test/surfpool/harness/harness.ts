@@ -368,7 +368,7 @@ export class MarketSurfpoolHarness {
     const data = oracleBytes(params.optionsCount ?? 2, params.phase, params.resolvedOption ?? 0xff);
     await this.setAccount(key.toString(), {
       lamports: FAB_LAMPORTS,
-      owner: KASSANDRA_PROGRAM_ID.toString(),
+      owner: MARKET_PROGRAM_ID.toString(),
       executable: false,
       data: toHex(data),
     });
@@ -377,7 +377,7 @@ export class MarketSurfpoolHarness {
 
   /** Re-seed `oracle` to Resolved (phase 7) with the winning option. */
   async setOracleResolved(oracle: Address, resolvedOption: number): Promise<void> {
-    await this.seedOracle({ phase: 7, resolvedOption, at: oracle });
+    await this.seedOracle({ phase: 1, resolvedOption, at: oracle });
   }
 
   /** Re-seed `oracle` to a new phase (keeps a sentinel resolved_option). */

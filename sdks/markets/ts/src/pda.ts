@@ -13,6 +13,7 @@
 import { Address } from "@solana/web3.js";
 
 import { ATA_PROGRAM_ID, BPF_UPGRADEABLE_LOADER_ID, MARKET_PROGRAM_ID, TOKEN_PROGRAM_ID } from "./constants.js";
+import { u64LE } from "./bytes.js";
 
 /** Anything that can name an account: a web3.js `Address`/`PublicKey` or a base58 string. */
 export type AddressInput = Address | string;
@@ -48,6 +49,11 @@ export function config(programId?: Address): Promise<Pda> {
  */
 export function programData(programId: Address = MARKET_PROGRAM_ID): Promise<Pda> {
   return derive([pubkeyBytes(programId)], BPF_UPGRADEABLE_LOADER_ID);
+}
+
+/** GPT Subject PDA — seeds `[b"subject", nonce_u64_le]`. */
+export function subject(nonce: number | bigint, programId?: Address): Promise<Pda> {
+  return derive([enc.encode("subject"), u64LE(nonce)], programId);
 }
 
 /**

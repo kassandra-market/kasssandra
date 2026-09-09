@@ -1,7 +1,7 @@
 //! Low-level account fabrication: SPL mints/token accounts and Kassandra oracle
 //! / market state stamped directly into the SVM.
 
-use super::{kass_oracle_bytes, kass_oracle_owner, TestCtx};
+use super::{subject_bytes, TestCtx};
 use solana_sdk::{account::Account, pubkey::Pubkey, signature::Signer};
 use spl_token::{
     solana_program::{program_option::COption, program_pack::Pack},
@@ -143,12 +143,12 @@ impl TestCtx {
             .amount
     }
 
-    /// Fabricate a minimal Kassandra `Oracle` account (owned by the Kassandra
-    /// program) carrying the given `options_count` and `phase`, so market tests
-    /// can point `create_market` at a real-looking oracle. Returns its address.
+    /// Fabricate a markets-owned [`Subject`] (GPT resolution source) carrying the
+    /// given `options_count` and `status`, so market tests can point `create_market`
+    /// at a real-looking subject. Returns its address.
     pub fn seed_kass_oracle(&mut self, options_count: u8, phase: u8) -> Pubkey {
         let addr = Pubkey::new_unique();
-        let data = kass_oracle_bytes(options_count, phase, 0);
+        let data = subject_bytes(options_count, phase, 0);
         let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
         self.svm
             .set_account(
@@ -156,7 +156,7 @@ impl TestCtx {
                 Account {
                     lamports,
                     data,
-                    owner: kass_oracle_owner(),
+                    owner: self.program_id,
                     executable: false,
                     rent_epoch: 0,
                 },
@@ -204,11 +204,9 @@ impl TestCtx {
         market
     }
 
-    /// Rewrite an existing fabricated Kassandra oracle account to a new phase
-    /// (keeps options_count = 2). Lets a test move an oracle to a terminal phase
-    /// after a market has been created against it.
+    /// Rewrite an existing fabricated Subject to a new status (keeps options_count = 2).
     pub fn set_oracle_phase(&mut self, oracle: Pubkey, phase: u8) {
-        let data = kass_oracle_bytes(2, phase, 0);
+        let data = subject_bytes(2, phase, 0);
         let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
         self.svm
             .set_account(
@@ -216,7 +214,7 @@ impl TestCtx {
                 solana_sdk::account::Account {
                     lamports,
                     data,
-                    owner: kass_oracle_owner(),
+                    owner: self.program_id,
                     executable: false,
                     rent_epoch: 0,
                 },
@@ -240,9 +238,9 @@ impl TestCtx {
         options_count: u8,
         resolved_option: u8,
     ) {
-        let data = kass_oracle_bytes(
+        let data = subject_bytes(
             options_count,
-            kassandra_markets_program::kass_oracle::PHASE_RESOLVED,
+            kassandra_markets_program::state::SubjectStatus::Resolved.as_u8(),
             resolved_option,
         );
         let lamports = self.svm.minimum_balance_for_rent_exemption(data.len());
@@ -252,7 +250,7 @@ impl TestCtx {
                 solana_sdk::account::Account {
                     lamports,
                     data,
-                    owner: kass_oracle_owner(),
+                    owner: self.program_id,
                     executable: false,
                     rent_epoch: 0,
                 },

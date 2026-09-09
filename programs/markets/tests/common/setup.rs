@@ -16,7 +16,16 @@ impl TestCtx {
     /// `kassandra_markets_program` deployed so tests can submit real
     /// transactions via [`TestCtx::send`].
     pub fn new() -> Self {
-        let mut svm = LiteSVM::new();
+        Self::from_svm(LiteSVM::new())
+    }
+
+    /// Same as [`Self::new`] but with sigverify disabled so GPT identity PDA
+    /// can be marked as a signer without a keypair.
+    pub fn new_no_sigverify() -> Self {
+        Self::from_svm(LiteSVM::new().with_sigverify(false))
+    }
+
+    fn from_svm(mut svm: LiteSVM) -> Self {
         let payer = Keypair::new();
         svm.airdrop(&payer.pubkey(), 1_000_000_000_000).unwrap();
 
@@ -26,10 +35,6 @@ impl TestCtx {
             include_bytes!("../../../../target/deploy/kassandra_markets_program.so"),
         );
 
-        // Fabricate the program's BPF-Upgradeable-Loader `ProgramData` account so
-        // `init_config` (which requires the caller be the program's upgrade
-        // authority) accepts the canonical `payer`. The upgrade authority stored
-        // here MUST equal the key that signs `init_config` — the harness `payer`.
         set_program_data(&mut svm, &program_id, &payer.pubkey());
 
         Self {
@@ -109,6 +114,22 @@ impl TestCtx {
             &all_signers,
             blockhash,
         );
+        self.svm.send_transaction(tx)
+    }
+
+    /// Sign only the payer, leaving other required signatures as defaults.
+    /// Use with [`Self::new_no_sigverify`] when a PDA must appear as a signer
+    /// (GPT-oracle identity) without a corresponding keypair.
+    pub fn send_payer_only(&mut self, ix: Instruction) -> TransactionResult {
+        use solana_sdk::signature::Signature;
+        let blockhash = self.svm.latest_blockhash();
+        let message = solana_sdk::message::Message::new(&[ix], Some(&self.payer.pubkey()));
+        let n = message.header.num_required_signatures as usize;
+        let mut tx = Transaction {
+            signatures: vec![Signature::default(); n],
+            message,
+        };
+        tx.partial_sign(&[&self.payer], blockhash);
         self.svm.send_transaction(tx)
     }
 

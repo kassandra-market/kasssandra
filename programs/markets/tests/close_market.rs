@@ -13,8 +13,8 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-const PROPOSAL: u8 = 1; // kassandra Phase::Proposal (non-terminal)
-const RESOLVED: u8 = 7; // kassandra Phase::Resolved (terminal)
+const PROPOSAL: u8 = 0; // SubjectStatus::Open (non-terminal)
+const RESOLVED: u8 = 1; // SubjectStatus::Resolved (terminal)
 const MIN_LIQ: u64 = 1_000_000_000; // 1 SOL (9 dp)
 const SEED_A: u64 = 600_000_000; // creator's stake
 const SEED_B: u64 = 400_000_000; // second contributor's stake (A + B == MIN_LIQ)

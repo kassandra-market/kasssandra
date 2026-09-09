@@ -11,6 +11,8 @@ fn account_sizes_are_stable() {
     assert_eq!(Contribution::LEN, 96);
     assert_eq!(size_of::<ErSession>(), ErSession::LEN);
     assert_eq!(ErSession::LEN, 96);
+    assert_eq!(size_of::<Subject>(), Subject::LEN);
+    assert_eq!(Subject::LEN, 88);
 }
 
 #[test]
@@ -74,4 +76,13 @@ fn field_offsets_are_pinned() {
     assert_eq!(offset_of!(ErSession, commit_frequency_ms), 72);
     assert_eq!(offset_of!(ErSession, delegated_at), 80);
     assert_eq!(offset_of!(ErSession, last_commit_slot), 88);
+
+    assert_eq!(offset_of!(Subject, account_type), 0);
+    assert_eq!(offset_of!(Subject, options_count), 2);
+    assert_eq!(offset_of!(Subject, status), 3);
+    assert_eq!(offset_of!(Subject, resolved_option), 4);
+    assert_eq!(offset_of!(Subject, creator), 8);
+    assert_eq!(offset_of!(Subject, llm_context), 40);
+    assert_eq!(offset_of!(Subject, nonce), 72);
+    assert_eq!(offset_of!(Subject, resolved_slot), 80);
 }

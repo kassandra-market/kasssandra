@@ -40,7 +40,7 @@ use crate::{
     cpi::metadao,
     error::MarketError,
     processor::guards::{
-        assert_key, assert_owned_by_program, load_kassandra_oracle, load_market,
+        assert_key, assert_owned_by_program, load_subject, load_market,
         market_signer_seeds, write_market,
     },
     state::MarketStatus,
@@ -82,9 +82,9 @@ pub fn process(
 
     // --- oracle must be terminal --------------------------------------------
     assert_key(oracle_ai, &market.oracle)?;
-    let oracle = load_kassandra_oracle(oracle_ai)?;
-    let resolved = oracle.phase == crate::kass_oracle::PHASE_RESOLVED;
-    let deadend = oracle.phase == crate::kass_oracle::PHASE_INVALID_DEADEND;
+    let oracle = load_subject(oracle_ai, program_id)?;
+    let resolved = oracle.status == crate::state::SubjectStatus::Resolved.as_u8();
+    let deadend = oracle.status == crate::state::SubjectStatus::Void.as_u8();
     if !resolved && !deadend {
         return Err(MarketError::OracleNotTerminal.into());
     }

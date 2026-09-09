@@ -22,3 +22,5 @@ pub const IX_ADD_LIQUIDITY: u8 = 11;
 pub const IX_DELEGATE_MARKET: u8 = 12;
 pub const IX_COMMIT_MARKET: u8 = 13;
 pub const IX_UNDELEGATE_MARKET: u8 = 14;
+pub const IX_CREATE_SUBJECT: u8 = 15;
+pub const IX_REQUEST_AI: u8 = 16;

@@ -40,7 +40,7 @@ use crate::{
         contribution::record_contribution,
         guards::{
             assert_key, assert_signer, create_or_adopt_pda, create_or_adopt_token_account,
-            load_config, load_kassandra_oracle, rent_exempt_lamports, write_config,
+            load_config, load_subject, rent_exempt_lamports, write_config,
         },
     },
     state::{AccountType, Market, MarketStatus},
@@ -102,13 +102,13 @@ pub fn process(
         write_config(config_ai, &updated_config)?;
     }
 
-    let oracle = load_kassandra_oracle(oracle_ai)?;
-    // The oracle guarantees `options_count >= 2`; this sub-market binds to one of
+    let oracle = load_subject(oracle_ai, program_id)?;
+    // The subject guarantees `options_count >= 2`; this sub-market binds to one of
     // its outcomes, so `outcome_index` must index a real option.
     if outcome_index >= oracle.options_count {
         return Err(MarketError::InvalidOutcome.into());
     }
-    if oracle.phase >= crate::kass_oracle::PHASE_RESOLVED {
+    if oracle.is_terminal() {
         return Err(MarketError::OracleResolved.into());
     }
 

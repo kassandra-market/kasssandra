@@ -11,8 +11,8 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-const PROPOSAL: u8 = 1; // kassandra Phase::Proposal
-const RESOLVED: u8 = 7; // kassandra Phase::Resolved
+const PROPOSAL: u8 = 0; // SubjectStatus::Open
+const RESOLVED: u8 = 1; // SubjectStatus::Resolved
 
 const MIN_LIQUIDITY: u64 = 1_000_000_000;
 

@@ -9,7 +9,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
 };
 
-const PROPOSAL: u8 = 1; // kassandra Phase::Proposal
+const PROPOSAL: u8 = 0; // SubjectStatus::Open
 
 /// Stand up a funded market with the creator seeding 200M SOL.
 fn setup_funding_market() -> (TestCtx, Pubkey /*base*/, Pubkey /*market*/) {

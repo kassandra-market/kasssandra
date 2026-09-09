@@ -286,7 +286,7 @@ export class MarketTestCtx {
     at?: Address,
   ): Promise<Address> {
     const key = at ?? (await Keypair.generate()).publicKey;
-    this.putAccount(key, oracleBytes(optionsCount, phase, resolvedOption), KASSANDRA_PROGRAM_ID);
+    this.putAccount(key, oracleBytes(optionsCount, phase, resolvedOption), MARKET_PROGRAM_ID);
     return key;
   }
 

@@ -49,7 +49,7 @@ use crate::{
     },
     error::MarketError,
     processor::guards::{
-        assert_key, assert_owned_by_program, assert_signer, load_kassandra_oracle, load_market,
+        assert_key, assert_owned_by_program, assert_signer, load_subject, load_market,
         market_signer_seeds, rent_exempt_lamports, write_market,
     },
     state::MarketStatus,
@@ -90,10 +90,8 @@ pub fn process(
     // --- oracle must be NON-terminal (a resolved oracle can't be activated) --
     // Terminal == the same check `cancel` uses; a terminal oracle must take the
     // cancel/refund exit, not activate.
-    let oracle = load_kassandra_oracle(oracle_ai)?;
-    let terminal = oracle.phase == crate::kass_oracle::PHASE_RESOLVED
-        || oracle.phase == crate::kass_oracle::PHASE_INVALID_DEADEND;
-    if terminal {
+    let oracle = load_subject(oracle_ai, program_id)?;
+    if oracle.is_terminal() {
         return Err(MarketError::OracleResolved.into());
     }
 
