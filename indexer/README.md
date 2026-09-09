@@ -23,6 +23,7 @@ program accounts into Postgres and serves a JSON read + tx-gateway API.
 | Route | Description |
 |---|---|
 | `GET /health` | liveness |
+| `POST /rpc` | allowlisted JSON-RPC proxy (app Connection in gateway mode) |
 | `GET /api/config` | governed singleton Config |
 | `GET /api/markets` | every indexed Market |
 | `GET /api/markets/{pubkey}` | market detail (contributions, Subject enrichment, AMM reserves) |

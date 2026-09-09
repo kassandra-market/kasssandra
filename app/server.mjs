@@ -54,7 +54,7 @@ const MIME = {
 
 /**
  * Reverse-proxy a request to the private indexer at `upstreamPath`. Both the
- * oracle routes (reached under `/indexer/*`, prefix stripped → `/rpc`,`/events`…)
+ * oracle routes (reached under `/indexer/*`, prefix stripped → `/rpc`)
  * and the market routes (reached under `/api/*`, passed through unchanged — the
  * indexer serves them AT `/api/*`) hit the SAME single indexer.
  */

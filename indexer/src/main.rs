@@ -10,6 +10,7 @@
 mod config;
 mod db;
 mod market;
+mod ratelimit;
 mod reconcile;
 
 use std::str::FromStr;
@@ -55,6 +56,9 @@ async fn main() -> Result<()> {
         let market_state = market::api::AppState {
             client: client.clone(),
             rpc: Some(market_rpc.clone()),
+            rpc_url: rpc_url.clone(),
+            http: reqwest::Client::new(),
+            rpc_rate: Arc::new(ratelimit::RateLimiter::new(100.0, 50.0)),
         };
         let app = market::api::router(market_state);
         let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;

@@ -25,7 +25,9 @@ per-market `ErSession` (tag 4). Ctrl-C shuts the process down.
 `phase`, `resolvedOption`.
 
 There is **no** oracle tx-crawler, events log, `oracle_accounts`, oracle
-metadata, `/oracles/*`, `/events`, or `/rpc` gateway.
+metadata, `/oracles/*`, or `/events`. The `/rpc` JSON-RPC gateway remains
+(allowlisted methods + token bucket) so production gateway-mode Connections
+never hold a Solana RPC URL.
 
 ## Dependency stance
 

@@ -3,7 +3,7 @@
 //! Indexes Config / Market / Contribution / ErSession via a Carbon pipeline
 //! (gpa snapshot + optional program-subscribe live tail) into the
 //! `market_accounts` Postgres table, and serves a read + tx gateway under
-//! `/health` + `/api/*`.
+//! `/health` + `/rpc` + `/api/*`.
 //!
 //! The program id + AMM discriminator are sourced locally
 //! (`kassandra_markets_program::ID` + the const below) so this crate never

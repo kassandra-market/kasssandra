@@ -9,7 +9,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { openSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { Keypair } from '../../sdks/markets/ts/test/surfpool/harness/index.ts'
+import { Keypair } from '../../../sdks/markets/ts/test/surfpool/harness/index.ts'
 import { bootAndInit } from '../seed.ts'
 import { seedOpenSubject } from '../seed-drivers.ts'
 import { seedActiveMarket, swapOnPool, type ActiveMarketSeed } from '../seed-market-active.ts'
@@ -90,7 +90,7 @@ async function globalSetup(): Promise<() => Promise<void>> {
       SOLANA_WS_URL: `ws://127.0.0.1:${WS_PORT}`,
       DATABASE_URL: pg.databaseUrl,
       PORT: String(INDEXER_PORT),
-      COMMITMENT: 'confirmed',
+      INDEXER_RECONCILE_MS: '1000',
       RUST_LOG: 'info',
     },
     stdio: ['ignore', indexerLog, indexerLog],

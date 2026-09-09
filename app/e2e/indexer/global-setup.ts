@@ -8,7 +8,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { Keypair } from '../../sdks/markets/ts/test/surfpool/harness/index.ts'
+import { Keypair } from '../../../sdks/markets/ts/test/surfpool/harness/index.ts'
 import { bootAndInit } from '../seed.ts'
 import { seedOpenSubject } from '../seed-drivers.ts'
 import { seedActiveMarket } from '../seed-market-active.ts'
@@ -20,23 +20,30 @@ const PG_PORT = 5599
 const WALLET_FILE = join(process.cwd(), 'e2e', 'indexer', '.wallet.json')
 const INDEXER_BIN = join(process.cwd(), '..', 'target', 'release', 'kassandra-indexer')
 
-async function waitForIndexer(url: string, minEvents: number, timeoutMs = 60_000): Promise<void> {
+async function waitForIndexedMarket(
+  url: string,
+  market: string,
+  timeoutMs = 60_000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs
   let last = ''
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(`${url}/status`)
-      if (res.ok) {
-        const s = (await res.json()) as { eventCount: number }
-        last = JSON.stringify(s)
-        if (s.eventCount >= minEvents) return
+      const health = await fetch(`${url}/health`)
+      if (health.ok) {
+        const res = await fetch(`${url}/api/markets`)
+        if (res.ok) {
+          const body = (await res.json()) as { address?: string; pubkey?: string }[]
+          last = JSON.stringify(body.map((m) => m.address ?? m.pubkey))
+          if (body.some((m) => (m.address ?? m.pubkey) === market)) return
+        }
       }
     } catch {
       /* indexer still starting */
     }
     await new Promise((r) => setTimeout(r, 500))
   }
-  throw new Error(`indexer did not reach ${minEvents} events in ${timeoutMs}ms (last: ${last})`)
+  throw new Error(`indexer did not list market ${market} in ${timeoutMs}ms (last: ${last})`)
 }
 
 async function globalSetup(): Promise<() => Promise<void>> {
@@ -57,15 +64,13 @@ async function globalSetup(): Promise<() => Promise<void>> {
       RPC_URL: rpcUrl,
       DATABASE_URL: pg.databaseUrl,
       PORT: String(INDEXER_PORT),
-      COMMITMENT: 'confirmed',
-      POLL_INTERVAL_MS: '1000',
-      PROMOTE_INTERVAL_MS: '2000',
+      INDEXER_RECONCILE_MS: '1000',
       RUST_LOG: 'info',
     },
     stdio: ['ignore', 'inherit', 'inherit'],
   })
 
-  await waitForIndexer(indexerUrl, 1)
+  await waitForIndexedMarket(indexerUrl, seed.market)
 
   writeFileSync(
     WALLET_FILE,

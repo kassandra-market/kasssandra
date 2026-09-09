@@ -86,8 +86,6 @@ async function main(): Promise<void> {
       DATABASE_URL: pg.databaseUrl,
       PORT: String(INDEXER_PORT),
       COMMITMENT: 'confirmed',
-      POLL_INTERVAL_MS: '1000',
-      PROMOTE_INTERVAL_MS: '2000',
       SOLANA_WS_URL: wsUrl,
       INDEXER_RECONCILE_MS: '1000',
       RUST_LOG: 'info',
